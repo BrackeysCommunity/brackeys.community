@@ -1,6 +1,6 @@
 import type { PuzzleLayout, PuzzleMove } from "../../api.ts";
 import { Clock } from "../../shell/clock.ts";
-import { BROKE, DONE, GOING, type Model, type Status } from "../../shell/kit.ts";
+import { BROKE, GOING, until, within, type Model, type Status } from "../../shell/kit.ts";
 
 // A twitch is two numbers in the track: its step and the rows it shifts.
 const TWITCH = 2;
@@ -90,7 +90,7 @@ export class SpliceModel implements Model {
     this.k = i + 1;
     this.cur = cell;
     this.on = true;
-    return this.k === this.order.length ? DONE : GOING;
+    return until(this.k === this.order.length);
   }
 
   // Moves the iron. Set down, it solders the next position past any gap,
@@ -98,7 +98,7 @@ export class SpliceModel implements Model {
   // only; into any other cell it bridges the board.
   apply(m: PuzzleMove): Status {
     const a = m.a;
-    if (!Number.isInteger(a) || a < 0 || a >= this.cols * this.rows) return BROKE;
+    if (!within(a, this.cols * this.rows)) return BROKE;
     switch (m.c ?? 0) {
       case LIFT:
         this.on = false;

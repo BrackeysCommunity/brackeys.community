@@ -131,12 +131,6 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .pressure .hint {
-    animation: pressure-pulse 0.6s ease-in-out infinite alternate;
-  }
-}
-
-@keyframes pressure-pulse {
-  to {
-    opacity: 0.35;
+    animation: board-pulse 0.6s ease-in-out infinite alternate;
   }
 }

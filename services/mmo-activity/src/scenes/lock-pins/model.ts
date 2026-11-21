@@ -1,9 +1,9 @@
 import type { PuzzleLayout, PuzzleMove } from "../../api.ts";
-import { BROKE, DONE, GOING, type Model, type Status } from "../../shell/kit.ts";
+import { BROKE, Untimed, until, within, type Model, type Status } from "../../shell/kit.ts";
 
 // The pin lock, as sim/puzzle/pins.go plays it: the pins bind one at a
 // time, in order, and each holds only at its own height.
-export class PinsModel implements Model {
+export class PinsModel extends Untimed implements Model {
   /** Pins set so far. */
   k = 0;
   private readonly order: number[];
@@ -11,22 +11,19 @@ export class PinsModel implements Model {
   private readonly pins: number;
 
   constructor(private readonly layout: PuzzleLayout) {
+    super();
     this.order = layout.order ?? [];
     this.target = layout.target ?? [];
     this.pins = layout.size + (layout.false?.length ?? 0);
   }
 
-  run(at: number): [Status, number] {
-    return [GOING, at];
-  }
-
   // Leaves pin a at height b: the binding pin at its height holds;
   // anything else drops every pin.
   apply(m: PuzzleMove): Status {
-    if (!(m.a >= 0 && m.a < this.pins)) return BROKE;
+    if (!within(m.a, this.pins)) return BROKE;
     if (m.a === this.order[this.k] && (m.b ?? 0) === this.target[m.a]) this.k++;
     else this.k = 0;
-    return this.k === this.layout.size ? DONE : GOING;
+    return until(this.k === this.layout.size);
   }
 
   /** The pin that binds now. */

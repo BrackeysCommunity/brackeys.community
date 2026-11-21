@@ -142,7 +142,7 @@ test("the phone's cap of six pins is kept", () => {
 test("the scene cleans up after itself", () => {
   const s = stage(pins, small.layout, phone);
   expect(s.surface.children.length).toBe(1);
-  s.scene.hint({ at: 0, a: 0, b: 2 });
+  s.hint({ at: 0, a: 0, b: 2 });
   s.frame();
   expect(s.surface.querySelectorAll(".pin.hinted")).toHaveLength(1);
   s.scene.destroy();

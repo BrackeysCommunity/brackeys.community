@@ -52,7 +52,8 @@ function harness(over: Partial<MachineView> = {}, layout: Partial<PuzzleLayout> 
   const sent: Sent[] = [];
   const hosts: SceneHost[] = [];
   const frames: number[] = [];
-  const hints: PuzzleMove[] = [];
+  const timers: (() => void)[] = [];
+  const beacons: { event: string; data: Record<string, string | number | boolean> }[] = [];
   let mounted = 0;
   const family: Family = {
     id: "sum",
@@ -62,7 +63,6 @@ function harness(over: Partial<MachineView> = {}, layout: Partial<PuzzleLayout> 
       mounted++;
       return {
         frame: (at) => frames.push(at),
-        hint: (m) => hints.push(m),
         destroy: () => mounted--,
       };
     },
@@ -93,6 +93,11 @@ function harness(over: Partial<MachineView> = {}, layout: Partial<PuzzleLayout> 
             answer: (reply) => resolve({ id: "x", ok: true, ...reply }),
           });
         }),
+      after: (_ms, f) => {
+        timers.push(f);
+        return () => timers.splice(timers.indexOf(f), 1);
+      },
+      beacon: (event, data) => beacons.push({ event, data }),
       changed: () => {},
     },
     machine,
@@ -115,7 +120,8 @@ function harness(over: Partial<MachineView> = {}, layout: Partial<PuzzleLayout> 
     sent,
     hosts,
     frames,
-    hints,
+    timers,
+    beacons,
     shell,
     machine,
     armed,
@@ -452,16 +458,24 @@ test("hints come one at a time, as many as the state sent", () => {
     ],
   });
   expect(h.shell.hintsLeft()).toBe(2);
+  expect(h.host().hinted()).toBeUndefined();
+  h.shell.hint();
+  expect(h.host().hinted()).toEqual({ at: 0, a: 1 });
   h.shell.hint();
   h.shell.hint();
-  h.shell.hint();
-  expect(h.hints).toEqual([
-    { at: 0, a: 1 },
-    { at: 0, a: 2 },
-  ]);
+  expect(h.host().hinted()).toEqual({ at: 0, a: 2 });
   expect(h.shell.hintsLeft()).toBe(0);
   h.shell.showHint({ at: 0, a: 9 });
-  expect(h.hints).toHaveLength(3);
+  expect(h.host().hinted()).toEqual({ at: 0, a: 9 });
+});
+
+test("a hint is lit on the shell's clock and goes out by it", () => {
+  const h = harness({ hints: [{ at: 0, a: 1 }] });
+  h.shell.hint();
+  h.t.wall = 3000;
+  expect(h.host().hinted()).toEqual({ at: 0, a: 1 });
+  h.t.wall = 3001;
+  expect(h.host().hinted()).toBeUndefined();
 });
 
 test("a master may pass one hint once the machine is armed", () => {
@@ -564,6 +578,79 @@ test("a refused log is shown as refused, not as a result", async () => {
   await settle();
   expect(h.shell.phase).toBe("done");
   expect(h.shell.ending).toMatchObject({ result: undefined, refusal: { code: "banned" } });
+});
+
+test("a solve the world could not take goes again as it is until it is answered", async () => {
+  const h = harness();
+  h.host().move(3);
+  h.shell.update(h.armed());
+  const log = h.sent[1]!.body.machine?.log;
+  h.sent[1]!.answer({ ok: false, refusal: { code: "internal", message: "try again" } });
+  await settle();
+  expect(h.shell.phase).toBe("sending");
+  expect(h.timers).toHaveLength(1);
+  h.timers.shift()!();
+  expect(h.sent[2]!.kind).toBe("machine-solve");
+  expect(h.sent[2]!.body.machine?.log).toEqual(log);
+  h.sent[2]!.answer({ machine: { solved: true, clean: true, at: 0 } });
+  await settle();
+  expect(h.shell.phase).toBe("done");
+  expect(h.shell.ending?.result?.solved).toBe(true);
+  expect(h.shell.ending?.refusal).toBeUndefined();
+});
+
+test("a solve is not sent again once the server would no longer take it", async () => {
+  const h = harness();
+  h.host().move(3);
+  const armed = h.armed();
+  h.shell.update({ ...armed, due: armed.deadline! + armed.grace! });
+  h.t.wall += 60_000;
+  h.sent[1]!.answer({ ok: false, refusal: { code: "busy", message: "too many" } });
+  await settle();
+  expect(h.shell.phase).toBe("done");
+  expect(h.shell.ending?.refusal?.code).toBe("busy");
+  expect(h.timers).toHaveLength(0);
+});
+
+test("a bench rig is given up when it has been played as long as one may be", () => {
+  const h = harness({ source: "bench", level: 2, maxPlay: 600_000 });
+  h.host().move(1);
+  h.t.wall = 599_999;
+  h.shell.tick();
+  expect(h.shell.phase).toBe("play");
+  h.t.wall = 600_000;
+  h.shell.tick();
+  expect(h.shell.phase).toBe("sending");
+  expect(h.sent[0]!.kind).toBe("bench-solve");
+  expect(h.shell.note).not.toBe("");
+});
+
+test("touches that missed are reported as one summary, not one each", () => {
+  const h = harness();
+  const ev = { pointerType: "touch" } as PointerEvent;
+  h.host().move(1);
+  h.host().dropped(10, 30, true, ev);
+  h.host().dropped(50, 30, false, ev);
+  expect(h.beacons).toEqual([]);
+  h.t.wall = 5000;
+  h.shell.tick();
+  expect(h.beacons).toEqual([
+    {
+      event: "drop",
+      data: {
+        family: "sum",
+        touches: 2,
+        landed: 1,
+        missPx: 30,
+        worstPx: 50,
+        hitPx: 30,
+        pointer: "touch",
+      },
+    },
+  ]);
+  h.host().dropped(4, 30, true, ev);
+  h.host().move(2);
+  expect(h.beacons).toHaveLength(2);
 });
 
 test("moves after the play has ended are dropped", () => {

@@ -2,7 +2,10 @@ import {
   ActBenchSolve,
   ActMachineArm,
   ActMachineSolve,
+  CodeBusy,
+  CodeInternal,
   CodeNoMachine,
+  CodeStale,
   MachineBench,
   type Fact,
   type IntentReply,
@@ -15,16 +18,8 @@ import {
 } from "../api.ts";
 import type { IntentBody } from "../session.ts";
 import { refusalLine } from "../words.ts";
-import {
-  BROKE,
-  DONE,
-  GOING,
-  type Family,
-  type Model,
-  type Scene,
-  type SceneHost,
-  type Status,
-} from "./kit.ts";
+import { GOING, type Family, type Scene, type SceneHost, type Status } from "./kit.ts";
+import { Run, movedBack } from "./play.ts";
 
 export interface ShellDeps {
   family: Family;
@@ -36,6 +31,10 @@ export interface ShellDeps {
   /** Whether the socket is open: a machine is not armed into a dead line. */
   online(): boolean;
   intent(kind: string, body: IntentBody, stale?: number): Promise<IntentReply>;
+  /** A timer; the returned function cancels it. */
+  after(ms: number, f: () => void): () => void;
+  /** One line of telemetry. */
+  beacon(event: string, data: Record<string, string | number | boolean>): void;
   /** Something the chrome draws has changed. */
   changed(): void;
 }
@@ -54,8 +53,29 @@ export interface Ending {
 // How often a solve or an arm is sent again when the row moved under it.
 const STALE_RETRIES = 3;
 
-// How many moves of a log moved back may keep their own stamps.
-const KEPT_STAMPS = 8;
+// A solve turned away for a reason that is not the rules' leaves the
+// machine armed, so the same log goes again after this wait: for as long
+// as the server would still take it, or this many times when the page
+// never learned when that is.
+const RESEND_MS = 400;
+const RESENDS_UNTIMED = 5;
+const RESENDABLE: string[] = [CodeInternal, CodeBusy, CodeStale];
+
+// How long a hint stays lit, unless its family asks for longer.
+const HINT_MS = 3000;
+
+// How often, at most, a play's missed touches are reported while it runs.
+const DROPS_EVERY = 5000;
+
+/** Touches counted since the last report, and how far they landed from their marks. */
+interface Drops {
+  n: number;
+  landed: number;
+  sumPx: number;
+  worstPx: number;
+  hitPx: number;
+  pointer: string;
+}
 
 /**
  * One machine on screen, from study to result. It owns the clock, the log
@@ -65,8 +85,6 @@ const KEPT_STAMPS = 8;
  */
 export class Shell {
   phase: Phase = "rest";
-  /** 0 the machine, 1 a master's hidden panel. */
-  panel: 0 | 1 = 0;
   /** A refusal or a notice to show over the study view. */
   note = "";
   ending: Ending | undefined;
@@ -74,26 +92,29 @@ export class Shell {
   teach = false;
   machine: MachineView;
 
-  private model: Model;
+  private run: Run;
   private scene: Scene | undefined;
   private moves: PuzzleMove[] = [];
-  private base = 0; // the ms the panel on screen started at
   private t0 = 0; // this device's clock at the first touch
   private armedAt: number | undefined; // the server's, once it has answered
   private synced = false; // the clock follows the server's armedAt
   private last = 0; // the newest stamp or step, so time never runs back
   private stopped = 0; // the ms the play ended at
   private hinted = 0;
+  private lit: { move: PuzzleMove; until: number } | undefined; // the hint on show
   private passed = false;
   private attempt = 0;
   private sent: PuzzleLog | undefined; // the log on its way
+  private resends = 0;
+  private drops: Drops | undefined;
+  private dropsAt = 0; // this device's clock at the last report of them
 
   constructor(
     private readonly deps: ShellDeps,
     machine: MachineView,
   ) {
     this.machine = machine;
-    this.model = deps.family.start(machine.layout);
+    this.run = this.fresh();
     if (machine.armed && machine.armedAt) {
       // Armed before this page knew it: the log is gone, so the model runs
       // from rest to the server's elapsed time with no inputs.
@@ -106,6 +127,11 @@ export class Shell {
 
   get bench(): boolean {
     return this.machine.source === MachineBench;
+  }
+
+  /** 0 the machine, 1 a master's hidden panel. */
+  get panel(): 0 | 1 {
+    return this.run.panel;
   }
 
   /** Whether the server has said this machine is armed. */
@@ -163,11 +189,18 @@ export class Shell {
   tick(): void {
     if (this.phase === "play") {
       const at = this.now();
-      const [st, when] = this.model.run(at - this.base);
-      if (st !== GOING) this.settle(st, this.base + when);
-      else if (this.left() === 0) this.finish(at);
+      const panel = this.run.panel;
+      const [st, when] = this.run.run(at);
+      this.settle(st, when, panel);
+      if (this.phase === "play" && this.left() === 0) this.finish(at);
+      else if (this.phase === "play" && this.bench && at >= (this.machine.maxPlay ?? Infinity)) {
+        // The server replays a bench rig no further than this.
+        this.note = "This rig has been on the bench as long as one may. The bench sets up another.";
+        this.finish(at);
+      }
+      if (this.drops && this.deps.wall() - this.dropsAt >= DROPS_EVERY) this.reportDrops();
     }
-    this.scene?.frame(this.now() - (this.phase === "rest" ? 0 : this.base));
+    this.scene?.frame(this.now() - (this.phase === "rest" ? 0 : this.run.base));
   }
 
   hintsLeft(): number {
@@ -179,13 +212,17 @@ export class Shell {
     const m = this.machine.hints?.[this.hinted];
     if (!m || this.panel !== 0) return;
     this.hinted++;
-    this.scene?.hint(m);
+    this.light(m);
     this.deps.changed();
   }
 
   /** A hint passed on by a master in the same context. */
   showHint(m: PuzzleMove): void {
-    if (this.panel === 0) this.scene?.hint(m);
+    if (this.panel === 0) this.light(m);
+  }
+
+  private light(move: PuzzleMove): void {
+    this.lit = { move, until: this.deps.wall() + (this.deps.family.hintMs ?? HINT_MS) };
   }
 
   /** The move a master may pass to the others, once a machine. */
@@ -210,12 +247,19 @@ export class Shell {
 
   destroy(): void {
     this.attempt++;
+    this.reportDrops();
     this.scene?.destroy();
     this.scene = undefined;
   }
 
+  // A run from rest. The bench never opens a hidden panel: its replay has no master.
+  private fresh(): Run {
+    const m = this.machine;
+    return new Run(this.deps.family, m.layout, this.bench ? undefined : m.inner);
+  }
+
   private host(layout: PuzzleLayout, outer: boolean): SceneHost {
-    const model = () => this.model;
+    const model = () => this.run.model;
     return {
       surface: this.deps.surface,
       layout,
@@ -228,15 +272,52 @@ export class Shell {
       arm: () => {
         if (this.phase === "rest") this.begin();
       },
-      now: () => (this.phase === "rest" ? 0 : this.now() - this.base),
+      now: () => (this.phase === "rest" ? 0 : this.now() - this.run.base),
+      hinted: () => {
+        if (this.lit && this.deps.wall() > this.lit.until) this.lit = undefined;
+        return outer ? this.lit?.move : undefined;
+      },
+      dropped: (missPx, hitPx, landed, ev) => {
+        const d = (this.drops ??= {
+          n: 0,
+          landed: 0,
+          sumPx: 0,
+          worstPx: 0,
+          hitPx: 0,
+          pointer: "",
+        });
+        d.n++;
+        if (landed) d.landed++;
+        d.sumPx += missPx;
+        d.worstPx = Math.max(d.worstPx, missPx);
+        d.hitPx = hitPx;
+        d.pointer = ev.pointerType;
+      },
     };
+  }
+
+  // One summary of the touches since the last, so a tap is never a request.
+  private reportDrops(): void {
+    const d = this.drops;
+    this.drops = undefined;
+    this.dropsAt = this.deps.wall();
+    if (!d) return;
+    this.deps.beacon("drop", {
+      family: this.machine.family,
+      touches: d.n,
+      landed: d.landed,
+      missPx: Math.round(d.sumPx / d.n),
+      worstPx: Math.round(d.worstPx),
+      hitPx: Math.round(d.hitPx),
+      pointer: d.pointer,
+    });
   }
 
   private mount(): void {
     this.scene?.destroy();
     const inner = this.panel === 1 ? this.machine.inner : undefined;
     this.scene = this.deps.family.mount(this.host(inner ?? this.machine.layout, !inner));
-    this.scene.frame(this.phase === "rest" ? 0 : this.now() - this.base);
+    this.scene.frame(this.phase === "rest" ? 0 : this.now() - this.run.base);
   }
 
   // The first touch: the clock starts here, before the server has answered.
@@ -251,6 +332,7 @@ export class Shell {
     }
     this.note = "";
     this.t0 = this.deps.wall();
+    this.dropsAt = this.t0;
     this.last = 0;
     this.phase = "play";
     if (!this.bench) {
@@ -269,64 +351,48 @@ export class Shell {
   private move(a: number, b = 0, c = 0): Status {
     if (this.phase === "rest" && !this.begin()) return GOING;
     if (this.phase !== "play") return GOING;
-    const at = this.now();
-    const st = this.feed({ at, a, ...(b ? { b } : {}), ...(c ? { c } : {}) });
-    this.settle(st[0], st[1]);
-    return st[0];
+    const panel = this.run.panel;
+    const [st, at] = this.feed({ at: this.now(), a, ...(b ? { b } : {}), ...(c ? { c } : {}) });
+    this.settle(st, at, panel);
+    return st;
   }
 
-  // feed plays one stamped move into the panel on screen, as the server's
-  // replay will: the model runs to the stamp, then takes the move. A move
-  // the clock overtook is not part of the log.
+  // feed plays one stamped move into the run, as the server's replay will.
+  // A move the clock overtook is not part of the log.
   private feed(m: PuzzleMove): [Status, number] {
-    const rel = m.at - this.base;
-    const [ran, when] = this.model.run(rel);
-    if (ran !== GOING) return [ran, this.base + when];
-    this.moves.push(m);
-    return [this.model.apply({ ...m, at: rel }), m.at];
+    const [st, at, took] = this.run.feed(m);
+    if (took) this.moves.push(m);
+    return [st, at];
   }
 
-  private settle(st: Status, at: number): void {
-    if (st === GOING) return;
-    if (st === DONE && this.panel === 0 && this.machine.inner && !this.bench) {
-      this.panel = 1;
-      this.base = at;
-      this.model = this.deps.family.start(this.machine.inner);
+  // After the run moved: the hidden panel is mounted when it opened, and
+  // the play is over when the run is.
+  private settle(st: Status, at: number, panel: 0 | 1): void {
+    if (this.run.panel !== panel) {
       this.mount();
       this.deps.changed();
-      return;
     }
-    this.finish(at);
+    if (st !== GOING) this.finish(at);
   }
 
   // Moves the log back by lead ms and plays it again from rest, so the
   // model on screen is the one the server will replay.
   private rebase(lead: number): void {
     const moves = this.moves;
-    const stamps = this.movedBack(moves, lead);
+    const stamps = movedBack(() => this.fresh(), moves, lead);
     this.moves = [];
-    this.panel = 0;
-    this.base = 0;
     this.last = 0;
     this.synced = true;
-    this.model = this.deps.family.start(this.machine.layout);
-    let ended = false;
+    this.run = this.fresh();
     for (const [i, m] of moves.entries()) {
       this.last = stamps[i]!;
       const [st, at] = this.feed({ ...m, at: stamps[i]! });
       if (st === GOING) continue;
-      if (st === DONE && this.panel === 0 && this.machine.inner) {
-        this.panel = 1;
-        this.base = at;
-        this.model = this.deps.family.start(this.machine.inner);
-        continue;
-      }
       this.mount();
       this.finish(at);
-      ended = true;
-      break;
+      return;
     }
-    if (!ended) this.mount();
+    this.mount();
   }
 
   // The play ended before the server said when it began: the log waiting
@@ -334,45 +400,10 @@ export class Shell {
   private shift(lead: number): void {
     const log = this.sent;
     if (!log) return;
-    const stamps = this.movedBack(log.moves, lead);
+    const stamps = movedBack(() => this.fresh(), log.moves, lead);
     for (const [i, m] of log.moves.entries()) m.at = stamps[i]!;
     log.end = Math.max(stamps.at(-1) ?? 0, Math.trunc((log.end ?? 0) - lead));
     this.stopped = log.end;
-  }
-
-  // The stamps of a log moved back by lead ms, never out of order. A move
-  // that breaks the machine only because it was moved (a swipe timed from
-  // the first touch no longer fits the gap before it) keeps its own stamp.
-  private movedBack(moves: PuzzleMove[], lead: number): number[] {
-    const kept = new Set<number>();
-    for (;;) {
-      const stamps: number[] = [];
-      let model = this.deps.family.start(this.machine.layout);
-      let inner = false;
-      let base = 0;
-      let floor = 0;
-      let live = true;
-      let broke = -1;
-      for (const [i, m] of moves.entries()) {
-        floor = Math.max(floor, kept.has(i) ? m.at : Math.trunc(m.at - lead), 0);
-        stamps.push(floor);
-        if (!live) continue;
-        let [st, when] = model.run(floor - base);
-        const ran = st !== GOING;
-        if (!ran) [st, when] = [model.apply({ ...m, at: floor - base }), floor - base];
-        if (st === GOING) continue;
-        if (st === DONE && !inner && this.machine.inner) {
-          inner = true;
-          base += when;
-          model = this.deps.family.start(this.machine.inner);
-          continue;
-        }
-        live = false;
-        if (st === BROKE && !ran) broke = i;
-      }
-      if (broke < 0 || kept.has(broke) || kept.size >= KEPT_STAMPS) return stamps;
-      kept.add(broke);
-    }
   }
 
   private freeze(): void {
@@ -384,11 +415,17 @@ export class Shell {
   private finish(end: number): void {
     this.stopped = Math.max(end, this.moves.at(-1)?.at ?? 0);
     this.phase = "sending";
-    const attempt = this.attempt;
+    this.reportDrops();
     const log = { moves: this.moves, end: this.stopped };
     this.sent = log;
+    this.resends = 0;
+    this.send(this.attempt, log);
+    this.deps.changed();
+  }
+
+  private send(attempt: number, log: PuzzleLog): void {
     const m = this.machine;
-    const send = this.bench
+    const sent = this.bench
       ? this.deps.intent(ActBenchSolve, {
           machine: {
             source: MachineBench,
@@ -400,8 +437,15 @@ export class Shell {
           },
         })
       : this.deps.intent(ActMachineSolve, { machine: { log } }, STALE_RETRIES);
-    void send.then((reply) => {
+    void sent.then((reply) => {
       if (attempt !== this.attempt) return;
+      if (this.phase === "sending" && this.resendable(reply)) {
+        this.resends++;
+        this.deps.after(RESEND_MS, () => {
+          if (attempt === this.attempt && this.phase === "sending") this.send(attempt, log);
+        });
+        return;
+      }
       // The state may have told the ending first; the reply adds its facts,
       // and one that names no result leaves that ending standing.
       const told = this.phase === "done" ? this.ending : undefined;
@@ -415,20 +459,27 @@ export class Shell {
         };
       this.deps.changed();
     });
-    this.deps.changed();
+  }
+
+  // Whether a solve the world turned away should go again as it is. A
+  // refused command is never stored, so the same log is safe to repeat,
+  // and the machine is still armed until the server ends it.
+  private resendable(reply: IntentReply): boolean {
+    if (this.bench || reply.machine || !RESENDABLE.includes(reply.refusal?.code ?? ""))
+      return false;
+    const due = this.machine.due;
+    return due ? this.deps.serverNow() < due : this.resends < RESENDS_UNTIMED;
   }
 
   // Back to rest, as if never touched: a refused arm.
   private reset(note: string): void {
     this.attempt++;
     this.phase = "rest";
-    this.panel = 0;
-    this.base = 0;
     this.last = 0;
     this.moves = [];
     this.armedAt = undefined;
     this.synced = false;
-    this.model = this.deps.family.start(this.machine.layout);
+    this.run = this.fresh();
     this.mount();
     this.say(note);
   }

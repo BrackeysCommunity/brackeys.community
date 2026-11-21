@@ -175,22 +175,13 @@ func (m *machines) solving(c *game.Char, v game.Viewer) (rig game.Rig, whole, ha
 	if !ok {
 		return rig, whole, half, fmt.Errorf("%s: %s has no %s to work", m.label, c.C.ID, v.Family)
 	}
-	whole = m.g.Rules().Fight.P.Solve(rig.Layout)
+	whole = m.g.Puzzles().Solve(rig.Layout)
 	half = puzzle.Log{Moves: whole.Moves[:len(whole.Moves)/halfLog]}
 	return rig, whole, half, nil
 }
 
 // halfLog cuts a solve short: its first half.
 const halfLog = 2
-
-// sentAt is the millisecond a log's player stopped at.
-func sentAt(log puzzle.Log) int64 {
-	at := log.End
-	if n := len(log.Moves); n > 0 {
-		at = max(at, log.Moves[n-1].At)
-	}
-	return at
-}
 
 // benchLog is one log a family was given at the bench.
 type benchLog struct {
@@ -317,7 +308,7 @@ func logLine(l puzzle.Log) string {
 	if len(l.Moves) == 0 && l.End == 0 {
 		return "no moves"
 	}
-	return fmt.Sprintf("%s %s, to %s ms", comma(int64(len(l.Moves))), either(len(l.Moves) == 1, "move", "moves"), comma(sentAt(l)))
+	return fmt.Sprintf("%s %s, to %s ms", comma(int64(len(l.Moves))), either(len(l.Moves) == 1, "move", "moves"), comma(l.Stop()))
 }
 
 // became is what a reply says a move log turned into: the machine's

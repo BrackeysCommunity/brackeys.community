@@ -165,21 +165,19 @@ type Char struct {
 	Armed       *Armed       `json:"armed,omitempty"`
 	Worked      int64        `json:"worked,omitempty"`
 	LastMachine *MachineDone `json:"lastMachine,omitempty"`
-	// Lockdowns are the places whose machines it may not arm yet; Pouches
-	// the locked pouches it carries, and PouchN how many it has found.
+	// Lockdowns are the places whose machines it may not arm yet, a shut
+	// pouch among them; Pouches the locked pouches it carries, and PouchN
+	// how many it has found.
 	Lockdowns []Lockdown `json:"lockdowns,omitempty"`
 	Pouches   []Pouch    `json:"pouches,omitempty"`
 	PouchN    int64      `json:"pouchN,omitempty"`
 	// BenchRuns counts bench machines tried: the next one's attempt. Bench
-	// is the bench uses of world day BenchDay; Taught the lessons left and
-	// Learned the lessons taken on theirs.
-	BenchRuns  int64 `json:"benchRuns,omitempty"`
-	Bench      int64 `json:"bench,omitempty"`
-	BenchDay   int64 `json:"benchDay,omitempty"`
-	Taught     int64 `json:"taught,omitempty"`
-	TaughtDay  int64 `json:"taughtDay,omitempty"`
-	Learned    int64 `json:"learned,omitempty"`
-	LearnedDay int64 `json:"learnedDay,omitempty"`
+	// is a world day's bench uses, Taught its lessons left and Learned its
+	// lessons taken.
+	BenchRuns int64 `json:"benchRuns,omitempty"`
+	Bench     Daily `json:"bench,omitzero"`
+	Taught    Daily `json:"taught,omitzero"`
+	Learned   Daily `json:"learned,omitzero"`
 }
 
 // Fight is an encounter and the measures it was assembled under. An
@@ -208,6 +206,16 @@ type Game struct {
 	Society
 	Log *fact.Tail `json:"log"`
 	r   *Rules
+	// touched are the characters the command or tick in hand has changed,
+	// its own actor aside.
+	touched []string
+}
+
+// touch moves a character's row on behalf of someone else's command or a
+// tick, and notes whose it was so their viewers can be told.
+func (g *Game) touch(c *Char) {
+	c.Version++
+	g.touched = append(g.touched, c.C.ID)
 }
 
 // Society is what players have made of the world: the open settlements in

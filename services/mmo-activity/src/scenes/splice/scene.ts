@@ -1,12 +1,11 @@
 import "./scene.css";
-import type { PuzzleMove } from "../../api.ts";
 import {
   HIT,
+  board,
   distance,
-  dropped,
   pointers,
+  say,
   set,
-  sizeOf,
   svg,
   type Point,
   type Size,
@@ -14,9 +13,6 @@ import {
 import { GOING, type Scene, type SceneHost } from "../../shell/kit.ts";
 import { plural } from "../../units.ts";
 import { DOWN, DRAG, LIFT, type SpliceModel } from "./model.ts";
-
-// How long a hint's ring stays lit.
-const HINT_MS = 3000;
 
 /** Where everything sits, in CSS px of the surface. */
 export interface Geometry {
@@ -99,12 +95,11 @@ export function mount(host: SceneHost): Scene {
   const rows = host.layout.range ?? 0;
   const warn = host.layout.par?.[0] ?? 0;
 
-  const root = svg("svg", {
-    class: "board splice",
-    role: "img",
-    "aria-label": `A circuit board with a trace of ${plural(host.layout.order?.length ?? 0, "cell")} from the left edge to the right. Drag along it to solder it, lift over each gap, and follow the loose end when it twitches.`,
-  });
-  host.surface.append(root);
+  const view = board(
+    host,
+    `A circuit board with a trace of ${plural(host.layout.order?.length ?? 0, "cell")} from the left edge to the right. Drag along it to solder it, lift over each gap, and follow the loose end when it twitches.`,
+  );
+  const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
   let geo = geometry(cols, rows, { width: 1, height: 1 });
@@ -119,18 +114,11 @@ export function mount(host: SceneHost): Scene {
   let guide: SVGPathElement | undefined;
   let lit: SVGPathElement | undefined;
   let held: Point | undefined;
-  let hint: { move: PuzzleMove; until: number } | undefined;
   let dead = false;
   /** The positions past a gap that a hint has marked. */
   const marked = new Set<number>();
 
   function build(): void {
-    root.replaceChildren();
-    set(root, {
-      viewBox: `0 0 ${size.width} ${size.height}`,
-      width: size.width,
-      height: size.height,
-    });
     const least = Math.min(geo.w, geo.h);
     let dots = "";
     for (let c = 0; c < cols * rows; c++) {
@@ -213,8 +201,8 @@ export function mount(host: SceneHost): Scene {
     // A trace that twitches under an iron held still is soldered where it lands.
     follow();
     if (dead) return;
-    const now = sizeOf(host.surface);
-    if (now.width !== size.width || now.height !== size.height) {
+    const now = view.fit();
+    if (now) {
       size = now;
       geo = geometry(cols, rows, size);
       build();
@@ -222,8 +210,7 @@ export function mount(host: SceneHost): Scene {
     const m = model();
     const tw = m.twitch();
     const coming = tw && tw.step - m.steps <= warn ? tw.rows : 0;
-    const say = line(m, coming);
-    if (status!.textContent !== say) status!.textContent = say;
+    say(status!, line(m, coming));
     set(status!, { class: coming ? "status warned" : "status" });
     set(loose!, { d: run(m, m.k, m.length), class: coming ? "loose warned" : "loose" });
     set(done!, { d: run(m, 0, m.k) });
@@ -263,8 +250,12 @@ export function mount(host: SceneHost): Scene {
       class: held ? (m.on ? "iron on" : "iron") : "iron off",
     });
     set(guide!, { d: host.guide && m.k === 0 ? ring(m.cell(0)) : "" });
-    if (hint && performance.now() > hint.until) hint = undefined;
-    let rings = hint ? ring(hint.move.a) : "";
+    // A hint names the far side of a gap by its place along the trace, and
+    // stays until the iron is past it; any other rings a cell.
+    const hint = host.hinted();
+    const gap = hint !== undefined && (hint.c ?? 0) === DOWN && (hint.b ?? 0) > 0;
+    if (hint && gap) marked.add(hint.b!);
+    let rings = hint && !gap ? ring(hint.a) : "";
     for (const i of marked) if (i >= m.k && i < m.length) rings += ring(m.cell(i));
     set(lit!, { d: rings });
   }
@@ -300,7 +291,7 @@ export function mount(host: SceneHost): Scene {
       const across = m.cell(m.across());
       const on = setDown(geo, m.cur < 0 ? [across] : [across, m.cur], p);
       const reach = Math.min(geo.w, geo.h) / 2 + geo.slack;
-      dropped("splice", distance(p, centre(geo, across)), reach, on !== undefined, ev);
+      host.dropped(distance(p, centre(geo, across)), reach, on !== undefined, ev);
       held = p;
       // An iron set down off the trace solders nothing.
       if (on !== undefined) send(on, DOWN);
@@ -317,16 +308,10 @@ export function mount(host: SceneHost): Scene {
 
   return {
     frame,
-    hint(move) {
-      // A hint names the far side of a gap by its place along the trace,
-      // and stays until the iron is past it; any other rings a cell.
-      if ((move.c ?? 0) === DOWN && (move.b ?? 0) > 0) marked.add(move.b!);
-      else hint = { move, until: performance.now() + HINT_MS };
-    },
     destroy() {
       dead = true;
       unbind();
-      root.remove();
+      view.remove();
     },
   };
 }

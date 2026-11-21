@@ -17,6 +17,10 @@ export interface Stage {
   at: number;
   /** How often the scene started the clock with no move. */
   arms: number;
+  /** How far each touch the scene reported landed from its mark, and whether it landed. */
+  drops: { missPx: number; hitPx: number; landed: boolean }[];
+  /** Lights a hint, as the shell does, until another or none is lit. */
+  hint(m: PuzzleMove | undefined): void;
   down(p: Point): void;
   move(p: Point): void;
   up(p: Point): void;
@@ -53,8 +57,13 @@ export function stage(family: Family, layout: PuzzleLayout, opts: StageOptions =
   document.body.append(surface);
 
   const model = family.start(layout);
-  const st = { at: 0, arms: 0 };
+  const st: { at: number; arms: number; hint: PuzzleMove | undefined } = {
+    at: 0,
+    arms: 0,
+    hint: undefined,
+  };
   const moves: PuzzleMove[] = [];
+  const drops: Stage["drops"] = [];
   const host: SceneHost = {
     surface,
     layout,
@@ -71,6 +80,8 @@ export function stage(family: Family, layout: PuzzleLayout, opts: StageOptions =
       st.arms++;
     },
     now: () => st.at,
+    hinted: () => st.hint,
+    dropped: (missPx, hitPx, landed) => drops.push({ missPx, hitPx, landed }),
   };
   const scene = family.mount(host);
   scene.frame(0);
@@ -99,6 +110,10 @@ export function stage(family: Family, layout: PuzzleLayout, opts: StageOptions =
     },
     get arms() {
       return st.arms;
+    },
+    drops,
+    hint(m) {
+      st.hint = m;
     },
     down: (p) => fire("pointerdown", p),
     move: (p) => fire("pointermove", p),

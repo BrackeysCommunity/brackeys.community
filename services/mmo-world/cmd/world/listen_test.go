@@ -27,8 +27,11 @@ func TestListenStandsBy(t *testing.T) {
 		t.Fatal(err)
 	}
 	failed := make(chan struct{}, 1)
-	srv, serve := listen(strconv.Itoa(port), service.Standby("w-standby"), slog.New(slog.DiscardHandler), func() { failed <- struct{}{} })
+	srv, serve := listen(strconv.Itoa(port), publicLimits, service.Standby("w-standby"), slog.New(slog.DiscardHandler), func() { failed <- struct{}{} })
 	t.Cleanup(func() { _ = srv.Close() })
+	if srv.ReadTimeout == 0 || srv.IdleTimeout == 0 {
+		t.Fatalf("the public listener waits without limit: read %s, idle %s", srv.ReadTimeout, srv.IdleTimeout)
+	}
 	get := func(path string) (int, string) {
 		t.Helper()
 		for deadline := time.Now().Add(listenWait); ; time.Sleep(10 * time.Millisecond) {

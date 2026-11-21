@@ -45,14 +45,12 @@ const (
 	SourceBench = "bench"
 )
 
-// structural: what a haywire row does, the practice a lock trains beside
-// its family's, and the units a machine's why is stated in.
+// structural: the practice a lock trains beside its family's, and the
+// ticks a machine that haywired but stays for another try is shut for, so
+// one failure cannot be repeated inside a tick.
 const (
-	effectAlarm      = "alarm"
-	effectLockdown   = "lockdown"
 	practiceLockpick = "lockpick"
-	unitSeconds      = "s"
-	unitPercent      = "percent"
+	retryTicks       = 1
 )
 
 // structural: the beat whose machine is not a lock.
@@ -63,14 +61,11 @@ const msPerSecond = 1000
 
 // MachineGrace is the milliseconds a move log may arrive past its
 // countdown before it is late.
-func (g *Game) MachineGrace() int64 { return g.puzzles().Param("network-grace") * msPerSecond }
+func (g *Game) MachineGrace() int64 { return g.Puzzles().Param("network-grace") * msPerSecond }
 
 // TrigPouch is the tiles.triggers row that turns a find into a locked
 // pouch.
 const TrigPouch = "locked-pouch"
-
-// pouchLocks are the families that lock a pouch.
-var pouchLocks = []string{puzzle.Pins, puzzle.Maze}
 
 // MachineCmd is what a machine command carries.
 type MachineCmd struct {
@@ -81,6 +76,14 @@ type MachineCmd struct {
 	Compact bool        `json:"compact,omitempty"`
 	Teach   bool        `json:"teach,omitempty"`
 	Log     *puzzle.Log `json:"log,omitempty"`
+}
+
+// log is the move log a command carries: an empty one when it has none.
+func (m *MachineCmd) log() puzzle.Log {
+	if m == nil || m.Log == nil {
+		return puzzle.Log{}
+	}
+	return *m.Log
 }
 
 // Timed reports whether the service stamps a kind with its clock.
@@ -98,6 +101,13 @@ type Armed struct {
 	Intro     bool        `json:"intro,omitempty"`
 }
 
+// Deadline is when the countdown ends, on the service's clock.
+func (a *Armed) Deadline() int64 { return a.At + a.Countdown }
+
+// MachineDue is when an armed machine's log is late: its deadline and the
+// grace. Whoever ends a machine left alone ends it then.
+func (g *Game) MachineDue(a *Armed) int64 { return a.Deadline() + g.MachineGrace() }
+
 // Pouch is a find that came locked: its goods wait in its own pool until
 // its lock is solved.
 type Pouch struct {
@@ -108,7 +118,6 @@ type Pouch struct {
 	Level  int64        `json:"level"`
 	Tier   int64        `json:"tier"`
 	Tries  int64        `json:"tries,omitempty"`
-	Shut   int64        `json:"shut,omitempty"` // the tick a lockdown lifts
 }
 
 // Lockdown bars a character from a place's machines until a tick.
@@ -143,8 +152,8 @@ type Viewer struct {
 	Pouch   string
 }
 
-// Rig is a machine as one character may work it now. Why is what its
-// countdown is made of.
+// Rig is a machine as one character may work it now, with everything its
+// practice buys. Why is what its countdown is made of.
 type Rig struct {
 	Source, Pouch string
 	Spec          puzzle.Spec
@@ -152,7 +161,11 @@ type Rig struct {
 	Inner         *puzzle.Layout // set only for a master
 	Practice      int64
 	Gifts         puzzle.Gifts
-	Countdown     int64 // ms; 0 at a bench
+	Master        bool
+	Guide         *puzzle.Move  // the first move of a solve, with the guide line
+	Hints         []puzzle.Move // as many as the practice allows
+	Countdown     int64         // ms; 0 at a bench
+	MaxPlay       int64         // ms a bench machine may be played for; 0 elsewhere
 	Why           []Part
 	Haywire       string
 	Intro         bool
@@ -179,7 +192,13 @@ func (w *worked) data(kind string) []fact.Datum {
 	return nil
 }
 
-func (g *Game) puzzles() *puzzle.Puzzles { return g.r.Fight.P }
+// Puzzles are the machine rules the game plays by.
+func (g *Game) Puzzles() *puzzle.Puzzles { return g.r.Fight.P }
+
+func (g *Game) mastery(practice int64) bool { return g.Puzzles().Gifts(practice).Mastery }
+
+// Master reports whether a character holds mastery in a family.
+func (g *Game) Master(c *Char, family string) bool { return g.mastery(c.C.Level(family)) }
 
 // machineOption is the option a machine's result resolves on the current
 // beat; none while something on the beat leaves the machine out of reach.
@@ -209,7 +228,8 @@ func (g *Game) beatSpec(c *Char, compact bool) (spec puzzle.Spec, intro, ok bool
 	}
 	level := e.Levels[e.At]
 	if c.Worked == 0 && !lock {
-		family, level, intro = puzzle.Rewire, 1, true
+		family, level = g.Puzzles().IntroMachine()
+		intro = true
 	}
 	return puzzle.Spec{Family: family, Level: level, Tier: e.Creature.Tier, Place: machinePlace(c.C.At, e.Floor), Beat: int64(e.At),
 		Attempt: e.Press, Compact: compact}, intro, true
@@ -246,85 +266,89 @@ func (c *Char) lockedFor(place string, tick int64) int64 {
 	return left
 }
 
+// spot is a machine at rest before a character: which one, and the ticks
+// left of a lockdown on it.
+type spot struct {
+	source, pouch string
+	spec          puzzle.Spec
+	intro         bool
+	locked        int64
+}
+
+// machineAt is the machine a character may work now, at rest: the one on
+// its beat, else the pouch or the bench rig its viewer has open. What is
+// shown and what is armed both come from here.
+func (g *Game) machineAt(c *Char, v Viewer) (spot, bool) {
+	tick := g.Tick()
+	if c.Fight != nil {
+		spec, intro, ok := g.beatSpec(c, v.Compact)
+		return spot{source: SourceBeat, spec: spec, intro: intro, locked: c.lockedFor(spec.Place, tick)}, ok
+	}
+	if i := c.pouch(v.Pouch); i >= 0 {
+		spec := c.Pouches[i].spec(v.Compact)
+		return spot{source: SourcePouch, pouch: v.Pouch, spec: spec, locked: c.lockedFor(spec.Place, tick)}, true
+	}
+	if b, ok := g.BenchFor(c); ok && g.Puzzles().Known(v.Family) {
+		level := min(max(v.Level, 1), g.benchTop(c, v.Family))
+		return spot{source: SourceBench, spec: g.benchSpec(c, b.Settlement, v.Family, level, v.Compact)}, true
+	}
+	return spot{}, false
+}
+
 // rig lays a machine out for a character at a practice.
-func (g *Game) rig(source, pouch string, spec puzzle.Spec, practice int64) Rig {
-	p := g.puzzles()
-	out := Rig{Source: source, Pouch: pouch, Spec: spec, Layout: p.Make(spec), Practice: practice, Gifts: p.Gifts(practice)}
-	if out.Gifts.Mastery {
+func (g *Game) rig(at spot, practice int64) Rig {
+	p := g.Puzzles()
+	spec := at.spec
+	out := Rig{Source: at.source, Pouch: at.pouch, Spec: spec, Layout: p.Make(spec), Practice: practice, Gifts: p.Gifts(practice),
+		Intro: at.intro, Locked: at.locked}
+	if out.Master = out.Gifts.Mastery; out.Master {
 		in := p.Inner(spec)
 		out.Inner = &in
 	}
-	if source == SourceBench {
+	if out.Gifts.GuideLine {
+		if moves := p.Solve(out.Layout).Moves; len(moves) > 0 {
+			out.Guide = &moves[0]
+		}
+	}
+	if n := out.Gifts.Hints; n > 0 {
+		hints := p.Hints(out.Layout)
+		out.Hints = hints[:min(int64(len(hints)), n)]
+	}
+	if at.source == SourceBench {
+		out.MaxPlay = p.MaxPlay()
 		return out
 	}
 	out.Countdown = p.Countdown(spec.Family, spec.Level, spec.Tier, practice)
-	out.Why = g.countdownWhy(spec, out.Gifts)
-	out.Haywire = p.Haywire(spec.Family, spec.Where())
+	for _, x := range p.CountdownParts(spec.Family, spec.Level, spec.Tier, practice) {
+		out.Why = append(out.Why, Part(x))
+	}
+	out.Haywire = g.haywireOf(spec, at.intro)
 	return out
 }
 
-// countdownWhy is what a countdown is made of: the family's time, the
-// level's, the tier's cut and what practice adds.
-func (g *Game) countdownWhy(spec puzzle.Spec, gifts puzzle.Gifts) []Part {
-	p := g.puzzles()
-	f := p.Family(spec.Family)
-	why := []Part{{"family", f.Countdown, unitSeconds}}
-	if n := f.PerLevel * (spec.Level - 1); n != 0 {
-		why = append(why, Part{"level", n, unitSeconds})
-	}
-	if n := p.Param("countdown-per-tier") * (spec.Tier - 1); n != 0 {
-		why = append(why, Part{"tier", n, unitPercent})
-	}
-	if gifts.Countdown != 0 {
-		why = append(why, Part{"practice", gifts.Countdown, unitPercent})
-	}
-	return why
-}
-
-// introHaywire is what a character's first machine does when it fails:
-// the sheet's gentle row, in place of the family's own.
-func (g *Game) introHaywire(own string) string {
-	if id := g.puzzles().Intro(); id != "" {
+// haywireOf is what a machine does when it fails: its family's keyed row,
+// or the sheet's gentle one on a character's first machine.
+func (g *Game) haywireOf(spec puzzle.Spec, intro bool) string {
+	p := g.Puzzles()
+	if id := p.Intro(); intro && id != "" {
 		return id
 	}
-	return own
+	return p.Haywire(spec.Family, spec.Where())
 }
 
 // Rig is the machine a character may work now: the one it armed, else the
-// one on its beat, else the pouch or the bench rig its viewer has open.
+// one machineAt finds.
 func (g *Game) Rig(c *Char, v Viewer) (Rig, bool) {
-	tick := g.Tick()
 	if a := c.Armed; a != nil {
-		out := g.rig(a.Source, a.Pouch, a.Spec, a.Practice)
-		out.Countdown, out.Intro, out.Armed = a.Countdown, a.Intro, a
-		if a.Intro {
-			out.Haywire = g.introHaywire(out.Haywire)
-		}
+		out := g.rig(spot{source: a.Source, pouch: a.Pouch, spec: a.Spec, intro: a.Intro}, a.Practice)
+		out.Countdown, out.Armed = a.Countdown, a
 		return out, true
 	}
-	if c.Fight != nil {
-		spec, intro, ok := g.beatSpec(c, v.Compact)
-		if !ok {
-			return Rig{}, false
-		}
-		out := g.rig(SourceBeat, "", spec, c.C.Level(spec.Family))
-		out.Intro, out.Locked = intro, c.lockedFor(spec.Place, tick)
-		if intro {
-			out.Haywire = g.introHaywire(out.Haywire)
-		}
-		return out, true
+	at, ok := g.machineAt(c, v)
+	if !ok {
+		return Rig{}, false
 	}
-	if i := c.pouch(v.Pouch); i >= 0 {
-		p := &c.Pouches[i]
-		out := g.rig(SourcePouch, p.ID, p.spec(v.Compact), c.C.Level(p.Family))
-		out.Locked = max(0, p.Shut-tick)
-		return out, true
-	}
-	if b, ok := g.BenchAt(c); ok && free(c) == nil && g.puzzles().Known(v.Family) {
-		level := min(max(v.Level, 1), g.benchTop(c, v.Family))
-		return g.rig(SourceBench, "", g.benchSpec(c, b.Settlement, v.Family, level, v.Compact), c.C.Level(v.Family)), true
-	}
-	return Rig{}, false
+	return g.rig(at, c.C.Level(at.spec.Family)), true
 }
 
 // ArmedAll are the characters with a countdown running, in id order.
@@ -345,41 +369,33 @@ func (g *Game) machineArm(c *Char, cmd Command) error {
 	if m == nil {
 		return refuse(BadArgs, "arming names a machine: a beat's or a pouch's")
 	}
-	tick := g.Tick()
-	var spec puzzle.Spec
-	var intro bool
-	var locked int64
+	var missing error
 	switch m.Source {
 	case SourceBeat:
 		if err := notDown(c); err != nil {
 			return err
 		}
-		var ok bool
-		if spec, intro, ok = g.beatSpec(c, m.Compact); !ok {
-			return refuse(NoMachine, "%s faces no machine it can reach", c.C.ID)
-		}
-		locked = c.lockedFor(spec.Place, tick)
+		missing = refuse(NoMachine, "%s faces no machine it can reach", c.C.ID)
 	case SourcePouch:
 		if err := free(c); err != nil {
 			return err
 		}
-		i := c.pouch(m.Pouch)
-		if i < 0 {
-			return refuse(NoMachine, "%s carries no pouch %q", c.C.ID, m.Pouch)
-		}
-		spec, locked = c.Pouches[i].spec(m.Compact), max(0, c.Pouches[i].Shut-tick)
+		missing = refuse(NoMachine, "%s carries no pouch %q", c.C.ID, m.Pouch)
 	default:
 		return refuse(BadArgs, "a machine is armed on a beat or on a pouch")
 	}
-	if locked > 0 {
-		return refuse(LockedDown, "locked down for %d more ticks", locked)
+	at, ok := g.machineAt(c, Viewer{Compact: m.Compact, Pouch: m.Pouch})
+	if !ok || at.source != m.Source {
+		return missing
 	}
-	a := &Armed{Source: m.Source, Spec: spec, Practice: c.C.Level(spec.Family), At: cmd.Now, Tick: tick, Intro: intro}
-	if m.Source == SourcePouch {
-		a.Pouch = m.Pouch
+	if at.locked > 0 {
+		return refuse(LockedDown, "locked down for %d more ticks", at.locked)
 	}
-	a.Countdown = g.puzzles().Countdown(spec.Family, spec.Level, spec.Tier, a.Practice)
-	if intro {
+	tick := g.Tick()
+	spec := at.spec
+	a := &Armed{Source: at.source, Pouch: at.pouch, Spec: spec, Practice: c.C.Level(spec.Family), At: cmd.Now, Tick: tick, Intro: at.intro}
+	a.Countdown = g.Puzzles().Countdown(spec.Family, spec.Level, spec.Tier, a.Practice)
+	if at.intro {
 		e := c.Fight.E
 		e.Machines[e.At], e.Levels[e.At] = spec.Family, spec.Level
 	}
@@ -398,19 +414,14 @@ func (g *Game) machineSolve(c *Char, cmd Command) ([]fight.Pressed, *puzzle.Resu
 	if a == nil {
 		return nil, nil, refuse(NoMachine, "%s has no machine armed", c.C.ID)
 	}
-	var log puzzle.Log
-	if cmd.Machine != nil && cmd.Machine.Log != nil {
-		log = *cmd.Machine.Log
-	}
 	// Where no clock is kept the log's own stamps are all there is.
 	elapsed := int64(-1)
 	if a.At > 0 && cmd.Now > 0 {
 		elapsed = max(0, cmd.Now-a.At)
 	}
-	p := g.puzzles()
-	res := p.Play(a.Spec, log, puzzle.Limits{Countdown: a.Countdown, Elapsed: elapsed, Master: p.Gifts(a.Practice).Mastery})
-	if a.Intro && !res.Solved {
-		res.Haywire = g.introHaywire(res.Haywire)
+	res := g.Puzzles().Play(a.Spec, cmd.Machine.log(), puzzle.Limits{Countdown: a.Countdown, Elapsed: elapsed, Master: g.mastery(a.Practice)})
+	if !res.Solved {
+		res.Haywire = g.haywireOf(a.Spec, a.Intro)
 	}
 	tick := g.Tick()
 	var pressed []fight.Pressed
@@ -440,6 +451,8 @@ func (g *Game) beatWorked(c *Char, key string, a *Armed, res puzzle.Result, tick
 		return nil, nil
 	}
 	family, at := a.Spec.Family, c.C.At
+	e := c.Fight.E
+	beat := e.At
 	before := c.C.Level(family)
 	pressed, err := g.pressOption(c, key, pick, tick, &worked{res: res, compact: a.Spec.Compact})
 	if err != nil {
@@ -448,68 +461,76 @@ func (g *Game) beatWorked(c *Char, key string, a *Armed, res puzzle.Result, tick
 	if err := g.mastered(c, family, before, tick); err != nil {
 		return nil, err
 	}
-	if res.Master {
-		if err := g.practise(c, family, g.puzzles().Param("master-solve-uses"), tick); err != nil {
+	if n := g.masterUses(res); n > 0 {
+		if err := g.practise(c, family, n, tick); err != nil {
 			return nil, err
 		}
 	}
 	if !res.Solved {
-		g.haywired(c, a.Spec.Place, res.Haywire, at, tick)
+		var least int64
+		if c.Fight != nil && c.Fight.E == e && e.At == beat {
+			least = retryTicks
+		}
+		g.haywired(c, a.Spec.Place, res.Haywire, at, tick, least)
 	}
 	return pressed, nil
 }
 
+// masterUses is the extra practice a solved inner panel pays.
+func (g *Game) masterUses(res puzzle.Result) int64 {
+	if !res.Master {
+		return 0
+	}
+	return g.Puzzles().Param("master-solve-uses")
+}
+
 // haywired is a haywire's reach past the fight: an alarm raises the
 // region's threat at the next tick, a lockdown shuts the place's machines
-// to this character.
-func (g *Game) haywired(c *Char, place, haywire string, at hex.Hex, tick int64) {
-	row := g.puzzles().HaywireRow(haywire)
-	if row == nil {
-		return
-	}
-	switch row.Effect {
-	case effectAlarm:
-		g.alarm(c, at, row.Magnitude)
-	case effectLockdown:
-		c.Lockdowns = append(c.Lockdowns, Lockdown{Place: place, Until: tick + row.Magnitude*sheets.TicksPerDay})
-	}
-}
-
-func (g *Game) alarm(c *Char, at hex.Hex, threat int64) {
-	if threat > 0 {
-		g.Pending = append(g.Pending, world.Action{Kind: world.ActAlarm, Hex: at, By: char.Ref(c.C.ID), Units: threat})
-	}
-}
-
-// lockdownDays is how long a failed pouch stays shut.
-func (g *Game) lockdownDays() int64 {
-	for _, h := range g.r.Book.Haywires {
-		if h.Effect == effectLockdown {
-			return h.Magnitude
+// to this character. least is the fewest ticks the place stays shut
+// whatever the row.
+func (g *Game) haywired(c *Char, place, haywire string, at hex.Hex, tick, least int64) {
+	shut := least
+	if row := g.Puzzles().HaywireRow(haywire); row != nil {
+		switch row.Effect {
+		case puzzle.EffectAlarm:
+			g.alarm(c, at, row.Magnitude)
+		case puzzle.EffectLockdown:
+			shut = max(shut, row.Magnitude*sheets.TicksPerDay)
 		}
 	}
-	return 1
+	if shut > 0 {
+		c.Lockdowns = append(c.Lockdowns, Lockdown{Place: place, Until: tick + shut})
+	}
 }
 
+// alarm raises a tile's region at the next tick. One character's alarms
+// on one tile are one alarm a tick, however often a machine fails there.
+func (g *Game) alarm(c *Char, at hex.Hex, threat int64) {
+	by := char.Ref(c.C.ID)
+	raised := slices.ContainsFunc(g.Pending, func(a world.Action) bool { return a.Kind == world.ActAlarm && a.Hex == at && a.By == by })
+	if threat > 0 && !raised {
+		g.Pending = append(g.Pending, world.Action{Kind: world.ActAlarm, Hex: at, By: by, Units: threat})
+	}
+}
+
+// PouchLocked is the ticks until a character may try a pouch again.
+func (g *Game) PouchLocked(c *Char, p *Pouch) int64 { return c.lockedFor(pouchPlace(p.ID), g.Tick()) }
+
 // pouchWorked opens a pouch whose lock was solved, paying exactly what it
-// holds, or leaves it shut after a haywire.
+// holds, or leaves it shut after a haywire: for the lockdown's days
+// whatever the row, an alarm's too.
 func (g *Game) pouchWorked(c *Char, key string, a *Armed, res puzzle.Result, tick int64) error {
 	i := c.pouch(a.Pouch)
 	if i < 0 {
 		return nil
 	}
 	p := &c.Pouches[i]
-	rules := g.puzzles()
+	rules := g.Puzzles()
 	if !res.Solved {
 		p.Tries++
-		row := rules.HaywireRow(res.Haywire)
-		if row != nil && row.Effect == effectAlarm {
-			g.alarm(c, c.C.At, row.Magnitude)
-		} else {
-			p.Shut = tick + g.lockdownDays()*sheets.TicksPerDay
-		}
+		g.haywired(c, pouchPlace(p.ID), res.Haywire, c.C.At, tick, rules.LockdownDays()*sheets.TicksPerDay)
 		data := []fact.Datum{fact.S("family", p.Family), fact.S("haywire", res.Haywire), fact.S("pouch", p.ID), fact.B("late", res.Late)}
-		if row != nil {
+		if row := rules.HaywireRow(res.Haywire); row != nil {
 			data = append(data, fact.N("magnitude", row.Magnitude))
 		}
 		if _, err := g.fact(c, "puzzle.haywire", tick, data...); err != nil {
@@ -536,10 +557,7 @@ func (g *Game) pouchWorked(c *Char, key string, a *Armed, res puzzle.Result, tic
 	if err := g.practise(c, practiceLockpick, uses, tick); err != nil {
 		return err
 	}
-	if res.Master {
-		uses += rules.Param("master-solve-uses")
-	}
-	return g.practise(c, family, uses, tick)
+	return g.practise(c, family, uses+g.masterUses(res), tick)
 }
 
 // practise counts uses of a practice, and says so when a level comes of
@@ -557,8 +575,7 @@ func (g *Game) practise(c *Char, skill string, uses, tick int64) error {
 // mastered records a family's practice reaching mastery, with the
 // settlement its master calls home.
 func (g *Game) mastered(c *Char, family string, before, tick int64) error {
-	p := g.puzzles()
-	if p.Family(family) == nil || p.Gifts(before).Mastery || !p.Gifts(c.C.Level(family)).Mastery {
+	if g.Puzzles().Family(family) == nil || g.mastery(before) || !g.Master(c, family) {
 		return nil
 	}
 	_, err := g.fact(c, "puzzle.mastered", tick, fact.S("family", family), fact.N("settlement", int64(g.HomeOf(c))))
@@ -567,10 +584,10 @@ func (g *Game) mastered(c *Char, family string, before, tick int64) error {
 
 // Titles are the families a character holds mastery in, in id order.
 func (g *Game) Titles(c *Char) []string {
-	p := g.puzzles()
+	p := g.Puzzles()
 	var out []string
 	for _, s := range c.C.Practice {
-		if p.Family(s.ID) != nil && p.Gifts(s.Level).Mastery {
+		if p.Family(s.ID) != nil && g.mastery(s.Level) {
 			out = append(out, s.ID)
 		}
 	}
@@ -593,9 +610,10 @@ func (g *Game) PracticeNeed(level int64) int64 {
 func (g *Game) pouched(c *Char, h hex.Hex, key string, f Find, tier, t int64) error {
 	c.PouchN++
 	id := "p-" + c.C.ID + "-" + strconv.FormatInt(c.PouchN, decimal)
-	family := pouchLocks[g.r.draw.Below(uint64(len(pouchLocks)), "game.pouch-family", draw.Str(id))]
+	locks := g.Puzzles().PouchLocks()
+	family := locks[g.r.draw.Below(uint64(len(locks)), "game.pouch-family", draw.Str(id))]
 	p := Pouch{ID: id, Hex: h, Goods: f.Goods, Family: family, Tier: tier}
-	p.Level = g.puzzles().Level(family, tier, 0, puzzle.Where{Place: pouchPlace(id)})
+	p.Level = g.Puzzles().Level(family, tier, 0, puzzle.Where{Place: pouchPlace(id)})
 	var legs []ledger.Leg
 	for _, s := range f.Goods {
 		legs = append(legs, ledger.Pair(poolOf(h), ledger.PouchPool(id), ledger.Material(s.Material), s.Qty)...)
@@ -622,8 +640,8 @@ func (g *Game) pouchable(c *Char) bool {
 // topLevel is the highest level the world draws a machine at: the last
 // tier's, on the deepest floor.
 func (g *Game) topLevel() int64 {
-	p, tiers := g.puzzles(), g.r.Book.FightTiers
-	return p.Param("level-per-tier")*tiers[len(tiers)-1].Tier - 1 + p.Param("level-span") + p.Param("floors")/p.Param("floors-per-level")
+	tiers := g.r.Book.FightTiers
+	return g.Puzzles().TopLevel(tiers[len(tiers)-1].Tier)
 }
 
 // FaceMachine puts a character in an encounter of one beat, a machine of
@@ -632,7 +650,7 @@ func (g *Game) topLevel() int64 {
 // encounter; a haywire leaves it for another try.
 func (g *Game) FaceMachine(c *Char, family string, level int64) {
 	beat := beatPuzzle
-	if g.puzzles().Family(family).Lockpick {
+	if g.Puzzles().Family(family).Lockpick {
 		beat = fight.BeatLock
 	}
 	h := c.C.At
@@ -648,7 +666,7 @@ func (g *Game) FaceMachine(c *Char, family string, level int64) {
 // recorded as a fact. A character who has never armed one still meets the
 // opening Rewire first.
 func (g *Game) setMachine(c *Char, cmd Command) error {
-	if top := g.topLevel(); cmd.Note == "" || !g.puzzles().Known(cmd.Asset) || cmd.Units < 1 || cmd.Units > top {
+	if top := g.topLevel(); cmd.Note == "" || !g.Puzzles().Known(cmd.Asset) || cmd.Units < 1 || cmd.Units > top {
 		return refuse(BadArgs, "a machine needs a family, a level from 1 to %d and a note", top)
 	}
 	if c.Banned || c.Armed != nil {

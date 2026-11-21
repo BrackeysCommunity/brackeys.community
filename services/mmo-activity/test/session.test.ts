@@ -36,6 +36,24 @@ test("each state replaces the last whole, and sets the clock offset", async () =
   expect(r.session.serverNow()).toBe(5_000_900);
 });
 
+test("a state that arrives late does not set the server's clock back", async () => {
+  const r = rig();
+  r.session.start();
+  await settle();
+  const s = r.greet(1);
+  r.clock.advance(1000);
+  // Stamped 400 ms after the first, it took 600 ms to arrive.
+  s.serve({ t: "state", state: { ...stateAt(2), now: 5_000_400 } });
+  expect(r.session.state?.character.version).toBe(2);
+  expect(r.session.serverNow()).toBe(5_001_000);
+  // A new connection measures afresh.
+  s.drop();
+  r.clock.advance(500);
+  await settle();
+  r.greet(3, { now: 5_000_700 });
+  expect(r.session.serverNow()).toBe(5_000_700);
+});
+
 test("a dropped socket is dialled again, waiting from half a second up to fifteen", async () => {
   const r = rig();
   r.session.start();

@@ -118,7 +118,7 @@ test("the phone's cap of four valves holds", () => {
 test("a hint and the guide draw which way to drag a wheel", () => {
   const s = stage(pressure, small.layout, { ...phone, guide: { at: 0, a: 0, b: 1 } });
   expect(s.surface.querySelector(".guide")!.getAttribute("d")).not.toBe("");
-  s.scene.hint({ at: 0, a: 2, b: -1 });
+  s.hint({ at: 0, a: 2, b: -1 });
   s.frame();
   expect(s.surface.querySelector(".hint")!.getAttribute("d")).not.toBe("");
   // Once a valve has been turned the guide's first move is spent.

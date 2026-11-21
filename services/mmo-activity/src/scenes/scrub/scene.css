@@ -132,12 +132,6 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .scrub .cell.hinted .ring {
-    animation: scrub-march 0.6s linear infinite;
-  }
-}
-
-@keyframes scrub-march {
-  to {
-    stroke-dashoffset: -18;
+    animation: board-march 0.6s linear infinite;
   }
 }

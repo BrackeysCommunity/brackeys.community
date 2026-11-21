@@ -143,8 +143,8 @@ func TestPouches(t *testing.T) {
 		t.Fatalf("someone who never worked a machine found a pouch, or nothing: %d pouches, %d goods", len(novice.Pouches), held(ledger.Char(novice.C.ID)))
 	}
 
-	// A failed lock keeps the goods in: an alarm, or shut for the
-	// lockdown's days.
+	// A failed lock keeps the goods in and shuts the pouch for the
+	// lockdown's days, whatever its haywire; an alarm sounds as well.
 	rig, ok := g.Rig(finder, Viewer{Pouch: p.ID})
 	if !ok || rig.Source != SourcePouch || rig.Spec.Family != p.Family || rig.Countdown == 0 {
 		t.Fatalf("the pouch's rig: %+v", rig.Spec)
@@ -158,27 +158,28 @@ func TestPouches(t *testing.T) {
 	if ref != nil || res.Machine.Solved || !has(res.Facts, "puzzle.haywire") || finder.Pouches[0].Tries != 1 || held(ledger.PouchPool(p.ID)) != most {
 		t.Fatalf("a failed pouch lock: %+v %v, pouch %+v", res.Machine, ref, finder.Pouches[0])
 	}
-	if sk := finder.C.PracticeOf(p.Family); sk.Uses != g.puzzles().Param("haywire-uses") {
+	if sk := finder.C.PracticeOf(p.Family); sk.Uses != g.Puzzles().Param("haywire-uses") {
 		t.Fatalf("%d uses from a failed pouch lock", sk.Uses)
 	}
-	switch g.puzzles().HaywireRow(res.Machine.Haywire).Effect {
-	case effectAlarm:
-		if len(g.Pending) != pending+1 || finder.Pouches[0].Shut != 0 {
-			t.Fatalf("an alarm: pending %+v, shut %d", g.Pending, finder.Pouches[0].Shut)
-		}
-	default:
-		if finder.Pouches[0].Shut != g.Tick()+g.lockdownDays()*sheets.TicksPerDay {
-			t.Fatalf("shut until %d at tick %d", finder.Pouches[0].Shut, g.Tick())
-		}
-		before, _ := g.Digest()
-		if _, ref := act(finder, armPouch); ref == nil || ref.Code != LockedDown {
-			t.Fatalf("arming a shut pouch: %v", ref)
-		}
-		if after, _ := g.Digest(); after != before {
-			t.Fatal("a refused arming changed the game")
-		}
-		finder.Pouches[0].Shut = 0
+	alarms := 0
+	if g.Puzzles().HaywireRow(res.Machine.Haywire).Effect == puzzle.EffectAlarm {
+		alarms = 1
 	}
+	if len(g.Pending) != pending+alarms {
+		t.Fatalf("a failed pouch lock left %+v pending, %d of them alarms", g.Pending, alarms)
+	}
+	shut := g.Puzzles().LockdownDays() * sheets.TicksPerDay
+	if shut == 0 || g.PouchLocked(finder, &finder.Pouches[0]) != shut {
+		t.Fatalf("shut for %d ticks, want %d", g.PouchLocked(finder, &finder.Pouches[0]), shut)
+	}
+	before, _ := g.Digest()
+	if _, ref := act(finder, armPouch); ref == nil || ref.Code != LockedDown {
+		t.Fatalf("arming a shut pouch: %v", ref)
+	}
+	if after, _ := g.Digest(); after != before {
+		t.Fatal("a refused arming changed the game")
+	}
+	finder.Lockdowns = nil
 
 	// The second try is a new machine; solving it pays what the pouch
 	// holds and nothing more.
@@ -189,7 +190,7 @@ func TestPouches(t *testing.T) {
 	if _, ref := act(finder, armPouch); ref != nil {
 		t.Fatal(ref)
 	}
-	log := g.puzzles().Solve(again.Layout)
+	log := g.Puzzles().Solve(again.Layout)
 	g.Flush()
 	res, ref = act(finder, Command{Kind: MachineSolve, Machine: &MachineCmd{Log: &log}})
 	if ref != nil || !res.Machine.Solved || !has(res.Facts, "pouch.opened") || has(res.Facts, "puzzle.haywire") {
@@ -202,8 +203,8 @@ func TestPouches(t *testing.T) {
 	if len(txns) != 1 || txns[0].Kind != "pouch" {
 		t.Fatalf("opening a pouch posted %+v", txns)
 	}
-	live := g.puzzles().Param("live-solve-uses")
-	if finder.C.PracticeOf(practiceLockpick).Uses != live || finder.C.PracticeOf(p.Family).Uses != live+g.puzzles().Param("haywire-uses") {
+	live := g.Puzzles().Param("live-solve-uses")
+	if finder.C.PracticeOf(practiceLockpick).Uses != live || finder.C.PracticeOf(p.Family).Uses != live+g.Puzzles().Param("haywire-uses") {
 		t.Fatalf("practice after the pouch: %+v", finder.C.Practice)
 	}
 

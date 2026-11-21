@@ -4,10 +4,11 @@ import { expect, test } from "vite-plus/test";
 import { goldenCases } from "../../../test/golden.ts";
 import { stage, type Stage } from "../../../test/stage.ts";
 import { HIT, type Point } from "../../shell/board.ts";
+import { step } from "../../shell/grid.ts";
 import { DONE } from "../../shell/kit.ts";
 import { play } from "../../shell/play.ts";
 import maze from "./index.ts";
-import { step, type MazeModel } from "./model.ts";
+import type { MazeModel } from "./model.ts";
 import { centre, geometry, tilts } from "./scene.ts";
 
 const cases = goldenCases("lock-maze");
@@ -133,7 +134,7 @@ test("the phone's cap of four cells a side is kept", () => {
 test("the scene cleans up after itself", () => {
   const s = stage(maze, small.layout, phone);
   expect(s.surface.children.length).toBe(1);
-  s.scene.hint({ at: 0, a: 0 });
+  s.hint({ at: 0, a: 0 });
   s.frame();
   expect(s.surface.querySelector(".hint")!.getAttribute("d")).not.toBe("");
   s.scene.destroy();

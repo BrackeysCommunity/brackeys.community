@@ -134,7 +134,7 @@ test("a hint warns of a spike's start in seconds", () => {
   const s = stage(crank, small.layout, phone);
   const warn = () => s.surface.querySelector(".warn")!.textContent;
   expect(warn()).toBe("");
-  s.scene.hint({ at: 2700, a: 2 });
+  s.hint({ at: 2700, a: 2 });
   s.frame();
   expect(warn()).toBe("Load spike in 3 s");
   s.at = 2700;
@@ -165,7 +165,7 @@ test("the handle is a thumb wide and the wheel fits, on a phone and at full size
 test("the scene cleans up after itself", () => {
   const s = stage(crank, small.layout, phone);
   expect(s.surface.children.length).toBe(1);
-  s.scene.hint({ at: 0, a: 1 });
+  s.hint({ at: 0, a: 1 });
   s.frame();
   s.scene.destroy();
   expect(s.surface.children.length).toBe(0);

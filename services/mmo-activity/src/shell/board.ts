@@ -1,4 +1,4 @@
-import { beacon } from "../beacon.ts";
+import type { SceneHost } from "./kit.ts";
 
 /** The least radius, in CSS px, a piece is hit within: a thumb's. */
 export const HIT = 22;
@@ -39,10 +39,59 @@ export function set(node: Element, attrs: Attrs): void {
   }
 }
 
+/** A line of text at a point. */
+export function text(cls: string, x: number, y: number, content = ""): SVGTextElement {
+  const node = svg("text", { class: cls, x, y });
+  node.textContent = content;
+  return node;
+}
+
+/** Sets a node's text, touching the DOM only when it changed. */
+export function say(node: Element, line: string): void {
+  if (node.textContent !== line) node.textContent = line;
+}
+
 /** The play area in CSS px. Scenes lay out in these, so a hit radius is a real one. */
 export function sizeOf(surface: HTMLElement): Size {
   const r = surface.getBoundingClientRect();
   return { width: Math.max(1, r.width), height: Math.max(1, r.height) };
+}
+
+export interface Board {
+  readonly root: SVGSVGElement;
+  /**
+   * Fits the board to the play area. When its size has changed the board
+   * is emptied and the new size returned, for the scene to build on.
+   */
+  fit(): Size | undefined;
+  remove(): void;
+}
+
+/** A scene's drawing: one SVG on the play area, classed by its family and sized in CSS px. */
+export function board(host: SceneHost, label: string): Board {
+  const root = svg("svg", {
+    class: `board ${host.layout.family}`,
+    role: "img",
+    "aria-label": label,
+  });
+  host.surface.append(root);
+  let size: Size = { width: 0, height: 0 };
+  return {
+    root,
+    fit() {
+      const now = sizeOf(host.surface);
+      if (now.width === size.width && now.height === size.height) return undefined;
+      size = now;
+      root.replaceChildren();
+      set(root, {
+        viewBox: `0 0 ${size.width} ${size.height}`,
+        width: size.width,
+        height: size.height,
+      });
+      return size;
+    },
+    remove: () => root.remove(),
+  };
 }
 
 /** A pointer's place on the surface. */
@@ -113,23 +162,6 @@ export function pointers(surface: HTMLElement, g: Gesture): () => void {
     surface.removeEventListener("pointerup", up);
     surface.removeEventListener("pointercancel", cancel);
   };
-}
-
-/** Records how far a drop missed its mark, for sizing pieces on real phones. */
-export function dropped(
-  family: string,
-  missPx: number,
-  hitPx: number,
-  landed: boolean,
-  ev: PointerEvent,
-): void {
-  beacon("drop", {
-    family,
-    missPx: Math.round(missPx),
-    hitPx: Math.round(hitPx),
-    landed,
-    pointer: ev.pointerType,
-  });
 }
 
 /** The colours pieces are told apart by, from the pack's palette. Never the only signal. */

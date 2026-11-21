@@ -189,7 +189,7 @@ test("crossings are the gates met in order, in between first", () => {
 test("a hint and the guide bracket a swipe on the gauge", () => {
   const s = stage(keycard, small.layout, { ...phone, guide: { at: 1500, a: 766 } });
   expect(s.surface.querySelector(".guide")!.getAttribute("d")).not.toBe("");
-  s.scene.hint({ at: 1500, a: 766 });
+  s.hint({ at: 1500, a: 766 });
   s.frame();
   expect(s.surface.querySelector(".hint")!.getAttribute("d")).not.toBe("");
   expect(s.moves).toEqual([]);

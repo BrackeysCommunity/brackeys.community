@@ -264,8 +264,7 @@ func apiPressed(g *game.Game, ps []fight.Pressed) []api.Pressed {
 // apiTile is a discovered tile: what it is, and what stands and blows on
 // it now.
 func apiTile(g *game.Game, h hex.Hex) (api.Tile, bool) {
-	st := g.World.Tile(h)
-	if st == nil || st.Discovered == nil {
+	if !found(g, h) {
 		return api.Tile{}, false
 	}
 	return tileView(g, h), true

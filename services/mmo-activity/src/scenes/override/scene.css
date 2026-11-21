@@ -98,12 +98,6 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .override .pad.hinted .ring {
-    animation: override-march 0.6s linear infinite;
-  }
-}
-
-@keyframes override-march {
-  to {
-    stroke-dashoffset: -18;
+    animation: board-march 0.6s linear infinite;
   }
 }

@@ -10,6 +10,7 @@ package puzzle
 
 import (
 	"maps"
+	"math"
 	"slices"
 
 	"jams.team/mmo-world/sim/draw"
@@ -35,6 +36,7 @@ type Puzzles struct {
 	gifts    []sheets.PracticeGift
 	params   []sheets.Param
 	intro    string
+	lockdown int64
 	gen      *draw.Drawer
 }
 
@@ -54,6 +56,9 @@ func New(b *sheets.Book, genKey draw.Key) *Puzzles {
 	for _, h := range b.Haywires {
 		if h.Intro {
 			p.intro = h.ID
+		}
+		if h.Effect == EffectLockdown && p.lockdown == 0 {
+			p.lockdown = h.Magnitude
 		}
 	}
 	return p
@@ -95,13 +100,24 @@ type Spec struct {
 
 func (s Spec) Where() Where { return Where{Place: s.Place, Beat: s.Beat} }
 
+// band is a tier's levels: the lowest, and how many more it spans.
+func (p *Puzzles) band(tier int64) (lo, span int64) {
+	return p.Param("level-per-tier")*tier - 1, p.Param("level-span")
+}
+
 // Level is a machine's family level: within its tier's band, keyed, and
 // one more per so many dungeon floors.
 func (p *Puzzles) Level(family string, tier, floor int64, w Where) int64 {
-	lo := p.Param("level-per-tier")*tier - 1
-	span := p.Param("level-span")
+	lo, span := p.band(tier)
 	lvl := lo + int64(p.gen.Below(uint64(span+1), "puzzle.level", w.parts(family)...))
 	return lvl + floor/p.Param("floors-per-level")
+}
+
+// TopLevel is the highest level Level gives at a tier: the top of its
+// band, on the deepest floor.
+func (p *Puzzles) TopLevel(tier int64) int64 {
+	lo, span := p.band(tier)
+	return lo + span + p.Param("floors")/p.Param("floors-per-level")
 }
 
 // Gifts sums what a practice level buys: extra countdown and hints.
@@ -135,14 +151,48 @@ func (p *Puzzles) Gifts(practice int64) Gifts {
 	return g
 }
 
+// structural: the units a countdown's parts are stated in.
+const (
+	UnitSeconds = "s"
+	UnitPercent = "percent"
+)
+
+// Part is one thing a countdown is made of.
+type Part struct {
+	Label string
+	Value int64
+	Unit  string
+}
+
+// timing is a countdown's parts: the family's seconds, the level's, the
+// tier's percent and practice's.
+type timing struct{ family, level, tier, practice int64 }
+
+func (p *Puzzles) timing(family string, level, tier, practice int64) timing {
+	f := p.families[family]
+	return timing{family: f.Countdown, level: f.PerLevel * (level - 1), tier: p.Param("countdown-per-tier") * (tier - 1),
+		practice: p.Gifts(practice).Countdown}
+}
+
 // Countdown in milliseconds: the family's time at level 1, more per
 // level, less per tier, more with practice.
 func (p *Puzzles) Countdown(family string, level, tier, practice int64) int64 {
-	f := p.families[family]
-	secs := f.Countdown + f.PerLevel*(level-1)
-	pct := fixed.Hundredths + p.Param("countdown-per-tier")*(tier-1)
-	pct = fixed.PercentPlus(pct, p.Gifts(practice).Countdown)
-	return fixed.PercentOf(secs*msPerSecond, pct)
+	t := p.timing(family, level, tier, practice)
+	pct := fixed.PercentPlus(fixed.Hundredths+t.tier, t.practice)
+	return fixed.PercentOf((t.family+t.level)*msPerSecond, pct)
+}
+
+// CountdownParts is what Countdown is made of, the parts that are nothing
+// left out.
+func (p *Puzzles) CountdownParts(family string, level, tier, practice int64) []Part {
+	t := p.timing(family, level, tier, practice)
+	out := []Part{{"family", t.family, UnitSeconds}}
+	for _, x := range []Part{{"level", t.level, UnitSeconds}, {"tier", t.tier, UnitPercent}, {"practice", t.practice, UnitPercent}} {
+		if x.Value != 0 {
+			out = append(out, x)
+		}
+	}
+	return out
 }
 
 // Layout is one machine, as the client draws it. The reward roll and the
@@ -260,13 +310,23 @@ type Log struct {
 	End   int64  `json:"end,omitempty"`
 }
 
-// Limits are what a replay is held to. Countdown 0 is a bench: no limit
-// but the longest play. Elapsed is the server's milliseconds since arming,
-// or -1 where no clock is kept.
+// Limits are what a replay is held to. Elapsed is the server's
+// milliseconds since arming, or -1 where no clock is kept. A bench machine
+// has no countdown and no haywire: only the longest play ends it.
 type Limits struct {
 	Countdown int64
 	Elapsed   int64
 	Master    bool
+	Bench     bool
+}
+
+// Stop is the millisecond a log's player stopped at.
+func (l Log) Stop() int64 {
+	at := l.End
+	if n := len(l.Moves); n > 0 {
+		at = max(at, l.Moves[n-1].At)
+	}
+	return at
 }
 
 // Result is the one fact a move log becomes.
@@ -279,15 +339,21 @@ type Result struct {
 	Haywire string `json:"haywire,omitempty"`
 }
 
+func (p *Puzzles) grace() int64 { return p.Param("network-grace") * msPerSecond }
+
+// MaxPlay is the longest a play may run, in milliseconds: all that ends a
+// bench machine.
+func (p *Puzzles) MaxPlay() int64 { return p.Param("max-play-seconds") * msPerSecond }
+
 // Play replays a move log against the machine a spec names. A log that
 // does not solve the machine in time, or breaks it, haywires. Walking
 // away after arming is an empty or unfinished log.
 func (p *Puzzles) Play(s Spec, log Log, lim Limits) Result {
-	fail := Result{Haywire: p.Haywire(s.Family, s.Where())}
-	grace := p.Param("network-grace") * msPerSecond
-	limit := lim.Countdown + grace
-	if lim.Countdown == 0 {
-		limit = p.Param("max-play-seconds") * msPerSecond
+	var fail Result
+	limit := p.MaxPlay()
+	if !lim.Bench {
+		fail.Haywire = p.Haywire(s.Family, s.Where())
+		limit = lim.Countdown + p.grace()
 	}
 	if lim.Elapsed >= 0 && lim.Elapsed > limit {
 		fail.Late = true
@@ -298,7 +364,7 @@ func (p *Puzzles) Play(s Spec, log Log, lim Limits) Result {
 	}
 	horizon := limit
 	if lim.Elapsed >= 0 {
-		horizon = min(limit, lim.Elapsed+grace)
+		horizon = min(limit, lim.Elapsed+p.grace())
 	}
 	l := p.Make(s)
 	var inner *Layout
@@ -306,50 +372,43 @@ func (p *Puzzles) Play(s Spec, log Log, lim Limits) Result {
 		in := p.Inner(s)
 		inner = &in
 	}
-	out := RunLog(l, inner, log, horizon, nil)
+	return p.judge(RunLog(l, inner, log, horizon, nil), fail, lim.Countdown, lim.Elapsed)
+}
+
+// judge reads a replay's outcome against a countdown: fail unless the
+// machine was solved, and clean when enough of the countdown was left. A
+// client's stamps are only trusted to be late, so with a server clock the
+// solve counts from no earlier than the grace before the log arrived.
+func (p *Puzzles) judge(out Outcome, fail Result, countdown, elapsed int64) Result {
 	if out.Status != Done {
 		return fail
 	}
 	seen := out.At
-	if lim.Elapsed >= 0 {
-		// A client's stamps are only trusted to be late.
-		seen = max(seen, lim.Elapsed-grace)
+	if elapsed >= 0 {
+		seen = max(seen, elapsed-p.grace())
 	}
-	clean := lim.Countdown > 0 && fixed.AtPercent(lim.Countdown-seen, lim.Countdown, p.Param("clean-solve-left"))
+	clean := countdown > 0 && fixed.AtPercent(countdown-seen, countdown, p.Param("clean-solve-left"))
 	return Result{Solved: true, Clean: clean, Master: out.Master, At: out.At}
 }
 
 // Replay plays a move log against a layout and a countdown, with no
 // server clock and no inner panel.
 func (p *Puzzles) Replay(l Layout, moves []Move, countdown int64, w Where) Result {
-	limit := countdown + p.Param("network-grace")*msPerSecond
-	out := RunLog(l, nil, Log{Moves: moves}, limit, nil)
-	if out.Status != Done {
-		return Result{Haywire: p.Haywire(l.Family, w)}
-	}
-	clean := fixed.AtPercent(countdown-out.At, countdown, p.Param("clean-solve-left"))
-	return Result{Solved: true, Clean: clean, At: out.At}
+	out := RunLog(l, nil, Log{Moves: moves}, countdown+p.grace(), nil)
+	return p.judge(out, Result{Haywire: p.Haywire(l.Family, w)}, countdown, -1)
 }
 
 // Solve is a log that solves a layout and stops at the solve: what the
 // bench player presses and what a guide line is drawn from.
 func (p *Puzzles) Solve(l Layout) Log {
-	log := registry[l.Family].Solve(&l)
-	play := registry[l.Family].Start(&l)
-	var last int64
-	for i, m := range log.Moves {
-		if st, at := play.Run(m.At); st != Going {
-			return Log{Moves: log.Moves[:i], End: at}
-		}
-		last = m.At
-		if play.Apply(m) != Going {
-			return Log{Moves: log.Moves[:i+1]}
-		}
+	f := registry[l.Family]
+	log := f.Solve(&l)
+	_, at, used := feed(f.Start(&l), log.Moves, log.End, math.MaxInt64, 0, nil)
+	out := Log{Moves: log.Moves[:used]}
+	if at > out.Stop() {
+		out.End = at
 	}
-	if _, at := play.Run(max(log.End, last)); at > last {
-		return Log{Moves: log.Moves, End: at}
-	}
-	return Log{Moves: log.Moves}
+	return out
 }
 
 // Hints are the moves a hint may show for a layout, most telling first.
@@ -361,11 +420,34 @@ func (p *Puzzles) Haywire(family string, w Where) string {
 	return hs[p.gen.Below(uint64(len(hs)), "puzzle.haywire", w.parts(family)...)]
 }
 
+// structural: what a haywire row does.
+const (
+	EffectShock    = "shock"
+	EffectAlarm    = "alarm"
+	EffectShort    = "short"
+	EffectLockdown = "lockdown"
+)
+
 // HaywireRow is what a haywire does.
 func (p *Puzzles) HaywireRow(id string) *sheets.Haywire { return p.haywires[id] }
 
 // Intro is the haywire of a character's first machine.
 func (p *Puzzles) Intro() string { return p.intro }
+
+// LockdownDays is how many world days the sheet's lockdown lasts.
+func (p *Puzzles) LockdownDays() int64 { return p.lockdown }
+
+// structural: the machine a character meets first, and the families that
+// lock a pouch.
+const introLevel = 1
+
+var pouchLocks = []string{Pins, Maze}
+
+// IntroMachine is the family and level of a character's first machine.
+func (p *Puzzles) IntroMachine() (family string, level int64) { return Rewire, introLevel }
+
+// PouchLocks are the families a pouch may be locked with.
+func (p *Puzzles) PouchLocks() []string { return pouchLocks }
 
 // HaulPercent is the haul a result earns, as a share of the beat's.
 func (p *Puzzles) HaulPercent(r Result) int64 {

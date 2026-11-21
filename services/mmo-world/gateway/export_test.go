@@ -2,6 +2,12 @@ package gateway
 
 import "time"
 
+// MaxUnseated is how many sockets may wait to say hello.
+const MaxUnseated = maxUnseated
+
+// MaxLooks is how many looks a seat may send in a second.
+const MaxLooks = maxLooks
+
 // Settle waits until every notice from the host has been acted on.
 func (g *Gateway) Settle() { g.settle() }
 

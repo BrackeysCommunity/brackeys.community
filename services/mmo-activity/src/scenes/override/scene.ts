@@ -1,14 +1,12 @@
 import "./scene.css";
-import type { PuzzleMove } from "../../api.ts";
 import {
-  dropped,
+  board,
   glyph,
   glyphName,
   letter,
   pieceColour,
   pointers,
   set,
-  sizeOf,
   svg,
   type Point,
   type Size,
@@ -16,7 +14,6 @@ import {
 import type { Scene, SceneHost } from "../../shell/kit.ts";
 import type { OverrideModel } from "./model.ts";
 
-const HINT_MS = 3000;
 // The pause before a round is shown, between showings while the machine
 // is at rest, and how long a pressed pad stays lit.
 const LEAD_MS = 450;
@@ -94,13 +91,11 @@ export function mount(host: SceneHost): Scene {
   const rounds = host.layout.size;
   const symbols = Math.max(1, host.layout.range ?? 1);
 
-  const root = svg("svg", {
-    class: "board override",
-    role: "img",
-    "aria-label":
-      "A terminal with a screen over a set of pads. Watch the symbols the screen shows, then press the same pads in the same order. Each round adds one.",
-  });
-  host.surface.append(root);
+  const view = board(
+    host,
+    "A terminal with a screen over a set of pads. Watch the symbols the screen shows, then press the same pads in the same order. Each round adds one.",
+  );
+  const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
   let geo = geometry(symbols, { width: 1, height: 1 });
@@ -113,15 +108,8 @@ export function mount(host: SceneHost): Scene {
   let show: { round: number; from: number } | undefined;
   let seen = -1;
   let press: { pad: number; until: number } | undefined;
-  let hint: { move: PuzzleMove; until: number } | undefined;
 
   function build(): void {
-    root.replaceChildren();
-    set(root, {
-      viewBox: `0 0 ${size.width} ${size.height}`,
-      width: size.width,
-      height: size.height,
-    });
     const { screen } = geo;
     const mid = { x: screen.x + screen.width / 2, y: screen.y + screen.height / 2 - 4 };
     const big = Math.min(screen.height * 0.3, 34);
@@ -179,14 +167,14 @@ export function mount(host: SceneHost): Scene {
   }
 
   function frame(): void {
-    const now = sizeOf(host.surface);
-    if (now.width !== size.width || now.height !== size.height) {
+    const now = view.fit();
+    if (now) {
       size = now;
       geo = geometry(symbols, size);
       build();
     }
     const clock = performance.now();
-    if (hint && clock > hint.until) hint = undefined;
+    const hint = host.hinted();
     if (press && clock > press.until) press = undefined;
     const m = model();
     const { round, entered } = m.progress();
@@ -207,7 +195,7 @@ export function mount(host: SceneHost): Scene {
         "pad",
         lit === s ? "shown" : "",
         press?.pad === s ? "pressed" : "",
-        hint?.move.a === s ? "hinted" : "",
+        hint?.a === s ? "hinted" : "",
         host.guide?.a === s && m.k === 0 ? "guided" : "",
       ];
       set(pad, { class: state.filter(Boolean).join(" ") });
@@ -231,7 +219,7 @@ export function mount(host: SceneHost): Scene {
       press = { pad, until: performance.now() + PRESS_MS };
       const box = geo.pads[pad]!;
       const off = Math.hypot(p.x - box.x - box.width / 2, p.y - box.y - box.height / 2);
-      dropped("override", off, Math.min(box.width, box.height) / 2, true, ev);
+      host.dropped(off, Math.min(box.width, box.height) / 2, true, ev);
       host.move(pad);
       return true;
     },
@@ -242,12 +230,9 @@ export function mount(host: SceneHost): Scene {
 
   return {
     frame,
-    hint(move) {
-      hint = { move, until: performance.now() + HINT_MS };
-    },
     destroy() {
       unbind();
-      root.remove();
+      view.remove();
     },
   };
 }

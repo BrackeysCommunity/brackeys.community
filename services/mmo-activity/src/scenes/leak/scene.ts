@@ -3,13 +3,14 @@ import type { PuzzleMove } from "../../api.ts";
 import {
   HIT,
   PICKUP,
-  dropped,
+  board,
   letter,
   nearest,
   pointers,
+  say,
   set,
-  sizeOf,
   svg,
+  text,
   type Point,
   type Size,
 } from "../../shell/board.ts";
@@ -17,9 +18,8 @@ import type { Scene, SceneHost } from "../../shell/kit.ts";
 import { plural } from "../../units.ts";
 import type { LeakModel } from "./model.ts";
 
-// How long a hint stays lit at least, how long a knock on a dry joint
-// shows, and the share of the gauge under which it is marked low.
-const HINT_MS = 3000;
+// How long a knock on a dry joint shows, and the share of the gauge under
+// which it is marked low.
 const KNOCK_MS = 260;
 const LOW = 0.3;
 
@@ -83,12 +83,11 @@ export function mount(host: SceneHost): Scene {
   const model = () => host.model as LeakModel;
   const n = host.layout.size;
 
-  const root = svg("svg", {
-    class: "board leak",
-    role: "img",
-    "aria-label": `A pipe with ${plural(n, "joint")}. Tap each leak shut as it springs, before the pressure runs out. A tap on a dry joint knocks pressure out.`,
-  });
-  host.surface.append(root);
+  const view = board(
+    host,
+    `A pipe with ${plural(n, "joint")}. Tap each leak shut as it springs, before the pressure runs out. A tap on a dry joint knocks pressure out.`,
+  );
+  const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
   let geo = geometry(n, { width: 1, height: 1 });
@@ -96,26 +95,10 @@ export function mount(host: SceneHost): Scene {
   let sprung: SVGCircleElement[] = [];
   let label: SVGTextElement | undefined;
   let fill: SVGRectElement | undefined;
-  let hint: { move: PuzzleMove; until: number } | undefined;
+  let coming: PuzzleMove | undefined;
   const knocked: number[] = Array.from({ length: n }, () => 0);
 
-  function text(cls: string, x: number, y: number, content = ""): SVGTextElement {
-    const node = svg("text", { class: cls, x, y });
-    node.textContent = content;
-    return node;
-  }
-
-  function say(node: SVGTextElement, line: string): void {
-    if (node.textContent !== line) node.textContent = line;
-  }
-
   function build(): void {
-    root.replaceChildren();
-    set(root, {
-      viewBox: `0 0 ${size.width} ${size.height}`,
-      width: size.width,
-      height: size.height,
-    });
     const { r, slots } = geo;
     label = text("label", geo.x, 18);
     fill = svg("rect", { class: "fill", x: geo.x, y: geo.top, width: 0, height: geo.bar });
@@ -184,15 +167,19 @@ export function mount(host: SceneHost): Scene {
   }
 
   function frame(at: number): void {
-    const now = sizeOf(host.surface);
-    if (now.width !== size.width || now.height !== size.height) {
+    const now = view.fit();
+    if (now) {
       size = now;
       geo = geometry(n, size);
       build();
     }
     const m = model();
     const clock = performance.now();
-    if (hint && clock > hint.until && at >= hint.move.at) hint = undefined;
+    // A hint names a leak to come, and stays until that leak has sprung.
+    const lit = host.hinted();
+    if (lit) coming = lit;
+    else if (coming && at >= coming.at) coming = undefined;
+    const hint = coming;
     const share = Math.max(0, m.gauge) / Math.max(1, m.full);
     say(label!, share < LOW ? "Pressure low!" : "Pressure");
     set(label!, { class: share < LOW ? "label low" : "label" });
@@ -201,7 +188,7 @@ export function mount(host: SceneHost): Scene {
     for (const [i, j] of joints.entries()) {
       const st = state(m, i);
       const marked =
-        hint?.move.a === i ? " hinted" : host.guide?.a === i && m.next === 0 ? " guided" : "";
+        hint?.a === i ? " hinted" : host.guide?.a === i && m.next === 0 ? " guided" : "";
       set(j.g, { class: `joint ${st}${clock < knocked[i]! ? " knocked" : ""}${marked}` });
       say(j.word, st === "dry" ? (marked === " hinted" ? "next" : "") : st);
       // A pip for each tap the leak still needs, in a row under the joint.
@@ -218,7 +205,7 @@ export function mount(host: SceneHost): Scene {
   const unbind = pointers(host.surface, {
     down(p, ev) {
       const { slot, miss } = land(geo, p);
-      dropped("leak", miss, geo.r * PICKUP, slot !== undefined, ev);
+      host.dropped(miss, geo.r * PICKUP, slot !== undefined, ev);
       if (slot === undefined) return false;
       // The first touch only starts the pipe groaning: nothing leaks yet.
       if (host.now() === 0) {
@@ -234,12 +221,9 @@ export function mount(host: SceneHost): Scene {
 
   return {
     frame,
-    hint(move) {
-      hint = { move, until: performance.now() + HINT_MS };
-    },
     destroy() {
       unbind();
-      root.remove();
+      view.remove();
     },
   };
 }

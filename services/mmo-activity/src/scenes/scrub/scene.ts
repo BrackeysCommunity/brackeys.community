@@ -1,16 +1,23 @@
 import "./scene.css";
-import type { PuzzleMove } from "../../api.ts";
-import { distance, pointers, set, sizeOf, svg, type Point, type Size } from "../../shell/board.ts";
-import { GOING, type Scene, type SceneHost } from "../../shell/kit.ts";
+import {
+  board,
+  distance,
+  pointers,
+  set,
+  svg,
+  text,
+  type Point,
+  type Size,
+} from "../../shell/board.ts";
+import { GOING, within, type Scene, type SceneHost } from "../../shell/kit.ts";
 import { plural } from "../../units.ts";
 import { HIDDEN, type ScrubModel } from "./model.ts";
 
 /** How far into a cell, as a share of its side, a finger must be to have moved onto it. */
 export const INSET = 0.12;
 
-// How long a hint's ring stays lit, the points of the finger's path that
-// are drawn, and the most layers a cell is drawn counting down.
-const HINT_MS = 3000;
+// The points of the finger's path that are drawn, and the most layers a
+// cell is drawn counting down.
 const WIPE = 10;
 const DOTS = 3;
 
@@ -86,12 +93,11 @@ export function mount(host: SceneHost): Scene {
   const n = host.layout.size;
   const cells = n * n;
 
-  const root = svg("svg", {
-    class: "board scrub",
-    role: "img",
-    "aria-label": `A fouled panel, ${plural(n, "cell")} a side. Rub the grit off the cells that hold the reading. A cell on its last layer shows what it is: one more rub breaks a cracked one.`,
-  });
-  host.surface.append(root);
+  const view = board(
+    host,
+    `A fouled panel, ${plural(n, "cell")} a side. Rub the grit off the cells that hold the reading. A cell on its last layer shows what it is: one more rub breaks a cracked one.`,
+  );
+  const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
   let geo = geometry(n, { width: 1, height: 1 });
@@ -99,23 +105,10 @@ export function mount(host: SceneHost): Scene {
   let fill: SVGRectElement | undefined;
   let wipe: SVGPolylineElement | undefined;
   let drag: Drag | undefined;
-  let hint: { move: PuzzleMove; until: number } | undefined;
   /** The cracked cells a hint has warned of. */
   const warned = new Set<number>();
 
-  function text(cls: string, x: number, y: number, content: string): SVGTextElement {
-    const node = svg("text", { class: cls, x, y });
-    node.textContent = content;
-    return node;
-  }
-
   function build(): void {
-    root.replaceChildren();
-    set(root, {
-      viewBox: `0 0 ${size.width} ${size.height}`,
-      width: size.width,
-      height: size.height,
-    });
     const c = geo.cell;
     const side = c * n;
     fill = svg("rect", { class: "fill", x: geo.x + 64, y: 12, width: 0, height: 12 });
@@ -177,21 +170,25 @@ export function mount(host: SceneHost): Scene {
   }
 
   function frame(): void {
-    const now = sizeOf(host.surface);
-    if (now.width !== size.width || now.height !== size.height) {
+    const now = view.fit();
+    if (now) {
       size = now;
       geo = geometry(n, size);
       build();
     }
     const m = model();
-    if (hint && performance.now() > hint.until) hint = undefined;
+    // A hint that names a cracked cell is a warning, and stays; any other
+    // is a cell worth rubbing.
+    const lit = host.hinted();
+    const crack = lit !== undefined && within(lit.a, cells) && m.kind(lit.a) === "crack";
+    if (lit && crack) warned.add(lit.a);
+    const hint = crack ? undefined : lit;
     for (const [i, cell] of drawn.entries()) {
       const grit = m.grit[i]!;
       // A cell under two layers or more shows nothing of what it is.
       const shows = grit < HIDDEN ? ` ${m.kind(i)}` : "";
       const cover = grit >= HIDDEN ? "hidden" : grit === 1 ? "hazy" : "clean";
-      const ring =
-        hint?.move.a === i ? " hinted" : host.guide?.a === i && grit > 0 ? " guided" : "";
+      const ring = hint?.a === i ? " hinted" : host.guide?.a === i && grit > 0 ? " guided" : "";
       set(cell.g, {
         class: `cell ${cover}${shows}${warned.has(i) ? " warned" : ""}${ring}`,
       });
@@ -254,15 +251,9 @@ export function mount(host: SceneHost): Scene {
 
   return {
     frame,
-    hint(move) {
-      // A hint names a cracked cell, and its warning stays; any other is
-      // a cell worth rubbing.
-      if (move.a >= 0 && move.a < cells && model().kind(move.a) === "crack") warned.add(move.a);
-      else hint = { move, until: performance.now() + HINT_MS };
-    },
     destroy() {
       unbind();
-      root.remove();
+      view.remove();
     },
   };
 }

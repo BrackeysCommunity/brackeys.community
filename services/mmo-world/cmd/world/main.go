@@ -103,12 +103,12 @@ func run(guard *service.Guard, log *slog.Logger) error {
 	}
 	defer pool.Close()
 	standby := service.Standby(sec.World)
-	apiSrv, serveAPI := listen(service.Getenv(service.EnvPort, "8080"), standby, log, stop)
+	apiSrv, serveAPI := listen(service.Getenv(service.EnvPort, "8080"), limits{}, standby, log, stop)
 	servers := []*http.Server{apiSrv}
 	serveActivity := func(http.Handler) {}
 	if activityPort != "" {
 		var activitySrv *http.Server
-		activitySrv, serveActivity = listen(activityPort, standby, log, stop)
+		activitySrv, serveActivity = listen(activityPort, publicLimits, standby, log, stop)
 		servers = append(servers, activitySrv)
 	}
 	shutdown := func() {
@@ -166,13 +166,23 @@ func run(guard *service.Guard, log *slog.Logger) error {
 	return err
 }
 
+// limits bound how long a listener waits on a connection: for a whole
+// request to arrive, and for the next one on a connection kept open. Zero
+// is no bound.
+type limits struct{ read, idle time.Duration }
+
+// publicLimits are the Activity listener's: anyone can reach it, so a
+// request that trickles in or a connection left idle is let go. A socket
+// is not bound by them once it is accepted.
+var publicLimits = limits{read: 15 * time.Second, idle: 2 * time.Minute}
+
 // listen serves a port with a handler that can be swapped: standby until
 // the world is held, then the real one. A listener that fails stops the
 // service.
-func listen(port string, standby http.Handler, log *slog.Logger, stop func()) (*http.Server, func(http.Handler)) {
+func listen(port string, lim limits, standby http.Handler, log *slog.Logger, stop func()) (*http.Server, func(http.Handler)) {
 	var handler atomic.Pointer[http.Handler]
 	handler.Store(&standby)
-	srv := &http.Server{Addr: ":" + port, ReadHeaderTimeout: 10 * time.Second,
+	srv := &http.Server{Addr: ":" + port, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: lim.read, IdleTimeout: lim.idle,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { (*handler.Load()).ServeHTTP(w, r) })}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

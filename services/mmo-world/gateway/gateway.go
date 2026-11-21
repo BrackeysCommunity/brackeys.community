@@ -34,6 +34,9 @@ type Host interface {
 	// only for the gateway's own expiry.
 	Act(ctx context.Context, req api.ActionRequest, check bool) (api.ActionReply, *api.Refusal, error)
 	Armed(ctx context.Context) ([]api.ArmedMachine, error)
+	// Countdown is one character's countdown, with Due 0 when none is
+	// running. ok is false when the character is gone.
+	Countdown(ctx context.Context, characterID string) (m api.ArmedMachine, ok bool, err error)
 	// Subscribe is told which characters a command or a tick changed
 	// (nil: any). f must not block: it is called with the world held.
 	Subscribe(f func(characterIDs []string))
@@ -84,6 +87,8 @@ const (
 	maxBody     = 4 << 10  // a token or beacon body, in bytes
 	maxBehind   = 8        // frames a socket may fall behind
 	maxIntents  = 10       // intents a seat may send in a second
+	maxLooks    = 5        // looks a seat may send in a second
+	maxUnseated = 256      // sockets that may be open with no hello answered yet
 	maxSockets  = 4        // sockets one Discord user may hold open
 	maxMissed   = 2        // pings a socket may leave unanswered
 	maxTries    = 3        // views built again because the world reloaded meanwhile
@@ -125,7 +130,8 @@ type Seat struct {
 	canPass bool
 	armedAt int64
 	hints   []api.PuzzleMove
-	recent  []time.Time // intents in the last second
+	recent  window // intents in the last second
+	looks   window // looks in the last second
 }
 
 // player is one character the gateway serves. Its lock puts that
@@ -166,8 +172,9 @@ type Gateway struct {
 	conns     map[*conn]struct{}
 	players   map[string]*player
 	arrivals  int64
-	beacons   []time.Time // beacons in the last second
-	exchanges []time.Time // codes traded with Discord in the last second
+	unseated  int    // sockets accepted and not yet seated
+	beacons   window // beacons in the last second
+	exchanges window // codes traded with Discord in the last second
 
 	// The notices not yet acted on.
 	nmu     sync.Mutex
@@ -222,7 +229,7 @@ func (g *Gateway) Start(ctx context.Context) error {
 	for _, a := range list {
 		p := g.player(a.CharacterID)
 		p.mu.Lock()
-		g.keep(p, a.CharacterID, a.Deadline)
+		g.keep(p, a.CharacterID, a.Due)
 		p.mu.Unlock()
 	}
 	return nil
@@ -387,29 +394,26 @@ func (g *Gateway) player(id string) *player {
 	return p
 }
 
-// check sets a character's countdown from its state now.
+// check sets a character's countdown from the world's now; none for a
+// character who is gone.
 func (g *Gateway) check(ctx context.Context, id string) {
 	p := g.player(id)
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	st, ok, err := g.cfg.Host.View(ctx, id, api.Viewer{})
+	m, _, err := g.cfg.Host.Countdown(ctx, id)
 	if err != nil {
 		g.log.Error("activity: reading a countdown", "character", id, "err", err.Error())
 		return
 	}
-	if !ok {
-		g.keep(p, id, 0)
-		return
-	}
-	g.keep(p, id, due(st.Machine))
+	g.keep(p, id, m.Due)
 }
 
-// due is when a machine's countdown ends, grace included, or 0.
+// due is when the server ends a machine in a state, or 0.
 func due(m *api.MachineView) int64 {
 	if m == nil || !m.Armed {
 		return 0
 	}
-	return m.Deadline + m.Grace
+	return m.Due
 }
 
 // keep sets, moves or stops a character's countdown timer; the caller
@@ -464,7 +468,7 @@ func (g *Gateway) expire(id string, t *countdown) {
 	}
 	ctx, cancel := context.WithTimeout(g.ctx, hostWait)
 	defer cancel()
-	st, ok, err := g.cfg.Host.View(ctx, id, api.Viewer{})
+	m, ok, err := g.cfg.Host.Countdown(ctx, id)
 	if err != nil {
 		again(err)
 		return
@@ -472,10 +476,9 @@ func (g *Gateway) expire(id string, t *countdown) {
 	if !ok {
 		return
 	}
-	m := st.Machine
-	if due(m) == 0 || g.clock.Now().UnixMilli() < due(m) {
-		// Solved, or a later machine: the timer follows the state.
-		g.keep(p, id, due(m))
+	if m.Due == 0 || g.clock.Now().UnixMilli() < m.Due {
+		// Solved, or a later machine: the timer follows the world.
+		g.keep(p, id, m.Due)
 		return
 	}
 	req := api.ActionRequest{InteractionID: expiryKey(id, m.ArmedAt), CharacterID: id, Kind: api.ActMachineSolve,

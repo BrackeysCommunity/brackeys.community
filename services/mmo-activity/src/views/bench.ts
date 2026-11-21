@@ -1,7 +1,8 @@
 import type { BenchFamily, BenchView } from "../api.ts";
 import { button, el, lines, panel } from "../dom.ts";
 import { familyOf } from "../shell/registry.ts";
-import { level, outOf, plural, uses } from "../units.ts";
+import { level, outOf, plural } from "../units.ts";
+import { practiceLine, sentence } from "../words.ts";
 
 export interface BenchActions {
   /** The level picked for each family, kept while the bench is open. */
@@ -47,7 +48,7 @@ export function benchView(b: BenchView, act: BenchActions): HTMLElement {
         { class: "option" },
         el("h3", { text: p.title ? `${f.name} · ${p.title}` : f.name }),
         ...lines(
-          `Practice ${level(p.level)}, ${uses(p.uses, p.need)} to the next.`,
+          `Practice ${practiceLine(p, false)}.`,
           f.lessons > 0 ? `${plural(f.lessons, "lesson")} waiting from a master.` : "",
           built ? "" : "This rig is not built yet.",
         ),
@@ -73,8 +74,4 @@ export function benchView(b: BenchView, act: BenchActions): HTMLElement {
   }
   root.append(list);
   return root;
-}
-
-function sentence(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }

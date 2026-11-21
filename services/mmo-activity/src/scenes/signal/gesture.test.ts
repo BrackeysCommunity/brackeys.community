@@ -152,7 +152,7 @@ test("the phone's cap of three knobs is kept", () => {
 test("the scene cleans up after itself", () => {
   const s = stage(signal, small.layout, phone);
   expect(s.surface.children.length).toBe(1);
-  s.scene.hint({ at: 0, a: 0, b: 11 });
+  s.hint({ at: 0, a: 0, b: 11 });
   s.frame();
   expect(s.surface.querySelector(".hint")!.getAttribute("d")).not.toBe("");
   s.scene.destroy();

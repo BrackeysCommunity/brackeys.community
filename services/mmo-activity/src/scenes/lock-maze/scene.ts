@@ -1,11 +1,10 @@
 import "./scene.css";
-import type { PuzzleMove } from "../../api.ts";
-import { glyph, pointers, set, sizeOf, svg, type Point, type Size } from "../../shell/board.ts";
-import type { Scene, SceneHost } from "../../shell/kit.ts";
-import { TILTS, type MazeModel } from "./model.ts";
+import { board, glyph, pointers, set, svg, type Point, type Size } from "../../shell/board.ts";
+import { SIDES } from "../../shell/grid.ts";
+import { within, type Scene, type SceneHost } from "../../shell/kit.ts";
+import type { MazeModel } from "./model.ts";
 
-// How long a hint stays lit and the box stays tipped after a tilt.
-const HINT_MS = 3000;
+// How long the box stays tipped after a tilt.
 const TILT_MS = 220;
 // The share of the way to its cell the bit rolls each frame.
 const ROLL = 0.35;
@@ -72,13 +71,11 @@ export function mount(host: SceneHost): Scene {
   const n = layout.size;
   const walls = layout.walls ?? [];
 
-  const root = svg("svg", {
-    class: "board lock-maze",
-    role: "img",
-    "aria-label":
-      "A tumbler maze, seen from above. Swipe to tip the box and roll the bit, one cell a swipe, to the marked cell.",
-  });
-  host.surface.append(root);
+  const view = board(
+    host,
+    "A tumbler maze, seen from above. Swipe to tip the box and roll the bit, one cell a swipe, to the marked cell.",
+  );
+  const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
   let geo = geometry(n, { width: 1, height: 1 });
@@ -88,15 +85,8 @@ export function mount(host: SceneHost): Scene {
   let shown: Point | undefined;
   let anchor: Point | undefined;
   let tipped: { dir: number; until: number } | undefined;
-  let hint: { move: PuzzleMove; until: number } | undefined;
 
   function build(): void {
-    root.replaceChildren();
-    set(root, {
-      viewBox: `0 0 ${size.width} ${size.height}`,
-      width: size.width,
-      height: size.height,
-    });
     const { cell, origin } = geo;
     let d = "";
     for (let c = 0; c < n * n; c++) {
@@ -138,7 +128,7 @@ export function mount(host: SceneHost): Scene {
 
   // An arrow out of a cell, the way a tilt would roll the bit.
   function arrow(from: Point, dir: number | undefined): string {
-    if (dir === undefined || !(dir >= 0 && dir < TILTS)) return "";
+    if (dir === undefined || !within(dir, SIDES)) return "";
     const len = geo.cell * 0.85;
     const head = geo.cell * 0.2;
     const [ax, ay] = [ACROSS[dir]!, DOWN[dir]!];
@@ -151,14 +141,14 @@ export function mount(host: SceneHost): Scene {
   }
 
   function frame(): void {
-    const now = sizeOf(host.surface);
-    if (now.width !== size.width || now.height !== size.height) {
+    const now = view.fit();
+    if (now) {
       size = now;
       geo = geometry(n, size);
       build();
     }
     const clock = performance.now();
-    if (hint && clock > hint.until) hint = undefined;
+    const hint = host.hinted();
     if (tipped && clock > tipped.until) tipped = undefined;
     const m = model();
     const to = centre(geo, n, m.cell);
@@ -167,7 +157,7 @@ export function mount(host: SceneHost): Scene {
       : to;
     if (Math.hypot(to.x - shown.x, to.y - shown.y) < 0.5) shown = to;
     set(bit!, { transform: `translate(${shown.x} ${shown.y})` });
-    set(lit!, { d: arrow(to, hint?.move.a) });
+    set(lit!, { d: arrow(to, hint?.a) });
     set(guide!, { d: m.cell === layout.start ? arrow(to, host.guide?.a) : "" });
     if (tipped) root.dataset.tilt = String(tipped.dir);
     else delete root.dataset.tilt;
@@ -207,12 +197,9 @@ export function mount(host: SceneHost): Scene {
 
   return {
     frame,
-    hint(move) {
-      hint = { move, until: performance.now() + HINT_MS };
-    },
     destroy() {
       unbind();
-      root.remove();
+      view.remove();
     },
   };
 }

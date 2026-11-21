@@ -311,3 +311,16 @@ main {
 .compact .machine {
   padding: 8px;
 }
+
+/* The dashes of a lit hint walk along it; a hint with no dashes pulses. */
+@keyframes board-march {
+  to {
+    stroke-dashoffset: -18;
+  }
+}
+
+@keyframes board-pulse {
+  to {
+    opacity: 0.35;
+  }
+}

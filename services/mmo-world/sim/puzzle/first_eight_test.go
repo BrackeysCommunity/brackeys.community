@@ -13,8 +13,8 @@ import (
 
 var firstEight = []string{puzzle.Rewire, puzzle.Pins, puzzle.Dial, puzzle.Maze, puzzle.Circuit, puzzle.Signal, puzzle.Fuse, puzzle.Override}
 
-// firstCase is one machine of the first eight families as the code before
-// the kit laid it out and replayed it.
+// firstCase is one pinned machine of the first eight families: its layout,
+// and what five logs replay to.
 type firstCase struct {
 	Family    string        `json:"family"`
 	Level     int64         `json:"level"`
@@ -78,8 +78,8 @@ func firstEightLines(t *testing.T, cases []firstCase) [][]byte {
 	return lines
 }
 
-// The first eight families lay out and replay exactly as they did before
-// they moved onto the kit. The fixture is never rewritten.
+// The first eight families lay out and replay exactly as the fixture
+// records. The fixture is never rewritten.
 func TestFirstEightUnchanged(t *testing.T) {
 	want, err := os.ReadFile(filepath.Join("testdata", "first-eight.json"))
 	if err != nil {

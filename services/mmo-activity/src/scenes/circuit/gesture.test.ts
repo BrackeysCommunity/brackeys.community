@@ -114,7 +114,7 @@ test("the phone's cap of five tiles a side is kept", () => {
 test("the scene cleans up after itself", () => {
   const s = stage(circuit, small.layout, phone);
   expect(s.surface.children.length).toBe(1);
-  s.scene.hint({ at: 0, a: 4 });
+  s.hint({ at: 0, a: 4 });
   s.frame();
   expect(s.surface.querySelector(".hint")!.getAttribute("opacity")).toBe("1");
   s.scene.destroy();

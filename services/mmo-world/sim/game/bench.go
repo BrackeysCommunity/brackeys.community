@@ -1,6 +1,7 @@
 package game
 
 import (
+	"iter"
 	"slices"
 	"strconv"
 
@@ -29,12 +30,33 @@ type BenchRig struct {
 	Master   bool
 }
 
-// today is a day's count, or nothing once the world day has turned.
-func (g *Game) today(n, day int64) int64 {
-	if day != g.World.Day {
+// Daily is a count kept for one world day.
+type Daily struct {
+	N   int64 `json:"n"`
+	Day int64 `json:"day"`
+}
+
+// On is the count on a day: nothing once the day has turned.
+func (d Daily) On(day int64) int64 {
+	if d.Day != day {
 		return 0
 	}
-	return n
+	return d.N
+}
+
+// Add counts n more on a day.
+func (d *Daily) Add(day, n int64) { *d = Daily{N: d.On(day) + n, Day: day} }
+
+// lessonsAt are the lessons a learner may take at a settlement, oldest
+// first: those others left, in one family or ("") in any.
+func (g *Game) lessonsAt(settlement int, family, learner string) iter.Seq2[int, Lesson] {
+	return func(yield func(int, Lesson) bool) {
+		for i, l := range g.Lessons {
+			if l.Settlement == settlement && (family == "" || l.Family == family) && l.Teacher != learner && !yield(i, l) {
+				return
+			}
+		}
+	}
 }
 
 // BenchAt is the bench where a character stands, if one stands open.
@@ -43,33 +65,37 @@ func (g *Game) BenchAt(c *Char) (Bench, bool) {
 	if !ok || !g.Places[n].Open(structureTinker) {
 		return Bench{}, false
 	}
-	p := g.puzzles()
-	b := Bench{Settlement: n, Uses: g.today(c.Bench, c.BenchDay), UsesCap: p.Param("bench-uses-per-day"),
-		Taken: g.today(c.Learned, c.LearnedDay), TakenCap: p.Param("lesson-take-per-day"),
-		Given: g.today(c.Taught, c.TaughtDay), GivenCap: p.Param("lesson-give-per-day")}
-	for _, l := range g.Lessons {
-		if l.Settlement == n && l.Teacher != c.C.ID {
-			b.Lessons++
-		}
+	p, day := g.Puzzles(), g.World.Day
+	b := Bench{Settlement: n, Uses: c.Bench.On(day), UsesCap: p.Param("bench-uses-per-day"),
+		Taken: c.Learned.On(day), TakenCap: p.Param("lesson-take-per-day"),
+		Given: c.Taught.On(day), GivenCap: p.Param("lesson-give-per-day")}
+	for range g.lessonsAt(n, "", c.C.ID) {
+		b.Lessons++
 	}
 	return b, true
 }
 
+// BenchFor is the bench a character may use now: one stands open where it
+// is, and it is free, not banned and has no machine armed.
+func (g *Game) BenchFor(c *Char) (Bench, bool) {
+	if c.Banned || c.Armed != nil || free(c) != nil {
+		return Bench{}, false
+	}
+	return g.BenchAt(c)
+}
+
 // BenchRigs are every family a bench offers a character, in id order.
 func (g *Game) BenchRigs(c *Char, b Bench) []BenchRig {
-	p := g.puzzles()
+	p := g.Puzzles()
+	waiting := map[string]int64{}
+	for _, l := range g.lessonsAt(b.Settlement, "", c.C.ID) {
+		waiting[l.Family]++
+	}
 	var out []BenchRig
 	for _, family := range p.All() {
-		if !p.Known(family) {
-			continue
+		if p.Known(family) {
+			out = append(out, BenchRig{Family: family, MaxLevel: g.benchTop(c, family), Lessons: waiting[family], Master: g.Master(c, family)})
 		}
-		r := BenchRig{Family: family, MaxLevel: g.benchTop(c, family), Master: p.Gifts(c.C.Level(family)).Mastery}
-		for _, l := range g.Lessons {
-			if l.Settlement == b.Settlement && l.Family == family && l.Teacher != c.C.ID {
-				r.Lessons++
-			}
-		}
-		out = append(out, r)
 	}
 	return out
 }
@@ -77,7 +103,7 @@ func (g *Game) BenchRigs(c *Char, b Bench) []BenchRig {
 // benchTop is the highest level a bench offers a character in a family:
 // more with practice.
 func (g *Game) benchTop(c *Char, family string) int64 {
-	p := g.puzzles()
+	p := g.Puzzles()
 	return p.Param("bench-base-levels") + c.C.Level(family)/p.Param("bench-practice-per-level")
 }
 
@@ -95,11 +121,11 @@ func (g *Game) atBench(c *Char, m *MachineCmd) (Bench, error) {
 	if err := free(c); err != nil {
 		return Bench{}, err
 	}
-	b, ok := g.BenchAt(c)
+	b, ok := g.BenchFor(c)
 	if !ok {
 		return Bench{}, refuse(NotHere, "no tinker's bench stands open here")
 	}
-	if !g.puzzles().Known(m.Family) {
+	if !g.Puzzles().Known(m.Family) {
 		return Bench{}, refuse(BadArgs, "the bench has no machine called %q", m.Family)
 	}
 	return b, nil
@@ -118,32 +144,27 @@ func (g *Game) benchSolve(c *Char, cmd Command) (*puzzle.Result, error) {
 	if top := g.benchTop(c, m.Family); m.Level < 1 || m.Level > top {
 		return nil, refuse(BadArgs, "the bench offers %s at levels 1 to %d", m.Family, top)
 	}
-	p := g.puzzles()
-	var log puzzle.Log
-	if m.Log != nil {
-		log = *m.Log
-	}
-	res := p.Play(g.benchSpec(c, b.Settlement, m.Family, m.Level, m.Compact), log, puzzle.Limits{Elapsed: -1})
-	res.Haywire = ""
+	p := g.Puzzles()
+	res := p.Play(g.benchSpec(c, b.Settlement, m.Family, m.Level, m.Compact), m.log(), puzzle.Limits{Elapsed: -1, Bench: true})
 	c.BenchRuns++
 	if !res.Solved {
 		return &res, nil
 	}
 	tick := g.Tick()
 	uses := min(p.Param("bench-solve-uses"), max(0, b.UsesCap-b.Uses))
-	taught := m.Teach && p.Gifts(c.C.Level(m.Family)).Mastery && b.Given < b.GivenCap
+	taught := m.Teach && g.Master(c, m.Family) && b.Given < b.GivenCap
 	if _, err := g.fact(c, "bench.solved", tick, fact.S("family", m.Family), fact.N("level", m.Level), fact.N("uses", uses),
 		fact.N("settlement", int64(b.Settlement)), fact.B("taught", taught)); err != nil {
 		return nil, err
 	}
 	if uses > 0 {
-		c.Bench, c.BenchDay = b.Uses+uses, g.World.Day
+		c.Bench.Add(g.World.Day, uses)
 		if err := g.practise(c, m.Family, uses, tick); err != nil {
 			return nil, err
 		}
 	}
 	if taught {
-		c.Taught, c.TaughtDay = b.Given+1, g.World.Day
+		c.Taught.Add(g.World.Day, 1)
 		g.leaveLesson(Lesson{Settlement: b.Settlement, Family: m.Family, Teacher: c.C.ID, Tick: tick})
 	}
 	return &res, nil
@@ -153,16 +174,13 @@ func (g *Game) benchSolve(c *Char, cmd Command) (*puzzle.Result, error) {
 // family, and the oldest goes first.
 func (g *Game) leaveLesson(l Lesson) {
 	g.Lessons = append(g.Lessons, l)
-	same := func(x Lesson) bool { return x.Settlement == l.Settlement && x.Family == l.Family }
-	kept := int64(0)
-	for _, x := range g.Lessons {
-		if same(x) {
-			kept++
-		}
+	var kept []int
+	for i := range g.lessonsAt(l.Settlement, l.Family, "") {
+		kept = append(kept, i)
 	}
-	for most := g.puzzles().Param("lessons-kept"); kept > most; kept-- {
-		i := slices.IndexFunc(g.Lessons, same)
-		g.Lessons = slices.Delete(g.Lessons, i, i+1)
+	// The oldest go, last first so the indexes before them stand.
+	for over := len(kept) - int(g.Puzzles().Param("lessons-kept")); over > 0; over-- {
+		g.Lessons = slices.Delete(g.Lessons, kept[over-1], kept[over-1]+1)
 	}
 }
 
@@ -178,23 +196,25 @@ func (g *Game) benchLesson(c *Char, cmd Command) error {
 	if b.Taken >= b.TakenCap {
 		return refuse(NoLesson, "%s has taken %d lessons today, the most a day gives", c.C.ID, b.Taken)
 	}
-	i := slices.IndexFunc(g.Lessons, func(l Lesson) bool {
-		return l.Settlement == b.Settlement && l.Family == m.Family && l.Teacher != c.C.ID
-	})
+	i := -1
+	for at := range g.lessonsAt(b.Settlement, m.Family, c.C.ID) {
+		i = at
+		break
+	}
 	if i < 0 {
 		return refuse(NoLesson, "nobody has left a lesson in %s here", m.Family)
 	}
 	l := g.Lessons[i]
 	g.Lessons = slices.Delete(g.Lessons, i, i+1)
-	p := g.puzzles()
+	p := g.Puzzles()
 	tick := g.Tick()
 	uses := p.Param("lesson-uses")
-	c.Learned, c.LearnedDay = b.Taken+1, g.World.Day
+	c.Learned.Add(g.World.Day, 1)
 	data := []fact.Datum{fact.S("family", m.Family), fact.N("uses", uses), fact.N("settlement", int64(b.Settlement))}
 	if gd, teacher := g.GuildOf(g.Places[b.Settlement].Guild), g.Char(l.Teacher); gd != nil && teacher != nil {
 		standing := p.Param("lesson-standing")
 		teacher.C.GuildStanding.Bump(gd.G.ID, standing)
-		teacher.Version++
+		g.touch(teacher)
 		data = append(data, fact.N("standing", standing), fact.S("guild", gd.G.ID))
 	}
 	if _, err := g.factWith(c, []fact.Ref{char.Ref(l.Teacher)}, "lesson.taken", tick, data...); err != nil {

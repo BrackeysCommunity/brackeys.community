@@ -151,6 +151,10 @@ func (w *world) Act(ctx context.Context, req api.ActionRequest, check bool) (api
 	return w.host.Act(ctx, req, check)
 }
 
+func (w *world) Countdown(ctx context.Context, id string) (api.ArmedMachine, bool, error) {
+	return w.host.Countdown(ctx, id)
+}
+
 func (w *world) Armed(ctx context.Context) ([]api.ArmedMachine, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()

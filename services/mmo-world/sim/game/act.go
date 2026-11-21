@@ -126,6 +126,8 @@ type Result struct {
 	Pressed []fight.Pressed `json:"pressed,omitempty"`
 	// Machine is the one fact a machine's move log became.
 	Machine *puzzle.Result `json:"machine,omitempty"`
+	// Moved are the other characters whose rows the command changed.
+	Moved []string `json:"-"`
 }
 
 // Act applies a command at the current tick. A refused command changes
@@ -135,6 +137,7 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	if err := ValidKey(cmd.Key); err != nil {
 		return Result{}, err
 	}
+	g.touched = g.touched[:0]
 	if cmd.Kind == HideGoal && cmd.Char == "" {
 		x := g.GoalOf(cmd.Target)
 		if x != nil && x.Poster == "" {
@@ -207,7 +210,7 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	}
 	facts := g.Log.Since(first)
 	g.keepNews(facts)
-	return Result{Char: c, Facts: facts, Pressed: pressed, Machine: machine}, nil
+	return Result{Char: c, Facts: facts, Pressed: pressed, Machine: machine, Moved: slices.Clone(g.touched)}, nil
 }
 
 // dispatch runs a command; a machine command also hands back the result

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"slices"
 	"sync"
 
 	"jams.team/mmo-world/api"
@@ -31,32 +32,12 @@ func (l *listeners) tell(ids []string) {
 	}
 }
 
-// versions are every character's row version before a command, read only
-// while someone listens.
-func (l *listeners) versions(g *game.Game) map[string]int64 {
-	l.mu.Lock()
-	n := len(l.fs)
-	l.mu.Unlock()
-	if n == 0 {
-		return nil
-	}
-	out := make(map[string]int64, len(g.Chars))
-	for _, c := range g.Chars {
-		out[c.C.ID] = c.Version
-	}
-	return out
-}
-
-// moved are the character a command acted for and any other whose row
-// version it moved.
-func moved(g *game.Game, before map[string]int64, acted *game.Char) []string {
-	out := []string{acted.C.ID}
-	if before == nil {
-		return out
-	}
-	for _, c := range g.Chars {
-		if was, ok := before[c.C.ID]; c != acted && (!ok || was != c.Version) {
-			out = append(out, c.C.ID)
+// told are the character a command acted for and the others it changed.
+func told(res game.Result) []string {
+	out := []string{res.Char.C.ID}
+	for _, id := range res.Moved {
+		if !slices.Contains(out, id) {
+			out = append(out, id)
 		}
 	}
 	return out
@@ -66,12 +47,21 @@ func apiViewer(v api.Viewer) game.Viewer {
 	return game.Viewer{Compact: v.Compact, Family: v.Family, Level: v.Level, Pouch: v.Pouch}
 }
 
-// armed are the countdowns running in a game, each with the grace a late
-// log is allowed.
+// due is a character's countdown as whoever must end it reads it; Due is 0
+// when none is running.
+func due(g *game.Game, c *game.Char) api.ArmedMachine {
+	out := api.ArmedMachine{CharacterID: c.C.ID}
+	if a := c.Armed; a != nil {
+		out.ArmedAt, out.Due = a.At, g.MachineDue(a)
+	}
+	return out
+}
+
+// armed are the countdowns running in a game.
 func armed(g *game.Game) []api.ArmedMachine {
 	out := []api.ArmedMachine{}
 	for _, c := range g.ArmedAll() {
-		out = append(out, api.ArmedMachine{CharacterID: c.C.ID, Deadline: c.Armed.At + c.Armed.Countdown + g.MachineGrace()})
+		out = append(out, due(g, c))
 	}
 	return out
 }
@@ -127,6 +117,21 @@ func (s *Server) Armed(ctx context.Context) ([]api.ArmedMachine, error) {
 	return armed(s.g), nil
 }
 
+// Countdown is one character's countdown, with Due 0 when none is running;
+// ok is false when the character is gone.
+func (s *Server) Countdown(ctx context.Context, characterID string) (api.ArmedMachine, bool, error) {
+	unlock, err := s.take(ctx, true)
+	if err != nil {
+		return api.ArmedMachine{}, false, err
+	}
+	defer unlock()
+	c := s.g.Char(characterID)
+	if c == nil {
+		return api.ArmedMachine{}, false, nil
+	}
+	return due(s.g, c), true, nil
+}
+
 // Subscribe has f told which characters each saved command changed, and
 // nil after a tick, a reload or a reset. f is called with the world held:
 // it must not block, and must not call back into the server.
@@ -162,6 +167,17 @@ func (h LocalHost) Armed(context.Context) ([]api.ArmedMachine, error) {
 		return nil, err
 	}
 	return armed(h.l.G), nil
+}
+
+func (h LocalHost) Countdown(_ context.Context, characterID string) (api.ArmedMachine, bool, error) {
+	if err := h.l.check(); err != nil {
+		return api.ArmedMachine{}, false, err
+	}
+	c := h.l.G.Char(characterID)
+	if c == nil {
+		return api.ArmedMachine{}, false, nil
+	}
+	return due(h.l.G, c), true, nil
 }
 
 func (h LocalHost) Subscribe(f func(characterIDs []string)) { h.l.subs.add(f) }

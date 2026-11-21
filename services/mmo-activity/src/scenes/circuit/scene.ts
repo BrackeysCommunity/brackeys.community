@@ -1,20 +1,16 @@
 import "./scene.css";
-import type { PuzzleMove } from "../../api.ts";
 import {
+  board,
   distance,
-  dropped,
   glyph,
   pointers,
   set,
-  sizeOf,
   svg,
   type Point,
   type Size,
 } from "../../shell/board.ts";
 import type { Scene, SceneHost } from "../../shell/kit.ts";
 import { CORNER, EMPTY, END, STRAIGHT, TEE, type CircuitModel } from "./model.ts";
-
-const HINT_MS = 3000;
 
 // The marks of the board, from the shared glyphs: the source is a bolt,
 // the load a ring that fills, a trap a cross.
@@ -84,13 +80,11 @@ export function mount(host: SceneHost): Scene {
   const kinds = layout.tiles ?? [];
   const traps = new Set(layout.false ?? []);
 
-  const root = svg("svg", {
-    class: "board circuit",
-    role: "img",
-    "aria-label":
-      "A board of conduit tiles. Tap a tile to turn it. Join the bolt to the ring, and keep the power off every cross.",
-  });
-  host.surface.append(root);
+  const view = board(
+    host,
+    "A board of conduit tiles. Tap a tile to turn it. Join the bolt to the ring, and keep the power off every cross.",
+  );
+  const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
   let geo = geometry(n, { width: 1, height: 1 });
@@ -100,15 +94,8 @@ export function mount(host: SceneHost): Scene {
   let lit: SVGCircleElement | undefined;
   let guide: SVGCircleElement | undefined;
   let pressed: number | undefined;
-  let hint: { move: PuzzleMove; until: number } | undefined;
 
   function build(): void {
-    root.replaceChildren();
-    set(root, {
-      viewBox: `0 0 ${size.width} ${size.height}`,
-      width: size.width,
-      height: size.height,
-    });
     const { cell, origin } = geo;
     const h = cell / 2;
     const m = model();
@@ -167,13 +154,13 @@ export function mount(host: SceneHost): Scene {
   }
 
   function frame(): void {
-    const now = sizeOf(host.surface);
-    if (now.width !== size.width || now.height !== size.height) {
+    const now = view.fit();
+    if (now) {
       size = now;
       geo = geometry(n, size);
       build();
     }
-    if (hint && performance.now() > hint.until) hint = undefined;
+    const hint = host.hinted();
     const m = model();
     const on = m.lit();
     for (const [c, tile] of tiles.entries()) {
@@ -197,7 +184,7 @@ export function mount(host: SceneHost): Scene {
     }
     set(load!, { opacity: on[layout.goal] ? 0 : 1 });
     set(fed!, { opacity: on[layout.goal] ? 1 : 0 });
-    ring(lit!, hint?.move.a);
+    ring(lit!, hint?.a);
     const led = host.guide;
     ring(guide!, led && m.at[led.a] === layout.turn?.[led.a] ? led.a : undefined);
   }
@@ -215,7 +202,7 @@ export function mount(host: SceneHost): Scene {
       pressed = undefined;
       if (c === undefined) return;
       const still = pick(geo, n, p) === c;
-      dropped("circuit", distance(p, centre(geo, n, c)), geo.cell / 2, still, ev);
+      host.dropped(distance(p, centre(geo, n, c)), geo.cell / 2, still, ev);
       if (still) host.move(c);
     },
     cancel() {
@@ -225,12 +212,9 @@ export function mount(host: SceneHost): Scene {
 
   return {
     frame,
-    hint(move) {
-      hint = { move, until: performance.now() + HINT_MS };
-    },
     destroy() {
       unbind();
-      root.remove();
+      view.remove();
     },
   };
 }

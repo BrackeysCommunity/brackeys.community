@@ -1,8 +1,6 @@
 import type { PuzzleLayout, PuzzleMove } from "../../api.ts";
-import { BROKE, DONE, GOING, type Model, type Status } from "../../shell/kit.ts";
-
-const SIDES = 4;
-const ALL = 15;
+import { SIDES, rotate, step } from "../../shell/grid.ts";
+import { BROKE, GOING, Untimed, until, within, type Model, type Status } from "../../shell/kit.ts";
 
 /** Tile kinds, as the layout numbers them. */
 export const EMPTY = 0;
@@ -14,17 +12,6 @@ export const END = 4;
 // The sides each kind opens before it is turned, as bits: east 1, south 2,
 // west 4, north 8.
 const OPENS = [0, 5, 3, 7, 1];
-
-function rotate(mask: number, turns: number): number {
-  for (let i = turns % SIDES; i > 0; i--) mask = ((mask << 1) | (mask >> (SIDES - 1))) & ALL;
-  return mask;
-}
-
-function step(cell: number, side: number, n: number): number | undefined {
-  const x = (cell % n) + [1, 0, -1, 0][side]!;
-  const y = Math.trunc(cell / n) + [0, 1, 0, -1][side]!;
-  return x < 0 || y < 0 || x >= n || y >= n ? undefined : y * n + x;
-}
 
 /** The sides a tile opens at its turn. */
 export function sidesOf(layout: PuzzleLayout, turns: number[], cell: number): number {
@@ -53,25 +40,22 @@ export function lit(layout: PuzzleLayout, turns: number[]): boolean[] {
 
 // Circuit, as sim/puzzle/circuit.go plays it: a move gives a tile a
 // quarter turn; the load must be lit and no trap.
-export class CircuitModel implements Model {
+export class CircuitModel extends Untimed implements Model {
   /** Each tile's turn. */
   readonly at: number[];
 
   constructor(private readonly layout: PuzzleLayout) {
+    super();
     this.at = [...(layout.turn ?? [])];
-  }
-
-  run(at: number): [Status, number] {
-    return [GOING, at];
   }
 
   apply(m: PuzzleMove): Status {
     const l = this.layout;
-    if (!(m.a >= 0 && m.a < l.size * l.size)) return BROKE;
+    if (!within(m.a, l.size * l.size)) return BROKE;
     this.at[m.a] = ((this.at[m.a] ?? 0) + 1) % SIDES;
     const on = this.lit();
     if ((l.false ?? []).some((trap) => on[trap])) return GOING;
-    return on[l.goal] ? DONE : GOING;
+    return until(on[l.goal] === true);
   }
 
   lit(): boolean[] {

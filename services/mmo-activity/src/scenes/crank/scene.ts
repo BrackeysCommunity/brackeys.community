@@ -1,11 +1,13 @@
 import "./scene.css";
 import {
   HIT,
+  board,
   distance,
   pointers,
+  say,
   set,
-  sizeOf,
   svg,
+  text,
   type Point,
   type Size,
 } from "../../shell/board.ts";
@@ -18,9 +20,8 @@ export const QUARTER = 90;
 /** Nearer the hub than this a finger has no angle worth reading. */
 export const DEAD = 14;
 
-// How long a hint stays lit, the degrees a ms the wheel is drawn coasting
-// per unit of speed, and how much of the gauge lies past the blow mark.
-const HINT_MS = 3000;
+// The degrees a ms the wheel is drawn coasting per unit of speed, and how
+// much of the gauge lies past the blow mark.
 const COAST = 0.0007;
 const PAST_BLOW = 1.1;
 
@@ -79,12 +80,11 @@ export function mount(host: SceneHost): Scene {
   const model = () => host.model as CrankModel;
   const step = Math.max(host.layout.step ?? 0, 1);
 
-  const root = svg("svg", {
-    class: "board crank",
-    role: "img",
-    "aria-label": `A dynamo with a crank and ${plural(host.layout.size, "load spike")} to come. Drag in circles, clockwise, to wind it into the band and hold it there until it has charged.`,
-  });
-  host.surface.append(root);
+  const view = board(
+    host,
+    `A dynamo with a crank and ${plural(host.layout.size, "load spike")} to come. Drag in circles, clockwise, to wind it into the band and hold it there until it has charged.`,
+  );
+  const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
   let geo = geometry({ width: 1, height: 1 });
@@ -101,19 +101,8 @@ export function mount(host: SceneHost): Scene {
   let turned = 0;
   let spin = 0;
   let lastAt = 0;
-  let hintUntil = 0;
   /** The ms of each spike a hint has warned of. */
   const warned: number[] = [];
-
-  function text(cls: string, x: number, y: number, content = ""): SVGTextElement {
-    const node = svg("text", { class: cls, x, y });
-    node.textContent = content;
-    return node;
-  }
-
-  function say(node: SVGTextElement, line: string): void {
-    if (node.textContent !== line) node.textContent = line;
-  }
 
   function speedX(m: CrankModel, speed: number): number {
     const max = Math.max(1, m.blow * PAST_BLOW);
@@ -131,12 +120,6 @@ export function mount(host: SceneHost): Scene {
   }
 
   function build(): void {
-    root.replaceChildren();
-    set(root, {
-      viewBox: `0 0 ${size.width} ${size.height}`,
-      width: size.width,
-      height: size.height,
-    });
     const m = model();
     const { hub, r, top, bar } = geo;
     const lo = speedX(m, m.lo);
@@ -185,7 +168,7 @@ export function mount(host: SceneHost): Scene {
   }
 
   function frame(at: number): void {
-    const now = sizeOf(host.surface);
+    const now = view.fit();
     const m = model();
     if (m !== seen) {
       seen = m;
@@ -193,7 +176,7 @@ export function mount(host: SceneHost): Scene {
       lastAt = at;
       drag = undefined;
     }
-    if (now.width !== size.width || now.height !== size.height) {
+    if (now) {
       size = now;
       geo = geometry(size);
       build();
@@ -222,10 +205,14 @@ export function mount(host: SceneHost): Scene {
     set(status!, { class: `status${m.speed > m.hi ? " fast" : ""}${spiking ? " spike" : ""}` });
     set(fill!, { width: (geo.width * Math.min(m.charge, m.need)) / Math.max(1, m.need) });
     say(left!, `${seconds(Math.max(0, m.need - m.charge) * step)} of charge to go`);
+    // A warning is of one spike's start, and stays; any other hint is the
+    // way to turn.
+    const hint = host.hinted();
+    if (hint?.a === WARN && !warned.includes(hint.at)) warned.push(hint.at);
     const next = warned.filter((w) => w > at).sort((a, b) => a - b)[0];
     say(warn!, next === undefined ? "" : `Load spike in ${seconds(next - at)}`);
     set(guide!, { class: host.guide && turned === 0 ? "guide" : "guide off" });
-    set(lit!, { class: performance.now() < hintUntil ? "hint" : "hint off" });
+    set(lit!, { class: hint?.a === TURN ? "hint" : "hint off" });
   }
 
   const unbind = pointers(host.surface, {
@@ -262,15 +249,9 @@ export function mount(host: SceneHost): Scene {
 
   return {
     frame,
-    hint(move) {
-      // A warning is of one spike's start; any other hint is the way to turn.
-      if (move.a === WARN) {
-        if (!warned.includes(move.at)) warned.push(move.at);
-      } else if (move.a === TURN) hintUntil = performance.now() + HINT_MS;
-    },
     destroy() {
       unbind();
-      root.remove();
+      view.remove();
     },
   };
 }

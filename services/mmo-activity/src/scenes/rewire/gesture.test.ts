@@ -90,7 +90,7 @@ test("the phone's cap of six wires leaves room for a thumb", () => {
 test("the scene cleans up after itself", () => {
   const s = stage(rewire, small.layout, phone);
   expect(s.surface.children.length).toBe(1);
-  s.scene.hint({ at: 0, a: 0, b: 1 });
+  s.hint({ at: 0, a: 0, b: 1 });
   s.frame();
   s.scene.destroy();
   expect(s.surface.children.length).toBe(0);

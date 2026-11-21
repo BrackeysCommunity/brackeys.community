@@ -2,11 +2,11 @@ import "./scene.css";
 import type { PuzzleLayout, PuzzleMove } from "../../api.ts";
 import {
   HIT,
+  board,
   glyph,
   pieceColour,
   pointers,
   set,
-  sizeOf,
   svg,
   type Point,
   type Size,
@@ -14,7 +14,6 @@ import {
 import type { Scene, SceneHost } from "../../shell/kit.ts";
 import type { SignalModel } from "./model.ts";
 
-const HINT_MS = 3000;
 // Points along each trace, and how often the static on the wanted one changes.
 const SAMPLES = 96;
 const NOISE_MS = 120;
@@ -126,13 +125,11 @@ export function mount(host: SceneHost): Scene {
   const range = layout.range ?? 1;
   const noise = Math.min(layout.decoys, 6) * 0.03;
 
-  const root = svg("svg", {
-    class: "board signal",
-    role: "img",
-    "aria-label":
-      "A scope over a bank of tuning knobs. Slide each knob sideways until the solid trace lies over the dashed one.",
-  });
-  host.surface.append(root);
+  const view = board(
+    host,
+    "A scope over a bank of tuning knobs. Slide each knob sideways until the solid trace lies over the dashed one.",
+  );
+  const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
   let geo = geometry(n, range, { width: 1, height: 1 });
@@ -143,17 +140,10 @@ export function mount(host: SceneHost): Scene {
   let note: SVGTextElement | undefined;
   let hold: Hold | undefined;
   let touched = false;
-  let hint: { move: PuzzleMove; until: number } | undefined;
 
   const xOf = (value: number) => geo.from + ((geo.to - geo.from) * value) / Math.max(1, range - 1);
 
   function build(): void {
-    root.replaceChildren();
-    set(root, {
-      viewBox: `0 0 ${size.width} ${size.height}`,
-      width: size.width,
-      height: size.height,
-    });
     const { scope, r } = geo;
     wanted = svg("path", { class: "wanted" });
     yours = svg("path", { class: "yours" });
@@ -251,14 +241,14 @@ export function mount(host: SceneHost): Scene {
   }
 
   function frame(): void {
-    const now = sizeOf(host.surface);
-    if (now.width !== size.width || now.height !== size.height) {
+    const now = view.fit();
+    if (now) {
       size = now;
       geo = geometry(n, range, size);
       build();
     }
     const clock = performance.now();
-    if (hint && clock > hint.until) hint = undefined;
+    const hint = host.hinted();
     const m = model();
     set(wanted!, {
       d: trace(layout.target ?? [], noise ? Math.floor(clock / NOISE_MS) : undefined),
@@ -271,7 +261,7 @@ export function mount(host: SceneHost): Scene {
     for (const [i, row] of rows.entries()) {
       set(row.needle, { transform: `translate(${xOf(m.knobs[i] ?? 0)} ${geo.rows[i]})` });
       set(row.group, { class: hold?.knob === i ? "knob held" : "knob" });
-      mark(row.hint, i, hint?.move);
+      mark(row.hint, i, hint);
       mark(row.guide, i, host.guide && m.knobs[i] !== host.guide.b ? host.guide : undefined);
     }
   }
@@ -300,12 +290,9 @@ export function mount(host: SceneHost): Scene {
 
   return {
     frame,
-    hint(move) {
-      hint = { move, until: performance.now() + HINT_MS };
-    },
     destroy() {
       unbind();
-      root.remove();
+      view.remove();
     },
   };
 }

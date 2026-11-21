@@ -139,7 +139,7 @@ test("a hint and the guide mark the joint that springs next", () => {
   const joint = (i: number) => s.surface.querySelectorAll(".joint")[i]!;
   s.frame();
   expect(joint(1).classList.contains("guided")).toBe(true);
-  s.scene.hint({ at: 0, a: 2 });
+  s.hint({ at: 0, a: 2 });
   s.frame();
   expect(joint(2).classList.contains("hinted")).toBe(true);
   expect(s.surface.querySelectorAll(".word")[2]!.textContent).toBe("next");

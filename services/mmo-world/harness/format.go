@@ -78,6 +78,12 @@ func either(ok bool, yes, no string) string {
 // holds marks a target's pass ("yes") or fail ("**NO**").
 func holds(ok bool) string { return either(ok, "yes", "**NO**") }
 
+// millis is a duration to a tenth of a millisecond.
+func millis(d time.Duration) string { return fmt.Sprintf("%.1f ms", float64(d.Microseconds())/1000) }
+
+// seconds is milliseconds to a tenth of a second.
+func seconds(ms int64) string { return fmt.Sprintf("%.1f s", float64(ms)/1000) }
+
 func comma(n int64) string {
 	s := fmt.Sprint(n)
 	neg := strings.HasPrefix(s, "-")

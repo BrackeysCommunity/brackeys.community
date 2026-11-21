@@ -121,7 +121,7 @@ func TestNothingUnseen(t *testing.T) {
 	var log *api.PuzzleLog
 	w.do(func() {
 		rig, _ := g.Rig(master, game.Viewer{})
-		log = service.LogOf(g.Rules().Fight.P.Solve(rig.Layout))
+		log = service.LogOf(g.Puzzles().Solve(rig.Layout))
 	})
 	w.clock.Advance(time.Duration(max(log.End, log.Moves[len(log.Moves)-1].At)+150) * time.Millisecond)
 	done, rest := a.intent(api.Intent{ID: "master-solve-1", Version: armed.Character.Version, Kind: api.ActMachineSolve,

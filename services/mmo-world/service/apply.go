@@ -9,7 +9,6 @@ import (
 
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/sim/game"
-	"jams.team/mmo-world/sim/puzzle"
 )
 
 // records is what applying a command needs of where it is kept: the
@@ -67,15 +66,8 @@ func simMachine(m *api.MachineIntent) *game.MachineCmd {
 	if m == nil {
 		return nil
 	}
-	out := &game.MachineCmd{Source: m.Source, Pouch: m.Pouch, Family: m.Family, Level: m.Level, Compact: m.Compact, Teach: m.Teach}
-	if m.Log != nil {
-		log := puzzle.Log{Moves: make([]puzzle.Move, len(m.Log.Moves)), End: m.Log.End}
-		for i, x := range m.Log.Moves {
-			log.Moves[i] = puzzle.Move{At: x.At, A: x.A, B: x.B, C: x.C}
-		}
-		out.Log = &log
-	}
-	return out
+	return &game.MachineCmd{Source: m.Source, Pouch: m.Pouch, Family: m.Family, Level: m.Level, Compact: m.Compact, Teach: m.Teach,
+		Log: simLog(m.Log)}
 }
 
 // operatorCommand is an operator's request as a command; player kinds
@@ -85,15 +77,6 @@ func operatorCommand(req api.OperatorRequest) (game.Command, *api.Refusal, int) 
 		return game.Command{}, &api.Refusal{Code: api.CodeBadJSON, Message: "not an operator action"}, http.StatusBadRequest
 	}
 	return game.Command{Key: req.InteractionID, Char: req.CharacterID, Kind: req.Kind, Asset: req.Asset, Units: req.Units, Note: req.Note, Target: req.Target}, nil, 0
-}
-
-// LogOf is a move log as a client sends it.
-func LogOf(l puzzle.Log) *api.PuzzleLog {
-	out := &api.PuzzleLog{Moves: make([]api.PuzzleMove, len(l.Moves)), End: l.End}
-	for i, m := range l.Moves {
-		out.Moves[i] = *apiMove(m)
-	}
-	return out
 }
 
 func apiRefusal(r *game.Refused) *api.Refusal { return &api.Refusal{Code: r.Code, Message: r.Msg} }

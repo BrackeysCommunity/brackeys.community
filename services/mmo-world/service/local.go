@@ -59,7 +59,6 @@ func (l *Local) act(ctx context.Context, req api.ActionRequest, checkVersion boo
 	if ref != nil {
 		return api.ActionReply{}, ref, nil
 	}
-	before := l.subs.versions(l.G)
 	out, err := applyCommand(ctx, l.G, l.mem, cmd, req.DiscordID, req.Version, checkVersion, l.now())
 	if err != nil {
 		l.broken = err
@@ -69,7 +68,7 @@ func (l *Local) act(ctx context.Context, req api.ActionRequest, checkVersion boo
 		return api.ActionReply{}, out.ref, nil
 	}
 	if !out.dup {
-		l.subs.tell(moved(l.G, before, out.res.Char))
+		l.subs.tell(told(out.res))
 	}
 	rep, err := decodeReply(out.body, out.dup)
 	return rep, nil, err

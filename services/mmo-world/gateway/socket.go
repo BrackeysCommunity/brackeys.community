@@ -171,9 +171,25 @@ func (g *Gateway) socket(w http.ResponseWriter, r *http.Request) {
 		refuse(w, http.StatusServiceUnavailable, api.CodeInternal, "the world is closing")
 		return
 	}
+	// A socket that has not said hello holds its goroutines for nothing.
+	if g.unseated >= maxUnseated {
+		g.mu.Unlock()
+		refuse(w, http.StatusServiceUnavailable, api.CodeBusy, "too many sockets are waiting to sign in")
+		return
+	}
+	g.unseated++
 	g.socks.Add(1)
 	g.mu.Unlock()
 	defer g.socks.Done()
+	var once sync.Once
+	greeted := func() {
+		once.Do(func() {
+			g.mu.Lock()
+			g.unseated--
+			g.mu.Unlock()
+		})
+	}
+	defer greeted()
 	opts := &websocket.AcceptOptions{InsecureSkipVerify: g.cfg.Dev}
 	if g.cfg.AppID != "" {
 		// Inside Discord the page's origin is the application's proxy.
@@ -197,8 +213,8 @@ func (g *Gateway) socket(w http.ResponseWriter, r *http.Request) {
 	go c.write()
 	go g.pings(c)
 	late := time.AfterFunc(g.helloWait, func() { c.bye(byeBadHello) })
-	seat := g.greet(c)
-	late.Stop()
+	seat := g.greet(c, late)
+	greeted()
 	for {
 		_, data, err := ws.Read(g.ctx)
 		if err != nil {
@@ -211,9 +227,12 @@ func (g *Gateway) socket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// greet reads the hello and seats its sender, or says why not.
-func (g *Gateway) greet(c *conn) *Seat {
+// greet reads the hello and seats its sender, or says why not. late is
+// the client's time to say hello: it stops once the hello is read, so a
+// slow world is never taken for a slow client.
+func (g *Gateway) greet(c *conn, late *time.Timer) *Seat {
 	_, data, err := c.ws.Read(g.ctx)
+	late.Stop()
 	if err != nil {
 		c.end()
 		return nil
@@ -251,7 +270,7 @@ func (g *Gateway) greet(c *conn) *Seat {
 		c.end()
 		return nil
 	}
-	seat.Discord, seat.epoch, seat.Viewer, seat.recent = discord, epoch, msg.Hello.Viewer, nil
+	seat.Discord, seat.epoch, seat.Viewer, seat.recent, seat.looks = discord, epoch, msg.Hello.Viewer, nil, nil
 	g.show(ctx, seat, true)
 	return seat
 }
@@ -423,6 +442,11 @@ func (g *Gateway) handle(s *Seat, c *conn, data []byte) {
 		}
 		s.who.mu.Lock()
 		defer s.who.mu.Unlock()
+		// Every look builds a state with the world held.
+		if !s.looks.take(g.clock.Now(), maxLooks) {
+			c.send(refusal(msg.Seq, "", api.CodeBusy, "too many looks at once"))
+			return
+		}
 		s.Viewer = *msg.Look
 		g.show(ctx, s, true)
 	case tIntent:
@@ -448,13 +472,10 @@ func (g *Gateway) intent(ctx context.Context, s *Seat, c *conn, msg api.ClientMe
 	}
 	s.who.mu.Lock()
 	defer s.who.mu.Unlock()
-	now := g.clock.Now()
-	s.recent = slices.DeleteFunc(s.recent, func(t time.Time) bool { return now.Sub(t) >= time.Second })
-	if len(s.recent) >= maxIntents {
+	if !s.recent.take(g.clock.Now(), maxIntents) {
 		c.send(refusal(msg.Seq, in.ID, api.CodeBusy, "too many presses at once"))
 		return
 	}
-	s.recent = append(s.recent, now)
 	if owned, err := g.owned(ctx, s, g.epoch.Load()); err != nil || !owned {
 		if err != nil {
 			g.log.Error("activity: finding a character", "err", err.Error())

@@ -1,7 +1,29 @@
 import { names } from "virtual:pack";
 
-import type { Fact, Goods, HaywireLine, Option, PuzzleResult, Reason, Refusal } from "./api.ts";
-import { adds, amount, plural, quantity, seconds, signed, stopwatch } from "./units.ts";
+import {
+  UnitBeats,
+  UnitEncounter,
+  type Fact,
+  type Goods,
+  type HaywireLine,
+  type PracticeLine,
+  type PuzzleResult,
+  type Reason,
+  type Refusal,
+} from "./api.ts";
+import {
+  adds,
+  amount,
+  level,
+  plural,
+  quantity,
+  seconds,
+  signed,
+  stopwatch,
+  uses,
+} from "./units.ts";
+
+export { riskLine } from "../../../packages/mmo-words/src/risk.ts";
 
 /** What the pack calls a row; an id it does not name is shown as written. */
 export function name(sheet: string, id: string): string {
@@ -13,8 +35,14 @@ export function named(sheet: string, id: string): boolean {
   return `${sheet}:${id}` in names;
 }
 
-function sentence(s: string): string {
+/** A phrase with its first letter raised. */
+export function sentence(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** A practice as one phrase: "level 3, Wirewright, 12 of 60 uses to the next". */
+export function practiceLine(p: PracticeLine, title = true): string {
+  return `${level(p.level)}${title && p.title ? `, ${p.title}` : ""}, ${uses(p.uses, p.need)} to the next`;
 }
 
 /** Every good's name in lower case, for the bare-number rule. */
@@ -32,6 +60,10 @@ export function goodsLine(goods: Goods[]): string {
     .join(", ");
 }
 
+function state(h: HaywireLine): string {
+  return (h.tag ? name("fights.states", h.tag) : h.name).toLowerCase();
+}
+
 /** What a machine does when it fails, in one line. */
 export function haywireLine(h: HaywireLine): string {
   const title = sentence(h.name);
@@ -42,13 +74,12 @@ export function haywireLine(h: HaywireLine): string {
       return `${title}: ${adds(h.magnitude, "threat")} in the region`;
     case "days":
       return `${title}: shut to you for ${plural(h.magnitude, "world day")}`;
-    default: {
-      const state = h.tag ? name("fights.states", h.tag) : title;
-      // A haywire named for its effect lasts the encounter; any other counts beats.
-      return h.id === "short"
-        ? `${title}: you are ${state.toLowerCase()} for the rest of the encounter`
-        : `${title}: you are ${state.toLowerCase()} for ${plural(h.magnitude, "beat")}`;
-    }
+    case UnitEncounter:
+      return `${title}: you are ${state(h)} for the rest of the encounter`;
+    case UnitBeats:
+      return `${title}: you are ${state(h)} for ${plural(h.magnitude, "beat")}`;
+    default:
+      return `${title}: ${quantity(h.magnitude, h.unit)}`;
   }
 }
 
@@ -63,16 +94,6 @@ const REASONS: Record<string, string> = {
 export function reasonLine(r: Reason, first: boolean): string {
   const label = REASONS[r.label] ?? sentence(r.label.replace(/-/g, " "));
   return `${label}: ${first ? quantity(r.value, r.unit) : adds(r.value, r.unit)}`;
-}
-
-const RISK_UNIT: Record<string, string> = { durability: "durability", haul: "goods", coin: "coin" };
-
-/** What an option risks when it fails (GDD 7.3). */
-export function riskLine(o: Option): string {
-  if (!o.risk || o.risk === "none" || o.riskSize === 0) return "risks nothing";
-  if (o.risk === "wound") return "risks a wound";
-  if (o.risk === "first-strike") return "risks the first strike";
-  return `risks ${amount(o.riskSize, RISK_UNIT[o.risk] ?? o.risk.replace(/-/g, " "))}`;
 }
 
 const REFUSALS: Record<string, string> = {

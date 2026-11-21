@@ -31,13 +31,7 @@ import { play } from "./shell/play.ts";
 import { familyOf } from "./shell/registry.ts";
 import { name } from "./words.ts";
 
-/**
- * A stand-in for the gateway, for scene work with no world running: it
- * answers the socket's frames from a state fixture and the golden layouts.
- * It is only ever reached with ?mock= in the address. The numbers below
- * imitate sheet cells closely enough to play against and are nobody's
- * rules: the world service is the only thing that decides a real outcome.
- */
+/** What the mock runs on. */
 export interface MockDeps {
   state: ActivityState;
   rigs: Record<string, GoldenRig[]>;
@@ -47,6 +41,8 @@ export interface MockDeps {
   after(ms: number, f: () => void): () => void;
 }
 
+// Imitations of sheet cells, close enough to play against; only the world
+// service decides a real outcome.
 const GRACE = 2000;
 const BENCH_PLAY = 600_000;
 const PREVIEW = 2;
@@ -62,6 +58,11 @@ interface Armed {
   cancel(): void;
 }
 
+/**
+ * A stand-in for the gateway, for scene work with no world running: it
+ * answers the socket's frames from a state fixture and the golden layouts.
+ * Reached only with ?mock= in the address.
+ */
 export class MockGateway {
   private st: ActivityState;
   private viewer: Viewer = {};
@@ -227,6 +228,7 @@ export class MockGateway {
         armedAt: at,
         deadline: at + countdown,
         grace: GRACE,
+        due: at + countdown + GRACE,
         canPass: view.practice.level >= MASTERY,
       },
     };

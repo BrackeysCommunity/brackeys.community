@@ -128,7 +128,7 @@ func TestFilter(t *testing.T) {
 	if m == nil || !m.Armed || m.Source != api.MachineBeat || m.Level != 3 || m.Countdown == 0 || m.Haywire == nil || len(m.Why) == 0 || m.Inner == nil || !m.CanPass {
 		t.Fatalf("the master's armed machine: %+v", m)
 	}
-	if m.ArmedAt != s.now.UnixMilli() || m.Deadline != m.ArmedAt+m.Countdown || m.Grace != g.MachineGrace() || mine.Now != s.now.UnixMilli() {
+	if m.ArmedAt != s.now.UnixMilli() || m.Deadline != m.ArmedAt+m.Countdown || m.Grace != g.MachineGrace() || m.Due != m.Deadline+m.Grace || mine.Now != s.now.UnixMilli() {
 		t.Fatalf("the countdown: armed at %d, deadline %d, countdown %d, grace %d", m.ArmedAt, m.Deadline, m.Countdown, m.Grace)
 	}
 	if len(m.Hints) != 2 || m.Guide == nil || m.Practice.Level != 16 || m.Practice.Title == "" {
@@ -144,7 +144,7 @@ func TestFilter(t *testing.T) {
 	if b == nil || b.Source != api.MachineBench || b.Armed || b.Level != 2 || b.Countdown != 0 || b.Haywire != nil || b.Inner != nil || b.Guide != nil || len(b.Hints) != 0 {
 		t.Fatalf("the novice's bench rig: %+v", b)
 	}
-	if theirs.Bench == nil || len(theirs.Bench.Families) != len(g.Rules().Fight.P.All()) || theirs.Fight != nil || len(theirs.Pouches) != 0 || theirs.Place.Busy != 1 {
+	if theirs.Bench == nil || len(theirs.Bench.Families) != len(g.Puzzles().All()) || theirs.Fight != nil || len(theirs.Pouches) != 0 || theirs.Place.Busy != 1 {
 		t.Fatalf("the novice's state: bench %+v, busy %d", theirs.Bench, theirs.Place.Busy)
 	}
 
@@ -280,7 +280,7 @@ func TestLocalHost(t *testing.T) {
 		t.Fatalf("armed on the service's clock: %+v", c.Armed)
 	}
 	list, _ := host.Armed(ctx)
-	if len(list) != 1 || list[0].CharacterID != c.C.ID || list[0].Deadline != armedAt+c.Armed.Countdown+g.MachineGrace() {
+	if len(list) != 1 || list[0].CharacterID != c.C.ID || list[0].ArmedAt != armedAt || list[0].Due != armedAt+c.Armed.Countdown+g.MachineGrace() {
 		t.Fatalf("countdowns running: %+v", list)
 	}
 
@@ -303,7 +303,7 @@ func TestLocalHost(t *testing.T) {
 	// sends it.
 	testkit.MachineBeat(t, g, c, "crank", 3)
 	rig, _ := g.Rig(c, game.Viewer{Compact: true})
-	crank := service.LogOf(g.Rules().Fight.P.Solve(rig.Layout))
+	crank := service.LogOf(g.Puzzles().Solve(rig.Layout))
 	armReq.InteractionID, armReq.Version, armReq.Machine.Compact = "act-arm-crank", c.Version, true
 	if _, ref, err := host.Act(ctx, armReq, true); ref != nil || err != nil {
 		t.Fatal(ref, err)
@@ -328,7 +328,7 @@ func TestLocalHost(t *testing.T) {
 		t.Fatal(ref, err)
 	}
 	list, _ = host.Armed(ctx)
-	s.now = time.UnixMilli(list[0].Deadline + 250)
+	s.now = time.UnixMilli(list[0].Due + 250)
 	expire := api.ActionRequest{InteractionID: "mx-" + c.C.ID + "-1", CharacterID: c.C.ID, Kind: api.ActMachineSolve}
 	rep, ref, err = host.Act(ctx, expire, false)
 	if err != nil || ref != nil || rep.Machine.Solved || !rep.Machine.Late || rep.Machine.Haywire == "" {

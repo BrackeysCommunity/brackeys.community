@@ -472,11 +472,11 @@ func (r *Rules) machine(e *Encounter, m *Member, s Situation, oc Outcome, tick i
 	facts = append(facts, r.practise(m.Ch, s.Puzzle, r.P.Param("haywire-uses"), tick)...)
 	hw := r.P.HaywireRow(oc.Puzzle.Haywire)
 	switch hw.Effect {
-	case "shock":
+	case puzzle.EffectShock:
 		if m.Kit.Hand != nil {
 			facts = append(facts, r.wear(e, m, m.Kit.Hand, hw.Magnitude, tick)...)
 		}
-	case "short":
+	case puzzle.EffectShort:
 		st := State{Tag: tags.Tag(hw.Tag), On: OnSelf, Who: m.Ch.ID}
 		// A state that counts beats is put on for the row's beats after
 		// this one, which ends as the machine does.
@@ -484,7 +484,8 @@ func (r *Rules) machine(e *Encounter, m *Member, s Situation, oc Outcome, tick i
 			st.Left = hw.Magnitude + 1
 		}
 		r.put(e, m, st, tick)
-	case "alarm", "lockdown":
+	case puzzle.EffectAlarm, puzzle.EffectLockdown:
+		// These reach past the fight; the game applies them.
 	}
 	return append(facts, r.fact(tick, "puzzle.haywire", []fact.Ref{who}, fact.S("family", s.Puzzle), fact.S("haywire", hw.ID), fact.N("magnitude", hw.Magnitude)))
 }

@@ -3,6 +3,7 @@ package gateway_test
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"slices"
 	"strings"
@@ -47,6 +48,10 @@ func (h *fakeHost) Act(_ context.Context, req api.ActionRequest, _ bool) (api.Ac
 }
 
 func (h *fakeHost) Armed(context.Context) ([]api.ArmedMachine, error) { return nil, nil }
+
+func (h *fakeHost) Countdown(_ context.Context, id string) (api.ArmedMachine, bool, error) {
+	return api.ArmedMachine{CharacterID: id}, true, nil
+}
 
 func (h *fakeHost) Subscribe(f func([]string)) {
 	h.mu.Lock()
@@ -94,6 +99,7 @@ func TestHintRelay(t *testing.T) {
 	clock := newClock()
 	machine := func(armedAt int64) *api.MachineView {
 		return &api.MachineView{Source: api.MachineBeat, Family: "rewire", Armed: true, ArmedAt: armedAt, Deadline: clock.Now().Add(time.Hour).UnixMilli(),
+			Due:     clock.Now().Add(time.Hour).UnixMilli(),
 			CanPass: true, Hints: []api.PuzzleMove{first, second}, Guide: &guide}
 	}
 	h := &fakeHost{players: map[string]string{"u-master": "c-1", "u-partner": "c-2", "u-stranger": "c-3"}, states: map[string]api.ActivityState{
@@ -258,7 +264,15 @@ func TestSocketRules(t *testing.T) {
 	if len(h.acts) != 0 {
 		t.Fatalf("refused frames reached the world: %+v", h.acts)
 	}
-	// A look is answered with the state, even one that has not changed.
+	// A look is answered with the state, even one that has not changed;
+	// one more than a seat may send in a second is turned away.
+	for range gateway.MaxLooks {
+		v.seq++
+		v.send(api.ClientMessage{T: "look", Seq: v.seq, Look: &api.Viewer{Family: "rewire", Level: 2}})
+		v.state()
+	}
+	refused(`{"t":"look","seq":%d,"look":{"family":"rewire","level":2}}`, api.CodeBusy)
+	w.clock.Advance(time.Second)
 	v.seq++
 	v.send(api.ClientMessage{T: "look", Seq: v.seq, Look: &api.Viewer{Family: "rewire", Level: 2}})
 	v.state()
@@ -339,4 +353,49 @@ func TestSocketRules(t *testing.T) {
 	}) {
 		t.Fatal("a socket that answers its pings was dropped")
 	}
+}
+
+// TestUnseatedCap turns a socket away while as many as may wait have not
+// said hello, and takes one again once they have gone.
+func TestUnseatedCap(t *testing.T) {
+	h := &fakeHost{players: map[string]string{}, states: map[string]api.ActivityState{}}
+	w := faked(t, h, func(g *gateway.Gateway) { g.Waits(time.Minute, time.Minute) })
+	waiting := make([]*viewer, gateway.MaxUnseated)
+	for i := range waiting {
+		waiting[i] = w.dial("", nil)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), wait)
+	defer cancel()
+	ws, resp, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(w.srv.URL, "http")+api.PathActivitySocket, nil)
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil || resp == nil || resp.StatusCode != http.StatusServiceUnavailable {
+		if ws != nil {
+			_ = ws.CloseNow()
+		}
+		t.Fatalf("a socket past the cap: %v, %+v", err, resp)
+	}
+	waiting[0].drop()
+	w.dial("", nil)
+}
+
+// TestSocketOutlivesReadTimeout serves the gateway from a listener that
+// bounds how long a request may take to arrive: an accepted socket is not
+// a request any more, and is not cut.
+func TestSocketOutlivesReadTimeout(t *testing.T) {
+	h := &fakeHost{players: map[string]string{"u-1": "c-1"}, states: map[string]api.ActivityState{"c-1": solo("c-1")}}
+	w := &world{t: t, clock: newClock()}
+	w.gw = gateway.New(gateway.Config{Host: h, Dev: true, Clock: w.clock})
+	if err := w.gw.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	w.srv = httptest.NewUnstartedServer(w.gw.Handler())
+	w.srv.Config.ReadTimeout, w.srv.Config.IdleTimeout = 100*time.Millisecond, 100*time.Millisecond
+	w.srv.Start()
+	t.Cleanup(w.stop)
+	v := w.join("u-1", "i-1", api.Viewer{}, nil)
+	v.state()
+	time.Sleep(500 * time.Millisecond)
+	v.quiet()
 }

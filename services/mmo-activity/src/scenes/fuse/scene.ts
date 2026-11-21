@@ -1,9 +1,8 @@
 import "./scene.css";
-import type { PuzzleMove } from "../../api.ts";
 import {
   HIT,
   PICKUP,
-  dropped,
+  board,
   glyph,
   glyphName,
   letter,
@@ -11,7 +10,6 @@ import {
   pieceColour,
   pointers,
   set,
-  sizeOf,
   svg,
   type Point,
   type Size,
@@ -19,7 +17,6 @@ import {
 import type { Scene, SceneHost } from "../../shell/kit.ts";
 import type { FuseModel } from "./model.ts";
 
-const HINT_MS = 3000;
 // The line over the cards that says how to read one.
 const KEY = 22;
 
@@ -89,20 +86,17 @@ export function mount(host: SceneHost): Scene {
   const n = host.layout.size;
   const clues = host.layout.clues ?? [];
 
-  const root = svg("svg", {
-    class: "board fuse",
-    role: "img",
-    "aria-label":
-      "A fuse box under a board of clue cards. On each card the left fuse comes out before the right one. Tap the fuses in an order that fits every card.",
-  });
-  host.surface.append(root);
+  const view = board(
+    host,
+    "A fuse box under a board of clue cards. On each card the left fuse comes out before the right one. Tap the fuses in an order that fits every card.",
+  );
+  const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
   let geo = geometry(n, clues.length, { width: 1, height: 1 });
   let fuses: SVGGElement[] = [];
   let cards: Card[] = [];
   let pressed: number | undefined;
-  let hint: { move: PuzzleMove; until: number } | undefined;
 
   // A fuse as a card shows it: its mark in a ring, its letter beside it.
   function badge(fuse: number, at: Point, g: number): SVGGElement {
@@ -119,12 +113,6 @@ export function mount(host: SceneHost): Scene {
   }
 
   function build(): void {
-    root.replaceChildren();
-    set(root, {
-      viewBox: `0 0 ${size.width} ${size.height}`,
-      width: size.width,
-      height: size.height,
-    });
     const { r, card } = geo;
     const key = svg("text", { class: "key", x: size.width / 2, y: 8 + KEY * 0.6 });
     key.textContent = "On each card, left comes out before right";
@@ -198,20 +186,20 @@ export function mount(host: SceneHost): Scene {
   }
 
   function frame(): void {
-    const now = sizeOf(host.surface);
-    if (now.width !== size.width || now.height !== size.height) {
+    const now = view.fit();
+    if (now) {
       size = now;
       geo = geometry(n, clues.length, size);
       build();
     }
-    if (hint && performance.now() > hint.until) hint = undefined;
+    const hint = host.hinted();
     const m = model();
     for (const [f, node] of fuses.entries()) {
       const state = [
         "plug",
         m.pulled(f) ? "out" : "",
         pressed === f ? "pressed" : "",
-        hint?.move.a === f ? "hinted" : "",
+        hint?.a === f ? "hinted" : "",
         host.guide?.a === f && m.k === 0 ? "guided" : "",
       ];
       set(node, { class: state.filter(Boolean).join(" ") });
@@ -234,8 +222,7 @@ export function mount(host: SceneHost): Scene {
       if (f === undefined) return;
       // A finger that slides off before it lifts has thought better of it.
       const still = pick(geo, (x) => model().pulled(x), p) === f;
-      dropped(
-        "fuse",
+      host.dropped(
         Math.hypot(p.x - geo.fuses[f]!.x, p.y - geo.fuses[f]!.y),
         geo.r * PICKUP,
         still,
@@ -250,12 +237,9 @@ export function mount(host: SceneHost): Scene {
 
   return {
     frame,
-    hint(move) {
-      hint = { move, until: performance.now() + HINT_MS };
-    },
     destroy() {
       unbind();
-      root.remove();
+      view.remove();
     },
   };
 }

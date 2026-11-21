@@ -65,6 +65,14 @@ func (b *bench) do(c *game.Char, cmd game.Command) (game.Result, *game.Refused) 
 }
 
 // must gives a command the rules must accept.
+// tick runs the world's next tick.
+func (b *bench) tick() {
+	b.t.Helper()
+	if _, err := b.g.Advance(); err != nil {
+		b.t.Fatal(err)
+	}
+}
+
 func (b *bench) must(c *game.Char, cmd game.Command) game.Result {
 	b.t.Helper()
 	res, ref := b.do(c, cmd)
@@ -85,7 +93,7 @@ func (b *bench) rig(c *game.Char, v game.Viewer) game.Rig {
 
 // solving is the kit's own solve of a rig, as a client would send it.
 func (b *bench) solving(rig game.Rig) *puzzle.Log {
-	log := b.g.Rules().Fight.P.Solve(rig.Layout)
+	log := b.g.Puzzles().Solve(rig.Layout)
 	return &log
 }
 
@@ -143,7 +151,7 @@ func TestMachineSolvePays(t *testing.T) {
 		before := b.c.Carried()
 		log := b.solving(rig)
 		s := solve(log)
-		s.Now = armedAt + sentAt(log) + 300
+		s.Now = armedAt + log.Stop() + 300
 		res = b.must(b.c, s)
 		f := kindOf(res.Facts, "puzzle.solved")
 		if res.Machine == nil || !res.Machine.Solved || !res.Machine.Clean || f == nil || len(res.Pressed) != 1 || !res.Pressed[0].Outcome.Success {
@@ -161,20 +169,11 @@ func TestMachineSolvePays(t *testing.T) {
 		if got := b.c.Carried() - before; got <= 0 {
 			t.Fatalf("%s: the solved beat paid %d goods", family, got)
 		}
-		if sk := b.c.C.PracticeOf(family); sk.Uses != b.g.Rules().Fight.P.Param("live-solve-uses") {
+		if sk := b.c.C.PracticeOf(family); sk.Uses != b.g.Puzzles().Param("live-solve-uses") {
 			t.Fatalf("%s: %d uses from a live solve", family, sk.Uses)
 		}
 		b.audit()
 	}
-}
-
-// sentAt is the millisecond a log's player stopped at.
-func sentAt(log *puzzle.Log) int64 {
-	at := log.End
-	if n := len(log.Moves); n > 0 {
-		at = max(at, log.Moves[n-1].At)
-	}
-	return at
 }
 
 func countKind(facts []fact.Fact, kind string) int {
@@ -193,8 +192,10 @@ func countKind(facts []fact.Fact, kind string) int {
 // but sent near the end is not clean.
 func TestMachineLateAndEmpty(t *testing.T) {
 	b := newBench(t)
-	p := b.g.Rules().Fight.P
+	p := b.g.Puzzles()
 	armNow := func() game.Rig {
+		// A place whose machine haywired is shut until the next tick.
+		b.tick()
 		testkit.MachineBeat(t, b.g, b.c, puzzle.Signal, 1)
 		rig := b.rig(b.c, game.Viewer{})
 		a := arm(game.SourceBeat)
@@ -278,7 +279,7 @@ func TestMachineCommandsReplay(t *testing.T) {
 				log.Moves, log.End = log.Moves[:len(log.Moves)/2], 0
 			}
 			s := solve(log)
-			s.Now = a.Now + sentAt(log) + 200
+			s.Now = a.Now + log.Stop() + 200
 			if i == 3 {
 				s.Now = a.Now + rig.Countdown + 10_000
 			}
@@ -386,7 +387,10 @@ func TestMachineRefusalsChangeNothing(t *testing.T) {
 	if c.Armed != nil {
 		t.Fatal("still armed after its log")
 	}
-	// A ban ends the encounter and the countdown with it.
+	// A ban ends the encounter and the countdown with it. The machine that
+	// just haywired is shut until the next tick.
+	c.Fight.Ambush = false
+	b.tick()
 	b.must(c, arm(game.SourceBeat))
 	if _, err := g.Act(game.Command{Key: "op-2", Char: c.C.ID, Kind: game.Ban, Note: "test"}); err != nil || c.Armed != nil || c.Fight != nil {
 		t.Fatalf("a ban with a machine armed: %v, armed %v", err, c.Armed)
@@ -399,7 +403,7 @@ func TestMachineRefusalsChangeNothing(t *testing.T) {
 func TestOpeningRewire(t *testing.T) {
 	b := newBench(t)
 	g, c := b.g, b.c
-	p := g.Rules().Fight.P
+	p := g.Puzzles()
 	testkit.MachineBeat(t, g, c, puzzle.Pins, 3)
 	c.Worked = 0
 	if rig := b.rig(c, game.Viewer{}); rig.Intro || rig.Spec.Family != puzzle.Pins {
@@ -421,7 +425,10 @@ func TestOpeningRewire(t *testing.T) {
 	pending := len(g.Pending)
 	res := b.must(c, solve(&puzzle.Log{}))
 	row := p.HaywireRow(p.Intro())
-	if res.Machine.Haywire != p.Intro() || len(c.Lockdowns) != 0 || len(g.Pending) != pending {
+	// The jolt shuts nothing for a day, but no machine is tried twice in a
+	// tick.
+	shut := game.Lockdown{Place: rig.Spec.Place, Until: g.Tick() + 1}
+	if res.Machine.Haywire != p.Intro() || len(c.Lockdowns) != 1 || c.Lockdowns[0] != shut || len(g.Pending) != pending {
 		t.Fatalf("the opening haywire: %+v, lockdowns %v", res.Machine, c.Lockdowns)
 	}
 	if !slices.ContainsFunc(c.Fight.E.States, func(s fight.State) bool { return string(s.Tag) == row.Tag && s.Who == c.C.ID }) {
@@ -475,7 +482,7 @@ func TestOperatorSetsAMachine(t *testing.T) {
 	}
 	log := b.solving(b.rig(c, game.Viewer{}))
 	cmd = solve(log)
-	cmd.Now = armedAt + sentAt(log)
+	cmd.Now = armedAt + log.Stop()
 	if res := b.must(c, cmd); !res.Machine.Solved || c.Fight != nil {
 		t.Fatalf("the opening Rewire, solved: %+v", res.Machine)
 	}
@@ -492,7 +499,7 @@ func TestOperatorSetsAMachine(t *testing.T) {
 func TestHaywireReachesTheWorld(t *testing.T) {
 	b := newBench(t)
 	g, c := b.g, b.c
-	p := g.Rules().Fight.P
+	p := g.Puzzles()
 	seen := map[string]bool{}
 	for _, family := range []string{"pressure", puzzle.Maze} {
 		testkit.MachineBeat(t, g, c, family, 1)
@@ -541,6 +548,48 @@ func TestHaywireReachesTheWorld(t *testing.T) {
 	}
 }
 
+// TestHaywireOnceATick fails the machine on a final beat and tries it
+// again inside the same tick: the second arming is refused, so the place
+// pays one haywire's practice a tick, and one character's alarms on one
+// tile are one alarm however the second failure came about.
+func TestHaywireOnceATick(t *testing.T) {
+	b := newBench(t)
+	g, c := b.g, b.c
+	p := g.Puzzles()
+	testkit.MachineBeat(t, g, c, "pressure", 1)
+	if row := p.HaywireRow(b.rig(c, game.Viewer{}).Haywire); row.Effect != puzzle.EffectAlarm {
+		t.Fatalf("pressure's haywire is %s, not an alarm", row.Effect)
+	}
+	alarms := func() (n int) {
+		for _, a := range g.Pending {
+			if a.Kind == world.ActAlarm {
+				n++
+			}
+		}
+		return n
+	}
+	b.must(c, arm(game.SourceBeat))
+	b.must(c, solve(&puzzle.Log{}))
+	before, _ := g.Digest()
+	if _, ref := b.do(c, arm(game.SourceBeat)); ref == nil || ref.Code != game.LockedDown {
+		t.Fatalf("arming a machine that haywired this tick: %v", ref)
+	}
+	if after, _ := g.Digest(); after != before {
+		t.Fatal("a refused arming changed the game")
+	}
+	if sk := c.C.PracticeOf("pressure"); alarms() != 1 || sk.Uses != p.Param("haywire-uses") {
+		t.Fatalf("one failure in a tick: %d alarms, %d uses", alarms(), sk.Uses)
+	}
+	c.Lockdowns = nil
+	b.must(c, arm(game.SourceBeat))
+	b.must(c, solve(&puzzle.Log{}))
+	if alarms() != 1 {
+		t.Fatalf("%d alarms pending from one character on one tile", alarms())
+	}
+	b.tick()
+	b.must(c, arm(game.SourceBeat))
+}
+
 func practised(c *game.Char, family string, level int64) {
 	c.C.Practice = slices.DeleteFunc(c.C.Practice, func(s char.Skill) bool { return s.ID == family })
 	c.C.Practice = append(c.C.Practice, char.Skill{ID: family, Level: level})
@@ -557,7 +606,7 @@ func practised(c *game.Char, family string, level int64) {
 func TestBenchCaps(t *testing.T) {
 	b := newBench(t)
 	g, c := b.g, b.c
-	p := g.Rules().Fight.P
+	p := g.Puzzles()
 	testkit.AtBench(t, g, c)
 	v := game.Viewer{Family: puzzle.Rewire, Level: 3}
 	try := func(half bool) game.Result {
@@ -572,7 +621,7 @@ func TestBenchCaps(t *testing.T) {
 		return b.must(c, game.Command{Kind: game.BenchSolve, Machine: &game.MachineCmd{Family: v.Family, Level: v.Level, Log: log}})
 	}
 	res := try(true)
-	if res.Machine.Solved || res.Machine.Haywire != "" || len(res.Facts) != 0 || c.BenchRuns != 1 || c.Bench != 0 {
+	if res.Machine.Solved || res.Machine.Haywire != "" || len(res.Facts) != 0 || c.BenchRuns != 1 || c.Bench != (game.Daily{}) {
 		t.Fatalf("an unfinished bench log: %+v, facts %+v", res.Machine, res.Facts)
 	}
 	most, each := p.Param("bench-uses-per-day"), p.Param("bench-solve-uses")
@@ -593,7 +642,7 @@ func TestBenchCaps(t *testing.T) {
 	if sk := c.C.PracticeOf(puzzle.Rewire); sk.Level != 1 || sk.Uses != 0 || kindOf(g.Log.Since(0), "practice.levelled") == nil {
 		t.Fatalf("practice after %d uses: %+v", most, sk)
 	}
-	for g.World.Day == c.BenchDay {
+	for g.World.Day == c.Bench.Day {
 		if _, err := g.Advance(); err != nil {
 			t.Fatal(err)
 		}
@@ -628,7 +677,7 @@ func TestLessons(t *testing.T) {
 	}
 	b := &bench{t: t, g: g}
 	teacher, learner := b.create("server-1"), b.create("server-1")
-	p := g.Rules().Fight.P
+	p := g.Puzzles()
 	testkit.AtBench(t, g, teacher)
 	testkit.AtBench(t, g, learner)
 	guild := g.Places[0].Guild
@@ -652,8 +701,8 @@ func TestLessons(t *testing.T) {
 	for range give + 2 {
 		teach(teacher, puzzle.Fuse)
 	}
-	if n := int64(len(g.Lessons)); n != min(give, kept) || teacher.Taught != give {
-		t.Fatalf("%d lessons left, %d counted, of %d a day and %d kept", n, teacher.Taught, give, kept)
+	if n := int64(len(g.Lessons)); n != min(give, kept) || teacher.Taught.N != give {
+		t.Fatalf("%d lessons left, %d counted, of %d a day and %d kept", n, teacher.Taught.N, give, kept)
 	}
 	if _, ref := lesson(teacher, puzzle.Fuse); ref == nil || ref.Code != game.NoLesson {
 		t.Fatalf("a teacher took its own lesson: %v", ref)
@@ -688,7 +737,7 @@ func TestLessons(t *testing.T) {
 	if after, _ := g.Digest(); after != before {
 		t.Fatal("a refused lesson changed the game")
 	}
-	if learner.Bench != 0 {
+	if learner.Bench != (game.Daily{}) {
 		t.Fatal("lessons counted against the bench's uses")
 	}
 }
@@ -699,7 +748,7 @@ func TestLessons(t *testing.T) {
 func TestMastery(t *testing.T) {
 	b := newBench(t)
 	g, c := b.g, b.c
-	p := g.Rules().Fight.P
+	p := g.Puzzles()
 	need := g.PracticeNeed(15)
 	practised(c, puzzle.Fuse, 15)
 	c.C.Practice[slices.IndexFunc(c.C.Practice, func(s char.Skill) bool { return s.ID == puzzle.Fuse })].Uses = need - p.Param("live-solve-uses")

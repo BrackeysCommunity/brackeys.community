@@ -1,12 +1,11 @@
 import "./scene.css";
-import type { PuzzleLayout, PuzzleMove } from "../../api.ts";
+import type { PuzzleLayout } from "../../api.ts";
 import {
   HIT,
-  dropped,
+  board,
   letter,
   pointers,
   set,
-  sizeOf,
   svg,
   type Point,
   type Size,
@@ -17,8 +16,7 @@ import type { PinsModel } from "./model.ts";
 /** The heights a pin can be left at. */
 export const HEIGHTS = 4;
 
-// How long a hint stays lit, and how long the lock shudders when the pins drop.
-const HINT_MS = 3000;
+// How long the lock shudders when the pins drop.
 const SLIP_MS = 350;
 
 // A pin's column, in heights: the room over the line for a pin lifted too
@@ -152,29 +150,20 @@ export function mount(host: SceneHost): Scene {
   const pinAt = slotOf.reduce<number[]>((at, slot, pin) => ((at[slot] = pin), at), []);
   const cut = cuts(layout);
 
-  const root = svg("svg", {
-    class: "board lock-pins",
-    role: "img",
-    "aria-label":
-      "A pin lock, seen from the side. Hold a pin to feel whether it binds, lift the binding pin until its cut meets the line, and let go.",
-  });
-  host.surface.append(root);
+  const view = board(
+    host,
+    "A pin lock, seen from the side. Hold a pin to feel whether it binds, lift the binding pin until its cut meets the line, and let go.",
+  );
+  const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
   let geo = geometry(total, { width: 1, height: 1 });
   let pins: Pin[] = [];
   let tell: SVGTextElement | undefined;
   let lift: Lift | undefined;
-  let hint: { move: PuzzleMove; until: number } | undefined;
   let slipUntil = 0;
 
   function build(): void {
-    root.replaceChildren();
-    set(root, {
-      viewBox: `0 0 ${size.width} ${size.height}`,
-      width: size.width,
-      height: size.height,
-    });
     const { notch, grip, r } = geo;
     const w = Math.min(r * 2 - 14, notch * 1.9);
     const lines = new Map<number, { from: number; to: number }>();
@@ -242,14 +231,14 @@ export function mount(host: SceneHost): Scene {
   }
 
   function frame(): void {
-    const now = sizeOf(host.surface);
-    if (now.width !== size.width || now.height !== size.height) {
+    const now = view.fit();
+    if (now) {
       size = now;
       geo = geometry(total, size);
       build();
     }
     const clock = performance.now();
-    if (hint && clock > hint.until) hint = undefined;
+    const hint = host.hinted();
     const m = model();
     const { notch, grip, r } = geo;
     const w = Math.min(r * 2 - 14, notch * 1.9);
@@ -280,7 +269,7 @@ export function mount(host: SceneHost): Scene {
         seated ? "set" : "",
         held ? (m.binding() === id ? "held binds" : "held loose") : "",
         held && level ? "level" : "",
-        hint?.move.a === id ? "hinted" : "",
+        hint?.a === id ? "hinted" : "",
         host.guide?.a === id && m.k === 0 && !held ? "guided" : "",
       ];
       set(pin.group, { class: state.filter(Boolean).join(" ") });
@@ -320,7 +309,7 @@ export function mount(host: SceneHost): Scene {
       const off = Math.abs(px - cut[pin]! * geo.notch);
       host.move(pin, height);
       const held = model().k > before;
-      dropped("lock-pins", off, geo.notch / 2, held, ev);
+      host.dropped(off, geo.notch / 2, held, ev);
       if (!held) slipUntil = performance.now() + SLIP_MS;
     },
     cancel() {
@@ -330,12 +319,9 @@ export function mount(host: SceneHost): Scene {
 
   return {
     frame,
-    hint(move) {
-      hint = { move, until: performance.now() + HINT_MS };
-    },
     destroy() {
       unbind();
-      root.remove();
+      view.remove();
     },
   };
 }

@@ -91,13 +91,13 @@ func TestMachineLogReplays(t *testing.T) {
 			}
 
 			c, _, whole, _ := arm(3, false)
-			m.clock += sentAt(whole) + 200
+			m.clock += whole.Stop() + 200
 			if rep := solve(c, whole); !rep.Machine.Solved || !hasFact(rep, "puzzle.solved") {
 				t.Fatalf("the kit's solve: %s", became(rep))
 			}
 
 			c, _, _, half := arm(2, true)
-			m.clock += sentAt(half) + 200
+			m.clock += half.Stop() + 200
 			if rep := solve(c, half); rep.Machine.Solved || rep.Machine.Late || rep.Machine.Haywire == "" || !hasFact(rep, "puzzle.haywire") {
 				t.Fatalf("half a solve: %s", became(rep))
 			}

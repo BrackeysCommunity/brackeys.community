@@ -100,7 +100,7 @@ test("a thumb can drum every pad, on a phone and at full size", () => {
 test("the scene cleans up after itself", () => {
   const s = stage(override, small.layout, phone);
   expect(s.surface.children.length).toBe(1);
-  s.scene.hint({ at: 0, a: 2 });
+  s.hint({ at: 0, a: 2 });
   s.frame();
   expect(s.surface.querySelectorAll(".pad.hinted")).toHaveLength(1);
   s.scene.destroy();

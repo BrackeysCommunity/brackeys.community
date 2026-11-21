@@ -1,13 +1,12 @@
 import "./scene.css";
-import type { PuzzleMove } from "../../api.ts";
 import {
   HIT,
+  board,
   distance,
   letter,
   nearest,
   pointers,
   set,
-  sizeOf,
   svg,
   type Point,
   type Size,
@@ -15,8 +14,7 @@ import {
 import type { Scene, SceneHost } from "../../shell/kit.ts";
 import type { DialModel } from "./model.ts";
 
-// How long a hint stays lit, a click's ring spreads and a dropped lock shudders.
-const HINT_MS = 3000;
+// How long a click's ring spreads and a dropped lock shudders.
 const PULSE_MS = 450;
 const SLIP_MS = 350;
 // Nearer the hub than this share of the radius, a finger's angle means nothing.
@@ -101,13 +99,11 @@ export function mount(host: SceneHost): Scene {
   const range = host.layout.range ?? 1;
   const turn = host.layout.turn ?? [];
 
-  const root = svg("svg", {
-    class: "board lock-dial",
-    role: "img",
-    "aria-label":
-      "Safe dials. Drag round the marked dial the way its arrow points until it clicks, and let go on the click.",
-  });
-  host.surface.append(root);
+  const view = board(
+    host,
+    "Safe dials. Drag round the marked dial the way its arrow points until it clicks, and let go on the click.",
+  );
+  const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
   let geo = geometry(n, { width: 1, height: 1 });
@@ -120,7 +116,6 @@ export function mount(host: SceneHost): Scene {
   let caught = false;
   let pulseAt = -PULSE_MS;
   let slipUntil = 0;
-  let hint: { move: PuzzleMove; until: number } | undefined;
 
   const number = (d: number) => ((turned[d]! % range) + range) % range;
   const spot = (value: number, at: number): Point => {
@@ -129,12 +124,6 @@ export function mount(host: SceneHost): Scene {
   };
 
   function build(): void {
-    root.replaceChildren();
-    set(root, {
-      viewBox: `0 0 ${size.width} ${size.height}`,
-      width: size.width,
-      height: size.height,
-    });
     const { r } = geo;
     dials = geo.dials.map((c, d) => {
       let ticks = "";
@@ -202,14 +191,14 @@ export function mount(host: SceneHost): Scene {
   }
 
   function frame(): void {
-    const now = sizeOf(host.surface);
-    if (now.width !== size.width || now.height !== size.height) {
+    const now = view.fit();
+    if (now) {
       size = now;
       geo = geometry(n, size);
       build();
     }
     const clock = performance.now();
-    if (hint && clock > hint.until) hint = undefined;
+    const hint = host.hinted();
     const m = model();
     const { r } = geo;
     const notch = 360 / range;
@@ -230,7 +219,7 @@ export function mount(host: SceneHost): Scene {
         r: r * (0.2 + 0.8 * spread),
         opacity: spread < 1 ? 1 - spread : 0,
       });
-      const shown = hint?.move.a === d ? hint.move : undefined;
+      const shown = hint?.a === d ? hint : undefined;
       const at = spot(shown?.b ?? 0, r * 1.02);
       const out = spot(shown?.b ?? 0, r * 1.14);
       const side = spot((shown?.b ?? 0) + range / 4, r * 0.07);
@@ -315,12 +304,9 @@ export function mount(host: SceneHost): Scene {
 
   return {
     frame,
-    hint(move) {
-      hint = { move, until: performance.now() + HINT_MS };
-    },
     destroy() {
       unbind();
-      root.remove();
+      view.remove();
     },
   };
 }

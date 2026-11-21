@@ -399,7 +399,7 @@ func (g *Game) postAll(t ledger.Txn, moved ...*item.Instance) error {
 			hold(c.C, l.Asset, l.Units)
 			if !seen[l.Account] {
 				seen[l.Account] = true
-				c.Version++
+				g.touch(c)
 			}
 		}
 	}

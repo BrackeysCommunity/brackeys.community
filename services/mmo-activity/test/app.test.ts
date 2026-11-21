@@ -276,7 +276,7 @@ test("the bench lists every family, sets a rig up, and a solve is practice", asy
   expect(root.querySelectorAll(".option")).toHaveLength(14);
   expect(root.textContent).toContain("Bench practice today: 3 of 20 uses.");
   expect(root.textContent).toContain("Rewire · Router");
-  // Rewire is the first row, and the one family built so far.
+  // Rewire is the first row, and the family solve() plays.
   click(root.querySelector(".option")!, "−");
   click(root.querySelector(".option")!, "Set it up");
   await wait();

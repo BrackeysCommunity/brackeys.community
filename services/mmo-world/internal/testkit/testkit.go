@@ -119,15 +119,12 @@ func Ticks(t testing.TB, ctx context.Context, st *store.Store, g *game.Game, n i
 	}
 }
 
-// MachineBeat puts a character in an encounter of one beat, a machine of
-// a family and level against the sheets' first creature: a lock for a
-// family that is picked, a puzzle for any other. A solve wins the
-// encounter; a haywire leaves it for another try. The character counts
-// as having worked a machine before, or its first Puzzle beat would be
-// the opening Rewire whatever was asked for: set Worked to 0 for that.
+// MachineBeat is game.FaceMachine for a character who counts as having
+// worked a machine, so a Puzzle beat is the family asked for and not the
+// opening Rewire: set Worked to 0 for that.
 func MachineBeat(t testing.TB, g *game.Game, c *game.Char, family string, level int64) {
 	t.Helper()
-	if g.Rules().Fight.P.Family(family) == nil {
+	if g.Puzzles().Family(family) == nil {
 		t.Fatalf("no machine family %q", family)
 	}
 	g.FaceMachine(c, family, level)

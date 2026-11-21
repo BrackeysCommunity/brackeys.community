@@ -34,7 +34,7 @@ vp dev --port 18787
 vp check                        # format, lint, types
 vp exec tsc --noEmit            # what `typecheck` runs
 vp test run                     # golden vectors, gestures, shell, session
-MMO_ALL_FAMILIES=1 vp test run  # fails until all fourteen scenes exist
+MMO_ALL_FAMILIES=1 vp test run  # also: every family with vectors has a scene
 vp build                        # the static build, into dist/
 ```
 
@@ -124,8 +124,8 @@ edited. It holds these files:
 
 ### `scene.ts`
 
-- `mount(host: SceneHost): Scene` appends its own element to
-  `host.surface` and returns `frame`, `hint` and `destroy`.
+- `mount(host: SceneHost): Scene` makes its drawing with
+  `board(host, label)` and returns `frame` and `destroy`.
 - **Read `host.model` every frame; never keep it and never step it.** The
   shell swaps it (a refused arm, a clock moved back onto the server's).
   Cast it to your model: `const model = () => host.model as RewireModel`.
@@ -140,25 +140,31 @@ edited. It holds these files:
   called every animation frame with the same clock: draw the model as it
   is, and touch the DOM only where something changed (`set` in
   `shell/board.ts`).
-- Lay out in CSS px from `sizeOf(host.surface)`, read each frame, so a
-  rotated phone re-lays the scene. Put the geometry in an exported pure
-  function and test it.
+- Lay out in CSS px. Call the board's `fit()` each frame: when the play
+  area has changed size it empties the drawing and returns the new size
+  to build on, so a rotated phone re-lays the scene. Put the geometry in
+  an exported pure function and test it.
 - `shell/board.ts` has the rest: `pointers` (one captured pointer, a
   cancel drops the drag), `HIT` (22 px, the least hit radius) and `PICKUP`
-  (a piece is picked up from 1.6 radii), `nearest`, `svg`, `glyph`,
-  `pieceColour`, `letter`, and `dropped` (the miss-distance beacon; call it
-  on every drop).
+  (a piece is picked up from 1.6 radii), `nearest`, `svg`, `text`, `say`,
+  `glyph`, `pieceColour` and `letter`.
+- `host.dropped(missPx, hitPx, landed, ev)` records how far a touch landed
+  from its mark; call it on every drop. The shell sends them as one
+  summary beacon a play, never one a touch.
 - Colour is never the only signal. Every piece carries a glyph, a letter
   or a label, for everyone.
 - `host.guide` is the faint guide line's move, when practice gives one.
-  `hint(move)` shows one hint move for a few seconds.
+  `host.hinted()` is the hint lit now, if one is: the shell lights it and
+  puts it out (after `hintMs` on the family, or 3 s), so read it each
+  frame. A mark that must outlast it is the scene's own to keep.
 - `host.compact` says the layout was held to the phone's cap; the size
   itself is already in `host.layout`.
 - No number reaches the screen except through `src/units.ts`.
 - SVG for discrete pieces; Canvas 2D where a gesture paints or traces.
   Give the root element the class `board` (it fills the surface) and the
   family's id, and scope every rule in `scene.css` under that id (keyframes
-  too: `rewire-march`). Colours
+  too: `rewire-slip`; a lit hint's `board-march` and `board-pulse` are
+  shared, in `src/styles.css`). Colours
   come from the palette's variables (`--ash`, `--concrete`, `--rust`,
   `--hazard`, `--signal`, `--tar`, `--corruption`, `--panel`, `--line`,
   `--piece-0` to `--piece-8`), never a literal.

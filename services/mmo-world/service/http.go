@@ -204,7 +204,6 @@ func (s *Server) do(ctx context.Context, cmd game.Command, discord string, versi
 		return applied{}, err
 	}
 	defer unlock()
-	before := s.subs.versions(s.g)
 	out, err := applyCommand(ctx, s.g, s.st, cmd, discord, version, checkVersion, s.cfg.Now())
 	if err != nil {
 		if !errors.As(err, new(untouched)) {
@@ -220,7 +219,7 @@ func (s *Server) do(ctx context.Context, cmd game.Command, discord string, versi
 	if out.ref == nil && !out.dup {
 		s.capture("mmo_action", out.res.Char.C.ID, map[string]any{"kind": cmd.Kind, "tick": s.g.Tick(),
 			"ms": time.Since(start).Milliseconds(), "facts": len(out.res.Facts)})
-		s.subs.tell(moved(s.g, before, out.res.Char))
+		s.subs.tell(told(out.res))
 	}
 	return out, nil
 }

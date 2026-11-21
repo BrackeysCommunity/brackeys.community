@@ -1,5 +1,5 @@
 import type { PuzzleLayout, PuzzleMove } from "../../api.ts";
-import { BROKE, DONE, GOING, type Model, type Status } from "../../shell/kit.ts";
+import { BROKE, GOING, Untimed, until, type Model, type Status } from "../../shell/kit.ts";
 
 // Where each number sits in the layout's par.
 const WIDTH = 0;
@@ -12,7 +12,7 @@ export type Read = "good" | "fast" | "slow";
 // Keycard, as sim/puzzle/keycard.go plays it: each pass wants a swipe of
 // its own length in ms, the reader forgives a few bad ones, and a swipe
 // longer than the time since the last could not have happened.
-export class KeycardModel implements Model {
+export class KeycardModel extends Untimed implements Model {
   /** Passes read. */
   k = 0;
   /** Bad swipes so far. */
@@ -24,6 +24,7 @@ export class KeycardModel implements Model {
   private readonly size: number;
 
   constructor(layout: PuzzleLayout) {
+    super();
     this.target = layout.target ?? [];
     this.par = layout.par ?? [];
     this.size = layout.size;
@@ -51,17 +52,13 @@ export class KeycardModel implements Model {
     return off > this.width ? "slow" : "good";
   }
 
-  run(at: number): [Status, number] {
-    return [GOING, at];
-  }
-
   // One swipe that took a ms and ended at the move's stamp.
   apply(m: PuzzleMove): Status {
     if (m.a < 1 || m.a > m.at - this.last) return BROKE;
     this.last = m.at;
     if (this.read(m.a) === "good") {
       this.k++;
-      return this.k === this.size ? DONE : GOING;
+      return until(this.k === this.size);
     }
     this.bad++;
     return this.bad > this.strikes ? BROKE : GOING;

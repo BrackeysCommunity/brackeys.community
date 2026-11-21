@@ -343,7 +343,7 @@ func (s *Server) apiHere(c *game.Char) api.Here {
 	if sg, ok := g.Suggest(h); ok {
 		out.Suggest = &api.Suggest{At: apiHex(sg.At), Tiles: sg.Tiles, Dir: sg.Dir}
 	}
-	if b, ok := g.BenchAt(c); ok {
+	if b, ok := g.BenchFor(c); ok {
 		out.Bench = &api.BenchHere{Uses: b.Uses, UsesCap: b.UsesCap, Lessons: b.Lessons}
 	}
 	return out

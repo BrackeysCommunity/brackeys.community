@@ -243,6 +243,7 @@ func endJourney(c *Char) {
 // facts written.
 func (g *Game) Advance() ([]fact.Fact, error) {
 	t := g.Tick() + 1
+	g.touched = g.touched[:0]
 	first := fact.ID(g.Log.Len())
 	acts := g.Pending
 	g.Pending = []world.Action{}
@@ -253,13 +254,13 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 			if err := g.defaulted(c, t); err != nil {
 				return nil, err
 			}
-			c.Version++
+			g.touch(c)
 			g.dropIfDown(c)
 		}
 		if c.Long == nil || c.Long.Due > t {
 			continue
 		}
-		c.Version++
+		g.touch(c)
 		var err error
 		switch c.Long.Kind {
 		case Travel:
@@ -286,7 +287,7 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 			if changed, err := g.upkeep(c, t); err != nil {
 				return nil, err
 			} else if changed {
-				c.Version++
+				g.touch(c)
 			}
 		}
 		if err := g.dayTurn(t); err != nil {

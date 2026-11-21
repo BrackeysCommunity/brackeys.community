@@ -1,7 +1,7 @@
 import type { MachineView, Option } from "../api.ts";
 import { button, el, lines, panel } from "../dom.ts";
-import { adds, band, bandShort, level, seconds, uses } from "../units.ts";
-import { haywireLine, name, reasonLine, riskLine } from "../words.ts";
+import { adds, band, bandShort, level, seconds } from "../units.ts";
+import { haywireLine, name, practiceLine, reasonLine, riskLine, sentence } from "../words.ts";
 
 /**
  * The why view (GDD 8.4): the chain behind a modifier, each line a fact
@@ -42,12 +42,7 @@ export function machineWhy(m: MachineView, back: () => void): HTMLElement {
     list.append(el("li", { text: reasonLine(r, i === 0) }));
   if (m.countdown) list.append(el("li", { text: `The countdown: ${seconds(m.countdown)}` }));
   if (m.haywire) list.append(el("li", { text: `If it fails. ${haywireLine(m.haywire)}` }));
-  const p = m.practice;
-  list.append(
-    el("li", {
-      text: `Your practice: ${level(p.level)}${p.title ? `, ${p.title}` : ""}, ${uses(p.uses, p.need)} to the next`,
-    }),
-  );
+  list.append(el("li", { text: `Your practice: ${practiceLine(m.practice)}` }));
   if (m.guide) list.append(el("li", { text: "Practice shows you a faint guide line" }));
   if (m.inner) list.append(el("li", { text: "Mastery opens a hidden panel behind the solve" }));
   root.append(
@@ -56,8 +51,4 @@ export function machineWhy(m: MachineView, back: () => void): HTMLElement {
     button("Back", back),
   );
   return root;
-}
-
-function sentence(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }

@@ -3,8 +3,8 @@ import type { PuzzleMove } from "../../api.ts";
 import {
   HIT,
   PICKUP,
+  board,
   distance,
-  dropped,
   glyph,
   glyphName,
   letter,
@@ -12,7 +12,6 @@ import {
   pieceColour,
   pointers,
   set,
-  sizeOf,
   svg,
   type Point,
   type Size,
@@ -21,8 +20,7 @@ import type { Scene, SceneHost } from "../../shell/kit.ts";
 import { plural } from "../../units.ts";
 import type { RewireModel } from "./model.ts";
 
-// How long a hint stays lit, and how far a press may wander and still be a tap.
-const HINT_MS = 3000;
+// How far a press may wander and still be a tap.
 const TAP_PX = 8;
 
 /** Where everything sits, in CSS px of the surface. */
@@ -82,12 +80,11 @@ export function mount(host: SceneHost): Scene {
   // The mark a wire carries is the mark of the port it belongs in.
   const wants = (w: number) => marks[target[w] ?? w] ?? w;
 
-  const root = svg("svg", {
-    class: "board rewire",
-    role: "img",
-    "aria-label": `A junction box with ${plural(n, "wire")}. Put each plug in the port that shows its mark.`,
-  });
-  host.surface.append(root);
+  const view = board(
+    host,
+    `A junction box with ${plural(n, "wire")}. Put each plug in the port that shows its mark.`,
+  );
+  const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
   let geo = geometry(n, { width: 1, height: 1 });
@@ -98,15 +95,8 @@ export function mount(host: SceneHost): Scene {
   let lit: SVGPathElement | undefined;
   let drag: Drag | undefined;
   let chosen: number | undefined;
-  let hint: { move: PuzzleMove; until: number } | undefined;
 
   function build(): void {
-    root.replaceChildren();
-    set(root, {
-      viewBox: `0 0 ${size.width} ${size.height}`,
-      width: size.width,
-      height: size.height,
-    });
     const { r } = geo;
     for (let p = 0; p < n; p++) {
       const colour = pieceColour(marks[p] ?? p);
@@ -179,8 +169,8 @@ export function mount(host: SceneHost): Scene {
   }
 
   function frame(): void {
-    const now = sizeOf(host.surface);
-    if (now.width !== size.width || now.height !== size.height) {
+    const now = view.fit();
+    if (now) {
       size = now;
       geo = geometry(n, size);
       build();
@@ -201,8 +191,8 @@ export function mount(host: SceneHost): Scene {
       set(rings[p]!, { class: w >= 0 && m.seated(w) ? "seat live" : "seat" });
     }
     set(guide!, { d: route(host.guide, drag?.wire) });
-    if (hint && performance.now() > hint.until) hint = undefined;
-    set(lit!, { d: route(hint?.move, undefined) });
+    const hint = host.hinted();
+    set(lit!, { d: route(hint, undefined) });
   }
 
   // The way a move would take a plug, bowed clear of the plugs between;
@@ -249,7 +239,7 @@ export function mount(host: SceneHost): Scene {
         return;
       }
       const { port, miss } = land(geo, p);
-      dropped("rewire", miss, geo.r * PICKUP, port !== undefined, ev);
+      host.dropped(miss, geo.r * PICKUP, port !== undefined, ev);
       if (port !== undefined) plugIn(wire, port);
     },
     cancel() {
@@ -259,12 +249,9 @@ export function mount(host: SceneHost): Scene {
 
   return {
     frame,
-    hint(move) {
-      hint = { move, until: performance.now() + HINT_MS };
-    },
     destroy() {
       unbind();
-      root.remove();
+      view.remove();
     },
   };
 }

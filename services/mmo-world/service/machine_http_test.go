@@ -113,8 +113,8 @@ func TestMachinesOverHTTP(t *testing.T) {
 	if err != nil || len(list) != 1 || list[0].CharacterID != id {
 		t.Fatalf("countdowns running: %+v %v", list, err)
 	}
-	if now := clock().UnixMilli(); list[0].Deadline <= now || list[0].Deadline > now+10*time.Minute.Milliseconds() {
-		t.Fatalf("a deadline of %d at %d", list[0].Deadline, now)
+	if now := clock().UnixMilli(); list[0].Due <= now || list[0].Due > now+10*time.Minute.Milliseconds() {
+		t.Fatalf("a deadline of %d at %d", list[0].Due, now)
 	}
 	if _, ref, _ := r.cli.Act(ctx, api.ActionRequest{InteractionID: "walk-off", CharacterID: id, Version: armed.Character.Version, Kind: api.ActPress, Option: "back-out"}); ref == nil || ref.Code != api.CodeMachineArmed {
 		t.Fatalf("backing out of an armed machine: %+v", ref)
@@ -126,10 +126,10 @@ func TestMachinesOverHTTP(t *testing.T) {
 		t.Fatalf("after a restart the countdowns are %+v, were %+v (%v)", again, list, err)
 	}
 	st, _, _ = r.srv.View(ctx, id, api.Viewer{})
-	if st.Machine == nil || !st.Machine.Armed || st.Machine.Deadline+st.Machine.Grace != list[0].Deadline {
+	if st.Machine == nil || !st.Machine.Armed || st.Machine.Due != list[0].Due || st.Machine.Deadline+st.Machine.Grace != st.Machine.Due {
 		t.Fatalf("the armed machine after a restart: %+v", st.Machine)
 	}
-	ahead.Store(int64(time.Until(time.UnixMilli(list[0].Deadline))) + int64(time.Second))
+	ahead.Store(int64(time.Until(time.UnixMilli(list[0].Due))) + int64(time.Second))
 	late, ref, err := r.srv.Act(ctx, api.ActionRequest{InteractionID: "mx-" + id, CharacterID: id, Kind: api.ActMachineSolve, Machine: &api.MachineIntent{Log: log}}, false)
 	if err != nil || ref != nil || late.Machine == nil || late.Machine.Solved || !late.Machine.Late || late.Machine.Haywire == "" {
 		t.Fatalf("a log after the countdown ran out: %+v %v %v", late.Machine, ref, err)

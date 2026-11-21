@@ -6,10 +6,18 @@ import {
   type PuzzleMove,
   type PuzzleResult,
 } from "../api.ts";
+import { beacon } from "../beacon.ts";
 import { button, el, lines } from "../dom.ts";
 import type { IntentBody } from "../session.ts";
-import { level, plural, seconds, ticks, uses } from "../units.ts";
-import { factLine, haywireLine, leftLine, refusalLine, resultLine } from "../words.ts";
+import { level, plural, seconds, ticks } from "../units.ts";
+import {
+  factLine,
+  haywireLine,
+  leftLine,
+  practiceLine,
+  refusalLine,
+  resultLine,
+} from "../words.ts";
 import type { Family } from "./kit.ts";
 import { Shell } from "./shell.ts";
 
@@ -74,6 +82,11 @@ export class MachinePanel {
         serverNow: () => deps.serverNow(),
         online: () => deps.online(),
         intent: (kind, body, stale) => deps.intent(kind, body, stale),
+        after: (ms, f) => {
+          const id = setTimeout(f, ms);
+          return () => clearTimeout(id);
+        },
+        beacon,
         changed: () => this.render(),
       },
       machine,
@@ -120,7 +133,7 @@ export class MachinePanel {
       el("h2", { text: s.panel === 1 ? `${known}: the hidden panel` : known }),
       el("p", {
         class: "sub",
-        text: `${where}. Your practice: ${level(p.level)}${p.title ? `, ${p.title}` : ""}, ${uses(p.uses, p.need)} to the next.`,
+        text: `${where}. Your practice: ${practiceLine(p)}.`,
       }),
     );
     this.status.replaceChildren(...lines(s.note, this.statusLine()));
@@ -178,7 +191,10 @@ export class MachinePanel {
     switch (s.phase) {
       case "rest":
         if (m.locked) return `This machine has locked you out for ${ticks(m.locked)}.`;
-        if (s.bench) return "A practice rig. No countdown, and a break costs nothing.";
+        if (s.bench)
+          return m.maxPlay
+            ? `A practice rig. No countdown, and a break costs nothing. A rig left on the bench ${seconds(m.maxPlay)} is set aside for another.`
+            : "A practice rig. No countdown, and a break costs nothing.";
         if (m.intro)
           return "Your first machine. Nothing starts until you touch it; its worst is a jolt.";
         return m.countdown

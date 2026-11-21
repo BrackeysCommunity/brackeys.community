@@ -148,9 +148,9 @@ func feed(play Play, moves []Move, end, horizon, base int64, see func(int64, []i
 	return stop(st, at, len(moves))
 }
 
-// Solve is the moves that solve a layout. For a family played move by
-// move they come one a second, as they always have; for a family on the
-// clock the moves alone do not say when to stop, and Puzzles.Solve does.
+// Solve is the moves that solve a layout. A family played move by move
+// gets one a second; for a family on the clock the moves alone do not say
+// when to stop, and Puzzles.Solve does.
 func Solve(l Layout) []Move {
 	f := registry[l.Family]
 	moves := f.Solve(&l).Moves

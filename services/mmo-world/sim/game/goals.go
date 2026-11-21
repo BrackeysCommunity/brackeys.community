@@ -626,7 +626,7 @@ func (g *Game) awaits(who string, at hex.Hex) {
 		return
 	}
 	c.Waits = append(c.Waits, at)
-	c.Version++
+	g.touch(c)
 }
 
 // sweep are the legs moving everything an account holds to another.
@@ -837,7 +837,7 @@ func (g *Game) refund(x *Goal, key string) error {
 		}
 		if c := g.Char(p.Key); c != nil && p.N > n {
 			c.C.Deeds.Bump(DeedPledged, p.N-n)
-			c.Version++
+			g.touch(c)
 		}
 	}
 	board := g.SettlementHex(x.Board)
@@ -995,7 +995,7 @@ func (g *Game) carry(c *Char, cmd Command) error {
 		d.Long = nil
 	}
 	g.syncCall(d)
-	d.Version++
+	g.touch(d)
 	c.C.Meet(char.Met{Who: d.C.ID, How: "rescued", Tick: g.Tick()}, g.r.limits)
 	d.C.Meet(char.Met{Who: c.C.ID, How: "rescued-by", Tick: g.Tick()}, g.r.limits)
 	_, err := g.factWith(c, []fact.Ref{char.Ref(d.C.ID)}, "rescue.lifted", g.Tick(), fact.At(c.C.At)...)
@@ -1011,7 +1011,7 @@ func (g *Game) carried(c *Char, to hex.Hex, t int64) error {
 		return nil
 	}
 	d.C.At = to
-	d.Version++
+	g.touch(d)
 	if n, ok := g.SettlementAt(to); !ok || n != g.HomeOf(d) {
 		return nil
 	}
@@ -1042,11 +1042,11 @@ func (g *Game) hideGoal(cmd Command) error {
 func (g *Game) setDown(rescuer, carried *Char) {
 	if rescuer != nil {
 		rescuer.Carrying = ""
-		rescuer.Version++
+		g.touch(rescuer)
 	}
 	if carried != nil {
 		carried.CarriedBy = ""
-		carried.Version++
+		g.touch(carried)
 	}
 }
 

@@ -1,6 +1,6 @@
 import type { PuzzleLayout, PuzzleMove } from "../../api.ts";
 import { Clock } from "../../shell/clock.ts";
-import { BROKE, DONE, GOING, type Model, type Status } from "../../shell/kit.ts";
+import { BROKE, DONE, GOING, within, type Model, type Status } from "../../shell/kit.ts";
 
 // A patch of grit creeping back is two numbers in the track: its step and
 // its cell.
@@ -59,10 +59,10 @@ export class ScrubModel implements Model {
     }
   }
 
-  // Rubs cell a once. A cracked cell rubbed down to its last layer breaks.
+  // Rubs cell a once.
   apply(m: PuzzleMove): Status {
     const a = m.a;
-    if (!Number.isInteger(a) || a < 0 || a >= this.grit.length) return BROKE;
+    if (!within(a, this.grit.length)) return BROKE;
     if (this.cracked[a] && this.grit[a]! <= 1) return BROKE;
     this.grit[a] = Math.max(0, this.grit[a]! - 1);
     return this.target.some((c) => this.grit[c]! > 0) ? GOING : DONE;

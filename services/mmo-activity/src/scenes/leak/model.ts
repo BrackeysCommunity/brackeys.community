@@ -1,6 +1,6 @@
 import type { PuzzleLayout, PuzzleMove } from "../../api.ts";
 import { Clock } from "../../shell/clock.ts";
-import { BROKE, DONE, GOING, type Model, type Status } from "../../shell/kit.ts";
+import { BROKE, GOING, until, within, type Model, type Status } from "../../shell/kit.ts";
 
 // Where each number sits in the layout's par.
 const GAUGE = 0;
@@ -98,14 +98,13 @@ export class LeakModel implements Model {
     }
     this.gauge -= (this.par[DRAIN] ?? 0) * open;
     if (this.gauge <= 0) return BROKE;
-    return this.next * ROW >= t.length && wet === 0 ? DONE : GOING;
+    return until(this.next * ROW >= t.length && wet === 0);
   }
 
-  // Taps slot a. On an open leak it takes one of its taps, and clamps the
-  // leak for its hold when it needs more; anywhere else it knocks the pipe.
+  // Taps slot a.
   apply(m: PuzzleMove): Status {
     const a = m.a;
-    if (!Number.isInteger(a) || a < 0 || a >= this.size) return BROKE;
+    if (!within(a, this.size)) return BROKE;
     if (!this.open(a)) {
       this.gauge -= this.par[MISS] ?? 0;
       return GOING;

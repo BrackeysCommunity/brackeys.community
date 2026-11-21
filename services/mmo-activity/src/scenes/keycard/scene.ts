@@ -3,11 +3,12 @@ import type { PuzzleMove } from "../../api.ts";
 import {
   HIT,
   PICKUP,
-  dropped,
+  board,
   pointers,
+  say,
   set,
-  sizeOf,
   svg,
+  text,
   type Point,
   type Size,
 } from "../../shell/board.ts";
@@ -15,8 +16,7 @@ import { GOING, type Model, type Scene, type SceneHost } from "../../shell/kit.t
 import { plural } from "../../units.ts";
 import type { KeycardModel, Read } from "./model.ts";
 
-// How long a hint stays lit, and the swipes of a pass the gauge remembers.
-const HINT_MS = 5000;
+// The swipes of a pass the gauge remembers.
 const MARKS = 8;
 
 /** Where everything sits, in CSS px of the surface. */
@@ -106,12 +106,11 @@ export function mount(host: SceneHost): Scene {
   const passes = host.layout.size;
   const slowest = host.layout.range ?? 0;
 
-  const root = svg("svg", {
-    class: "board keycard",
-    role: "img",
-    "aria-label": `A card reader that wants ${plural(passes, "pass", "passes")}. Drag the card through both gates at the speed each pass wants; the reader says when a swipe was too fast or too slow.`,
-  });
-  host.surface.append(root);
+  const view = board(
+    host,
+    `A card reader that wants ${plural(passes, "pass", "passes")}. Drag the card through both gates at the speed each pass wants; the reader says when a swipe was too fast or too slow.`,
+  );
+  const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
   let geo = geometry({ width: 1, height: 1 });
@@ -130,14 +129,7 @@ export function mount(host: SceneHost): Scene {
   let swipe: Swipe | undefined;
   let marks: Mark[] = [];
   let said: Read | undefined;
-  let hint: { move: PuzzleMove; until: number } | undefined;
   let dead = false;
-
-  function text(cls: string, x: number, y: number, content = ""): SVGTextElement {
-    const node = svg("text", { class: cls, x, y });
-    node.textContent = content;
-    return node;
-  }
 
   function msX(ms: number): number {
     const fastest = model().fastest;
@@ -160,12 +152,6 @@ export function mount(host: SceneHost): Scene {
   }
 
   function build(): void {
-    root.replaceChildren();
-    set(root, {
-      viewBox: `0 0 ${size.width} ${size.height}`,
-      width: size.width,
-      height: size.height,
-    });
     const { rail, gates, top, bar } = geo;
     const { width: cw, height: ch } = geo.card;
     const m = model();
@@ -247,7 +233,7 @@ export function mount(host: SceneHost): Scene {
   }
 
   function frame(): void {
-    const now = sizeOf(host.surface);
+    const now = view.fit();
     const m = model();
     const fresh = m !== seen;
     if (fresh) {
@@ -257,7 +243,7 @@ export function mount(host: SceneHost): Scene {
       swipe = undefined;
       grab = undefined;
     }
-    if (now.width !== size.width || now.height !== size.height) {
+    if (now) {
       size = now;
       geo = geometry(size);
       build();
@@ -267,8 +253,7 @@ export function mount(host: SceneHost): Scene {
       class: `card${grab === undefined ? "" : " held"}`,
       transform: `translate(${cardX} ${geo.rail})`,
     });
-    const say = line(m);
-    if (status!.textContent !== say) status!.textContent = say;
+    say(status!, line(m));
     set(status!, { class: said && said !== "good" && !swipe ? "status bad" : "status" });
     for (const [i, lamp] of lamps.entries())
       set(lamp, { class: i < m.k ? "lamp read" : i === m.k ? "lamp next" : "lamp" });
@@ -280,8 +265,8 @@ export function mount(host: SceneHost): Scene {
     const x = swipe ? msX(host.now() - swipe.t) : 0;
     set(pace!, { d: swipe ? `M${x - 7},${geo.top - 12}h14l-7,10Z` : "" });
     set(guide!, { d: m.k === 0 ? bracket(host.guide) : "" });
-    if (hint && performance.now() > hint.until) hint = undefined;
-    set(lit!, { d: bracket(hint?.move) });
+    const hint = host.hinted();
+    set(lit!, { d: bracket(hint) });
   }
 
   // The card left the gates: its time between them is the swipe.
@@ -319,7 +304,7 @@ export function mount(host: SceneHost): Scene {
   const unbind = pointers(host.surface, {
     down(p, ev) {
       const { held, miss } = grabs(geo, cardX, p);
-      dropped("keycard", miss, (geo.card.width / 2) * PICKUP, held, ev);
+      host.dropped(miss, (geo.card.width / 2) * PICKUP, held, ev);
       if (!held) return false;
       grab = p.x - cardX;
       lastT = host.now();
@@ -342,13 +327,10 @@ export function mount(host: SceneHost): Scene {
 
   return {
     frame,
-    hint(move) {
-      hint = { move, until: performance.now() + HINT_MS };
-    },
     destroy() {
       dead = true;
       unbind();
-      root.remove();
+      view.remove();
     },
   };
 }

@@ -142,7 +142,7 @@
   }
 
   .lock-pins .pin.hinted .chamber {
-    animation: lock-pins-march 0.6s linear infinite;
+    animation: board-march 0.6s linear infinite;
   }
 
   .lock-pins.slip {
@@ -153,12 +153,6 @@
 @keyframes lock-pins-rattle {
   50% {
     translate: 2px 0;
-  }
-}
-
-@keyframes lock-pins-march {
-  to {
-    stroke-dashoffset: -18;
   }
 }
 

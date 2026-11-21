@@ -74,7 +74,10 @@ const SETTLE_MAX = 1500;
 export class Session {
   state: ActivityState | undefined;
   link: Link = { phase: "signing-in" };
-  /** The server's clock less this one's, from the newest state. */
+  /**
+   * The server's clock less this one's. A state that took long to arrive
+   * reads low, so the highest reading a connection has given is the best.
+   */
   offset = 0;
 
   private socket: SocketLike | undefined;
@@ -244,7 +247,10 @@ export class Session {
 
   private took(state: ActivityState): void {
     this.state = state;
-    if (state.now) this.offset = state.now - this.deps.now();
+    if (state.now) {
+      const sample = state.now - this.deps.now();
+      this.offset = this.greeted ? Math.max(this.offset, sample) : sample;
+    }
     this.retry = RETRY_MIN;
     this.settling?.();
     this.settling = undefined;

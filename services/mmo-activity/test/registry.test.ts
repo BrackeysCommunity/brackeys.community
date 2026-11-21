@@ -18,7 +18,7 @@ test("every registered family has its vectors", () => {
   }
 });
 
-// The integrator's gate: every family the world can draw has a scene.
+// Opt-in: every family the world can draw has a scene.
 test.runIf(process.env.MMO_ALL_FAMILIES === "1")("every family with vectors is registered", () => {
   expect(registered()).toEqual(vectors);
 });

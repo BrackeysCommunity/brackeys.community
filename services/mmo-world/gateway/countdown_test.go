@@ -13,7 +13,7 @@ var armBeat = api.MachineIntent{Source: api.MachineBeat}
 
 // past moves the clock to d after a machine's countdown and grace end.
 func (w *world) past(m *api.MachineView, d time.Duration) {
-	w.clock.Advance(time.UnixMilli(m.Deadline+m.Grace).Sub(w.clock.Now()) + d)
+	w.clock.Advance(time.UnixMilli(m.Due).Sub(w.clock.Now()) + d)
 }
 
 // TestCountdown arms machines and lets the clock run. A countdown that
@@ -56,6 +56,13 @@ func TestCountdown(t *testing.T) {
 		t.Fatalf("the state after the countdown ran out with the client gone: machine %+v, last %+v", st.Machine, st.Last)
 	}
 
+	// A machine that haywired is shut until the next tick.
+	if st.Machine.Locked == 0 {
+		t.Fatalf("a machine that just haywired can be armed again at once: %+v", st.Machine)
+	}
+	w.tick()
+	st = v.state()
+
 	// The client stays and lets it run out: the haywire is pushed to it.
 	_, armed = v.intent(api.Intent{ID: "arm-and-wait", Version: st.Character.Version, Kind: api.ActMachineArm, Machine: &armBeat})
 	if armed.Machine == nil || !armed.Machine.Armed || armed.Last != nil {
@@ -67,6 +74,8 @@ func TestCountdown(t *testing.T) {
 		t.Fatalf("the state pushed when the countdown ran out: machine %+v, last %+v, %d expiries", st.Machine, st.Last, len(w.expiries()))
 	}
 	v.quiet()
+	w.tick()
+	st = v.state()
 
 	// Solved in time, the timer is stopped.
 	_, armed = v.intent(api.Intent{ID: "arm-and-solve", Version: st.Character.Version, Kind: api.ActMachineArm, Machine: &armBeat})
@@ -85,6 +94,7 @@ func TestCountdown(t *testing.T) {
 	// A gateway starting over a machine already armed sets its timer.
 	w.stop()
 	arm := func(key string) api.ArmedMachine {
+		w.tick()
 		w.do(func() { testkit.MachineBeat(t, w.g, c, puzzle.Rewire, 1) })
 		w.act(c, key, api.ActionRequest{Kind: api.ActMachineArm, Machine: &armBeat})
 		list, err := w.Armed(t.Context())
@@ -98,7 +108,7 @@ func TestCountdown(t *testing.T) {
 	if gw.Countdowns() != 1 || len(w.expiries()) != 2 {
 		t.Fatalf("after a start over an armed machine: %d countdowns, %d expiries", gw.Countdowns(), len(w.expiries()))
 	}
-	w.clock.Advance(time.UnixMilli(running.Deadline).Sub(w.clock.Now()) + 250*time.Millisecond)
+	w.clock.Advance(time.UnixMilli(running.Due).Sub(w.clock.Now()) + 250*time.Millisecond)
 	if n := len(w.expiries()); n != 3 || c.Armed != nil {
 		t.Fatalf("%d expiries after the restarted countdown ran out", n)
 	}
@@ -106,7 +116,7 @@ func TestCountdown(t *testing.T) {
 	// One whose time passed while no gateway ran ends at once.
 	w.stop()
 	running = arm("arm-before-outage")
-	w.clock.Advance(time.UnixMilli(running.Deadline).Sub(w.clock.Now()) + time.Hour)
+	w.clock.Advance(time.UnixMilli(running.Due).Sub(w.clock.Now()) + time.Hour)
 	w.serve(nil)
 	w.clock.Advance(0)
 	if n := len(w.expiries()); n != 4 || c.Armed != nil || c.LastMachine == nil || !c.LastMachine.Result.Late {

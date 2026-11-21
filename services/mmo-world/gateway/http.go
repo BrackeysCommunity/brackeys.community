@@ -128,18 +128,27 @@ func (g *Gateway) token(w http.ResponseWriter, r *http.Request) {
 	reply(w, http.StatusOK, api.TokenReply{Session: session, Expires: expires, DiscordID: discord, CharacterID: id})
 }
 
-// under counts one more of something this second, unless that is more
-// than most.
-func (g *Gateway) under(times *[]time.Time, most int) bool {
+// window is when something happened in the last second, to hold it to so
+// many a second.
+type window []time.Time
+
+// take counts one more now, unless that is more than most.
+func (w *window) take(now time.Time, most int) bool {
+	*w = slices.DeleteFunc(*w, func(t time.Time) bool { return now.Sub(t) >= time.Second })
+	if len(*w) >= most {
+		return false
+	}
+	*w = append(*w, now)
+	return true
+}
+
+// under counts one more of something everyone shares this second, unless
+// that is more than most.
+func (g *Gateway) under(w *window, most int) bool {
 	now := g.clock.Now()
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	*times = slices.DeleteFunc(*times, func(t time.Time) bool { return now.Sub(t) >= time.Second })
-	if len(*times) >= most {
-		return false
-	}
-	*times = append(*times, now)
-	return true
+	return w.take(now, most)
 }
 
 // beacon takes one line of client telemetry: a named event with plain

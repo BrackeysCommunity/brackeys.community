@@ -179,8 +179,7 @@ func TestAttemptsAndCaps(t *testing.T) {
 	}
 }
 
-// The eight families that were played before the kit give through Play
-// what Replay gives.
+// For the families played move by move, Play gives what Replay gives.
 func TestPlayMatchesReplay(t *testing.T) {
 	p := puzzles(t)
 	for _, fam := range firstEight {
@@ -268,13 +267,13 @@ func TestLimits(t *testing.T) {
 	if r := p.Play(s, ahead, puzzle.Limits{Countdown: cd, Elapsed: at}); r.Solved {
 		t.Fatalf("moves from the future solved: %+v", r)
 	}
-	// A bench has no countdown: never clean, and bounded only by the
-	// longest play.
+	// A bench has no countdown and no haywire: never clean, and bounded
+	// only by the longest play.
 	slow := shifted(log, cd*3)
-	if r := p.Play(s, slow, puzzle.Limits{Elapsed: -1}); !r.Solved || r.Clean {
+	if r := p.Play(s, slow, puzzle.Limits{Elapsed: -1, Bench: true}); !r.Solved || r.Clean {
 		t.Fatalf("a slow bench solve: %+v", r)
 	}
-	if r := p.Play(s, shifted(log, p.Param("max-play-seconds")*1000+1), puzzle.Limits{Elapsed: -1}); r.Solved {
+	if r := p.Play(s, shifted(log, p.MaxPlay()+1), puzzle.Limits{Elapsed: -1, Bench: true}); r.Solved || r.Haywire != "" {
 		t.Fatalf("a bench solve past the longest play: %+v", r)
 	}
 	// A log too long to replay is a haywire, however it ends.

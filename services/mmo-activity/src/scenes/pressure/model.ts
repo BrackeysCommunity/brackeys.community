@@ -1,6 +1,6 @@
 import type { PuzzleLayout, PuzzleMove } from "../../api.ts";
 import { Clock } from "../../shell/clock.ts";
-import { BROKE, DONE, GOING, type Model, type Status } from "../../shell/kit.ts";
+import { BROKE, GOING, until, within, type Model, type Status } from "../../shell/kit.ts";
 
 // Where each number sits in the layout's par.
 const LO = 0;
@@ -75,7 +75,7 @@ export class PressureModel implements Model {
       }
     }
     this.held++;
-    return this.held >= this.hold ? DONE : GOING;
+    return until(this.held >= this.hold);
   }
 
   // Turns valve a: b is 1 to open it, -1 to close it. A needle driven off
@@ -84,7 +84,7 @@ export class PressureModel implements Model {
     const a = m.a;
     const b = m.b ?? 0;
     const n = this.v.length;
-    if (!Number.isInteger(a) || a < 0 || a >= n || (b !== 1 && b !== -1)) return BROKE;
+    if (!within(a, n) || (b !== 1 && b !== -1)) return BROKE;
     this.v[a]! += b * this.nudge;
     if (a > 0) this.v[a - 1]! -= b * (this.par[COUPLE] ?? 0);
     if (a + 1 < n) this.v[a + 1]! -= b * (this.par[COUPLE] ?? 0);

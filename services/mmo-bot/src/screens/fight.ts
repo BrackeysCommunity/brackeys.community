@@ -3,25 +3,13 @@ import {
   buttonRows,
   type EmbedField,
 } from "../../../../packages/discord-kit/src/index.ts";
+import { riskLine } from "../../../../packages/mmo-words/src/index.ts";
 import * as api from "../api.ts";
 import { type Card, COLOUR } from "../card.ts";
 import { target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
 import { amount, band, bandShort, num, signed, ticks } from "../units.ts";
 import { back, banner, btn, DIRECTIONS, downButtons, factNum, launch, PRIVATE } from "./common.ts";
-
-const RISK_UNIT: Record<string, string> = {
-  durability: "durability",
-  haul: "goods",
-  wound: "wound",
-  coin: "coin",
-};
-
-function riskText(o: api.Option): string {
-  if (!o.risk || o.risk === "none" || o.riskSize === 0) return "risks nothing";
-  const unit = RISK_UNIT[o.risk] ?? o.risk;
-  return unit === "wound" ? "risks a wound" : `risks ${amount(o.riskSize, unit)}`;
-}
 
 /** A beat: the situation, every option with its band and risk, edited in place from beat to beat (GDD 7.1). */
 export function beatCard(
@@ -48,7 +36,7 @@ export function beatCard(
       (m) =>
         `**${lex.name("fights.options", m.id)}**: ${family ? `the ${family}, a machine` : "a machine"} worked in the Activity (${band(m.band)})`,
     ),
-    ...opts.map((x) => `**${lex.name("fights.options", x.id)}**: ${band(x.band)}, ${riskText(x)}`),
+    ...opts.map((x) => `**${lex.name("fights.options", x.id)}**: ${band(x.band)}, ${riskLine(x)}`),
   ];
   if (f.machine) buttons.unshift(launch(`Work the machine: ${family}`, "beat", v));
   let opening = "";

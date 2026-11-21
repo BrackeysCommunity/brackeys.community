@@ -135,12 +135,6 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .crank .hint {
-    animation: crank-march 0.6s linear infinite;
-  }
-}
-
-@keyframes crank-march {
-  to {
-    stroke-dashoffset: -18;
+    animation: board-march 0.6s linear infinite;
   }
 }

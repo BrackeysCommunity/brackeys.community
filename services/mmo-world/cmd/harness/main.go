@@ -8,6 +8,7 @@
 //	harness battle -out DIR  the Battle run: the matchup matrix, classes, growth and puzzles
 //	harness economy -out DIR the Economy run: scripted players, their guild and its works, a founding (-n for one size)
 //	harness puzzles -out DIR the Puzzles run: every family's move logs at a bench, replayed to the same facts
+//	harness activity -out DIR the Activity run: every family through a live world's Activity listener (MMO_URL, MMO_ACTIVITY_URL)
 //	harness spike-a|b|e -out DIR
 package main
 

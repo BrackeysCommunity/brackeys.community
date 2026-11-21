@@ -1,6 +1,5 @@
 # The world service: a static binary in a small image, built from the repo
-# root. It copies only this module; sheets, packs and the Activity's build
-# ship beside the binary.
+# root, with its sheets, packs and the Activity's build beside it.
 # The default target is the service; `--target replay` builds the nightly
 # replay (scripts/nightly-replay.sh): the operator CLI beside pg_dump and
 # psql.
@@ -13,11 +12,12 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/world ./cmd/world 
  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/op ./cmd/op
 
 # The Activity's static build, which the service serves on its Activity
-# listener. It reads the API's generated types, and the pack's palette and
-# names, from where they sit in the repo.
+# listener. It reads the API's generated types, the words it shares with
+# chat, and the pack's palette and names, from where they sit in the repo.
 FROM oven/bun:1.3 AS activity
 WORKDIR /src
 COPY packages/mmo-api packages/mmo-api
+COPY packages/mmo-words packages/mmo-words
 COPY services/mmo-world/packs/wasteland services/mmo-world/packs/wasteland
 COPY services/mmo-activity services/mmo-activity
 WORKDIR /src/services/mmo-activity

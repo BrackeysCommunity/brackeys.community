@@ -17,6 +17,7 @@
     "src/**/*.ts",
     "test/**/*.ts",
     "../../packages/discord-kit/src/**/*.ts",
-    "../../packages/mmo-api/src/**/*.ts"
+    "../../packages/mmo-api/src/**/*.ts",
+    "../../packages/mmo-words/src/**/*.ts"
   ]
 }

@@ -204,7 +204,15 @@ type Reason struct {
 	Unit  string `json:"unit"`
 }
 
-// HaywireLine is what a machine does when it fails.
+// What a haywire that puts a state on lasts: so many beats, or the rest
+// of the encounter.
+const (
+	UnitBeats     = "beats"
+	UnitEncounter = "encounter"
+)
+
+// HaywireLine is what a machine does when it fails. Unit is the row's own,
+// or for a state one of the two above.
 type HaywireLine struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
@@ -228,6 +236,7 @@ type MachineView struct {
 	Preview   bool          `json:"preview"`
 	Level     int64         `json:"level,omitempty"`
 	Countdown int64         `json:"countdown,omitempty"` // ms; never set at a bench
+	MaxPlay   int64         `json:"maxPlay,omitempty"`   // ms a bench rig may be played for
 	Why       []Reason      `json:"why,omitempty"`
 	Haywire   *HaywireLine  `json:"haywire,omitempty"`
 	Guide     *PuzzleMove   `json:"guide,omitempty"`
@@ -237,6 +246,7 @@ type MachineView struct {
 	ArmedAt   int64         `json:"armedAt,omitempty"`  // unix ms
 	Deadline  int64         `json:"deadline,omitempty"` // unix ms, grace not included
 	Grace     int64         `json:"grace,omitempty"`    // ms
+	Due       int64         `json:"due,omitempty"`      // unix ms, grace included: when the server ends it
 	Locked    int64         `json:"locked,omitempty"`   // ticks until a lockdown lifts
 	Practice  PracticeLine  `json:"practice"`
 }
@@ -288,9 +298,10 @@ type MachineDone struct {
 	Result PuzzleResult `json:"result"`
 }
 
-// ArmedMachine is a countdown the gateway must enforce. Deadline is unix
-// ms with the grace included.
+// ArmedMachine is a countdown the gateway must enforce. Due is unix ms
+// with the grace included; ArmedAt names the machine among a character's.
 type ArmedMachine struct {
 	CharacterID string `json:"characterId"`
-	Deadline    int64  `json:"deadline"`
+	ArmedAt     int64  `json:"armedAt"`
+	Due         int64  `json:"due"`
 }

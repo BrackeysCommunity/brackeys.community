@@ -16,8 +16,9 @@ import { DONE } from "../src/shell/kit.ts";
 
 /**
  * The Activity's production build in a headless Chrome the size of a
- * phone, against a live local world: a Rewire is solved by touch events
- * alone, and the world says it was solved. Run it with Bun:
+ * phone, against a live local world: the opening Rewire and one past the
+ * phone's cap are solved by touch events alone, and the world says so. Run
+ * it with Bun:
  *
  *   MMO_URL=http://localhost:18080 MMO_ACTIVITY_URL=http://localhost:18787 \
  *   MMO_OPERATOR_TOKEN=local-operator bun scripts/touch-proof.ts [out dir]

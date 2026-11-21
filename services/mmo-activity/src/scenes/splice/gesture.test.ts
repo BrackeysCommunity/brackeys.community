@@ -223,7 +223,7 @@ test("a hint marks the far side of a gap until the iron is past it, and the guid
   const geo = board(l, phone);
   const d = (cls: string) => s.surface.querySelector(cls)!.getAttribute("d");
   expect(d(".guide")).not.toBe("");
-  s.scene.hint({ at: 0, a: 12, b: 3, c: DOWN });
+  s.hint({ at: 0, a: 12, b: 3, c: DOWN });
   s.frame();
   expect(d(".hint")).not.toBe("");
   s.down(centre(geo, 5));

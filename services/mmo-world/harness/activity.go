@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"reflect"
 	"regexp"
 	"slices"
@@ -28,11 +27,8 @@ import (
 )
 
 // The Activity run: a live world played through its Activity listener the
-// way the page plays it, with no Discord. It signs in by the dev sign-in,
-// opens a socket per character, and for every family studies a machine,
-// arms it and sends the kit's own solve, then sends the same log again.
-// It needs a disposable world with dev sign-in on and the operator's
-// paths open (GDD 7.11, 17.7).
+// way the page plays it, with no Discord. It needs a disposable world with
+// dev sign-in on and the operator's paths open (GDD 7.11, 17.7).
 
 // EnvActivityURL is where the run finds the Activity listener.
 const EnvActivityURL = "MMO_ACTIVITY_URL"
@@ -42,8 +38,10 @@ const (
 	activityLevel = 3
 	// activityWait is how long the run waits for one frame it expects.
 	activityWait = 20 * time.Second
-	// intentGap keeps a seat under the gateway's intents a second.
+	// intentGap keeps a seat under the gateway's intents a second, and
+	// lookGap under its looks.
 	intentGap = 120 * time.Millisecond
+	lookGap   = 220 * time.Millisecond
 	// benchExtra is how many bench solves are made past the day's cap.
 	benchExtra = 3
 )
@@ -204,6 +202,7 @@ func (s *seat) untilWithin(what string, wait time.Duration, ok func(api.Activity
 
 // look says what the seat has on screen and returns the state that answers.
 func (s *seat) look(ctx context.Context, v api.Viewer) (api.ActivityState, error) {
+	time.Sleep(lookGap)
 	if err := s.send(ctx, api.ClientMessage{T: "look", Look: &v}); err != nil {
 		return s.state, err
 	}
@@ -243,15 +242,6 @@ func taken(what string, rep api.IntentReply, err error) error {
 		return fmt.Errorf("%s was not taken", what)
 	}
 	return nil
-}
-
-func layoutOf(l api.PuzzleLayout) puzzle.Layout {
-	out := puzzle.Layout{Family: l.Family, Size: l.Size, Decoys: l.Decoys, Target: l.Target, Glyph: l.Glyph, Order: l.Order, False: l.False,
-		Turn: l.Turn, Walls: l.Walls, Tiles: l.Tiles, Start: l.Start, Goal: l.Goal, Range: l.Range, Step: l.Step, Par: l.Par, Init: l.Init, Track: l.Track}
-	for _, c := range l.Clues {
-		out.Clues = append(out.Clues, puzzle.Clue{Before: c.Before, After: c.After})
-	}
-	return out
 }
 
 func factKinds(facts []api.Fact) string {
@@ -299,7 +289,7 @@ func (s *seat) solve(ctx context.Context, n int) (worked, error) {
 	if !m.Preview && (m.Level != 0 || m.Countdown != 0 || m.Haywire != nil || len(m.Why) != 0) {
 		return out, fmt.Errorf("%s at rest shows its level, countdown or haywire with no preview", m.Family)
 	}
-	log := s.w.kit.Solve(layoutOf(m.Layout))
+	log := s.w.kit.Solve(service.LayoutOf(m.Layout))
 	id := fmt.Sprintf("%s-%s-%d", s.w.run, s.char, n)
 	rep, err := s.intent(ctx, id+"-arm", api.ActMachineArm, &api.MachineIntent{Source: api.MachineBeat})
 	if err := taken("arming the "+m.Family, rep, err); err != nil {
@@ -316,14 +306,10 @@ func (s *seat) solve(ctx context.Context, n int) (worked, error) {
 	if armed.Machine.Deadline != armed.Machine.ArmedAt+armed.Machine.Countdown || out.level == 0 {
 		return out, fmt.Errorf("the armed %s carries no level or a deadline that is not its countdown", m.Family)
 	}
-	end := log.End
-	if k := len(log.Moves); k > 0 {
-		end = max(end, log.Moves[k-1].At)
-	}
 	out.moves = len(log.Moves)
 	// The log is played at its own pace: the server takes no stamp from
 	// the future.
-	time.Sleep(time.Until(time.UnixMilli(armed.Machine.ArmedAt + end - ahead).Add(50 * time.Millisecond)))
+	time.Sleep(time.Until(time.UnixMilli(armed.Machine.ArmedAt + log.Stop() - ahead).Add(50 * time.Millisecond)))
 	body := &api.MachineIntent{Log: service.LogOf(log)}
 	first, err := s.intent(ctx, id+"-solve", api.ActMachineSolve, body)
 	if err := taken("solving the "+m.Family, first, err); err != nil {
@@ -496,7 +482,7 @@ func (w *liveWorld) bench(ctx context.Context) (benchDay, error) {
 	out := benchDay{cap: st.Bench.UsesCap, before: st.Machine.Practice}
 	total := func(p api.PracticeLine) int64 { return p.Level*1_000_000 + p.Uses }
 	for i := int64(1); i <= out.cap+benchExtra; i++ {
-		log := w.kit.Solve(layoutOf(st.Machine.Layout))
+		log := w.kit.Solve(service.LayoutOf(st.Machine.Layout))
 		if i == 2 {
 			log = puzzle.Log{Moves: log.Moves[:len(log.Moves)-1]}
 		}
@@ -587,10 +573,6 @@ func (w *liveWorld) served(ctx context.Context) (string, error) {
 	return ref[1], nil
 }
 
-func millis(d time.Duration) string { return fmt.Sprintf("%.1f ms", float64(d.Microseconds())/1000) }
-
-func seconds(ms int64) string { return fmt.Sprintf("%.1f s", float64(ms)/1000) }
-
 // ActivityRun plays every family through a live world's Activity listener
 // and writes activity.md.
 func ActivityRun(b *sheets.Book, out string, _ int) ([]Measured, error) {
@@ -609,56 +591,72 @@ func ActivityRun(b *sheets.Book, out string, _ int) ([]Measured, error) {
 
 	families := w.kit.All()
 	results := make([][]worked, len(families))
-	errs := make([]error, len(families)+3)
 	var open, closed expiry
 	var day benchDay
+	// The jobs wait on a live world's countdowns, not on this machine, so
+	// they all run at once: many sockets open together is part of the proof.
+	jobs := []func() error{
+		func() (err error) { open, err = w.ranOut(ctx, true); return },
+		func() (err error) { closed, err = w.ranOut(ctx, false); return },
+		func() (err error) { day, err = w.bench(ctx); return },
+	}
+	for i, f := range families {
+		jobs = append(jobs, func() (err error) { results[i], err = w.family(ctx, f); return })
+	}
+	errs := make([]error, len(jobs))
 	var wg sync.WaitGroup
 	started := time.Now()
-	for i, f := range families {
-		wg.Go(func() { results[i], errs[i] = w.family(ctx, f) })
+	for i, job := range jobs {
+		wg.Go(func() { errs[i] = job() })
 	}
-	wg.Go(func() { open, errs[len(families)] = w.ranOut(ctx, true) })
-	wg.Go(func() { closed, errs[len(families)+1] = w.ranOut(ctx, false) })
-	wg.Go(func() { day, errs[len(families)+2] = w.bench(ctx) })
 	wg.Wait()
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
 	}
 
-	var s strings.Builder
-	fmt.Fprintf(&s, "# The Activity, end to end on a live world\n\n")
-	fmt.Fprintf(&s, "World at %s, Activity listener at %s, signed in by the dev sign-in, one socket a character. The build is served (`%s`, with and without `/.proxy`). The run took %s.\n\n",
+	var doc lineDoc
+	pr := doc.p
+	pr("# The Activity, end to end on a live world")
+	pr("")
+	pr("World at %s, Activity listener at %s, signed in by the dev sign-in, one socket a character. The build is served (`%s`, with and without `/.proxy`). The run took %s.",
 		base, activity, asset, time.Since(started).Round(time.Second))
-	fmt.Fprintf(&s, "## Every family: studied, armed, solved with the kit's own log, then sent again\n\n")
-	fmt.Fprintf(&s, "Each character first meets the opening Rewire, then its family's machine at level %d. \"Again\" is the same log under the same intent id (the stored reply, marked a duplicate, the same facts) and under a new id (refused `%s`); the character's row is the same before and after both.\n\n",
+	pr("")
+	pr("## Every family: studied, armed, solved with the kit's own log, then sent again")
+	pr("")
+	pr("Each character first meets the opening Rewire, then its family's machine at level %d. \"Again\" is the same log under the same intent id (the stored reply, marked a duplicate, the same facts) and under a new id (refused `%s`); the character's row is the same before and after both.",
 		activityLevel, api.CodeNoMachine)
-	fmt.Fprintf(&s, "| Family | Level | Size | Countdown | Moves | Solved at | Clean | Facts | Arm round trip | Solve round trip | Again |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
-	row := func(name string, r worked) {
-		fmt.Fprintf(&s, "| %s | %d | %d | %s | %d | %s | %v | %s | %s | %s | same fact, no second effect |\n",
-			name, r.level, r.wires, seconds(r.countdown), r.moves, seconds(r.solved), r.clean, r.facts, millis(r.armTrip), millis(r.trip))
-	}
+	pr("")
+	pr("| Family | Level | Size | Countdown | Moves | Solved at | Clean | Facts | Arm round trip | Solve round trip | Again |")
+	pr("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
 	var arm, trip []time.Duration
 	for i, f := range families {
 		for _, r := range results[i] {
 			arm, trip = append(arm, r.armTrip), append(trip, r.trip)
 		}
-		row(f, results[i][1])
+		r := results[i][1]
+		pr("| %s | %d | %d | %s | %d | %s | %v | %s | %s | %s | same fact, no second effect |",
+			f, r.level, r.wires, seconds(r.countdown), r.moves, seconds(r.solved), r.clean, r.facts, millis(r.armTrip), millis(r.trip))
 	}
-	fmt.Fprintf(&s, "\nThe opening Rewire, once a character (%d of them): %d wires, level %d, countdown %s.\n\n",
+	pr("")
+	pr("The opening Rewire, once a character (%d of them): %d wires, level %d, countdown %s.",
 		len(families), results[0][0].wires, results[0][0].level, seconds(results[0][0].countdown))
+	pr("")
 	slices.Sort(arm)
 	slices.Sort(trip)
-	fmt.Fprintf(&s, "Round trips over %d machines: arm median %s, worst %s; solve median %s, worst %s.\n\n",
+	pr("Round trips over %d machines: arm median %s, worst %s; solve median %s, worst %s.",
 		len(arm), millis(arm[len(arm)/2]), millis(arm[len(arm)-1]), millis(trip[len(trip)/2]), millis(trip[len(trip)-1]))
-	fmt.Fprintf(&s, "## An armed machine left alone\n\n| Page | Countdown | Haywire | Seen after the deadline |\n| --- | --- | --- | --- |\n")
+	pr("")
+	pr("## An armed machine left alone")
+	pr("")
+	pr("| Page | Countdown | Haywire | Seen after the deadline |")
+	pr("| --- | --- | --- | --- |")
 	for _, e := range []expiry{open, closed} {
-		page := "closed, opened again later"
-		if e.open {
-			page = "left open"
-		}
-		fmt.Fprintf(&s, "| %s | %s | %s, late | %s |\n", page, seconds(e.countdown), e.haywire, seconds(e.late.Milliseconds()))
+		pr("| %s | %s | %s, late | %s |", either(e.open, "left open", "closed, opened again later"), seconds(e.countdown), e.haywire, seconds(e.late.Milliseconds()))
 	}
-	fmt.Fprintf(&s, "\n## The bench\n\n%d Rewire rigs solved in one world day, and one log stopped a move short (%s). Uses today: %d of %d. Rewire practice: level %d and %d uses before, level %d and %d uses at the cap, level %d and %d uses after %d more solves.\n",
+	pr("")
+	pr("## The bench")
+	pr("")
+	pr("%d Rewire rigs solved in one world day, and one log stopped a move short (%s). Uses today: %d of %d. Rewire practice: level %d and %d uses before, level %d and %d uses at the cap, level %d and %d uses after %d more solves.",
 		day.solves, day.half, day.uses, day.cap, day.before.Level, day.before.Uses, day.atCap.Level, day.atCap.Uses, day.after.Level, day.after.Uses, day.solves-day.cap)
-	return nil, os.WriteFile(filepath.Join(out, "activity.md"), []byte(s.String()), 0o644)
+	return nil, doc.save(out, "activity.md")
 }

@@ -137,11 +137,11 @@ test("a hint warns of a cracked cell for good, and the guide rings a cell to rub
   const s = stage(scrub, small.layout, { ...phone, guide: { at: 100, a: reading } });
   const cls = (i: number) => s.surface.querySelectorAll("g")[i]!.getAttribute("class")!;
   expect(cls(reading)).toContain("guided");
-  s.scene.hint({ at: 0, a: crack });
+  s.hint({ at: 0, a: crack });
   s.frame();
   expect(cls(crack)).toContain("warned");
   expect(cls(crack)).not.toContain("hinted");
-  s.scene.hint({ at: 0, a: reading });
+  s.hint({ at: 0, a: reading });
   s.frame();
   expect(cls(reading)).toContain("hinted");
   expect(s.moves).toEqual([]);

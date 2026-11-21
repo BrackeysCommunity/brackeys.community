@@ -125,7 +125,7 @@ test("the phone's cap of six fuses is kept", () => {
 test("the scene cleans up after itself", () => {
   const s = stage(fuse, small.layout, phone);
   expect(s.surface.children.length).toBe(1);
-  s.scene.hint({ at: 0, a: 1 });
+  s.hint({ at: 0, a: 1 });
   s.frame();
   expect(s.surface.querySelectorAll(".plug.hinted")).toHaveLength(1);
   s.scene.destroy();

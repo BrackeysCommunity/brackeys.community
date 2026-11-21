@@ -1,6 +1,6 @@
 import type { PuzzleLayout, PuzzleMove } from "../../api.ts";
 import { Clock } from "../../shell/clock.ts";
-import { BROKE, DONE, GOING, type Model, type Status } from "../../shell/kit.ts";
+import { BROKE, GOING, until, type Model, type Status } from "../../shell/kit.ts";
 
 // Where each number sits in the layout's par.
 const LO = 0;
@@ -75,7 +75,7 @@ export class CrankModel implements Model {
   private tick(k: number): Status {
     this.speed = Math.max(0, this.speed - (this.par[DRAG] ?? 0) - this.load(k));
     if (this.speed >= this.lo && this.speed <= this.hi) this.charge++;
-    return this.charge >= this.need ? DONE : GOING;
+    return until(this.charge >= this.need);
   }
 
   // One quarter turn. Wound past its limit, the dynamo blows.

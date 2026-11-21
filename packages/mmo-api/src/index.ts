@@ -246,7 +246,18 @@ export interface Reason {
   unit: string;
 }
 /**
- * HaywireLine is what a machine does when it fails.
+ * What a haywire that puts a state on lasts: so many beats, or the rest
+ * of the encounter.
+ */
+export const UnitBeats = "beats";
+/**
+ * What a haywire that puts a state on lasts: so many beats, or the rest
+ * of the encounter.
+ */
+export const UnitEncounter = "encounter";
+/**
+ * HaywireLine is what a machine does when it fails. Unit is the row's own,
+ * or for a state one of the two above.
  */
 export interface HaywireLine {
   id: string;
@@ -272,6 +283,7 @@ export interface MachineView {
   preview: boolean;
   level?: number /* int64 */;
   countdown?: number /* int64 */; // ms; never set at a bench
+  maxPlay?: number /* int64 */; // ms a bench rig may be played for
   why?: Reason[];
   haywire?: HaywireLine;
   guide?: PuzzleMove;
@@ -281,6 +293,7 @@ export interface MachineView {
   armedAt?: number /* int64 */; // unix ms
   deadline?: number /* int64 */; // unix ms, grace not included
   grace?: number /* int64 */; // ms
+  due?: number /* int64 */; // unix ms, grace included: when the server ends it
   locked?: number /* int64 */; // ticks until a lockdown lifts
   practice: PracticeLine;
 }
@@ -331,12 +344,13 @@ export interface MachineDone {
   result: PuzzleResult;
 }
 /**
- * ArmedMachine is a countdown the gateway must enforce. Deadline is unix
- * ms with the grace included.
+ * ArmedMachine is a countdown the gateway must enforce. Due is unix ms
+ * with the grace included; ArmedAt names the machine among a character's.
  */
 export interface ArmedMachine {
   characterId: string;
-  deadline: number /* int64 */;
+  armedAt: number /* int64 */;
+  due: number /* int64 */;
 }
 
 //////////

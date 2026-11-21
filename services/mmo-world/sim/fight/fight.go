@@ -545,3 +545,12 @@ func lands(g *Gear, s Situation) bool {
 	t := tags.Tag(x.OnlyTag)
 	return slices.Contains(s.Creature.Tags, t) || slices.Contains(s.Other, t)
 }
+
+// StateBeats is how many beats a state counts before it lifts; 0 for one
+// that lasts the encounter.
+func (r *Rules) StateBeats(tag tags.Tag) int64 {
+	if row := r.states[tag]; row != nil {
+		return row.Beats
+	}
+	return 0
+}

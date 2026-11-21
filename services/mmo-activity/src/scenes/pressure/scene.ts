@@ -3,13 +3,14 @@ import type { PuzzleMove } from "../../api.ts";
 import {
   HIT,
   PICKUP,
-  dropped,
+  board,
   letter,
   nearest,
   pointers,
+  say,
   set,
-  sizeOf,
   svg,
+  text,
   type Point,
   type Size,
 } from "../../shell/board.ts";
@@ -20,9 +21,8 @@ import type { PressureModel } from "./model.ts";
 /** The px a wheel is dragged for one turn of its valve. */
 export const NOTCH = 24;
 
-// How long a hint stays lit, the degrees a wheel is drawn turning a notch,
-// and how fast a drawn needle follows the model's.
-const HINT_MS = 3000;
+// The degrees a wheel is drawn turning a notch, and how fast a drawn
+// needle follows the model's.
 const NOTCH_DEG = 30;
 const EASE = 0.3;
 
@@ -93,12 +93,11 @@ export function mount(host: SceneHost): Scene {
   const range = host.layout.range ?? 0;
   const goal = host.layout.goal;
 
-  const root = svg("svg", {
-    class: "board pressure",
-    role: "img",
-    "aria-label": `A boiler with ${plural(n, "valve")}. Drag a wheel up to open its valve: its needle rises and the needles beside it fall. Hold every needle in its band.`,
-  });
-  host.surface.append(root);
+  const view = board(
+    host,
+    `A boiler with ${plural(n, "valve")}. Drag a wheel up to open its valve: its needle rises and the needles beside it fall. Hold every needle in its band.`,
+  );
+  const root = view.root;
 
   let size: Size = { width: 0, height: 0 };
   let geo = geometry(n, { width: 1, height: 1 });
@@ -108,18 +107,11 @@ export function mount(host: SceneHost): Scene {
   let guide: SVGPathElement | undefined;
   let lit: SVGPathElement | undefined;
   let drag: Drag | undefined;
-  let hint: { move: PuzzleMove; until: number } | undefined;
   // What is drawn of a model: eased needles, and how far each wheel has turned.
   let seen: Model | undefined;
   let shown: number[] = [];
   let turned: number[] = [];
   let touched = false;
-
-  function text(cls: string, x: number, y: number, content: string): SVGTextElement {
-    const node = svg("text", { class: cls, x, y });
-    node.textContent = content;
-    return node;
-  }
 
   // An arrowhead above a point (dir 1) or below it (dir -1).
   function chevron(at: Point, dir: number, w: number): string {
@@ -129,12 +121,6 @@ export function mount(host: SceneHost): Scene {
   }
 
   function build(): void {
-    root.replaceChildren();
-    set(root, {
-      viewBox: `0 0 ${size.width} ${size.height}`,
-      width: size.width,
-      height: size.height,
-    });
     const m = model();
     const { r, top, bottom, tube } = geo;
     status = text("status", size.width / 2, geo.head, "");
@@ -218,7 +204,7 @@ export function mount(host: SceneHost): Scene {
   }
 
   function frame(): void {
-    const now = sizeOf(host.surface);
+    const now = view.fit();
     const m = model();
     if (m !== seen) {
       seen = m;
@@ -227,7 +213,7 @@ export function mount(host: SceneHost): Scene {
       touched = false;
       drag = undefined;
     }
-    if (now.width !== size.width || now.height !== size.height) {
+    if (now) {
       size = now;
       geo = geometry(n, size);
       build();
@@ -242,7 +228,7 @@ export function mount(host: SceneHost): Scene {
       const x = w.x - tube / 2;
       set(c.needle, { d: `M${x - 9},${y - 6}L${x - 1},${y}L${x - 9},${y + 6}ZM${x},${y}h${tube}` });
       const word = label(v, m);
-      if (c.state.textContent !== word) c.state.textContent = word;
+      say(c.state, word);
       set(c.state, { class: `state ${word}` });
       const held = drag?.valve === i;
       const part = held ? ((drag!.from - drag!.y) / NOTCH) * NOTCH_DEG : 0;
@@ -265,13 +251,13 @@ export function mount(host: SceneHost): Scene {
         : m.held > 0
           ? `In the band. Hold it for ${seconds(left)}.`
           : "Bring every needle into its band.";
-    if (status!.textContent !== line) status!.textContent = line;
+    say(status!, line);
     set(holdBar!, {
       width: ((size.width - 16) * Math.min(m.held, m.hold)) / Math.max(1, m.hold),
     });
     set(guide!, { d: touched ? "" : arrow(host.guide) });
-    if (hint && performance.now() > hint.until) hint = undefined;
-    set(lit!, { d: arrow(hint?.move) });
+    const hint = host.hinted();
+    set(lit!, { d: arrow(hint) });
   }
 
   function turn(valve: number, dir: number): boolean {
@@ -283,7 +269,7 @@ export function mount(host: SceneHost): Scene {
   const unbind = pointers(host.surface, {
     down(p, ev) {
       const { valve, miss } = pick(geo, p);
-      dropped("pressure", miss, geo.r * PICKUP, valve !== undefined, ev);
+      host.dropped(miss, geo.r * PICKUP, valve !== undefined, ev);
       if (valve === undefined) return false;
       drag = { valve, from: p.y, y: p.y };
       return true;
@@ -308,12 +294,9 @@ export function mount(host: SceneHost): Scene {
 
   return {
     frame,
-    hint(move) {
-      hint = { move, until: performance.now() + HINT_MS };
-    },
     destroy() {
       unbind();
-      root.remove();
+      view.remove();
     },
   };
 }
