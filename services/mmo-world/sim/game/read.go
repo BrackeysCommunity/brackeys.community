@@ -63,9 +63,11 @@ func (g *Game) Choose(c *Char) Choices {
 		out.FreeToMove = false
 		return out
 	}
+	laden := g.Laden(c)
 	for d := range hex.Directions {
 		to := c.C.At.Neighbour(d)
-		ticks, why, ok := g.EnterCost(c, c.C.At, to, t)
+		var why []Part
+		ticks, ok := g.enterCost(c, c.C.At, to, t, laden, &why)
 		out.Moves = append(out.Moves, Move{Dir: d, To: to, Open: ok, Ticks: ticks, Why: why})
 	}
 	for _, m := range g.Materials(c.C.At) {

@@ -20,12 +20,14 @@ type records interface {
 }
 
 // applied is a command's outcome: a refusal, the stored reply to a
-// command already applied, or the reply just written.
+// command already applied, or the reply just written, encoded in body
+// and as it was made in reply.
 type applied struct {
 	ref    *api.Refusal
 	status int
 	dup    bool
 	body   []byte
+	reply  api.ActionReply
 	res    game.Result
 }
 
@@ -96,14 +98,13 @@ type untouched struct{ error }
 
 func (u untouched) Unwrap() error { return u.error }
 
-// decodeReply is a stored or just-written reply; dup marks it a second
-// send's.
-func decodeReply(body []byte, dup bool) (api.ActionReply, error) {
+// storedReply is the stored reply to a command sent a second time.
+func storedReply(body []byte) (api.ActionReply, error) {
 	var out api.ActionReply
 	if err := json.Unmarshal(body, &out); err != nil {
 		return out, err
 	}
-	out.Duplicate = dup
+	out.Duplicate = true
 	return out, nil
 }
 
@@ -142,7 +143,8 @@ func applyCommand(ctx context.Context, g *game.Game, rec records, subs *listener
 	if ref != nil || err != nil {
 		return applied{ref: ref, status: status}, err
 	}
-	body, err := json.Marshal(actionReply(g, res))
+	rep := actionReply(g, res)
+	body, err := json.Marshal(rep)
 	if err != nil {
 		return applied{}, err
 	}
@@ -150,7 +152,7 @@ func applyCommand(ctx context.Context, g *game.Game, rec records, subs *listener
 		return applied{}, err
 	}
 	subs.tell(told(res))
-	return applied{body: body, res: res}, nil
+	return applied{body: body, reply: rep, res: res}, nil
 }
 
 // act checks a command's row version and runs it. A refusal comes back

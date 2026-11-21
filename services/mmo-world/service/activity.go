@@ -160,8 +160,11 @@ func actOn(ctx context.Context, d doer, req api.ActionRequest, check bool,
 	if out.ref != nil {
 		return api.ActionReply{}, out.ref, nil
 	}
-	rep, err := decodeReply(out.body, out.dup)
-	return rep, nil, err
+	if out.dup {
+		rep, err := storedReply(out.body)
+		return rep, nil, err
+	}
+	return out.reply, nil, nil
 }
 
 // hostAct is a write from the Activity, with the reply's facts as its

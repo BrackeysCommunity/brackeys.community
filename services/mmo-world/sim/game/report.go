@@ -353,6 +353,31 @@ func (g *Game) ListingsAt(settlement int) []market.Listing {
 	return out
 }
 
+// CheapestListings are a settlement's cheapest listings, at most `most`
+// of them: cheapest first, and among equals the one listed first.
+func (g *Game) CheapestListings(settlement, most int) []market.Listing {
+	if g.Market == nil {
+		return nil
+	}
+	var out []market.Listing
+	for _, l := range g.Market.Listings {
+		if l.Settlement != settlement {
+			continue
+		}
+		i, _ := slices.BinarySearchFunc(out, l.Price, func(o market.Listing, price int64) int {
+			if o.Price > price {
+				return 1
+			}
+			return -1
+		})
+		if i >= most {
+			continue
+		}
+		out = slices.Insert(out[:min(len(out), most-1)], i, l)
+	}
+	return out
+}
+
 // WantsAt are a settlement's gear orders.
 func (g *Game) WantsAt(settlement int) []market.Want {
 	if g.Market == nil {

@@ -81,8 +81,31 @@ func (g *Game) charScale(c *Char, measure string, base int64) int64 {
 	if len(c.C.Classes.Abilities) == 0 {
 		return base
 	}
-	subject := tags.Plain(tags.Source{Note: "character:" + c.C.ID}, append([]tags.Tag{tags.Character}, g.charTags(c)...)...)
-	return tags.Adjust(g.r.rules, subject, tags.Context{}, measure, base)
+	return g.r.shiftsOf(&c.C.Classes)[measure].On(base)
+}
+
+// shiftsOf is what the rules do to each measure for a character of these
+// classes. They read only the tags its active classes and abilities give
+// it, so each such set is worked out once.
+func (r *Rules) shiftsOf(s *class.State) map[string]tags.Shift {
+	var key strings.Builder
+	for _, id := range s.Active {
+		key.WriteString(id)
+		key.WriteByte(',')
+	}
+	key.WriteByte('\n')
+	for _, id := range s.Abilities {
+		key.WriteString(id)
+		key.WriteByte(',')
+	}
+	out, ok := r.shifts[key.String()]
+	if !ok {
+		subject := tags.Plain(tags.Source{}, append([]tags.Tag{tags.Character}, s.Tags(r.Book.Classes, r.Book.Abilities)...)...)
+		effects, _ := tags.Apply(r.rules, subject, tags.Context{})
+		out = tags.Shifts(effects)
+		r.shifts[key.String()] = out
+	}
+	return out
 }
 
 // classesFor checks a character's thresholds after it acts: each class it

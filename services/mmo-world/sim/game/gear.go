@@ -80,6 +80,7 @@ func (g *Game) offer(l market.Listing, key string) error {
 		return g.sellListing(l, w.Buyer, ledger.EscrowPool(w.ID), w.Price, ledger.SubKey(key, "fill"))
 	}
 	m.Listings = append(m.Listings, l)
+	m.opened(l.Seller, 1)
 	return nil
 }
 
@@ -121,6 +122,7 @@ func (g *Game) want(c *Char, cmd Command) error {
 		return g.sellListing(l, acc, ledger.EscrowPool(id), w.Price, ledger.SubKey(cmd.Key, "fill"))
 	}
 	m.Wants = append(m.Wants, w)
+	m.opened(w.Buyer, 1)
 	return nil
 }
 

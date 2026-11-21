@@ -15,6 +15,7 @@ type Tail struct {
 	Count ID        `json:"count"`
 	Chain canon.Sum `json:"chain"`
 	facts []Fact
+	enc   canon.Encoder
 }
 
 func (t *Tail) Append(f Fact) (ID, error) {
@@ -22,7 +23,7 @@ func (t *Tail) Append(f Fact) (ID, error) {
 	if err := prepare(&f, next); err != nil {
 		return 0, err
 	}
-	b, err := canon.Marshal(f)
+	b, err := t.enc.Marshal(f)
 	if err != nil {
 		return 0, err
 	}

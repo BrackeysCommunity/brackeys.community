@@ -48,19 +48,24 @@ const ulp = fixed.F(1)
 
 // Moves the stabiliser makes.
 const (
-	Rose  = "rose"
-	Fell  = "fell"
-	Eased = "eased"
-	Held  = "held"
+	Rose   = "rose"
+	Fell   = "fell"
+	Leaned = "leaned"
+	Eased  = "eased"
+	Held   = "held"
 )
 
 // Step adds the day's coin per active character to the window and moves
 // the rate by the window's mean: down Step per cent above the band, up
-// Step per cent below it, else back toward rest by Return per cent of
-// itself. Below the band the rate passes rest (up to Most) only while
-// coin is not already climbing: purses filling in a new world reach the
-// band at rest, and a faucet raised under them overshoots it. It returns
-// the mean and the move.
+// Step per cent below it. Below the band the rate passes rest (up to
+// Most) only while coin is not already climbing: purses filling in a new
+// world reach the band at rest, and a faucet raised under them overshoots
+// it. Inside the band the rate leans against coin drifting away from the
+// middle, by Step per cent at the band's edge and less the nearer the
+// middle, so a world whose purses do not settle at rest finds its own
+// rate instead of swinging across the band; otherwise it goes back
+// toward rest by Return per cent of itself. It returns the mean and the
+// move.
 func (s *State) Step(perActive int64, p Params) (mean int64, move string) {
 	s.Samples = append(s.Samples, perActive)
 	if over := int64(len(s.Samples)) - p.Days; over > 0 {
@@ -82,6 +87,19 @@ func (s *State) Step(perActive int64, p Params) (mean int64, move string) {
 		s.Rate = fixed.Min(up, most)
 		return mean, Rose
 	}
+	// off is twice the mean's distance above the middle, and width twice
+	// the middle's distance to an edge.
+	off, width := mean+mean-p.Low-p.High, p.High-p.Low
+	whole := fixed.Hundredths * width
+	switch {
+	case off > 0 && s.climbing():
+		s.Rate = s.Rate.Mul(fixed.Ratio(whole-p.Step*off, whole))
+		return mean, Leaned
+	case off < 0 && s.falling():
+		up := s.Rate.Mul(fixed.Ratio(whole-p.Step*off, whole))
+		s.Rate = fixed.Max(s.Rate, fixed.Min(up, rest.Mul(fixed.Percent(p.Most))))
+		return mean, Leaned
+	}
 	gap := rest.Sub(s.Rate)
 	step := fixed.Max(s.Rate.Mul(fixed.Percent(p.Return)), ulp)
 	switch gap.Cmp(0) {
@@ -100,6 +118,13 @@ func (s *State) Step(perActive int64, p Params) (mean int64, move string) {
 func (s State) climbing() bool {
 	n := len(s.Samples)
 	return n <= 1 || s.Samples[n-1] > s.Samples[0]
+}
+
+// falling reports whether coin per active character ended the window
+// below where it began.
+func (s State) falling() bool {
+	n := len(s.Samples)
+	return n > 1 && s.Samples[n-1] < s.Samples[0]
 }
 
 // Mean is coin per active character over the window, rounded; 0 before

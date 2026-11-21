@@ -237,7 +237,7 @@ func uniqueViolation(err error) bool {
 }
 
 func (s *Server) duplicate(w http.ResponseWriter, stored []byte) {
-	out, err := decodeReply(stored, true)
+	out, err := storedReply(stored)
 	if err != nil {
 		s.internal(w, err)
 		return

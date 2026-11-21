@@ -1,7 +1,6 @@
 package service
 
 import (
-	"cmp"
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/fact"
@@ -13,7 +12,6 @@ import (
 	"jams.team/mmo-world/sim/market"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/world"
-	"slices"
 )
 
 // structural: what a score part and a region gauge count in.
@@ -116,10 +114,8 @@ const purseListings = 5
 // cheapest are a settlement's cheapest gear listings, as a character
 // sees them.
 func cheapest(g *game.Game, c *game.Char, n, most int) []api.Listing {
-	ls := g.ListingsAt(n)
-	slices.SortStableFunc(ls, func(a, b market.Listing) int { return cmp.Compare(a.Price, b.Price) })
 	out := []api.Listing{}
-	for _, l := range ls[:min(len(ls), most)] {
+	for _, l := range g.CheapestListings(n, most) {
 		out = append(out, apiListing(g, c, l))
 	}
 	return out

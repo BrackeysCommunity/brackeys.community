@@ -10,6 +10,8 @@
 //	harness puzzles -out DIR the Puzzles run: every family's move logs at a bench, replayed to the same facts
 //	harness activity -out DIR the Activity run: every family through a live world's Activity listener (MMO_URL, MMO_ACTIVITY_URL)
 //	harness spike-a|b|e -out DIR
+//
+// -cpuprofile FILE writes a CPU profile of any of them.
 package main
 
 import (
@@ -17,6 +19,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"runtime/pprof"
 	"slices"
 	"strings"
 
@@ -34,11 +37,23 @@ func main() {
 	out := fs.String("out", "", "directory for spike output")
 	n := fs.Int("n", 0, "sample size (0 = the spike's own)")
 	skipLint := fs.Bool("skip-lint", false, "check: leave the sim analyzers to simlint")
+	cpuProfile := fs.String("cpuprofile", "", "write a CPU profile to this file")
 	_ = fs.Parse(args)
+	if *cpuProfile != "" {
+		f, err := os.Create(*cpuProfile)
+		exitOn(err)
+		exitOn(pprof.StartCPUProfile(f))
+		stopProfile = func() {
+			pprof.StopCPUProfile()
+			_ = f.Close()
+		}
+	}
+	defer stopProfile()
 
 	switch cmd {
 	case "check":
 		if !harness.PrintCheck(os.Stdout, harness.Check(root, harness.CheckOptions{SkipLint: *skipLint})) {
+			stopProfile()
 			os.Exit(1)
 		}
 	case "report":
@@ -73,9 +88,13 @@ func usage() {
 	os.Exit(2)
 }
 
+// stopProfile ends the CPU profile, if one is being written.
+var stopProfile = func() {}
+
 func exitOn(err error) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		stopProfile()
 		os.Exit(1)
 	}
 }
