@@ -176,6 +176,13 @@ func TestTurnover(t *testing.T) {
 	if !base(Expire).Turn(2, 90, 100, nil) {
 		t.Fatal("an expiring goal did not end")
 	}
+	for _, life := range []string{Season, Standing} {
+		p := base(Keep)
+		p.State, p.Lifetime = Proposed, life
+		if !p.Turn(2, 90, 100, nil) {
+			t.Fatalf("a %s proposal short of its need outlived the season", life)
+		}
+	}
 	r := base(Reset)
 	r.Turn(2, 90, 100, nil)
 	k := base(Keep)

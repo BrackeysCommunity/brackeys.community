@@ -552,10 +552,15 @@ func (g *Goal) End(why string) {
 type Rebind func(at string) string
 
 // Turn applies a season's close to a season goal by its turnover (GDD
-// 11.4) and reports whether it ends. A resetting Each goal keeps only the
-// claimants its escrow still covers; ratio is the new season's measure
-// over the old, in hundredths, for an evolving count.
+// 11.4) and reports whether it ends. A proposal still short of its need
+// ends whatever its lifetime, so no pledge is held past a season. A
+// resetting Each goal keeps only the claimants its escrow still covers;
+// ratio is the new season's measure over the old, in hundredths, for an
+// evolving count.
 func (g *Goal) Turn(season, day, ratio int64, rebind Rebind) bool {
+	if g.State == Proposed {
+		return true
+	}
 	if !g.Open() || g.Lifetime != Season {
 		return false
 	}

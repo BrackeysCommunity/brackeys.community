@@ -291,6 +291,22 @@ func proposal(t *testing.T, g *game.Game, ts []*trader, s game.GoalSpec) *game.G
 	return x
 }
 
+// A proposal that never gathers its need ends with the season and gives
+// its pledges back.
+func TestAnUnfundedProposalEndsWithTheSeason(t *testing.T) {
+	g, ts := society(t, 2)
+	x := post(ts[0], game.GoalSpec{Title: "A bridge nobody wants", Issuer: goal.BySettlement, Mode: goal.Pooled, Lifetime: goal.Standing,
+		Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Deliver, Count: 10, Tag: "timber", At: ts[0].c.C.Home}})
+	ts[1].grant(ledger.Coin, 50)
+	had := ts[1].c.C.Coin
+	ts[1].must(game.Command{Kind: game.Pledge, Target: x.ID, Units: 50})
+	toSeasonEnd(t, g)
+	if x.Open() || ts[1].c.C.Coin != had {
+		t.Fatalf("after the season the proposal is %s and its pledger holds %d of %d coin", x.State, ts[1].c.C.Coin, had)
+	}
+	audit(t, g)
+}
+
 // TestTheFirstColdSnapRace: a settlement's Each Reach, capped, that
 // resets at the season's close (GDD 11.8).
 func TestTheFirstColdSnapRace(t *testing.T) {
