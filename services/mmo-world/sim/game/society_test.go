@@ -128,6 +128,7 @@ func TestCarryEndsAtHomeOrByCrawling(t *testing.T) {
 	}
 	downed.c.C.At = out
 	downed.c.C.Set(char.Down, 0)
+	downed.must(game.Command{Kind: game.CallHelp})
 	rescuer.step(out)
 	rescuer.must(game.Command{Kind: game.CarryHome, Target: downed.c.C.ID})
 	if downed.c.CarriedBy != rescuer.c.C.ID {
@@ -137,6 +138,23 @@ func TestCarryEndsAtHomeOrByCrawling(t *testing.T) {
 	if downed.c.CarriedBy != "" || rescuer.c.Carrying != "" {
 		t.Fatalf("crawling left the carry: %q carried by %q", rescuer.c.Carrying, downed.c.CarriedBy)
 	}
+}
+
+// Only a downed character who has called for help is lifted.
+func TestOnlyACallIsLifted(t *testing.T) {
+	g, ts := society(t, 2)
+	downed, rescuer := ts[0], ts[1]
+	rescuer.c.C.At = rescuer.c.C.At.Neighbour(0)
+	downed.c.C.At = rescuer.c.C.At
+	downed.c.C.Set(char.Down, 0)
+	lift := game.Command{Kind: game.CarryHome, Target: downed.c.C.ID}
+	unchanged(t, rescuer, "lifting someone who has not called for help", lift)
+	downed.must(game.Command{Kind: game.CallHelp})
+	rescuer.must(lift)
+	if downed.c.CarriedBy != rescuer.c.C.ID || rescuer.c.Carrying != downed.c.C.ID {
+		t.Fatalf("after its call %q is carried by %q", rescuer.c.Carrying, downed.c.CarriedBy)
+	}
+	audit(t, g)
 }
 
 // A call for help stands while its caller is carried, however long the
@@ -489,6 +507,37 @@ func TestMustersCountAgainstTheOfficersDay(t *testing.T) {
 	officer.must(game.Command{Kind: game.Pay, Target: member.c.C.ID, Asset: ledger.Coin, Units: spend - 10 - x.Fee})
 	unchanged(t, officer, "a muster past the officer's day", game.Command{Kind: game.PostGoal, Goal: muster(10)})
 	unchanged(t, officer, "a rewarded raise past the officer's day", game.Command{Kind: game.Raise, Slot: "wall", Price: 10})
+	if got := g.RaiseMost(officer.c, "wall"); got != 0 {
+		t.Fatalf("its day spent, an officer is told a raise may carry %d coin a line", got)
+	}
+	audit(t, g)
+}
+
+// The most an officer is told a raise's lines may carry is what the raise
+// takes: one coin more on each is refused, by the treasury or by its day.
+func TestTheMostARaiseMayCarry(t *testing.T) {
+	g, ts := society(t, 2)
+	officer, member := ts[0], ts[1]
+	if got := g.RaiseMost(officer.c, "wall"); got != 0 {
+		t.Fatalf("an empty treasury covers %d coin a line", got)
+	}
+	if got := g.RaiseMost(member.c, "wall"); got != 0 {
+		t.Fatalf("a member who is no officer is told %d coin a line", got)
+	}
+	treasury(t, g, officer, member, 60)
+	before, _ := g.Digest()
+	most := g.RaiseMost(officer.c, "wall")
+	if after, _ := g.Digest(); after != before {
+		t.Fatal("asking what a raise may carry changed the game")
+	}
+	if least := sheets.IntParam(g.Rules().Book.GoalParams, "reward-least"); most < least {
+		t.Fatalf("a treasury of %d coin covers %d coin a line", g.Ledger.Of(game.TreasuryPool(0), ledger.Coin), most)
+	}
+	unchanged(t, officer, "a raise one coin a line over the most", game.Command{Kind: game.Raise, Slot: "wall", Price: most + 1})
+	officer.must(game.Command{Kind: game.Raise, Slot: "wall", Price: most})
+	if x := lastGoal(g); x.Build == nil || x.Reward != most {
+		t.Fatalf("the raise's line carries %d coin, not %d", x.Reward, most)
+	}
 	audit(t, g)
 }
 
@@ -782,8 +831,14 @@ func TestTheBankIsAPlace(t *testing.T) {
 	if !g.BankHere(member.c) || g.Ledger.Of(gd.Pool(), ledger.Provisions) != over+40 {
 		t.Fatalf("at home the bank holds %d provisions", g.Ledger.Of(gd.Pool(), ledger.Provisions))
 	}
+	if !g.CanPayGoods(gd, leader.c, member.c.C.ID) || g.CanPayGoods(gd, member.c, leader.c.C.ID) {
+		t.Fatal("at the bank an officer, and only an officer, may hand a member goods")
+	}
 
 	member.c.C.At = away
+	if g.DrawMost(gd, member.c, ledger.Provisions) != 0 || g.CanPayGoods(gd, leader.c, member.c.C.ID) {
+		t.Fatal("goods are offered to someone on the road")
+	}
 	unchanged(t, member, "a draw from the road", game.Command{Kind: game.Draw, Asset: ledger.Provisions, Units: 1})
 	unchanged(t, leader, "goods paid to someone on the road", game.Command{Kind: game.Pay, Target: member.c.C.ID, Asset: ledger.Provisions, Units: 5})
 	leader.must(game.Command{Kind: game.Pay, Target: member.c.C.ID, Asset: ledger.Coin, Units: 10})
@@ -811,6 +866,54 @@ func TestTheBankIsAPlace(t *testing.T) {
 	if member.c.C.Provisions != 6+over {
 		t.Fatalf("the approved goods did not arrive: %d provisions", member.c.C.Provisions)
 	}
+	audit(t, g)
+}
+
+// The most a member is told it may draw is what a draw takes and no more:
+// held by its share of what it gave, by its coin and by the stock, and by
+// neither share nor gift once an officer allows it.
+func TestTheMostAMemberMayDraw(t *testing.T) {
+	g, ts := society(t, 3)
+	leader, member, other := ts[0], ts[1], ts[2]
+	gd := g.Guilds[0]
+	value := g.CostEach(ledger.Provisions)
+	share := sheets.IntParam(g.Rules().Book.SettlementParams, "draw-share")
+	member.grant(ledger.Provisions, 40)
+	member.must(game.Command{Kind: game.Deposit, Asset: ledger.Provisions, Units: 40})
+	draw := func(units int64) game.Command {
+		return game.Command{Kind: game.Draw, Asset: ledger.Provisions, Units: units}
+	}
+
+	byShare := 40 * share / 100
+	if byShare <= 1 || byShare >= 40 {
+		t.Fatalf("a share of %d%% does not bound a gift of 40", share)
+	}
+	member.grant(ledger.Coin, value)
+	if got := g.DrawMost(gd, member.c, ledger.Provisions); got != 1 {
+		t.Fatalf("with coin for one, the most to draw is %d", got)
+	}
+	member.grant(ledger.Coin, 40*value)
+	most := g.DrawMost(gd, member.c, ledger.Provisions)
+	if most != byShare {
+		t.Fatalf("a member who gave 40 may draw %d, not its share of %d", most, byShare)
+	}
+	unchanged(t, member, "a draw of one more than the most", draw(most+1))
+	member.must(draw(most))
+	if got := g.DrawMost(gd, member.c, ledger.Provisions); got != 0 {
+		t.Fatalf("its share drawn, the most is %d", got)
+	}
+
+	other.grant(ledger.Coin, 100*value)
+	if got := g.DrawMost(gd, other.c, ledger.Provisions); got != 0 {
+		t.Fatalf("a member who gave nothing may draw %d", got)
+	}
+	leader.must(game.Command{Kind: game.Allow, Target: other.c.C.ID, Units: 1})
+	left := g.Ledger.Of(gd.Pool(), ledger.Provisions)
+	if got := g.DrawMost(gd, other.c, ledger.Provisions); got != left {
+		t.Fatalf("allowed to draw freely, the most is %d of the %d the bank holds", got, left)
+	}
+	unchanged(t, other, "a draw of more than the bank holds", draw(left+1))
+	other.must(draw(left))
 	audit(t, g)
 }
 

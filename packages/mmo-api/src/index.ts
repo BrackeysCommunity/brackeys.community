@@ -1214,15 +1214,29 @@ export interface Goals {
   coin: number /* int64 */;
   banner: string;
   /**
-   * Targets are what each verb may be posted against from here; Line,
-   * Within and Ephemeral are the defaults the form fills in: a Hold's
-   * threat line, a Discover's reach in tiles, an ephemeral goal's ticks.
+   * Targets are what each verb may be posted against from here; Gauge,
+   * Line, Within and Ephemeral are the defaults the form fills in: a
+   * Hold's gauge and its line, a Discover's reach in tiles, an ephemeral
+   * goal's ticks.
    */
   targets: Targets[];
+  gauge: string;
   line: number /* int64 */;
   within: number /* int64 */;
   ephemeral: number /* int64 */;
+  /**
+   * EphemeralLeast and EphemeralMost are the ticks an ephemeral goal may
+   * last.
+   */
+  ephemeralLeast: number /* int64 */;
+  ephemeralMost: number /* int64 */;
   at: Hex;
+  /**
+   * Gauges are the region gauges a Hold may be posted on, each with the
+   * lines the form offers; Sides the sides of a line it may be held on.
+   */
+  gauges: HoldGauge[];
+  sides: Pick[];
   /**
    * What the form may narrow a goal by: a trait a made item must carry,
    * a region the creature must be defeated in, a generated field a
@@ -1248,6 +1262,23 @@ export interface Goals {
    * were handed over; it takes them by acting there.
    */
   waiting: Waiting[];
+}
+/**
+ * The sides of its line a Hold's gauge is held on.
+ */
+export const SideBelow = "below";
+/**
+ * The sides of its line a Hold's gauge is held on.
+ */
+export const SideAbove = "above";
+/**
+ * HoldGauge is a region gauge a Hold may be posted on, and the lines the
+ * form offers for it.
+ */
+export interface HoldGauge {
+  value: string;
+  label: string;
+  lines: number /* int64 */[];
 }
 /**
  * Waiting is goods that wait for a character at a place.
@@ -1330,6 +1361,12 @@ export interface Structure {
    */
   waits?: string;
   /**
+   * RewardMost is the most coin the viewer could put on each line of its
+   * raise now: what the treasury and the viewer's day cover, fees
+   * included. 0 when no reward fits.
+   */
+  rewardMost: number /* int64 */;
+  /**
    * Repairs are the steps a worn structure can be mended by, smallest
    * first; a closed one's first reopens it.
    */
@@ -1375,6 +1412,22 @@ export interface GuildMember {
    */
   canPromote: boolean;
   removable?: string;
+  /**
+   * PayGoods: the viewer may pay it goods from the bank now, both
+   * standing where the bank is.
+   */
+  payGoods: boolean;
+}
+/**
+ * BankStock is one of the bank's stocks: what a unit is worth at cost,
+ * which a draw pays the treasury and a payment counts against an officer's
+ * day, and the most the viewer may draw where it stands.
+ */
+export interface BankStock {
+  material: string;
+  units: number /* int64 */;
+  value: number /* int64 */;
+  draw: number /* int64 */;
 }
 /**
  * GuildWork is a work and its stock (GDD 4.14).
@@ -1459,7 +1512,7 @@ export interface Guild {
   full: boolean;
   least: number /* int64 */;
   treasury: number /* int64 */;
-  bank: Goods[];
+  bank: BankStock[];
   /**
    * BankHere: the character stands in a settlement the guild runs, where
    * goods go into and out of the bank; coin moves from anywhere.
@@ -1863,8 +1916,8 @@ export interface Here {
   recent: Fact[];
   suggest?: Suggest;
   /**
-   * Downed are characters down on this tile whom the viewer could carry
-   * home (GDD 11.6).
+   * Downed are characters down on this tile; the viewer could carry home
+   * one who has called for help (GDD 11.6).
    */
   downed: Downed[];
 }

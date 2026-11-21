@@ -174,14 +174,24 @@ type Goals struct {
 	Officer     bool     `json:"officer"`
 	Coin        int64    `json:"coin"`
 	Banner      string   `json:"banner"`
-	// Targets are what each verb may be posted against from here; Line,
-	// Within and Ephemeral are the defaults the form fills in: a Hold's
-	// threat line, a Discover's reach in tiles, an ephemeral goal's ticks.
+	// Targets are what each verb may be posted against from here; Gauge,
+	// Line, Within and Ephemeral are the defaults the form fills in: a
+	// Hold's gauge and its line, a Discover's reach in tiles, an ephemeral
+	// goal's ticks.
 	Targets   []Targets `json:"targets"`
+	Gauge     string    `json:"gauge"`
 	Line      int64     `json:"line"`
 	Within    int64     `json:"within"`
 	Ephemeral int64     `json:"ephemeral"`
-	At        Hex       `json:"at"`
+	// EphemeralLeast and EphemeralMost are the ticks an ephemeral goal may
+	// last.
+	EphemeralLeast int64 `json:"ephemeralLeast"`
+	EphemeralMost  int64 `json:"ephemeralMost"`
+	At             Hex   `json:"at"`
+	// Gauges are the region gauges a Hold may be posted on, each with the
+	// lines the form offers; Sides the sides of a line it may be held on.
+	Gauges []HoldGauge `json:"gauges"`
+	Sides  []Pick      `json:"sides"`
 	// What the form may narrow a goal by: a trait a made item must carry,
 	// a region the creature must be defeated in, a generated field a
 	// discovered tile must reach, and the things a vow may hold off.
@@ -199,6 +209,20 @@ type Goals struct {
 	// Waiting are goods goals handed the character that wait where they
 	// were handed over; it takes them by acting there.
 	Waiting []Waiting `json:"waiting"`
+}
+
+// The sides of its line a Hold's gauge is held on.
+const (
+	SideBelow = "below"
+	SideAbove = "above"
+)
+
+// HoldGauge is a region gauge a Hold may be posted on, and the lines the
+// form offers for it.
+type HoldGauge struct {
+	Value string  `json:"value"`
+	Label string  `json:"label"`
+	Lines []int64 `json:"lines"`
 }
 
 // Waiting is goods that wait for a character at a place.
@@ -263,6 +287,10 @@ type Structure struct {
 	// Waits is the milestone its next raise waits for, if its system is not
 	// built yet.
 	Waits string `json:"waits,omitempty"`
+	// RewardMost is the most coin the viewer could put on each line of its
+	// raise now: what the treasury and the viewer's day cover, fees
+	// included. 0 when no reward fits.
+	RewardMost int64 `json:"rewardMost"`
 	// Repairs are the steps a worn structure can be mended by, smallest
 	// first; a closed one's first reopens it.
 	Repairs []Repair `json:"repairs,omitempty"`
@@ -300,6 +328,19 @@ type GuildMember struct {
 	// a vote may stand against it in, if any.
 	CanPromote bool   `json:"canPromote"`
 	Removable  string `json:"removable,omitempty"`
+	// PayGoods: the viewer may pay it goods from the bank now, both
+	// standing where the bank is.
+	PayGoods bool `json:"payGoods"`
+}
+
+// BankStock is one of the bank's stocks: what a unit is worth at cost,
+// which a draw pays the treasury and a payment counts against an officer's
+// day, and the most the viewer may draw where it stands.
+type BankStock struct {
+	Material string `json:"material"`
+	Units    int64  `json:"units"`
+	Value    int64  `json:"value"`
+	Draw     int64  `json:"draw"`
 }
 
 // GuildWork is a work and its stock (GDD 4.14).
@@ -365,13 +406,13 @@ type Guild struct {
 	Members []GuildMember `json:"members"`
 	// Officers are those who may spend and approve: the leader, a server's
 	// admins and the officers named. Named of OfficersMax are named.
-	Officers    int64   `json:"officers"`
-	Named       int64   `json:"named"`
-	OfficersMax int64   `json:"officersMax"`
-	Full        bool    `json:"full"`
-	Least       int64   `json:"least"`
-	Treasury    int64   `json:"treasury"`
-	Bank        []Goods `json:"bank"`
+	Officers    int64       `json:"officers"`
+	Named       int64       `json:"named"`
+	OfficersMax int64       `json:"officersMax"`
+	Full        bool        `json:"full"`
+	Least       int64       `json:"least"`
+	Treasury    int64       `json:"treasury"`
+	Bank        []BankStock `json:"bank"`
 	// BankHere: the character stands in a settlement the guild runs, where
 	// goods go into and out of the bank; coin moves from anywhere.
 	BankHere    bool         `json:"bankHere"`

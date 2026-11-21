@@ -212,8 +212,8 @@ type Here struct {
 	Forage    int64     `json:"forage"` // provisions a tick
 	Recent    []Fact    `json:"recent"`
 	Suggest   *Suggest  `json:"suggest,omitempty"`
-	// Downed are characters down on this tile whom the viewer could carry
-	// home (GDD 11.6).
+	// Downed are characters down on this tile; the viewer could carry home
+	// one who has called for help (GDD 11.6).
 	Downed []Downed `json:"downed"`
 }
 

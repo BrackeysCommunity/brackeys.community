@@ -3,6 +3,7 @@ package service_test
 import (
 	"io"
 	"net/url"
+	"slices"
 	"testing"
 
 	"jams.team/mmo-world/api"
@@ -79,6 +80,20 @@ func TestSocietyOverHTTP(t *testing.T) {
 		t.Fatalf("what the form narrows by: traits %v, fields %v, vows %v, places %v, waiting %v, party %v of %d, even %v",
 			gs.Traits, gs.Fields, gs.Vows, gs.Places, gs.Waiting, gs.Party, gs.PartyMost, gs.Even)
 	}
+	// What the form picks a duration and a Hold's gauge, side and line from.
+	if gs.EphemeralLeast <= 0 || gs.EphemeralLeast > gs.Ephemeral || gs.Ephemeral > gs.EphemeralMost {
+		t.Fatalf("an ephemeral goal's %d ticks are outside the %d to %d served", gs.Ephemeral, gs.EphemeralLeast, gs.EphemeralMost)
+	}
+	lined := false
+	for _, x := range gs.Gauges {
+		if len(x.Lines) == 0 || x.Label == "" {
+			t.Fatalf("a gauge with no lines or no name: %+v", x)
+		}
+		lined = lined || x.Value == gs.Gauge && slices.Contains(x.Lines, gs.Line)
+	}
+	if !lined || len(gs.Sides) != 2 || gs.Sides[0].Value != api.SideBelow || gs.Sides[1].Value != api.SideAbove {
+		t.Fatalf("a Hold starts on %s at %d, among gauges %+v and sides %+v", gs.Gauge, gs.Line, gs.Gauges, gs.Sides)
+	}
 	vow := api.GoalSpec{Title: "Reach the gate", Issuer: "character", Mode: "first", Lifetime: "standing", Turnover: "carry",
 		Cond: api.Condition{Verb: "reach", Count: 1, At: "settlement:0"}}
 	act(api.ActionRequest{InteractionID: "post", CharacterID: a.ID, Kind: api.ActPostGoal, Goal: &vow})
@@ -131,6 +146,40 @@ func TestSocietyOverHTTP(t *testing.T) {
 	gd, err = r.cli.Guild(ctx, b.ID)
 	if err != nil || gd.Treasury != 20 || gd.Officer {
 		t.Fatalf("after a deposit: treasury %d, officer %v: %v", gd.Treasury, gd.Officer, err)
+	}
+	// Goods in the bank: what a unit costs, what the giver may draw of them
+	// and whom an officer may pay them to, as the cards offer them.
+	op(t, r, api.OperatorRequest{InteractionID: "pack", CharacterID: b.ID, Kind: api.OpCorrect, Asset: "provisions", Units: 10, Note: "test pack"})
+	act(api.ActionRequest{InteractionID: "dep-goods", CharacterID: b.ID, Kind: api.ActDeposit, Asset: "provisions", Units: 10})
+	gd, err = r.cli.Guild(ctx, b.ID)
+	if err != nil || len(gd.Bank) != 1 {
+		t.Fatalf("the bank after a gift of goods: %+v: %v", gd.Bank, err)
+	}
+	stock := gd.Bank[0]
+	if stock.Material != "provisions" || stock.Units != 10 || stock.Value <= 0 || stock.Draw <= 0 || stock.Draw > stock.Units {
+		t.Fatalf("the bank's stock as its giver sees it: %+v", stock)
+	}
+	act(api.ActionRequest{InteractionID: "draw", CharacterID: b.ID, Kind: api.ActDraw, Asset: stock.Material, Units: stock.Draw})
+	o, _ = r.cli.Options(ctx, b.ID)
+	if _, ref, _ := r.cli.Act(ctx, api.ActionRequest{InteractionID: "draw-more", CharacterID: b.ID, Version: o.Version, Kind: api.ActDraw, Asset: stock.Material, Units: 1}); ref == nil {
+		t.Fatal("a draw past the most served went through")
+	}
+	gd, err = r.cli.Guild(ctx, a.ID)
+	if err != nil || len(gd.Members) != 2 {
+		t.Fatalf("the officer's page: %+v: %v", gd, err)
+	}
+	for _, m := range gd.Members {
+		if !m.PayGoods {
+			t.Fatalf("at the bank an officer is not offered to pay %s goods", m.ID)
+		}
+	}
+	for _, st := range gd.Settlements[0].Structures {
+		if st.RewardMost != 0 {
+			t.Fatalf("an empty treasury covers %d coin a line of the %s", st.RewardMost, st.Kind)
+		}
+	}
+	if theirs, _ := r.cli.Guild(ctx, b.ID); theirs.Members[0].PayGoods || theirs.Members[1].PayGoods {
+		t.Fatal("a member who is no officer is offered to pay goods")
 	}
 	here := readSolo[api.Here](t, r, api.PathHere+qa, 200)
 	if here.Downed == nil {

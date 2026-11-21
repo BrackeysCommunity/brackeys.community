@@ -130,6 +130,7 @@ export const UNITS = new Set([
   "ticks",
   "min",
   "minutes",
+  "hour",
   "hours",
   "days",
   "day",

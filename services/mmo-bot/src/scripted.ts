@@ -328,8 +328,12 @@ export async function scripted(
   await command("guild");
   if (has("gld-name")) await submit("gld-name", { name: `Scripted ${seq}` });
   run.guild = card.author;
-  for (const page of ["places", "works", "members"]) if (has("guild")) await press("guild", page);
-  if (has("gld-dep")) await press("gld-dep");
+  for (const page of ["places", "works", "bank"]) if (has("guild")) await press("guild", page);
+  if (has("gld-give")) {
+    await press("gld-give");
+    if (has("gld-dep")) await press("gld-dep");
+  }
+  if (has("guild")) await press("guild", "members");
 
   // Every other card once.
   await command("character");

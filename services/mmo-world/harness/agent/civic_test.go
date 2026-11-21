@@ -21,7 +21,7 @@ func testPlan() *GuildPlan {
 func homePage() api.Guild {
 	return api.Guild{
 		ID: "g-1", Treasury: 120,
-		Bank: []api.Goods{{Material: "timber", Units: 30}, {Material: "heartwood", Units: 10}, {Material: provisions, Units: 20}},
+		Bank: []api.BankStock{{Material: "timber", Units: 30}, {Material: "heartwood", Units: 10}, {Material: provisions, Units: 20}},
 		Works: []api.GuildWork{
 			{ID: "stoked-forge", Uses: []api.CostLine{{Tag: "timber", Quantity: 20}}, Needs: "forge", Days: 2, Can: true},
 			{ID: "road-patrol", Uses: []api.CostLine{{Tag: provisions, Quantity: 15}}, Days: 1, Can: true},
@@ -133,7 +133,7 @@ func TestOfficerApprovesLightsAndSetsOut(t *testing.T) {
 	// The charter and two days of the ledger's coin in hand: the first
 	// admin sets out, and the board says the charter is out.
 	page.Treasury = 1100
-	page.Bank = []api.Goods{{Material: "timber", Units: 150}, {Material: "heartwood", Units: 50}, {Material: "fieldstone", Units: 100}}
+	page.Bank = []api.BankStock{{Material: "timber", Units: 150}, {Material: "heartwood", Units: 50}, {Material: "fieldstone", Units: 100}}
 	second := &trip{}
 	if e.officer(api.Options{CharacterID: "c-2"}, second, b, page); second.civic.phase != atHome || b.charter {
 		t.Fatal("the second admin set out")
@@ -305,7 +305,7 @@ func TestFounderDrawsWalksAndCharters(t *testing.T) {
 	e := &Earner{Guild: testPlan()}
 	w := &fakeWorld{guild: homePage()}
 	w.guild.Officer, w.guild.Officers, w.guild.Spend, w.guild.Treasury = true, 2, 500, 1100
-	w.guild.Bank = []api.Goods{{Material: "timber", Units: 200}, {Material: "fieldstone", Units: 100}}
+	w.guild.Bank = []api.BankStock{{Material: "timber", Units: 200}, {Material: "fieldstone", Units: 100}}
 	desk := &Desk{ctx: context.Background(), pages: w, player: &Player{Character: "c-1", Server: "s", Admin: true}}
 	d := &Dice{d: drawerFor("civic-test"), player: "p"}
 	b := &board{charter: true}

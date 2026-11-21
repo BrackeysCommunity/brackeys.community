@@ -18,7 +18,7 @@ import {
   goalForm,
   specOf,
 } from "../src/screens/goals.ts";
-import { guildCard, leaveCard, memberCard } from "../src/screens/guild.ts";
+import { bankCard, guildCard, leaveCard, memberCard, placesCard } from "../src/screens/guild.ts";
 import { hubCard, recapCard, startCard, whereCard } from "../src/screens/hub.ts";
 import {
   appraisalCard,
@@ -96,6 +96,18 @@ const goals: api.Goals = {
   partyMost: 6,
   even: false,
   waiting: [],
+  gauge: "threat",
+  ephemeralLeast: 6,
+  ephemeralMost: 432,
+  gauges: ["threat", "scarcity", "unrest", "corruption", "prosperity"].map((id) => ({
+    value: id,
+    label: id,
+    lines: [100, 200, 300, 400, 500, 600, 700, 800, 900],
+  })),
+  sides: [
+    { value: "below", label: "below" },
+    { value: "above", label: "above" },
+  ],
 };
 const posted = (w.board as api.Board).posts[0]!;
 const recordedGuild = w.guild as api.Guild;
@@ -105,9 +117,11 @@ const guild: api.Guild = {
   drawShare: 50,
   bankHere: true,
   invites: [],
+  bank: recordedGuild.bank.map((b) => ({ ...b, value: 20, draw: 0 })),
   members: recordedGuild.members.map((m) => ({
     ...m,
     canPromote: false,
+    payGoods: false,
     removable: m.admin ? undefined : m.leader ? "leader" : m.officer ? "officer" : undefined,
   })),
   settlements: recordedGuild.settlements.map((s) => ({
@@ -117,10 +131,46 @@ const guild: api.Guild = {
       ...x,
       stands: x.tier > 0 || x.condition > 0 || x.closed,
       canRaise: x.tier < x.maxTier && !x.raising && (x.next?.length ?? 0) > 0,
+      rewardMost: 0,
     })),
   })),
 };
+/** A stock of the bank, at 22 coin a unit. */
+const ore = (units: number, draw = 0): api.BankStock => ({
+  material: "cinder-ore",
+  units,
+  value: 22,
+  draw,
+});
 const classes = w.classes as api.Classes;
+/** A purse with coin, provisions and a good in it, and a bank in reach that holds a stock. */
+const carrying: api.Options = {
+  ...o,
+  purse: { ...o.purse, coin: 340, provisions: 12, goods: [{ material: "cinder-ore", units: 4 }] },
+};
+const stocked: api.Guild = {
+  ...guild,
+  treasury: 900,
+  bank: [ore(30, 7), { material: "provisions", units: 60, value: 3, draw: 0 }],
+};
+/** The guild as an officer standing in its first settlement, whose first structure may carry a reward. */
+const raisable = (rewardMost: number): api.Guild => ({
+  ...guild,
+  officer: true,
+  settlements: guild.settlements.map((s, i) => ({
+    ...s,
+    here: i === 0,
+    structures: s.structures.map((x, j) => ({
+      ...x,
+      canRaise: j < 2,
+      rewardMost: j === 0 ? rewardMost : 0,
+      next: [
+        { tag: "timber", quantity: 200 },
+        { tag: "stone", quantity: 100 },
+      ],
+    })),
+  })),
+});
 /** The recorded goal as each kind of goal the card words differently. */
 const goalAs = (over: Partial<api.Goal>): api.Goal => ({ ...posted.goal, ...over });
 const down: api.Options = { ...((w["options:down"] ?? o) as api.Options) };
@@ -505,6 +555,37 @@ const cards: [string, () => Card][] = [
   ],
   ["goal form, a vow", () => goalForm(o, goals, { ...BLANK, verb: "vow", count: 0 })],
   [
+    "goal form, a Hold of a gauge above a line",
+    () =>
+      goalForm(o, goals, {
+        ...BLANK,
+        verb: "hold",
+        target: "region:r-3",
+        count: 5,
+        narrow: "prosperity",
+        least: 600,
+        below: false,
+      }),
+  ],
+  [
+    "goal form, how a party's capped Each runs for an hour",
+    () =>
+      goalForm(
+        o,
+        { ...goals, officer: true, even: true },
+        {
+          ...BLANK,
+          target: "cinder-ore",
+          mode: "e",
+          cap: 3,
+          issuer: "p",
+          members: ["c-2"],
+          ticks: 6,
+          page: "t",
+        },
+      ),
+  ],
+  [
     "goal form, how a vow runs",
     () =>
       goalForm(o, goals, {
@@ -543,7 +624,7 @@ const cards: [string, () => Card][] = [
           officer: true,
           full: true,
           spend: 120,
-          bank: [{ material: "cinder-ore", units: 30 }],
+          bank: [ore(30)],
           treasury: 900,
           near: [{ value: "c-9", label: "c-9" }],
           approvals: [
@@ -612,9 +693,50 @@ const cards: [string, () => Card][] = [
     () =>
       guildCard(
         { ...o, purse: { ...o.purse, coin: 50, goods: [{ material: "cinder-ore", units: 4 }] } },
-        { ...guild, bankHere: false, bank: [{ material: "cinder-ore", units: 30 }] },
+        { ...guild, bankHere: false, bank: [ore(30)] },
         lex,
       ),
+  ],
+  ["guild bank", () => guildCard(o, guild, lex, "bank")],
+  [
+    "guild bank, away from it",
+    () => bankCard(carrying, { ...guild, bankHere: false, bank: [ore(30)] }, lex),
+  ],
+  [
+    "guild bank, picking how much to give",
+    () => bankCard(carrying, stocked, lex, { act: "give", asset: "provisions" }),
+  ],
+  [
+    "guild bank, picking how much to draw",
+    () => bankCard(carrying, stocked, lex, { act: "draw", asset: "cinder-ore" }),
+  ],
+  [
+    "a guild member, an officer picking how much coin to pay",
+    () => memberCard(o, { ...stocked, officer: true, spend: 120 }, "c-1", lex, undefined, "coin"),
+  ],
+  [
+    "a guild member, an officer picking how much of a stock to pay",
+    () =>
+      memberCard(
+        o,
+        {
+          ...stocked,
+          officer: true,
+          spend: 120,
+          members: stocked.members.map((m) => ({ ...m, payGoods: true })),
+        },
+        "c-1",
+        lex,
+        undefined,
+        "cinder-ore",
+      ),
+  ],
+  [
+    "guild settlements, an officer picking a raise's reward",
+    () => {
+      const g = raisable(250);
+      return placesCard(o, g, lex, g.settlements[0]!.structures[0]!.kind);
+    },
   ],
   ["guild works", () => guildCard(o, guild, lex, "works")],
   [
@@ -654,7 +776,7 @@ const cards: [string, () => Card][] = [
         lex,
       ),
   ],
-  ["a guild member, to an officer", () => memberCard(o, { ...guild, officer: true }, "c-1")],
+  ["a guild member, to an officer", () => memberCard(o, { ...guild, officer: true }, "c-1", lex)],
   ["leaving a guild", () => leaveCard(o, guild)],
   [
     "leaving a guild as its last member",
@@ -764,16 +886,32 @@ test("a goal draft survives its custom id, and a bad one is refused", () => {
     even: true,
     members: ["c-2", "c-3"],
     page: "t" as const,
+    ticks: 36,
   };
   expect(goalDraftOf(goalDraftId(full))).toEqual(full);
+  const held = {
+    ...BLANK,
+    verb: "hold",
+    target: "region:r-3",
+    count: 5,
+    narrow: "prosperity",
+    least: 600,
+    below: false,
+  };
+  expect(goalDraftOf(goalDraftId(held))).toEqual(held);
+  expect(goalDraftOf("0.x.1.1.fexcnwb.-.0.0.-.0")).not.toBeNull();
   for (const bad of [
     "",
     "0.x.1.1.f.e.x.c",
-    "9.x.1.1.fexcnw.-.0.0.-",
-    "0.x.1.1.zexcnw.-.0.0.-",
-    "0.x.one.1.fexcnw.-.0.0.-",
-    "0.x.1.1.fexc?w.-.0.0.-",
-    "0.x.1.1.fexcnw.-.some.0.-",
+    "0.x.1.1.fexcnw.-.0.0.-",
+    "9.x.1.1.fexcnwb.-.0.0.-.0",
+    "0.x.1.1.zexcnwb.-.0.0.-.0",
+    "0.x.one.1.fexcnwb.-.0.0.-.0",
+    "0.x.1.1.fexc?wb.-.0.0.-.0",
+    "0.x.1.1.fexcnw?.-.0.0.-.0",
+    "0.x.1.1.fexcnwb.-.some.0.-.0",
+    "0.x.1.1.fexcnwb.-.0.0.-.day",
+    "0.x.1.1.fexcnwb.-.0.0.-.-6",
   ])
     expect(goalDraftOf(bad)).toBeNull();
 });
@@ -829,6 +967,117 @@ test("the form posts a vow, a narrowed goal, a capped Each and a party's goal as
   expect(spec({ target: "cinder-ore", issuer: "c", members: ["c-2"] }).members).toBeUndefined();
 });
 
+test("an ephemeral goal lasts as long as the form picked, inside what the board allows", () => {
+  const spec = (d: Partial<GoalDraft>) =>
+    specOf({ ...BLANK, target: "cinder-ore", ...d }, goals, "T", "");
+  expect(spec({}).ticks).toBe(goals.ephemeral);
+  expect(spec({ ticks: 36 }).ticks).toBe(36);
+  expect(spec({ ticks: 36, life: "s" }).ticks).toBeUndefined();
+  expect(spec({ verb: "vow", target: "blade", count: 0, ticks: 288 }).ticks).toBe(288);
+  // The board's own draft keeps the time it suggested.
+  const suggested = fromSpec({ ...spec({ ticks: 72 }), title: "T" });
+  expect(suggested.ticks).toBe(72);
+  expect(fromSpec(spec({ life: "n" })).ticks).toBe(0);
+
+  const terms = (g: api.Goals, d: Partial<GoalDraft>) =>
+    goalForm(o, g, { ...BLANK, target: "cinder-ore", page: "t", ...d });
+  const turn = (card: Card) =>
+    card.rows
+      .flatMap((r) => ("buttons" in r ? r.buttons : []))
+      .find((b) => b.label.startsWith("For: "));
+  const next = (card: Card) => {
+    const b = turn(card);
+    return b?.kind === "page" ? goalDraftOf(decodeId(b.customId)!.target) : null;
+  };
+  expect(turn(terms(goals, {}))?.label).toBe("For: 1 day");
+  expect(turn(terms(goals, { ticks: 6 }))?.label).toBe("For: 1 hour");
+  expect(turn(terms(goals, { life: "s" }))).toBeUndefined();
+  expect(turn(terms(goals, { verb: "vow", target: "blade", count: 0 }))?.label).toBe("For: 1 day");
+  // Round the ladder from the usual day: every stop is inside the bounds, and it comes back.
+  const seen: number[] = [];
+  let d: GoalDraft = { ...BLANK, target: "cinder-ore", page: "t" };
+  for (let i = 0; i < 12 && !seen.includes(d.ticks || goals.ephemeral); i++) {
+    seen.push(d.ticks || goals.ephemeral);
+    d = next(goalForm(o, goals, d))!;
+  }
+  expect(seen).toEqual([144, 288, 432, 6, 36, 72]);
+  const short = { ...goals, ephemeralLeast: 36, ephemeralMost: 144 };
+  expect(next(terms(short, {}))?.ticks).toBe(36);
+  expect(next(terms(short, { ticks: 72 }))?.ticks).toBe(144);
+  // One length allowed: nothing to pick.
+  expect(turn(terms({ ...goals, ephemeralLeast: 144, ephemeralMost: 144 }, {}))).toBeUndefined();
+});
+
+test("a Hold is posted on the gauge, side and line the form picked from what the board serves", () => {
+  const hold = { verb: "hold", target: "region:r-3", count: 5 };
+  const spec = (d: Partial<GoalDraft>) => specOf({ ...BLANK, ...hold, ...d }, goals, "T", "");
+  expect(spec({}).cond).toEqual({
+    verb: "hold",
+    count: 5,
+    at: "region:r-3",
+    gauge: goals.gauge,
+    line: goals.line,
+    below: true,
+  });
+  expect(spec({ narrow: "prosperity", least: 600, below: false }).cond).toEqual({
+    verb: "hold",
+    count: 5,
+    at: "region:r-3",
+    gauge: "prosperity",
+    line: 600,
+    below: undefined,
+  });
+  // A suggested Hold comes back as the form's draft, and posts as it was suggested.
+  const drafted = spec({ narrow: "unrest", least: 300 });
+  expect(fromSpec(drafted)).toMatchObject({ narrow: "unrest", least: 300, below: true });
+  expect(specOf(fromSpec(drafted), goals, "T", "").cond).toEqual(drafted.cond);
+  expect(fromSpec(spec({ below: false })).below).toBe(false);
+
+  const regions: api.Goals = {
+    ...goals,
+    targets: [
+      ...goals.targets.filter((t) => t.verb !== "hold"),
+      { verb: "hold", options: goals.places },
+    ],
+  };
+  const form = (d: Partial<GoalDraft>, g = regions) => goalForm(o, g, { ...BLANK, ...hold, ...d });
+  const buttons = (card: Card) =>
+    card.rows.flatMap((r) => ("buttons" in r ? r.buttons : [])).map((b) => b.label);
+  const lines = (card: Card) =>
+    card.rows.flatMap((r) =>
+      "select" in r && decodeId(r.select.customId)?.action === "g-least" ? r.select.options : [],
+    );
+  const plain = form({});
+  expect(plain.title).toBe("Hold 5 days: Greywater, below 700 threat");
+  expect(buttons(plain)).toEqual(expect.arrayContaining(["Gauge: threat", "Side: below"]));
+  expect(lines(plain).map((x) => x.label)).toEqual(
+    [100, 200, 300, 400, 500, 600, 800, 900].map((n) => `Below ${n} threat`),
+  );
+  expect(problems(plain, names)).toEqual([]);
+  // The gauge and the side turn through what is served; the line is the gauge's own.
+  const turned = leads(plain);
+  expect(turned.map((x) => x.narrow)).toContain("scarcity");
+  expect(turned.some((x) => !x.below)).toBe(true);
+  expect(turned.filter((x) => x.least).map((x) => x.least)).toEqual([
+    100, 200, 300, 400, 500, 600, 800, 900,
+  ]);
+  const last = form({ narrow: "prosperity", least: 600, below: false });
+  expect(last.title).toBe("Hold 5 days: Greywater, above 600 prosperity");
+  expect(leads(last).map((x) => x.narrow)).toContain("threat");
+  expect(lines(last)[0]?.label).toBe("Above 100 prosperity");
+  // One gauge, one side: nothing to turn, and the line still picks.
+  const one = form(
+    {},
+    { ...regions, gauges: goals.gauges.slice(0, 1), sides: goals.sides.slice(0, 1) },
+  );
+  expect(buttons(one).some((x) => x.startsWith("Gauge") || x.startsWith("Side"))).toBe(false);
+  expect(lines(one)).toHaveLength(8);
+  // No other verb shows them.
+  expect(buttons(goalForm(o, goals, { ...BLANK, target: "cinder-ore" }))).not.toContain(
+    "Gauge: threat",
+  );
+});
+
 test("the form offers the party, the cap and even shares only where they apply, and nothing too long to press", () => {
   const terms = (g: api.Goals, d: Partial<GoalDraft>) =>
     goalForm(o, g, { ...BLANK, target: "cinder-ore", page: "t", ...d });
@@ -873,13 +1122,22 @@ test("the form offers the party, the cap and even shares only where they apply, 
   expect(d.members.length).toBeLessThan(20);
 });
 
+/** A card's selects by action: the values each offers. */
+const selects = (card: Card): Record<string, string[]> =>
+  Object.fromEntries(
+    card.rows.flatMap((r) =>
+      "select" in r
+        ? [[decodeId(r.select.customId)!.action, r.select.options.map((x) => x.value)]]
+        : [],
+    ),
+  );
+
 test("goods go into and out of the bank only where it stands; coin from anywhere", () => {
-  const purse = { ...o.purse, coin: 50, goods: [{ material: "cinder-ore", units: 4 }] };
   const base = (bankHere: boolean): api.Guild => ({
     ...guild,
     officer: true,
     bankHere,
-    bank: [{ material: "cinder-ore", units: 30 }],
+    bank: [ore(30, 7)],
     // The world offers the approval of goods only at the bank.
     approvals: [
       {
@@ -894,22 +1152,141 @@ test("goods go into and out of the bank only where it stands; coin from anywhere
     ],
   });
   const pressed = (g: api.Guild) =>
-    guildCard({ ...o, purse }, g, lex)
+    guildCard(carrying, g, lex)
       .rows.flatMap((r) => ("buttons" in r ? r.buttons : []))
       .map((b) => (b.kind === "page" ? decodeId(b.customId) : null))
       .map((x) => `${x?.action}:${x?.target}`);
-  expect(pressed(base(true))).toEqual(
-    expect.arrayContaining([
-      "gld-dep:coin:10",
-      "gld-dep:cinder-ore:4",
-      "gld-draw:cinder-ore:1",
-      "gld-appr:a-1",
-    ]),
+  expect(pressed(base(true))).toEqual(expect.arrayContaining(["gld-appr:a-1", "guild:bank"]));
+  expect(pressed(base(false))).not.toContain("gld-appr:a-1");
+
+  const at = selects(bankCard(carrying, base(true), lex));
+  expect(at["gld-give"]).toEqual(["coin", "provisions", "cinder-ore"]);
+  expect(at["gld-take"]).toEqual(["cinder-ore"]);
+  const away = selects(bankCard(carrying, base(false), lex));
+  expect(away["gld-give"]).toEqual(["coin"]);
+  expect(away["gld-take"]).toBeUndefined();
+  // A pick made at the bank is not kept away from it.
+  for (const pick of [
+    { act: "give", asset: "cinder-ore" },
+    { act: "draw", asset: "cinder-ore" },
+  ] as const) {
+    const lost = selects(bankCard(carrying, base(false), lex, pick));
+    expect(lost["gld-dep"]).toBeUndefined();
+    expect(lost["gld-draw"]).toBeUndefined();
+  }
+});
+
+test("the bank takes any amount of what is carried, and gives up to what the world says may be drawn", () => {
+  const give = (asset: string) =>
+    selects(bankCard(carrying, stocked, lex, { act: "give", asset }))["gld-dep"];
+  expect(give("coin")).toEqual([1, 5, 10, 25, 50, 100, 250, 340].map((n) => `coin:${n}`));
+  expect(give("provisions")).toEqual([1, 5, 10, 12].map((n) => `provisions:${n}`));
+  expect(give("cinder-ore")).toEqual(["cinder-ore:1", "cinder-ore:4"]);
+  // Nothing carried of it: no amount is offered.
+  expect(give("timber")).toBeUndefined();
+
+  const draw = bankCard(carrying, stocked, lex, { act: "draw", asset: "cinder-ore" });
+  expect(selects(draw)["gld-take"]).toEqual(["cinder-ore"]);
+  expect(selects(draw)["gld-draw"]).toEqual(["cinder-ore:1", "cinder-ore:5", "cinder-ore:7"]);
+  const most = draw.rows
+    .flatMap((r) => ("select" in r ? r.select.options : []))
+    .find((x) => x.value === "cinder-ore:7");
+  expect(most?.label).toBe("The most you may: 7 Scrap alloy");
+  expect(most?.description).toBe("Costs 154 coin");
+  // A stock the world lets this member draw none of is not offered.
+  expect(
+    selects(bankCard(carrying, stocked, lex, { act: "draw", asset: "provisions" }))["gld-draw"],
+  ).toBeUndefined();
+  expect(
+    selects(bankCard(carrying, { ...stocked, bank: [ore(30)] }, lex))["gld-take"],
+  ).toBeUndefined();
+});
+
+test("an officer pays a member coin from anywhere and goods only where the world says, any amount the guild holds", () => {
+  const officer = (payGoods: boolean): api.Guild => ({
+    ...stocked,
+    officer: true,
+    spend: 120,
+    members: stocked.members.map((m) => ({ ...m, payGoods })),
+  });
+  const card = (g: api.Guild, pay?: string) => memberCard(o, g, "c-1", lex, undefined, pay);
+  expect(selects(card(officer(true)))["gld-pay"]).toEqual(["coin", "cinder-ore", "provisions"]);
+  expect(selects(card(officer(false)))["gld-pay"]).toEqual(["coin"]);
+  expect(selects(card({ ...officer(true), officer: false }))["gld-pay"]).toBeUndefined();
+  expect(selects(card({ ...officer(true), treasury: 0, bank: [] }))["gld-pay"]).toBeUndefined();
+
+  const coin = card(officer(true), "coin");
+  const amounts = coin.rows.flatMap((r) =>
+    "select" in r && decodeId(r.select.customId)?.target === "pay:c-1:coin" ? r.select.options : [],
   );
-  const away = pressed(base(false));
-  expect(away).toContain("gld-dep:coin:10");
-  for (const gone of ["gld-dep:cinder-ore:4", "gld-draw:cinder-ore:1", "gld-appr:a-1"])
-    expect(away).not.toContain(gone);
+  expect(amounts.map((x) => x.value)).toEqual([
+    "1",
+    "5",
+    "10",
+    "25",
+    "50",
+    "100",
+    "250",
+    "500",
+    "900",
+  ]);
+  // Past what the officer may still pay today a payment waits for a second officer.
+  expect(amounts.filter((x) => x.description === "Paid at once").map((x) => x.value)).toEqual([
+    "1",
+    "5",
+    "10",
+    "25",
+    "50",
+    "100",
+  ]);
+  expect(amounts.at(-1)).toMatchObject({
+    label: "All: 900 coin",
+    description: "Waits for a second officer",
+  });
+  const goods = card(officer(true), "cinder-ore").rows.flatMap((r) =>
+    "select" in r && decodeId(r.select.customId)?.target === "pay:c-1:cinder-ore"
+      ? r.select.options
+      : [],
+  );
+  expect(goods.map((x) => [x.value, x.description])).toEqual([
+    ["1", "Worth 22 coin. Paid at once"],
+    ["5", "Worth 110 coin. Paid at once"],
+    ["10", "Worth 220 coin. Waits for a second officer"],
+    ["25", "Worth 550 coin. Waits for a second officer"],
+    ["30", "Worth 660 coin. Waits for a second officer"],
+  ]);
+  // Goods picked for someone no longer at the bank: no amount is offered.
+  expect(
+    card(officer(false), "cinder-ore").rows.filter(
+      (r) => "select" in r && decodeId(r.select.customId)?.action === "gld-act",
+    ),
+  ).toEqual([]);
+});
+
+test("a raise's goals carry no reward or one the world says the treasury and the officer's day cover", () => {
+  const rewards = (most: number, pick = true) => {
+    const g = raisable(most);
+    const kind = g.settlements[0]!.structures[0]!.kind;
+    return [kind, selects(placesCard(o, g, lex, pick ? kind : undefined))] as const;
+  };
+  const [kind, plain] = rewards(250, false);
+  expect(plain["gld-raise"]).toContain(kind);
+  expect(plain["gld-rwd"]).toBeUndefined();
+  expect(rewards(250)[1]["gld-rwd"]).toEqual(["0", "10", "25", "50", "100", "250"]);
+  expect(rewards(60)[1]["gld-rwd"]).toEqual(["0", "10", "25", "50"]);
+  expect(rewards(0)[1]["gld-rwd"]).toEqual(["0"]);
+  const card = placesCard(o, raisable(60), lex, kind);
+  const reward = card.rows.find(
+    (r) => "select" in r && decodeId(r.select.customId)?.action === "gld-rwd",
+  );
+  expect(reward && "select" in reward && decodeId(reward.select.customId)?.target).toBe(kind);
+  expect(reward && "select" in reward && reward.select.options[2]?.description).toBe(
+    "2 goals: 50 coin from the treasury, and the listing fees",
+  );
+  // Only an officer standing there picks.
+  expect(
+    selects(placesCard(o, { ...raisable(60), officer: false }, lex, kind))["gld-rwd"],
+  ).toBeUndefined();
 });
 
 test("a structure that waits is shown as later and not offered to raise", () => {
@@ -991,9 +1368,14 @@ test("the one in need who called is the one offered to carry", () => {
     },
     lex,
   );
-  const labels = card.rows.flatMap((r) => ("buttons" in r ? r.buttons.map((b) => b.label) : []));
-  expect(labels).toContain("Carry c-8 home");
-  expect(labels).not.toContain("Carry c-7 home");
+  const labels = (c: Card) =>
+    c.rows.flatMap((r) => ("buttons" in r ? r.buttons.map((b) => b.label) : []));
+  expect(labels(card)).toContain("Carry c-8 home");
+  expect(labels(card)).not.toContain("Carry c-7 home");
+  // Nobody called: the downed are named, and nobody is offered to carry.
+  const quiet = whereCard(o, { ...here, downed: [{ id: "c-7", name: "c-7", called: false }] }, lex);
+  expect(labels(quiet).filter((x) => x.startsWith("Carry"))).toEqual([]);
+  expect(quiet.fields?.find((f) => f.name === "Down here")?.value).toBe("c-7");
 });
 
 describe("every card keeps the card standard", () => {
@@ -1101,7 +1483,7 @@ test("only an officer is offered to manage a member; anyone may vote on an offic
       .map((x) => x.value);
   const options = (g: api.Guild, id = "") =>
     (id ? [id] : g.members.map((m) => m.id)).flatMap((m) =>
-      memberCard(o, g, m)
+      memberCard(o, g, m, lex)
         .rows.flatMap((r) => ("buttons" in r ? r.buttons : []))
         .map((b) => (b.kind === "page" ? decodeId(b.customId) : null))
         .filter((x) => x?.action === "gld-act")
@@ -1118,6 +1500,7 @@ test("only an officer is offered to manage a member; anyone may vote on an offic
       put: 0,
       season: 0,
       canPromote: false,
+      payGoods: false,
       removable: "leader",
     },
     {
@@ -1130,24 +1513,20 @@ test("only an officer is offered to manage a member; anyone may vote on an offic
       put: 0,
       season: 0,
       canPromote: true,
+      payGoods: false,
     },
   ];
   const g = { ...guild, members, treasury: 500, named: 1, officersMax: 2, near: [] };
   expect(picks(g)).toEqual(["c-1", "c-2"]);
   expect(options({ ...g, officer: false })).toEqual(["vote:c-1:leader"]);
   expect(options({ ...g, officer: true })).toEqual([
-    "pay:c-1:100",
     "vote:c-1:leader",
     "allow:c-2:1",
     "promote:c-2:-",
-    "pay:c-2:100",
   ]);
   // Naming an officer is offered when the world says the viewer may.
   const full = members.map((m) => ({ ...m, canPromote: false }));
-  expect(options({ ...g, officer: true, members: full }, "c-2")).toEqual([
-    "allow:c-2:1",
-    "pay:c-2:100",
-  ]);
+  expect(options({ ...g, officer: true, members: full }, "c-2")).toEqual(["allow:c-2:1"]);
 
   // Every member can be reached, and whoever a vote can stand against is
   // on the first page however little they gave.

@@ -122,9 +122,26 @@ func TestDrawUpToHalfOfDeposits(t *testing.T) {
 	if !g.MayDraw("b", 60, p) || g.MayDraw("b", 61, p) || g.MayDraw("c", 1, p) {
 		t.Fatal("draw limits misread")
 	}
+	if room, capped := g.DrawRoom("b", p); room != 60 || !capped {
+		t.Fatalf("a member who gave 120 has room for %d, capped %v", room, capped)
+	}
 	g.Drew("b", 60)
 	if g.MayDraw("b", 1, p) {
 		t.Fatal("drew past half")
+	}
+	if room, capped := g.DrawRoom("b", p); room != 0 || !capped {
+		t.Fatalf("its half drawn, a member has room for %d, capped %v", room, capped)
+	}
+	// The leader and a member allowed to withdraw are held to no share; a
+	// stranger has none.
+	g.Allow("d", true)
+	for _, free := range []string{"a", "d"} {
+		if _, capped := g.DrawRoom(free, p); capped || !g.MayDraw(free, 1000, p) {
+			t.Fatalf("%s is held to a share of its gifts", free)
+		}
+	}
+	if room, capped := g.DrawRoom("nobody", p); room != 0 || !capped || g.MayDraw("nobody", 0, p) {
+		t.Fatal("a stranger may draw")
 	}
 	g.Deposit("c", 20, 50, p)
 	if s := g.Shares(20, p); s.Get("b") != 0 || s.Get("c") != 50 {

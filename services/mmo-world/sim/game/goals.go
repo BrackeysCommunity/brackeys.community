@@ -71,7 +71,8 @@ func goalPool(id string) string { return ledger.EscrowPool(id) }
 
 func (g *Game) gp(id string) int64 { return sheets.IntParam(g.r.Book.GoalParams, id) }
 
-func (g *Game) limits() goal.Limits {
+// GoalLimits are the goals sheet's cells a posting is checked against.
+func (g *Game) GoalLimits() goal.Limits {
 	return goal.Limits{RewardLeast: g.gp("reward-least"), EachCap: g.gp("each-cap"), PartyMost: g.gp("party-most"),
 		TitleLen: g.gp("title-length"), NoteLen: g.gp("note-length"),
 		EphemeralLeast: g.gp("ephemeral-least"), EphemeralMost: g.gp("ephemeral-most") * sheets.TicksPerDay}
@@ -157,7 +158,7 @@ func (g *Game) draft(c *Char, s GoalSpec) (*Goal, error) {
 	if err := g.issue(c, x, s); err != nil {
 		return nil, err
 	}
-	if err := goal.Valid(x, g.Tick(), g.limits()); err != nil {
+	if err := goal.Valid(x, g.Tick(), g.GoalLimits()); err != nil {
 		return nil, refuse(BadArgs, "%v", err)
 	}
 	if err := g.target(c, x.Cond); err != nil {
@@ -855,8 +856,9 @@ func (g *Game) HomeOf(c *Char) int {
 	return 0
 }
 
-// carry picks up a downed character on the rescuer's tile; the rescuer's
-// journeys take it along to its home settlement (GDD 11.6).
+// carry picks up a downed character who has called for help on the
+// rescuer's tile; the rescuer's journeys take it along to its home
+// settlement (GDD 11.6).
 func (g *Game) carry(c *Char, cmd Command) error {
 	if err := free(c); err != nil {
 		return err
@@ -865,6 +867,8 @@ func (g *Game) carry(c *Char, cmd Command) error {
 	switch {
 	case d == nil || d == c || notDown(d) == nil:
 		return refuse(BadArgs, "%q is not down", cmd.Target)
+	case !g.Called(d):
+		return refuse(BadArgs, "%s has not called for help", d.C.ID)
 	case d.C.At != c.C.At:
 		return refuse(NotHere, "%s lies elsewhere", d.C.ID)
 	case d.CarriedBy != "" || c.Carrying != "":
@@ -1060,8 +1064,8 @@ func (g *Game) CharsAt(h hex.Hex) []*Char {
 	return out
 }
 
-// DownedAt are the characters down on a character's tile that it could
-// carry home.
+// DownedAt are the characters down on a character's tile whom nobody
+// carries: it could carry home one who has called for help.
 func (g *Game) DownedAt(c *Char) []*Char {
 	var out []*Char
 	for _, d := range g.CharsAt(c.C.At) {

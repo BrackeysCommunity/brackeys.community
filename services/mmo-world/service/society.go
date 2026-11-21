@@ -44,6 +44,7 @@ func (s *Server) goals(w http.ResponseWriter, r *http.Request) {
 			Live: g.LiveGoals(c), Limit: gp("live-goals"), Fee: g.Rules().Values.Param("goal-fee"), FeeLeast: g.Rules().Values.Param("goal-fee-min"),
 			RewardLeast: gp("reward-least"), PledgeNeed: gp("pledge-need"), EachCap: gp("each-cap"), Verbs: slices.Clone(goal.Verbs), Coin: c.C.Coin,
 			Targets: []api.Targets{}, At: apiHex(c.C.At), Traits: []api.Pick{}, Places: []api.Pick{}, Fields: []api.Pick{}, Vows: []api.Pick{},
+			Gauges: []api.HoldGauge{}, Sides: []api.Pick{},
 			Party: []api.Pick{}, PartyMost: gp("party-most"), Even: g.EvenShares(c), Waiting: []api.Waiting{}}
 		for _, x := range g.PostedBy(c) {
 			out.Mine = append(out.Mine, apiGoal(g, x, c))
@@ -76,7 +77,10 @@ func (s *Server) goals(w http.ResponseWriter, r *http.Request) {
 		}
 		out.Targets = goalTargets(g, c, n)
 		narrowings(g, c, &out)
-		out.Line, out.Within, out.Ephemeral = gp("bounty-threat"), g.Near(), sheets.TicksPerDay
+		out.Gauge, out.Line, out.Within, out.Ephemeral = gaugeThreat, gp("bounty-threat"), g.Near(), sheets.TicksPerDay
+		limits := g.GoalLimits()
+		out.EphemeralLeast, out.EphemeralMost = limits.EphemeralLeast, limits.EphemeralMost
+		out.Gauges, out.Sides = holdGauges(g), holdSides()
 		return nil
 	}) {
 		return
@@ -87,6 +91,31 @@ func (s *Server) goals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reply(w, http.StatusOK, out)
+}
+
+// gaugeThreat is the gauge the bounty line the form starts a Hold on is
+// drawn on.
+const gaugeThreat = "threat"
+
+// structural: a Hold's line is offered at each tenth of its gauge.
+const lineSteps = 10
+
+// holdGauges are the world's gauges as a Hold may be posted on them.
+func holdGauges(g *game.Game) []api.HoldGauge {
+	r := g.Rules()
+	out := []api.HoldGauge{}
+	for _, row := range r.Book.Gauges {
+		v := api.HoldGauge{Value: row.ID, Label: cmp.Or(r.Name("world.gauges:"+row.ID), row.ID), Lines: []int64{}}
+		for i := int64(1); i < lineSteps; i++ {
+			v.Lines = append(v.Lines, row.Max*i/lineSteps)
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
+func holdSides() []api.Pick {
+	return []api.Pick{{Value: api.SideBelow, Label: api.SideBelow}, {Value: api.SideAbove, Label: api.SideAbove}}
 }
 
 // board is every settlement's live public goals, one forum post each.
@@ -310,7 +339,7 @@ func (s *Server) guild(w http.ResponseWriter, r *http.Request) {
 
 func apiGuild(g *game.Game, c *game.Char) api.Guild {
 	r := g.Rules()
-	out := api.Guild{Members: []api.GuildMember{}, Bank: []api.Goods{}, Works: []api.GuildWork{}, Settlements: []api.Settlement{},
+	out := api.Guild{Members: []api.GuildMember{}, Bank: []api.BankStock{}, Works: []api.GuildWork{}, Settlements: []api.Settlement{},
 		Approvals: []api.Approval{}, Votes: []api.GuildVote{}, Invites: []api.Pick{}, Near: []api.Pick{}, Least: r.Guild.Least, DrawShare: r.Guild.DrawShare,
 		Charter: apiCharter(g.CharterAt(c))}
 	for _, gd := range g.Guilds {
@@ -339,7 +368,8 @@ func apiGuild(g *game.Game, c *game.Char) api.Guild {
 			out.Officers++
 		}
 		v := api.GuildMember{ID: m.Char, Name: charName(g, m.Char), Leader: m.Char == gg.Leader,
-			Officer: m.Officer, Admin: m.Admin, Draw: m.Draw, Put: m.Put, Season: m.Season, CanPromote: g.CanPromote(gd, c, m.Char)}
+			Officer: m.Officer, Admin: m.Admin, Draw: m.Draw, Put: m.Put, Season: m.Season, CanPromote: g.CanPromote(gd, c, m.Char),
+			PayGoods: g.CanPayGoods(gd, c, m.Char)}
 		for _, role := range []string{guild.Leader, guild.Officer} {
 			if v.Removable == "" && gg.Removable(m.Char, role) {
 				v.Removable = role
@@ -347,12 +377,26 @@ func apiGuild(g *game.Game, c *game.Char) api.Guild {
 		}
 		out.Members = append(out.Members, v)
 	}
-	out.Treasury, out.Bank = g.Ledger.Of(gd.Pool(), ledger.Coin), heldGoods(g.Ledger.Held(gd.Pool()))
+	out.Treasury = g.Ledger.Of(gd.Pool(), ledger.Coin)
+	for _, h := range g.Ledger.Held(gd.Pool()) {
+		if m, ok := ledger.GoodsOf(h.Asset); ok {
+			out.Bank = append(out.Bank, api.BankStock{Material: m, Units: h.Units, Value: g.CostEach(h.Asset), Draw: g.DrawMost(gd, c, h.Asset)})
+		}
+	}
 	runs, here := g.RunsHere(c)
 	for _, p := range g.Places {
-		if p.Guild == gg.ID {
-			out.Settlements = append(out.Settlements, apiSettlement(g, p, p == here))
+		if p.Guild != gg.ID {
+			continue
 		}
+		v := apiSettlement(g, p, p == here)
+		if p == here && out.Officer {
+			for i := range v.Structures {
+				if v.Structures[i].CanRaise {
+					v.Structures[i].RewardMost = g.RaiseMost(c, v.Structures[i].Kind)
+				}
+			}
+		}
+		out.Settlements = append(out.Settlements, v)
 	}
 	for _, row := range r.Book.GuildWorks {
 		w := api.GuildWork{ID: row.ID, Name: row.ID, Gives: row.Gives, By: row.By, Needs: row.Needs, Waits: row.Waits, Days: g.StockDays(gd, &row),

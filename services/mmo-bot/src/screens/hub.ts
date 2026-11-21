@@ -124,8 +124,8 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
     btn(`Talk: ${p.name}${p.visit ? " (wants a word)" : ""}`, "talk", p.id, v),
   );
   const downed = here.downed.slice(0, 3);
-  // One carry at a time: the first who called, else the first down.
-  const lift = downed.find((d) => d.called) ?? downed[0];
+  // One carry at a time, and only of someone who called for help.
+  const lift = here.downed.find((d) => d.called);
   if (lift && !o.rescue?.carrying)
     buttons.push(btn(`Carry ${lift.name} home`, "carry", lift.id, v, { style: "success" }));
   const more: Button[] = [];

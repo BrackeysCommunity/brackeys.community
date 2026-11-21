@@ -17,7 +17,16 @@ import {
   goalModal,
   specOf,
 } from "./screens/goals.ts";
-import { guildCard, type GuildView, leaveCard, memberCard, nameModal } from "./screens/guild.ts";
+import {
+  bankCard,
+  type BankPick,
+  guildCard,
+  type GuildView,
+  leaveCard,
+  memberCard,
+  nameModal,
+  placesCard,
+} from "./screens/guild.ts";
 import { hubCard, recapCard, startCard, whereCard } from "./screens/hub.ts";
 import {
   appraisalCard,
@@ -380,10 +389,21 @@ class Session {
     return this.done(guildCard(o, g, this.lex, view, notice, page));
   }
 
-  /** One member of the guild, and what may be done about them. */
-  async guildMember(id: string, notice?: string): Promise<Answer> {
+  /** One member of the guild, and what may be done about them; pay is the asset picked to pay them. */
+  async guildMember(id: string, notice?: string, pay?: string): Promise<Answer> {
     const o = await this.world.options(this.character);
-    return this.done(memberCard(o, await this.world.guild(this.character), id, notice));
+    const g = await this.world.guild(this.character);
+    return this.done(memberCard(o, g, id, this.lex, notice, pay));
+  }
+
+  /** A guild page with a pick made on it, its amount still to choose: what to give or draw, or the structure to raise. */
+  async guildPick(pick: BankPick | { raise: string }): Promise<Answer> {
+    const o = await this.world.options(this.character);
+    const g = await this.world.guild(this.character);
+    if (!g.id) return this.done(guildCard(o, g, this.lex));
+    return this.done(
+      "raise" in pick ? placesCard(o, g, this.lex, pick.raise) : bankCard(o, g, this.lex, pick),
+    );
   }
 
   /** A guild write, then the guild page it was made from. */
@@ -451,7 +471,8 @@ class Session {
     const v = id.version;
     const value = values[0] ?? "";
     const isPair = PAIR_ACTIONS.has(id.action);
-    const pair = isPair ? fields(id.target, ":", 2) : null;
+    // A select's pick carries the pair a button holds in its target.
+    const pair = isPair ? fields(value || id.target, ":", 2) : null;
     if (isPair && !pair) return backCards.unknown(this.character);
     const [a, b] = pair ?? ["", ""];
     const quantity = integerTarget(b!);
@@ -716,13 +737,16 @@ class Session {
               done("Your vote is cast"),
             );
           case "pay": {
-            const n = integerTarget(arg);
+            const n = integerTarget(value);
             if (n === undefined) return backCards.unknown(this.character);
-            return this.write(
-              api.ActPay,
-              v,
-              { target: who, asset: "coin", units: n },
-              done("Paid, or waiting on a second officer"),
+            return this.write(api.ActPay, v, { target: who, asset: arg, units: n }, (r, why) =>
+              this.guildMember(
+                who,
+                why ??
+                  (r?.facts.some((f) => f.kind === "guild.approval-asked")
+                    ? "Over what you may pay alone today: it waits for a second officer"
+                    : "Paid"),
+              ),
             );
           }
           default:
@@ -731,12 +755,18 @@ class Session {
       }
       case "gld-invite":
         return this.guildWrite(api.ActInvite, v, { target: value }, "members", "Invited");
+      case "gld-give":
+      case "gld-take":
+        if (!value) return this.guild("bank");
+        return this.guildPick({ act: id.action === "gld-give" ? "give" : "draw", asset: value });
+      case "gld-pay":
+        return id.target ? this.guildMember(id.target, undefined, value) : this.guild();
       case "gld-draw":
         return this.guildWrite(
           api.ActDraw,
           v,
           { asset: a, units: quantity },
-          "members",
+          "bank",
           "Drawn at cost",
         );
       case "g-form":
@@ -839,7 +869,7 @@ class Session {
           api.ActDeposit,
           v,
           { asset: a, units: quantity },
-          "members",
+          "bank",
           "Given to the guild",
         );
       case "gld-appr":
@@ -847,9 +877,19 @@ class Session {
       case "gld-work":
         return this.guildWrite(api.ActWork, v, { option: a, units: quantity }, "works");
       case "gld-raise":
-        return this.write(api.ActRaise, v, { slot: value }, (_, why) =>
-          why ? this.guild("places", why) : this.goals(undefined, "Its goals are on the board"),
+        return value ? this.guildPick({ raise: value }) : this.guild("places");
+      case "gld-rwd": {
+        const reward = integerTarget(value);
+        if (!id.target || reward === undefined || reward < 0)
+          return backCards.unknown(this.character);
+        return this.write(
+          api.ActRaise,
+          v,
+          { slot: id.target, price: reward || undefined },
+          (_, why) =>
+            why ? this.guild("places", why) : this.goals(undefined, "Its goals are on the board"),
         );
+      }
       case "gld-mend": {
         const step = fields(value, ":", 2);
         const points = integerTarget(step?.[1] ?? "");
@@ -921,5 +961,5 @@ function peopleOf(here: api.Here): Map<string, string> {
 }
 
 function isGuildView(s: string): s is GuildView {
-  return s === "members" || s === "places" || s === "works";
+  return s === "members" || s === "bank" || s === "places" || s === "works";
 }

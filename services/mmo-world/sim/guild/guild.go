@@ -459,14 +459,21 @@ func (g *Guild) Deposit(char string, day, value int64, p Params) {
 // those allowed to withdraw always, others up to DrawShare per cent of
 // what they have put in.
 func (g *Guild) MayDraw(char string, value int64, p Params) bool {
+	room, capped := g.DrawRoom(char, p)
+	return g.Member(char) != nil && (!capped || value <= room)
+}
+
+// DrawRoom is the value a member may still take at cost, and whether it is
+// held to one: an officer and a member allowed to withdraw are not.
+func (g *Guild) DrawRoom(char string, p Params) (room int64, capped bool) {
 	m := g.Member(char)
 	switch {
 	case m == nil:
-		return false
+		return 0, true
 	case m.Draw || g.IsOfficer(char):
-		return true
+		return 0, false
 	}
-	return (m.Taken+value)*fixed.Hundredths <= m.Put*p.DrawShare
+	return fixed.PercentFloor(m.Put, p.DrawShare) - m.Taken, true
 }
 
 // Allow sets whether a member may withdraw from the bank past what its

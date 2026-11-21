@@ -423,14 +423,26 @@ func (g *Game) handOver(gd *Guild, officer *Char, asset, to string) error {
 	if asset == ledger.Coin {
 		return nil
 	}
-	bank, err := g.bankAt(gd, officer)
+	return g.atBankWith(gd, officer, to)
+}
+
+// atBankWith refuses unless a character and another both stand at the
+// guild's bank.
+func (g *Game) atBankWith(gd *Guild, c *Char, other string) error {
+	bank, err := g.bankAt(gd, c)
 	if err != nil {
 		return err
 	}
-	if d := g.Char(to); d == nil || g.PlaceAt(d.C.At) != bank {
-		return refuse(NotHere, "%s is paid goods standing at the bank they come from", to)
+	if d := g.Char(other); d == nil || g.PlaceAt(d.C.At) != bank {
+		return refuse(NotHere, "%s is paid goods standing at the bank they come from", other)
 	}
 	return nil
+}
+
+// CanPayGoods reports whether an officer could hand a member goods from
+// the bank where they both stand.
+func (g *Game) CanPayGoods(gd *Guild, c *Char, to string) bool {
+	return gd.G.IsOfficer(c.C.ID) && gd.G.Member(to) != nil && g.atBankWith(gd, c, to) == nil
 }
 
 // BankHere reports whether a character stands where its guild's bank
@@ -613,6 +625,31 @@ func (g *Game) draw(c *Char, cmd Command) error {
 	_, err = g.factWith(c, []fact.Ref{guildRef(gd.G.ID)}, "guild.drew", g.Tick(), fact.S("asset", asset), fact.N("units", cmd.Units), fact.N("value", value))
 	return err
 }
+
+// DrawMost is the most of a bank's stock a character may draw now: none
+// away from the bank, else what the bank holds, its coin pays for at cost
+// and its share allows.
+func (g *Game) DrawMost(gd *Guild, c *Char, asset string) int64 {
+	if _, err := g.bankAt(gd, c); err != nil {
+		return 0
+	}
+	most, each := g.Ledger.Of(gd.Pool(), asset), g.worth(asset, 1)
+	room, capped := gd.G.DrawRoom(c.C.ID, g.r.Guild)
+	switch {
+	case capped && room < 0:
+		return 0
+	case each <= 0:
+		return max(most, 0)
+	case capped:
+		most = min(most, room/each)
+	}
+	return max(min(most, c.C.Coin/each), 0)
+}
+
+// CostEach is what a unit of a bank's stock is worth at cost: what drawing
+// one pays the treasury, and what paying one out counts against an
+// officer's day.
+func (g *Game) CostEach(asset string) int64 { return g.worth(asset, 1) }
 
 // work switches a guild work on or off at the settlement the officer
 // stands in, which its guild must run. Switching off asks nothing of the

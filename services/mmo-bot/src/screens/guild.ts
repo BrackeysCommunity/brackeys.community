@@ -10,6 +10,7 @@ import { encodeId, target } from "../ids.ts";
 import { capitalise, type Lexicon } from "../lexicon.ts";
 import { amount, num, plural } from "../units.ts";
 import { back, banner, btn, PRIVATE, SELECT_MOST } from "./common.ts";
+import { REWARDS } from "./goals.ts";
 
 /**
  * /guild (GDD 4.8, 4.14, 4.16): your guild's members and ranks, its
@@ -17,7 +18,27 @@ import { back, banner, btn, PRIVATE, SELECT_MOST } from "./common.ts";
  * works, and founding: a guild, or a settlement on the tile you stand on.
  */
 
-export type GuildView = "members" | "places" | "works";
+export type GuildView = "members" | "bank" | "places" | "works";
+
+/** What a bank select has picked to move, before the amount: a gift to the guild, or a draw from its stock. */
+export interface BankPick {
+  act: "give" | "draw";
+  asset: string;
+}
+
+const COIN = "coin";
+
+/** What an asset is counted in: coin, or the good's own name. */
+function unitOf(asset: string, lex: Lexicon): string {
+  return asset === COIN ? COIN : lex.material(asset);
+}
+
+/** The amounts a bank select offers under the most, then the most itself. */
+const STEPS = [1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000];
+
+function ladder(most: number): number[] {
+  return most > 0 ? [...STEPS.filter((n) => n < most), most] : [];
+}
 
 function base(g: api.Guild, suffix: string, title: string): Omit<Card, "rows" | "footer"> {
   return {
@@ -67,10 +88,11 @@ function gives(w: api.GuildWork): string {
   }
 }
 
-/** A guild's tabs: members, settlements, works. */
+/** A guild's tabs: members, the bank, settlements, works. */
 function tabs(g: api.Guild, view: GuildView, v: number): Button[] {
   const all: [GuildView, string][] = [
     ["members", "Members"],
+    ["bank", "Bank"],
     ["places", "Settlements"],
     ["works", "Works"],
   ];
@@ -88,23 +110,11 @@ export function guildCard(
 ): Card {
   const v = o.version;
   if (!g.id) return noGuildCard(o, g, notice);
-  if (view === "places") return placesCard(o, g, lex, notice);
+  if (view === "bank") return bankCard(o, g, lex, undefined, notice);
+  if (view === "places") return placesCard(o, g, lex, undefined, notice);
   if (view === "works") return worksCard(o, g, lex, notice);
   const rows: Row[] = [];
   const acts: Button[] = [];
-  if (o.purse.coin >= 10)
-    acts.push(btn(`Give ${amount(10, "coin")}`, "gld-dep", target(":", "coin", 10), v));
-  // Goods go into and out of the bank where it stands; coin from anywhere.
-  const give = g.bankHere ? o.purse.goods[0] : undefined;
-  if (give)
-    acts.push(
-      btn(
-        `Give ${amount(give.units, lex.material(give.material))}`,
-        "gld-dep",
-        target(":", give.material, give.units),
-        v,
-      ),
-    );
   if (g.charter.can)
     acts.push(
       btn(
@@ -113,16 +123,6 @@ export function guildCard(
         g.charter.take ? "take" : "new",
         v,
         { style: "success" },
-      ),
-    );
-  const stock = g.bankHere ? g.bank[0] : undefined;
-  if (stock)
-    acts.push(
-      btn(
-        `Draw ${amount(1, lex.material(stock.material))} at cost`,
-        "gld-draw",
-        target(":", stock.material, 1),
-        v,
       ),
     );
   acts.push(btn("Leave", "gld-leave", "", v, { style: "danger" }));
@@ -172,20 +172,6 @@ export function guildCard(
           : "empty",
         inline: true,
       },
-      ...(g.bankHere
-        ? []
-        : [
-            {
-              name: "The bank's goods",
-              value: g.settlements.length
-                ? `Given, drawn and paid out at ${g.settlements
-                    .slice(0, 3)
-                    .map((x) => x.name)
-                    .join(" or ")}; coin from anywhere.`
-                : "The guild runs no settlement to keep goods in; it takes coin from anywhere.",
-              inline: false,
-            },
-          ]),
       {
         name: "Officers named",
         value: `${num(g.named)} of ${amount(g.officersMax, "officers")}`,
@@ -206,13 +192,138 @@ export function guildCard(
           ]
         : []),
     ],
-    footer: `Gifts are ranked by season and all time; a member may draw stock at cost up to ${num(g.drawShare)}% of what it gave.`,
+    footer: "Gifts are ranked by season and all time; giving and drawing are on the Bank page.",
     rows,
   };
 }
 
-/** What an officer pays a member from the treasury in one press. */
-const PAYMENT = 100;
+/** Where the bank's goods move, for a card drawn away from it. */
+function bankPlace(g: api.Guild): string {
+  return g.settlements.length
+    ? `Given, drawn and paid out at ${g.settlements
+        .slice(0, 3)
+        .map((x) => x.name)
+        .join(" or ")}; coin from anywhere.`
+    : "The guild runs no settlement to keep goods in; it takes coin from anywhere.";
+}
+
+/**
+ * The bank: give what you carry, draw stock at cost. Each takes two
+ * picks, what and then how much; goods move only where the bank stands.
+ */
+export function bankCard(
+  o: api.Options,
+  g: api.Guild,
+  lex: Lexicon,
+  pick?: BankPick,
+  notice?: string,
+): Card {
+  const v = o.version;
+  const carried = [
+    { asset: COIN, units: o.purse.coin },
+    ...(g.bankHere
+      ? [
+          { asset: "provisions", units: o.purse.provisions },
+          ...o.purse.goods.map((x) => ({ asset: x.material, units: x.units })),
+        ]
+      : []),
+  ].filter((x) => x.units > 0);
+  const drawable = g.bankHere ? g.bank.filter((b) => b.draw > 0) : [];
+  const giving = pick?.act === "give" ? carried.find((x) => x.asset === pick.asset) : undefined;
+  const drawing =
+    pick?.act === "draw" ? drawable.find((b) => b.material === pick.asset) : undefined;
+  const rows: Row[] = [];
+  if (carried.length)
+    rows.push({
+      select: {
+        customId: encodeId("gld-give", "", v),
+        placeholder: giving
+          ? `Giving: ${unitOf(giving.asset, lex)}`
+          : "Give to the guild: pick what",
+        options: carried.slice(0, SELECT_MOST).map((x) => ({
+          label: capitalise(unitOf(x.asset, lex)).slice(0, 90),
+          value: x.asset,
+          description: `You carry ${amount(x.units, unitOf(x.asset, lex))}`.slice(0, 90),
+        })),
+      },
+    });
+  if (drawable.length)
+    rows.push({
+      select: {
+        customId: encodeId("gld-take", "", v),
+        placeholder: drawing
+          ? `Drawing: ${lex.material(drawing.material)}`
+          : "Draw from the bank at cost: pick what",
+        options: drawable.slice(0, SELECT_MOST).map((b) => ({
+          label: capitalise(lex.material(b.material)).slice(0, 90),
+          value: b.material,
+          description:
+            `Up to ${amount(b.draw, lex.material(b.material))}, at ${amount(b.value, "coin")} each`.slice(
+              0,
+              90,
+            ),
+        })),
+      },
+    });
+  if (giving)
+    rows.push({
+      select: {
+        customId: encodeId("gld-dep", "", v),
+        placeholder: `How much ${unitOf(giving.asset, lex)} to give`,
+        options: ladder(giving.units).map((n) => ({
+          label: `${n === giving.units ? "All: " : ""}${amount(n, unitOf(giving.asset, lex))}`,
+          value: target(":", giving.asset, n),
+        })),
+      },
+    });
+  if (drawing)
+    rows.push({
+      select: {
+        customId: encodeId("gld-draw", "", v),
+        placeholder: `How much ${lex.material(drawing.material)} to draw`,
+        options: ladder(drawing.draw).map((n) => ({
+          label: `${n === drawing.draw ? "The most you may: " : ""}${amount(n, lex.material(drawing.material))}`,
+          value: target(":", drawing.material, n),
+          description: `Costs ${amount(n * drawing.value, "coin")}`,
+        })),
+      },
+    });
+  rows.push({ buttons: [...tabs(g, "bank", v), back(v)] });
+  return {
+    ...base(g, "Bank", notice ?? `The bank of ${g.name}`),
+    description: g.bankHere
+      ? "Give coin, provisions or goods you carry, or draw stock at cost: pick what, then how much."
+      : "Give coin from anywhere. Goods go into and out of the bank where it stands.",
+    table: g.bank.length
+      ? {
+          header: ["Stock", "Held (goods)", "At cost (coin each)", "You may draw (goods)"],
+          rows: g.bank
+            .slice(0, 15)
+            .map((b) => [
+              capitalise(lex.material(b.material)).slice(0, 20),
+              num(b.units),
+              num(b.value),
+              num(g.bankHere ? b.draw : 0),
+            ]),
+        }
+      : undefined,
+    fields: [
+      { name: "Treasury", value: amount(g.treasury, "coin"), inline: true },
+      {
+        name: "You carry",
+        value: [
+          amount(o.purse.coin, "coin"),
+          amount(o.purse.provisions, "provisions"),
+          ...o.purse.goods.slice(0, 6).map((x) => amount(x.units, lex.material(x.material))),
+        ].join(", "),
+        inline: true,
+      },
+      ...(g.bankHere ? [] : [{ name: "The bank's goods", value: bankPlace(g), inline: false }]),
+    ],
+    footer: `A draw is paid for at cost into the treasury, up to ${num(g.drawShare)}% of what you gave unless an officer allows more.`,
+    rows,
+  };
+}
 
 function role(m: api.GuildMember): string {
   return m.leader ? "leader" : m.admin ? "admin" : m.officer ? "officer" : "member";
@@ -237,7 +348,14 @@ function memberOptions(g: api.Guild, page: number): { label: string; value: stri
 }
 
 /** One member: what the viewer may do about them. An officer sets the bank's rule, names and pays; anyone votes. */
-export function memberCard(o: api.Options, g: api.Guild, id: string, notice?: string): Card {
+export function memberCard(
+  o: api.Options,
+  g: api.Guild,
+  id: string,
+  lex: Lexicon,
+  notice?: string,
+  pay?: string,
+): Card {
   const v = o.version;
   const m = g.members.find((x) => x.id === id);
   const acts: Button[] = [];
@@ -252,9 +370,50 @@ export function memberCard(o: api.Options, g: api.Guild, id: string, notice?: st
         m.draw ? 0 : 1,
       );
     if (m.canPromote) act("Name an officer", "promote", m.id, "-");
-    if (g.treasury >= PAYMENT) act(`Pay ${amount(PAYMENT, "coin")}`, "pay", m.id, PAYMENT);
   }
   if (m?.removable) act(`Vote to remove as ${m.removable}`, "vote", m.id, m.removable);
+  // Coin is paid from the treasury anywhere; goods where both stand at the bank.
+  const payable =
+    m && g.officer
+      ? [
+          { asset: COIN, units: g.treasury, value: 1 },
+          ...(m.payGoods ? g.bank.map((b) => ({ ...b, asset: b.material })) : []),
+        ].filter((x) => x.units > 0)
+      : [];
+  const paying = payable.find((x) => x.asset === pay);
+  const rows: Row[] = [];
+  if (m && payable.length)
+    rows.push({
+      select: {
+        customId: encodeId("gld-pay", m.id, v),
+        placeholder: paying
+          ? `Paying: ${unitOf(paying.asset, lex)}`
+          : "Pay from the guild: pick what",
+        options: payable.slice(0, SELECT_MOST).map((x) => ({
+          label: capitalise(unitOf(x.asset, lex)).slice(0, 90),
+          value: x.asset,
+          description: (x.asset === COIN
+            ? `The treasury holds ${amount(x.units, "coin")}`
+            : `The bank holds ${amount(x.units, lex.material(x.asset))}, worth ${amount(x.value, "coin")} each`
+          ).slice(0, 90),
+        })),
+      },
+    });
+  if (m && paying)
+    rows.push({
+      select: {
+        customId: encodeId("gld-act", target(":", "pay", m.id, paying.asset), v),
+        placeholder: `How much ${unitOf(paying.asset, lex)} to pay ${m.name}`.slice(0, 100),
+        options: ladder(paying.units).map((n) => ({
+          label: `${n === paying.units ? "All: " : ""}${amount(n, unitOf(paying.asset, lex))}`,
+          value: String(n),
+          description: `${paying.asset === COIN ? "" : `Worth ${amount(n * paying.value, "coin")}. `}${
+            n * paying.value > g.spend ? "Waits for a second officer" : "Paid at once"
+          }`,
+        })),
+      },
+    });
+  rows.push(...buttonRows([...acts, btn("Guild", "guild", "members", v, { emoji: "↩" })]));
   return {
     ...base(g, "A member", notice ?? m?.name ?? "No such member"),
     description: m
@@ -264,11 +423,17 @@ export function memberCard(o: api.Options, g: api.Guild, id: string, notice?: st
       ? [
           { name: "Given this season", value: amount(m.season, "coin"), inline: true },
           { name: "Given, all time", value: amount(m.put, "coin"), inline: true },
+          ...(g.officer
+            ? [{ name: "You may pay today", value: amount(g.spend, "coin"), inline: true }]
+            : []),
+          ...(g.officer && g.bank.length && !m.payGoods
+            ? [{ name: "The bank's goods", value: bankPlace(g), inline: false }]
+            : []),
         ]
       : undefined,
     footer:
       "A vote carries once enough of the active members have cast it; no vote stands against a server's admin.",
-    rows: buttonRows([...acts, btn("Guild", "guild", "members", v, { emoji: "↩" })]),
+    rows,
   };
 }
 
@@ -320,27 +485,57 @@ function noGuildCard(o: api.Options, g: api.Guild, notice?: string): Card {
   };
 }
 
-function placesCard(o: api.Options, g: api.Guild, lex: Lexicon, notice?: string): Card {
+/**
+ * The settlements page. A raise takes two picks: the structure, then the
+ * reward its goals carry, none or up to what the world says the treasury
+ * and the officer's day cover.
+ */
+export function placesCard(
+  o: api.Options,
+  g: api.Guild,
+  lex: Lexicon,
+  raise?: string,
+  notice?: string,
+): Card {
   const v = o.version;
   const here = g.settlements.find((s) => s.here);
   const rows: Row[] = [];
   if (here && g.officer) {
     const raisable = here.structures.filter((s) => s.canRaise);
+    const raising = raisable.find((s) => s.kind === raise);
+    const rise = (s: api.Structure) =>
+      `${lex.name("settlements.structures", s.kind)} to tier ${s.tier + 1}`;
     if (raisable.length)
       rows.push({
         select: {
           customId: encodeId("gld-raise", "", v),
-          placeholder: "Raise a structure: post its goals",
+          placeholder: (raising
+            ? `Raising: ${rise(raising)}`
+            : "Raise a structure: pick which"
+          ).slice(0, 100),
           options: raisable.slice(0, SELECT_MOST).map((s) => ({
-            label: `${lex.name("settlements.structures", s.kind)} to tier ${s.tier + 1}`.slice(
-              0,
-              90,
-            ),
+            label: rise(s).slice(0, 90),
             value: s.kind,
             description: cost(s.next).slice(0, 90),
           })),
         },
       });
+    if (raising) {
+      const goals = raising.next?.length ?? 0;
+      rows.push({
+        select: {
+          customId: encodeId("gld-rwd", raising.kind, v),
+          placeholder: "A reward on each of its goals, from the treasury",
+          options: REWARDS.filter((n) => n <= raising.rewardMost).map((n) => ({
+            label: n ? `${amount(n, "coin")} on each goal` : "No reward: post its goals",
+            value: String(n),
+            description: n
+              ? `${plural(goals, "goal")}: ${amount(n * goals, "coin")} from the treasury, and the listing fees`
+              : "Nothing leaves the treasury",
+          })),
+        },
+      });
+    }
   }
   if (here) {
     // A worn structure is mended a part at a time or whole; a closed one's part reopens it.

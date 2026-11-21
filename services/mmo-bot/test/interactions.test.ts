@@ -11,6 +11,7 @@ import {
   STALE_LINE,
 } from "../src/adapter.ts";
 import * as api from "../src/api.ts";
+import type { Card } from "../src/card.ts";
 import { localBudget } from "../src/cooldown.ts";
 import { answer, modalFor } from "../src/flow.ts";
 import { decodeId, encodeId, type Id } from "../src/ids.ts";
@@ -28,15 +29,50 @@ const GOALS_SINCE = {
   partyMost: 6,
   even: false,
   waiting: [],
+  gauge: "threat",
+  ephemeralLeast: 6,
+  ephemeralMost: 432,
+  gauges: [
+    { value: "threat", label: "threat", lines: [600, 700, 800] },
+    { value: "unrest", label: "unrest", lines: [600, 700, 800] },
+  ],
+  sides: [
+    { value: "below", label: "below" },
+    { value: "above", label: "above" },
+  ],
 };
 
-function setup({ player = "c-1", stale = false, offline = false } = {}) {
+/** The recorded guild as an officer's at its bank, with a treasury, a stock to draw and a structure to raise. */
+const GUILD_SINCE = {
+  bankHere: true,
+  officer: true,
+  treasury: 400,
+  spend: 100,
+  bank: [{ material: "old-silk", units: 3, value: 40, draw: 2 }],
+  members: samples.guild.members.map((m) => ({ ...m, payGoods: true })),
+  settlements: samples.guild.settlements.map((s, i) => ({
+    ...s,
+    here: i === 0,
+    structures: s.structures.map((x, j) => ({ ...x, canRaise: j === 0, rewardMost: 30 })),
+  })),
+};
+const RAISED = samples.guild.settlements[0]!.structures[0]!.kind;
+/** Writes the scripted run never recorded: each answers as any plain write does. */
+const UNRECORDED = new Set<string>([api.ActMarkPrey, api.ActDraw, api.ActPay, api.ActRaise]);
+
+function setup({
+  player = "c-1",
+  stale = false,
+  offline = false,
+  facts = [] as api.Fact[],
+  purse = {} as Partial<api.Purse>,
+} = {}) {
   const writes: api.ActionRequest[] = [];
   const reads: string[] = [];
   const appraisals: api.AppraiseRequest[] = [];
   const routes = new Map<string, unknown>([
     [api.PathPlayer, { characterId: player }],
-    [api.PathOptions, samples.options],
+    [api.PathOptions, { ...samples.options, purse: { ...samples.options.purse, ...purse } }],
     [api.PathHere, samples.here],
     [api.PathSheet, samples.sheet],
     [api.PathMap, samples.map],
@@ -44,7 +80,7 @@ function setup({ player = "c-1", stale = false, offline = false } = {}) {
     [api.PathRecipes, samples.recipes],
     // The recorded pages predate a few served fields.
     [api.PathGoals, { ...samples.goals, ...GOALS_SINCE }],
-    [api.PathGuild, { ...samples.guild, bankHere: true }],
+    [api.PathGuild, { ...samples.guild, ...GUILD_SINCE }],
     [api.PathClasses, samples.classes],
   ]);
   const fetcher = Object.assign(
@@ -57,11 +93,10 @@ function setup({ player = "c-1", stale = false, offline = false } = {}) {
         writes.push(body);
         if (stale)
           return Response.json({ code: api.CodeStale, message: "stale version" }, { status: 409 });
-        // A mark was never recorded: it answers as any plain write does.
-        const kind = body.kind === api.ActMarkPrey ? api.ActLook : body.kind;
+        const kind = UNRECORDED.has(body.kind) ? api.ActLook : body.kind;
         const action = samples[`act:${kind}` as keyof typeof samples];
         if (!action || !("reply" in action)) throw new Error("unexpected action " + body.kind);
-        return Response.json(action.reply);
+        return Response.json({ ...action.reply, facts: [...action.reply.facts, ...facts] });
       }
       if (url.pathname === api.PathAppraise && init?.method === "POST") {
         appraisals.push(JSON.parse(String(init.body)));
@@ -339,6 +374,154 @@ test("goal and guild presses send what their targets say, and malformed ones not
       units: 10,
     },
   ]);
+});
+
+/** The values a card's select of an action offers. */
+const offered = (card: Card, action: string) =>
+  card.rows.flatMap((r) =>
+    "select" in r && decodeId(r.select.customId)?.action === action
+      ? r.select.options.map((x) => x.value)
+      : [],
+  );
+
+test("the bank takes two picks: what, which writes nothing, then how much, which gives or draws it", async () => {
+  const { press, writes } = setup({ purse: { coin: 60, provisions: 8 } });
+  const write = (kind: string, fields: Partial<api.ActionRequest>) => ({
+    interactionId: "event",
+    characterId: "c-1",
+    version: 7,
+    kind,
+    server: "guild",
+    ...fields,
+  });
+  const bank = await press({ action: "guild", target: "bank", version: 7 });
+  expect(bank.card.author).toEndWith("Bank");
+  expect(offered(bank.card, "gld-give")).toEqual(["coin", "provisions"]);
+  expect(offered(bank.card, "gld-take")).toEqual(["old-silk"]);
+  expect(offered(bank.card, "gld-dep")).toEqual([]);
+
+  const giving = await press({ action: "gld-give", target: "", version: 7 }, ["provisions"]);
+  expect(offered(giving.card, "gld-dep")).toEqual(["provisions:1", "provisions:5", "provisions:8"]);
+  const drawing = await press({ action: "gld-take", target: "", version: 7 }, ["old-silk"]);
+  expect(offered(drawing.card, "gld-draw")).toEqual(["old-silk:1", "old-silk:2"]);
+  expect(writes).toEqual([]);
+
+  const given = await press({ action: "gld-dep", target: "", version: 7 }, ["provisions:8"]);
+  expect(given.card.title).toBe("Given to the guild");
+  expect(given.card.author).toEndWith("Bank");
+  const drawn = await press({ action: "gld-draw", target: "", version: 7 }, ["old-silk:2"]);
+  expect(drawn.card.title).toBe("Drawn at cost");
+  expect(writes).toEqual([
+    write(api.ActDeposit, { asset: "provisions", units: 8 }),
+    write(api.ActDraw, { asset: "old-silk", units: 2 }),
+  ]);
+  for (const [action, picked] of [
+    ["gld-dep", "provisions"],
+    ["gld-dep", "provisions:some"],
+    ["gld-draw", "old-silk:"],
+    ["gld-draw", ""],
+  ] as const)
+    expect((await press({ action, target: "", version: 7 }, [picked])).card.author).toBe(
+      "An old button",
+    );
+  expect(writes).toHaveLength(2);
+});
+
+test("an officer pays a member what was picked, and is told when it waits for a second officer", async () => {
+  const { press, writes } = setup();
+  const picked = await press({ action: "gld-pay", target: "c-1", version: 4 }, ["old-silk"]);
+  expect(picked.card.author).toEndWith("A member");
+  const amounts = picked.card.rows.flatMap((r) =>
+    "select" in r && decodeId(r.select.customId)?.target === "pay:c-1:old-silk"
+      ? r.select.options.map((x) => x.value)
+      : [],
+  );
+  expect(amounts).toEqual(["1", "3"]);
+  expect(writes).toEqual([]);
+  const paid = await press({ action: "gld-act", target: "pay:c-1:old-silk", version: 4 }, ["3"]);
+  expect(paid.card.title).toBe("Paid");
+  await press({ action: "gld-act", target: "pay:c-1:coin", version: 5 }, ["250"]);
+  const pay = (version: number, asset: string, units: number) => ({
+    interactionId: "event",
+    characterId: "c-1",
+    version,
+    kind: api.ActPay,
+    server: "guild",
+    target: "c-1",
+    asset,
+    units,
+  });
+  expect(writes).toEqual([pay(4, "old-silk", 3), pay(5, "coin", 250)]);
+  for (const value of ["", "all", "2.5"])
+    expect(
+      (await press({ action: "gld-act", target: "pay:c-1:coin", version: 5 }, [value])).card.author,
+    ).toBe("An old button");
+  expect(writes).toHaveLength(2);
+
+  const asked = setup({
+    facts: [{ id: 9, tick: 1, kind: "guild.approval-asked", weight: 0, subjects: [], data: [] }],
+  });
+  const waits = await asked.press({ action: "gld-act", target: "pay:c-1:coin", version: 5 }, [
+    "250",
+  ]);
+  expect(waits.card.title).toBe("Over what you may pay alone today: it waits for a second officer");
+});
+
+test("a raise takes two picks: the structure, which writes nothing, then the reward on each of its goals", async () => {
+  const { press, writes } = setup();
+  const picked = await press({ action: "gld-raise", target: "", version: 6 }, [RAISED]);
+  expect(picked.card.author).toEndWith("Settlements");
+  expect(offered(picked.card, "gld-rwd")).toEqual(["0", "10", "25"]);
+  expect(writes).toEqual([]);
+  const raise = (fields: Partial<api.ActionRequest>) => ({
+    interactionId: "event",
+    characterId: "c-1",
+    version: 6,
+    kind: api.ActRaise,
+    server: "guild",
+    slot: RAISED,
+    ...fields,
+  });
+  const posted = await press({ action: "gld-rwd", target: RAISED, version: 6 }, ["25"]);
+  expect(posted.card.title).toBe("Its goals are on the board");
+  await press({ action: "gld-rwd", target: RAISED, version: 6 }, ["0"]);
+  expect(writes).toEqual([raise({ price: 25 }), raise({})]);
+  for (const [target, value] of [
+    [RAISED, ""],
+    [RAISED, "-5"],
+    [RAISED, "lots"],
+    ["", "25"],
+  ] as const)
+    expect((await press({ action: "gld-rwd", target, version: 6 }, [value])).card.author).toBe(
+      "An old button",
+    );
+  expect(writes).toHaveLength(2);
+});
+
+test("a Hold and an ephemeral goal post with the gauge, side, line and time the form picked", async () => {
+  const { press, writes } = setup();
+  const held = {
+    ...BLANK,
+    verb: "hold",
+    target: "region:r-3",
+    count: 5,
+    reward: 0,
+    narrow: "unrest",
+    least: 600,
+    below: false,
+    ticks: 36,
+  };
+  const form = await press({ action: "g-least", target: "", version: 2 }, [goalDraftId(held)]);
+  expect(form.card.title).toBe("Hold 5 days: region:r-3, above 600 unrest");
+  expect(writes).toEqual([]);
+  await press({ action: "g-post", target: goalDraftId(held), version: 2 });
+  expect(writes).toHaveLength(1);
+  expect(writes[0]!.goal).toMatchObject({
+    lifetime: "ephemeral",
+    ticks: 36,
+    cond: { verb: "hold", count: 5, at: "region:r-3", gauge: "unrest", line: 600 },
+  });
+  expect(writes[0]!.goal!.cond.below).toBeUndefined();
 });
 
 test("a repair pick that names no structure and points writes nothing", async () => {

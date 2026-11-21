@@ -5,11 +5,11 @@ import {
   type Modal,
   type Row,
 } from "../../../../packages/discord-kit/src/index.ts";
-import type * as api from "../api.ts";
+import * as api from "../api.ts";
 import { authorLine, type Card, COLOUR } from "../card.ts";
 import { type Action, encodeId, fields, integerTarget, target } from "../ids.ts";
 import { capitalise, type Lexicon } from "../lexicon.ts";
-import { amount, hours, num, plural } from "../units.ts";
+import { amount, hours, num, plural, TICKS_PER_HOUR } from "../units.ts";
 import { back, banner, btn, factLine, PRIVATE, SELECT_MOST } from "./common.ts";
 
 /**
@@ -40,12 +40,16 @@ const AMOUNTS: Record<string, number[]> = {
   hold: [3, 5, 7, 14],
   vow: [0],
 };
-const REWARDS = [0, 10, 25, 50, 100, 250, 500];
+/** The rewards a goal may carry, in coin; 0 is none. */
+export const REWARDS = [0, 10, 25, 50, 100, 250, 500];
 /** What a Discover may ask a tile's field to reach, in pts. */
 const LEASTS = [50, 60, 70, 80, 90];
 const LEAST = 70;
 /** How many an Each goal may pay, up to the board's cap. */
 const CAPS = [1, 2, 3, 5, 10, 20, 50];
+/** How long an ephemeral goal may be set to last, in hours, inside what the board allows. */
+const HOURS = [1, 6, 12, 24, 48, 72];
+const HOURS_PER_DAY = 24;
 
 /** A goal being drafted on the form. */
 export interface GoalDraft {
@@ -57,9 +61,9 @@ export interface GoalDraft {
   life: Life;
   turn: Turn;
   issuer: Issuer;
-  /** What narrows the target: a Make's trait, a Defeat's region, a Discover's field; "-" for nothing. */
+  /** What narrows the target: a Make's trait, a Defeat's region, a Discover's field, a Hold's gauge; "-" for nothing, or for the gauge the board starts a Hold on. */
   narrow: string;
-  /** The least a Discover's field must read, in pts; 0 for none. */
+  /** The least a Discover's field must read, in pts, or a Hold's line; 0 for the usual. */
   least: number;
   /** How many an Each goal pays; 0 for the most the board allows. */
   cap: number;
@@ -69,6 +73,10 @@ export interface GoalDraft {
   members: string[];
   /** The form's page: what the goal asks, or how it runs. */
   page: Page;
+  /** A Hold keeps its gauge below its line, or above it. */
+  below: boolean;
+  /** How long an ephemeral goal lasts, in ticks; 0 for the board's usual. */
+  ticks: number;
 }
 
 export const BLANK: GoalDraft = {
@@ -86,11 +94,13 @@ export const BLANK: GoalDraft = {
   even: false,
   members: [],
   page: "w",
+  below: true,
+  ticks: 0,
 };
 
 /**
- * A draft as a custom-id target: verb.target.count.reward.flags.narrow.least.cap.members,
- * the flags one letter each for mode, lifetime, turnover, issuer, even shares and page.
+ * A draft as a custom-id target: verb.target.count.reward.flags.narrow.least.cap.members.ticks,
+ * the flags one letter each for mode, lifetime, turnover, issuer, even shares, page and a Hold's side.
  */
 export function goalDraftId(d: GoalDraft): string {
   return target(
@@ -99,26 +109,29 @@ export function goalDraftId(d: GoalDraft): string {
     d.target,
     d.count,
     d.reward,
-    `${d.mode}${d.life}${d.turn}${d.issuer}${d.even ? "y" : "n"}${d.page}`,
+    `${d.mode}${d.life}${d.turn}${d.issuer}${d.even ? "y" : "n"}${d.page}${d.below ? "b" : "a"}`,
     d.narrow,
     d.least,
     d.cap,
     d.members.join(",") || "-",
+    d.ticks,
   );
 }
 
 export function goalDraftOf(s: string): GoalDraft | null {
-  const f = fields(s, ".", 9);
+  const f = fields(s, ".", 10);
   if (!f) return null;
-  const [v, t, c, r, flags, narrow, l, k, who] = f;
+  const [v, t, c, r, flags, narrow, l, k, who, last] = f;
   const verb = VERBS[integerTarget(v!) ?? -1];
-  const [count, reward, least, cap] = [c, r, l, k].map((x) => integerTarget(x!));
+  const [count, reward, least, cap, ticks] = [c, r, l, k, last].map((x) => integerTarget(x!));
   if (!verb || count === undefined || reward === undefined) return null;
-  if (least === undefined || cap === undefined || flags!.length !== 6) return null;
-  const [m, life, turn, issuer, even, page] = flags!;
+  if (least === undefined || cap === undefined || flags!.length !== 7) return null;
+  if (ticks === undefined || ticks < 0) return null;
+  const [m, life, turn, issuer, even, page, side] = flags!;
   if (!(m! in MODES) || !(life! in LIVES) || !(turn! in TURNS) || !(issuer! in ISSUERS))
     return null;
   if ((even !== "y" && even !== "n") || (page !== "w" && page !== "t")) return null;
+  if (side !== "b" && side !== "a") return null;
   return {
     verb,
     target: t!,
@@ -134,6 +147,8 @@ export function goalDraftOf(s: string): GoalDraft | null {
     even: even === "y",
     members: who === "-" ? [] : who!.split(","),
     page,
+    below: side === "b",
+    ticks,
   };
 }
 
@@ -151,6 +166,8 @@ export function fromSpec(s: api.GoalSpec): GoalDraft {
   if (c.verb === "make") narrow = c.trait || "-";
   if (c.verb === "defeat") narrow = c.at || "-";
   if (c.verb === "discover") narrow = c.field || "-";
+  const held = c.verb === "hold" && !vow;
+  if (held) narrow = c.gauge || "-";
   return {
     verb: vow ? "vow" : VERBS.includes(c.verb as never) ? c.verb : "deliver",
     target: t,
@@ -161,11 +178,13 @@ export function fromSpec(s: api.GoalSpec): GoalDraft {
     turn: pick(TURNS, s.turnover, "x") as Turn,
     issuer: pick(ISSUERS, s.issuer, "c") as Issuer,
     narrow,
-    least: c.atLeast ?? 0,
+    least: (held ? c.line : c.atLeast) ?? 0,
     cap: s.cap ?? 0,
     even: !!s.even,
     members: s.members ?? [],
     page: "w",
+    below: held ? !!c.below : true,
+    ticks: s.lifetime === LIVES.e ? (s.ticks ?? 0) : 0,
   };
 }
 
@@ -179,12 +198,43 @@ function capOf(d: GoalDraft, g: api.Goals): number {
   return Math.min(d.cap || g.eachCap, g.eachCap);
 }
 
+/** The gauge a Hold draft reads: the one picked, else the one the board starts a Hold on. */
+function gaugeOf(d: GoalDraft, g: api.Goals): string {
+  return d.narrow === "-" ? g.gauge : d.narrow;
+}
+
+function lineOf(d: GoalDraft, g: api.Goals): number {
+  return d.least || g.line;
+}
+
+function sideOf(d: GoalDraft): string {
+  return d.below ? api.SideBelow : api.SideAbove;
+}
+
+/** How long an ephemeral draft lasts, in ticks. */
+function ticksOf(d: GoalDraft, g: api.Goals): number {
+  return d.ticks || g.ephemeral;
+}
+
+/** The durations the form cycles an ephemeral goal through, in ticks. */
+function durations(g: api.Goals): number[] {
+  return HOURS.map((h) => h * TICKS_PER_HOUR).filter(
+    (t) => t >= g.ephemeralLeast && t <= g.ephemeralMost,
+  );
+}
+
+/** Ticks in words: whole days, else hours. */
+function lasting(ticks: number): string {
+  const h = ticks / TICKS_PER_HOUR;
+  return h % HOURS_PER_DAY ? plural(h, "hour") : plural(h / HOURS_PER_DAY, "day");
+}
+
 /** The spec a draft posts, at the board it is posted on. */
 export function specOf(d: GoalDraft, g: api.Goals, title: string, note: string): api.GoalSpec {
   const here = `settlement:${g.settlement}`;
   const mode = modeOf(d);
   const life = { lifetime: LIVES[d.life], turnover: TURNS[d.turn] };
-  const ticks = d.life === "e" ? g.ephemeral : undefined;
+  const ticks = d.life === "e" ? ticksOf(d, g) : undefined;
   if (d.verb === "vow")
     return {
       title,
@@ -232,7 +282,12 @@ export function specOf(d: GoalDraft, g: api.Goals, title: string, note: string):
       Object.assign(cond, { at: d.target, count: 1 });
       break;
     case "hold":
-      Object.assign(cond, { at: d.target, gauge: "threat", line: g.line, below: true });
+      Object.assign(cond, {
+        at: d.target,
+        gauge: gaugeOf(d, g),
+        line: lineOf(d, g),
+        below: d.below ? true : undefined,
+      });
       break;
     case "haul": {
       const [material, to] = d.target.split(">");
@@ -564,8 +619,19 @@ function asks(d: GoalDraft, g: api.Goals): string {
   if (d.narrow !== "-" && d.verb === "defeat") narrowed = ` in ${labelOf(g.places, d.narrow)}`;
   if (d.narrow !== "-" && d.verb === "discover")
     narrowed = `${what ? "," : ""} where ${labelOf(g.fields, d.narrow)} is ${amount(d.least || LEAST, "pts")} or more`;
+  if (d.verb === "hold") narrowed = `${what ? "," : ""} ${heldAt(d, g)}`;
   const tail = `${what}${narrowed}`.trim();
   return `${capitalise(d.verb)} ${amountWord(d)}${tail ? `: ${tail}` : ""}`;
+}
+
+/** The side and line a Hold draft keeps its gauge to, the gauge as the line's unit: "below 700 threat". */
+function heldAt(d: GoalDraft, g: api.Goals, line = lineOf(d, g)): string {
+  return `${labelOf(g.sides, sideOf(d))} ${amount(line, gaugeOf(d, g))}`;
+}
+
+/** The value after one in a list, round to the first; the first when it is not in the list. */
+function after<T>(list: readonly T[], x: T): T | undefined {
+  return list[(list.indexOf(x) + 1) % list.length];
 }
 
 /**
@@ -609,7 +675,33 @@ export function goalForm(o: api.Options, g: api.Goals, d: GoalDraft): Card {
     ]);
   const targets = targetsOf(g, d.verb);
   const verbs = [...g.targets.map((t) => t.verb), ...(g.vows.length ? ["vow"] : [])];
+  // What a Hold reads and how long an ephemeral goal lasts cycle beside the
+  // page buttons: both pages' rows are full of selects.
+  const turns: Button[] = [];
+  const turn = (label: string, over: Partial<GoalDraft>) => {
+    const next = set(over);
+    if (next) turns.push(btn(label.slice(0, 80), "g-form", next, v));
+  };
+  if (d.page === "w" && d.verb === "hold") {
+    const gauge = after(
+      g.gauges.map((x) => x.value),
+      gaugeOf(d, g),
+    );
+    if (gauge && gauge !== gaugeOf(d, g))
+      turn(`Gauge: ${labelOf(g.gauges, gaugeOf(d, g))}`, { narrow: gauge });
+    const side = after(
+      g.sides.map((x) => x.value),
+      sideOf(d),
+    );
+    if (side && side !== sideOf(d))
+      turn(`Side: ${labelOf(g.sides, sideOf(d))}`, { below: side === api.SideBelow });
+  }
+  if (d.page === "t" && d.life === "e") {
+    const next = after(durations(g), ticksOf(d, g));
+    if (next && next !== ticksOf(d, g)) turn(`For: ${lasting(ticksOf(d, g))}`, { ticks: next });
+  }
   const nav: Button[] = [
+    ...turns,
     btn(
       d.page === "w" ? "How it runs" : "What it asks",
       "g-page",
@@ -636,6 +728,7 @@ export function goalForm(o: api.Options, g: api.Goals, d: GoalDraft): Card {
                 count: (AMOUNTS[x] ?? [1])[0]!,
                 narrow: "-",
                 least: 0,
+                below: true,
                 ...(x === "vow" ? { issuer: "c", members: [] } : {}),
               },
             ],
@@ -672,6 +765,16 @@ export function goalForm(o: api.Options, g: api.Goals, d: GoalDraft): Card {
           d.narrow === "-" ? "Defeated anywhere" : `Defeated in: ${labelOf(g.places, d.narrow)}`,
           "Anywhere",
           g.places,
+        ),
+      );
+    if (d.verb === "hold")
+      rows.push(
+        ...select(
+          "g-least",
+          `Line: ${heldAt(d, g)}`,
+          (g.gauges.find((x) => x.value === gaugeOf(d, g))?.lines ?? [])
+            .filter((n) => n !== lineOf(d, g))
+            .map((n): Choice => [capitalise(heldAt(d, g, n)), { least: n }]),
         ),
       );
     if (d.verb === "discover") {
@@ -758,9 +861,11 @@ export function goalForm(o: api.Options, g: api.Goals, d: GoalDraft): Card {
     title: asks(d, g),
     picture: "form",
     description:
-      d.page === "w"
-        ? "Pick the verb, what it asks for and the amount, and narrow it if you like. How it runs is on the other page; the title and a note come last."
-        : "Pick the reward; the buttons cycle how it runs and who issues it. The title and a note come last.",
+      d.page === "w" && d.verb === "hold"
+        ? "Pick the region, the days and the line; the buttons turn the gauge and the side of the line it is held on. How it runs is on the other page; the title and a note come last."
+        : d.page === "w"
+          ? "Pick the verb, what it asks for and the amount, and narrow it if you like. How it runs is on the other page; the title and a note come last."
+          : "Pick the reward; the buttons cycle how it runs, how long an ephemeral goal lasts and who issues it. The title and a note come last.",
     fields: [
       { name: "Escrow", value: amount(escrow, "coin"), inline: true },
       { name: "Listing fee", value: amount(fee, "coin"), inline: true },

@@ -3,6 +3,7 @@ package game
 import (
 	"cmp"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -137,67 +138,104 @@ func (g *Game) itemOf(who, id string) *item.Instance {
 // raise posts a structure's next tier as a project: one pooled settlement
 // goal per line of its cost, the structure rising when all are met (GDD
 // 4.16). An officer of the running guild posts it, with an optional
-// reward per goal from the treasury. Every line is drafted before any is
-// posted, so a refusal posts none.
+// reward per goal from the treasury.
 func (g *Game) raise(c *Char, cmd Command) error {
-	gd, err := g.officerOf(c)
+	plan, err := g.planRaise(c, cmd.Slot, cmd.Price)
 	if err != nil {
-		return err
-	}
-	runs, p := g.RunsHere(c)
-	row := g.r.structures[cmd.Slot]
-	switch {
-	case runs != gd:
-		return refuse(NotHere, "%s raises structures at a settlement it runs", gd.G.Name)
-	case row == nil:
-		return refuse(BadArgs, "no structure %q", cmd.Slot)
-	case g.raising(p.N, row.ID):
-		return refuse(BadArgs, "the %s is already being raised", row.ID)
-	}
-	tier, lines, ok := p.Next(row, g.r.Settle)
-	switch {
-	case !ok && len(lines) > 0:
-		return refuse(BadArgs, "the %s is at its highest tier", row.ID)
-	case !ok:
-		return refuse(BadArgs, "the %s is not raised by goals", row.ID)
-	}
-	if waits := RaiseWaits(p, row); waits != "" {
-		return refuse(BadArgs, "raising the %s does nothing yet: it waits for %s", row.ID, waits)
-	}
-	name := g.r.Name("settlements.structures:" + row.ID)
-	if name == "" {
-		name = row.ID
-	}
-	var drafts []*Goal
-	var need int64
-	for _, l := range lines {
-		x, err := g.draft(c, GoalSpec{Title: name + ": " + l.Tag, Issuer: goal.ByAdmin, Reward: cmd.Price, Mode: goal.Pooled,
-			Lifetime: goal.Season, Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Deliver, Tag: l.Tag, Count: l.Quantity, At: goal.SettlementRef(p.N)}})
-		if err != nil {
-			return err
-		}
-		drafts = append(drafts, x)
-		need += x.Cost()
-	}
-	// Each line was quoted alone; together they must still be covered.
-	if g.Ledger.Of(TreasuryPool(p.N), ledger.Coin) < need {
-		return refuse(BadArgs, "raising the %s takes %d coin from the treasury", row.ID, need)
-	}
-	if err := g.mayMuster(c, drafts[0], need); err != nil {
 		return err
 	}
 	// The project is named for its first goal, so no two raises share one.
 	project := ""
-	for i, x := range drafts {
+	for i, x := range plan.drafts {
 		if err := g.open(c, x, ledger.SubKey(cmd.Key, strconv.Itoa(i))); err != nil {
 			return err
 		}
 		if project == "" {
 			project = "raise-" + x.ID
 		}
-		x.Build = &goal.Build{Settlement: p.N, Structure: row.ID, Tier: tier, Project: project}
+		x.Build = &goal.Build{Settlement: plan.settlement, Structure: plan.structure, Tier: plan.tier, Project: project}
 	}
 	return nil
+}
+
+// raisePlan is a raise ready to post: the goals of its lines, drafted.
+type raisePlan struct {
+	settlement int
+	structure  string
+	tier       int64
+	drafts     []*Goal
+}
+
+// planRaise drafts every line of a raise with a reward on each, or
+// refuses. It changes nothing, so a refusal posts none.
+func (g *Game) planRaise(c *Char, slot string, reward int64) (*raisePlan, error) {
+	gd, err := g.officerOf(c)
+	if err != nil {
+		return nil, err
+	}
+	runs, p := g.RunsHere(c)
+	row := g.r.structures[slot]
+	switch {
+	case runs != gd:
+		return nil, refuse(NotHere, "%s raises structures at a settlement it runs", gd.G.Name)
+	case row == nil:
+		return nil, refuse(BadArgs, "no structure %q", slot)
+	case g.raising(p.N, row.ID):
+		return nil, refuse(BadArgs, "the %s is already being raised", row.ID)
+	}
+	tier, lines, ok := p.Next(row, g.r.Settle)
+	switch {
+	case !ok && len(lines) > 0:
+		return nil, refuse(BadArgs, "the %s is at its highest tier", row.ID)
+	case !ok:
+		return nil, refuse(BadArgs, "the %s is not raised by goals", row.ID)
+	}
+	if waits := RaiseWaits(p, row); waits != "" {
+		return nil, refuse(BadArgs, "raising the %s does nothing yet: it waits for %s", row.ID, waits)
+	}
+	name := g.r.Name("settlements.structures:" + row.ID)
+	if name == "" {
+		name = row.ID
+	}
+	plan := &raisePlan{settlement: p.N, structure: row.ID, tier: tier}
+	var need int64
+	for _, l := range lines {
+		x, err := g.draft(c, GoalSpec{Title: name + ": " + l.Tag, Issuer: goal.ByAdmin, Reward: reward, Mode: goal.Pooled,
+			Lifetime: goal.Season, Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Deliver, Tag: l.Tag, Count: l.Quantity, At: goal.SettlementRef(p.N)}})
+		if err != nil {
+			return nil, err
+		}
+		plan.drafts = append(plan.drafts, x)
+		need += x.Cost()
+	}
+	// Each line was quoted alone; together they must still be covered.
+	if g.Ledger.Of(TreasuryPool(p.N), ledger.Coin) < need {
+		return nil, refuse(BadArgs, "raising the %s takes %d coin from the treasury", row.ID, need)
+	}
+	if err := g.mayMuster(c, plan.drafts[0], need); err != nil {
+		return nil, err
+	}
+	return plan, nil
+}
+
+// RaiseMost is the most coin an officer could put on each line of a
+// structure's raise now, the treasury and its day covering every line and
+// its listing fee; 0 when no reward fits.
+func (g *Game) RaiseMost(c *Char, slot string) int64 {
+	fits := func(reward int64) bool {
+		_, err := g.planRaise(c, slot, reward)
+		return err == nil
+	}
+	least := g.gp("reward-least")
+	if !fits(least) {
+		return 0
+	}
+	// What fits is covered by the treasury where the officer stands; a
+	// reward costs no less as it grows, so the first that does not fit ends
+	// the search.
+	_, p := g.RunsHere(c)
+	room := g.Ledger.Of(TreasuryPool(p.N), ledger.Coin) - least
+	return least + int64(sort.Search(int(room), func(over int) bool { return !fits(least + int64(over) + 1) }))
 }
 
 // raising reports whether a structure has a project open.
