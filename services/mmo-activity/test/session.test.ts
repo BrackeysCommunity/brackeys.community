@@ -192,24 +192,33 @@ test("an intent made while the line is down goes out once it is back", async () 
   expect(s.of("intent")[0]!.intent).toMatchObject({ id: "intent-1", version: 6 });
 });
 
-test("a stale refusal is retried with the row's version only where asked", async () => {
+test("a stale refusal is retried with the row's version for a solve, never a choice", async () => {
   const r = rig();
   r.session.start();
   await settle();
   const s = r.greet(4);
-  const kept = r.session.intent("machine-solve", { machine: { log: { moves: [] } } }, 1);
-  r.reply({ id: "intent-1", ok: false, refusal: { code: "stale", message: "moved", version: 9 } });
-  expect(s.of("intent")[1]!.intent).toMatchObject({
-    id: "intent-2",
-    version: 9,
-    kind: "machine-solve",
-  });
-  r.reply({ id: "intent-2", ok: false, refusal: { code: "stale", message: "moved", version: 10 } });
+  const kept = r.session.intent("machine-solve", { machine: { log: { moves: [] } } });
+  for (const [n, version] of [9, 10, 11].entries()) {
+    r.reply({
+      id: `intent-${n + 1}`,
+      ok: false,
+      refusal: { code: "stale", message: "moved", version },
+    });
+    expect(s.of("intent")[n + 1]!.intent).toMatchObject({
+      id: `intent-${n + 2}`,
+      version,
+      kind: "machine-solve",
+    });
+  }
+  r.reply({ id: "intent-4", ok: false, refusal: { code: "stale", message: "moved", version: 12 } });
   expect((await kept).refusal?.code).toBe("stale");
 
-  const plain = r.session.intent("press", { option: "a" });
-  r.reply({ id: "intent-3", ok: false, refusal: { code: "stale", message: "moved", version: 11 } });
-  expect((await plain).refusal?.code).toBe("stale");
+  for (const kind of ["press", "machine-arm", "bench-lesson"]) {
+    const plain = r.session.intent(kind, { option: "a" });
+    const id = `intent-${s.of("intent").length}`;
+    r.reply({ id, ok: false, refusal: { code: "stale", message: "moved", version: 13 } });
+    expect((await plain).refusal?.code).toBe("stale");
+  }
 });
 
 test("an expired session signs in again without being asked", async () => {

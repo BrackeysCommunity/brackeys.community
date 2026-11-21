@@ -43,7 +43,6 @@ class Sum implements Model {
 interface Sent {
   kind: string;
   body: IntentBody;
-  stale: number | undefined;
   answer(reply: Partial<IntentReply>): void;
 }
 
@@ -84,12 +83,11 @@ function harness(over: Partial<MachineView> = {}, layout: Partial<PuzzleLayout> 
       wall: () => t.wall,
       serverNow: () => t.wall + t.offset,
       online: () => t.online,
-      intent: (kind, body, stale) =>
+      intent: (kind, body) =>
         new Promise((resolve) => {
           sent.push({
             kind,
             body,
-            stale,
             answer: (reply) => resolve({ id: "x", ok: true, ...reply }),
           });
         }),
@@ -203,7 +201,6 @@ test("the log is sent when the model is done, and the result is the server's", a
       },
     },
   });
-  expect(h.sent[1]!.stale).toBeGreaterThan(0);
   // The mirror thinks it is solved; only the reply says what it was.
   expect(h.shell.ending).toBeUndefined();
   h.sent[1]!.answer({ machine: { solved: true, clean: true, at: 250 } });
@@ -616,7 +613,6 @@ test("a bench solve the world could not take goes again; one on a moved row is t
   const h = harness({ source: "bench", level: 2, maxPlay: 600_000 });
   h.host().move(3);
   expect(h.sent[0]!.kind).toBe("bench-solve");
-  expect(h.sent[0]!.stale).toBeGreaterThan(0);
   h.sent[0]!.answer({ ok: false, refusal: { code: "busy", message: "too many" } });
   await settle();
   expect(h.shell.phase).toBe("sending");

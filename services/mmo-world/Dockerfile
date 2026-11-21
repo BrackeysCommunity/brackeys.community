@@ -13,12 +13,14 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/world ./cmd/world 
 
 # The Activity's static build, which the service serves on its Activity
 # listener. It reads the API's generated types, the words it shares with
-# chat, and the pack's palette and names, from where they sit in the repo.
+# chat, the pack's palette and names, and the sheet cells the mock gateway
+# plays by, from where they sit in the repo.
 FROM oven/bun:1.3 AS activity
 WORKDIR /src
 COPY packages/mmo-api packages/mmo-api
 COPY packages/mmo-words packages/mmo-words
 COPY services/mmo-world/packs/wasteland services/mmo-world/packs/wasteland
+COPY services/mmo-world/sheets services/mmo-world/sheets
 COPY services/mmo-activity services/mmo-activity
 WORKDIR /src/services/mmo-activity
 RUN bun install --frozen-lockfile && bun run build

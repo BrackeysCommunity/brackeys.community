@@ -37,6 +37,13 @@ func (g *Gateway) Countdowns() int {
 	return n
 }
 
+// Players counts the characters the gateway keeps a record of.
+func (g *Gateway) Players() int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return len(g.players)
+}
+
 // SessionOf is the session of an instance, or nil.
 func (g *Gateway) SessionOf(instance string) *Session {
 	g.mu.Lock()

@@ -115,6 +115,9 @@ edited. It holds these files:
   steps `n + 1` to `trunc(at / layout.step)`; step `k` happens at
   `k × step` ms. `Clock` in `shell/clock.ts` is that loop: give it the
   layout's step and a tick.
+- A family played move by move extends `Untimed`; `within` and `until` in
+  `shell/kit.ts` and `shell/grid.ts` hold the shared range checks and grid
+  steps.
 - `apply(move)` plays one move after `run(move.at)`. A move the family does
   not know returns `BROKE`. `b` and `c` may be missing: read them as 0.
 - `snapshot()` is the same numbers, in the same order, as Go's `Snapshot`.
@@ -146,8 +149,9 @@ edited. It holds these files:
   an exported pure function and test it.
 - `shell/board.ts` has the rest: `pointers` (one captured pointer, a
   cancel drops the drag), `HIT` (22 px, the least hit radius) and `PICKUP`
-  (a piece is picked up from 1.6 radii), `nearest`, `svg`, `text`, `say`,
-  `glyph`, `pieceColour` and `letter`.
+  (a piece is picked up from 1.6 radii), `nearest`, `reach`,
+  `angleOf`/`sweep`/`turning` for a finger turning about a hub, `svg`,
+  `text`, `say`, `glyph`, `pieceColour` and `letter`.
 - `host.dropped(missPx, hitPx, landed, ev)` records how far a touch landed
   from its mark; call it on every drop. The shell sends them as one
   summary beacon a play, never one a touch.

@@ -35,11 +35,11 @@ func (h *fakeHost) CharacterOf(_ context.Context, discord string) (string, error
 
 // View holds back the pass on a machine already passed on, as the
 // service's filter does.
-func (h *fakeHost) View(_ context.Context, id string, v api.Viewer) (api.ActivityState, bool, error) {
+func (h *fakeHost) View(_ context.Context, id string, _ api.Viewer, passed int64) (api.ActivityState, bool, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	st, ok := h.states[id]
-	if m := st.Machine; m != nil && m.Armed && v.Passed == m.ArmedAt {
+	if m := st.Machine; m != nil && m.Armed && passed == m.ArmedAt {
 		passed := *m
 		passed.CanPass, passed.Pass = false, nil
 		st.Machine = &passed
@@ -277,7 +277,7 @@ func TestSocketRules(t *testing.T) {
 		t.Fatalf("refused frames reached the world: %+v", h.acts)
 	}
 	// A look is answered with the state, even one that has not changed;
-	// one more than a seat may send in a second is turned away.
+	// one more than a character's seats may send in a second is turned away.
 	for range gateway.MaxLooks {
 		v.seq++
 		v.send(api.ClientMessage{T: "look", Seq: v.seq, Look: &api.Viewer{Family: "rewire", Level: 2}})

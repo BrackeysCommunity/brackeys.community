@@ -189,6 +189,11 @@ func TestLocalRefusesAsHTTP(t *testing.T) {
 	if _, ref, _ := l.Act(ctx, api.ActionRequest{InteractionID: "o1", CharacterID: first.Character.ID, Kind: api.OpCorrect}); ref == nil || ref.Code != api.CodeForbidden {
 		t.Fatalf("an operator action on the player path: %+v", ref)
 	}
+	for _, kind := range []string{api.ActMachineArm, api.ActMachineSolve} {
+		if _, ref, _ := l.Act(ctx, api.ActionRequest{InteractionID: "m-" + kind, CharacterID: first.Character.ID, Version: first.Character.Version, Kind: kind}); ref == nil || ref.Code != api.CodeForbidden {
+			t.Fatalf("%s from chat: %+v", kind, ref)
+		}
+	}
 	if _, ref, _ := l.Act(ctx, api.ActionRequest{InteractionID: "a/1", CharacterID: first.Character.ID, Version: first.Character.Version, Kind: api.ActRest}); ref == nil || ref.Code != api.CodeBadArgs {
 		t.Fatalf("an interaction id with a '/': %+v", ref)
 	}

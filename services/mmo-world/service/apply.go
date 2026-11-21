@@ -29,6 +29,15 @@ type applied struct {
 	res    game.Result
 }
 
+// chatCommand is a request from chat as a command: playerCommand, less
+// the kinds only the Activity sends.
+func chatCommand(req api.ActionRequest) (game.Command, *api.Refusal, int) {
+	if api.ActivityOnly(req.Kind) {
+		return game.Command{}, &api.Refusal{Code: api.CodeForbidden, Message: "machines are worked in the Activity"}, http.StatusForbidden
+	}
+	return playerCommand(req)
+}
+
 // playerCommand is a player's request as a command; operator kinds take
 // the operator path.
 func playerCommand(req api.ActionRequest) (game.Command, *api.Refusal, int) {

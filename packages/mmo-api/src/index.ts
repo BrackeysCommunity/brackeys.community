@@ -153,6 +153,9 @@ export interface PuzzleLog {
   moves: PuzzleMove[];
   end?: number /* int64 */;
 }
+/**
+ * PuzzleClue says fuse Before is pulled before fuse After.
+ */
 export interface PuzzleClue {
   before: number /* int64 */;
   after: number /* int64 */;
@@ -213,6 +216,9 @@ export interface TokenRequest {
   code?: string;
   dev?: string;
 }
+/**
+ * TokenReply is a gateway session and who it signs in.
+ */
 export interface TokenReply {
   session: string;
   expires: number /* int64 */; // unix seconds
@@ -238,8 +244,7 @@ export interface Context {
   id: string;
 }
 /**
- * ClientMessage is one frame to the gateway. T is hello, look, intent,
- * pass-hint or ping.
+ * ClientMessage is one frame to the gateway; T is a client Frame* name.
  */
 export interface ClientMessage {
   t: string;
@@ -249,6 +254,9 @@ export interface ClientMessage {
   intent?: Intent;
   hint?: PuzzleMove;
 }
+/**
+ * ClientHello opens a socket: the session token, the Activity instance and the screen.
+ */
 export interface ClientHello {
   session: string;
   instance: string;
@@ -266,8 +274,7 @@ export interface Intent {
   machine?: MachineIntent;
 }
 /**
- * ServerMessage is one frame from the gateway. T is state, reply, hint,
- * bye or pong.
+ * ServerMessage is one frame from the gateway; T is a server Frame* name.
  */
 export interface ServerMessage {
   t: string;
@@ -275,8 +282,11 @@ export interface ServerMessage {
   state?: ActivityState;
   reply?: IntentReply;
   hint?: PuzzleMove;
-  bye?: string; // expired, replaced, no-character, bad-hello, slow
+  bye?: string; // a Bye* reason
 }
+/**
+ * IntentReply is the world's answer to one intent.
+ */
 export interface IntentReply {
   id: string;
   ok: boolean;
@@ -382,6 +392,9 @@ export interface PracticeLine {
   need: number /* int64 */;
   title?: string;
 }
+/**
+ * BenchFamily is one family a bench offers the viewer.
+ */
 export interface BenchFamily {
   family: string;
   name: string;
@@ -390,6 +403,9 @@ export interface BenchFamily {
   lessons: number /* int64 */; // waiting here from others
   master?: boolean;
 }
+/**
+ * BenchView is the bench where the viewer stands, with today's uses and caps.
+ */
 export interface BenchView {
   settlement: string;
   families: BenchFamily[];
@@ -400,6 +416,9 @@ export interface BenchView {
   given: number /* int64 */;
   givenCap: number /* int64 */;
 }
+/**
+ * PouchView is a locked pouch the viewer carries.
+ */
 export interface PouchView {
   id: string;
   family: string;

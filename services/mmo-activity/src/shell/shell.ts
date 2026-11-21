@@ -15,7 +15,7 @@ import {
   type PuzzleResult,
   type Refusal,
 } from "../api.ts";
-import { STALE_RETRIES, type IntentBody } from "../session.ts";
+import type { IntentBody } from "../session.ts";
 import { refusalLine } from "../words.ts";
 import { Drops } from "./drops.ts";
 import { GOING, type Family, type Scene, type SceneHost, type Status } from "./kit.ts";
@@ -30,7 +30,7 @@ export interface ShellDeps {
   serverNow(): number;
   /** Whether the socket is open: a machine is not armed into a dead line. */
   online(): boolean;
-  intent(kind: string, body: IntentBody, stale?: number): Promise<IntentReply>;
+  intent(kind: string, body: IntentBody): Promise<IntentReply>;
   /** A timer; the returned function cancels it. */
   after(ms: number, f: () => void): () => void;
   /** One line of telemetry. */
@@ -50,11 +50,9 @@ export interface Ending {
   facts: Fact[];
 }
 
-// A solve turned away by a fault, not by the rules, leaves the machine
-// armed, so the same log goes again after this wait: for as long as the
-// server would still take it, or this many times on a bench or when the
-// page never learned when that is. A row that moved is the session's to
-// send again.
+// A solve turned away by a fault rather than the rules is sent again every
+// RESEND_MS until the machine's due time, or RESENDS_UNTIMED times when it
+// has none. A stale row is the session's to resend.
 const RESEND_MS = 400;
 const RESENDS_UNTIMED = 5;
 const RESENDABLE: string[] = [CodeInternal, CodeBusy];
@@ -124,6 +122,38 @@ export class Shell {
   /** Whether the server has said this machine is armed. */
   get acked(): boolean {
     return this.armedAt !== undefined;
+  }
+
+  /**
+   * The newest state's machine, against this one: "kept" when this one was
+   * updated or shown its ending, "replace" when another must be built in
+   * its place. same says the state's machine is drawn as this one is, in
+   * the same place; last is the newest machine result the state shows.
+   */
+  take(
+    machine: MachineView | undefined,
+    same: boolean,
+    last: PuzzleResult | undefined,
+  ): "kept" | "replace" {
+    const live = this.phase === "play" || this.phase === "sending";
+    // When the world armed a machine drawn otherwise than this one, its
+    // drawing is the one the log will be replayed against.
+    if (live && machine?.armed && !same) return "replace";
+    if (live && this.acked && !(same && machine?.armed)) {
+      if (last) this.conclude(last);
+      return "kept";
+    }
+    // At rest, an arming made in another window is taken only by building
+    // again over it.
+    if (same && machine && this.phase !== "done" && !(this.phase === "rest" && machine.armed)) {
+      this.update(machine);
+      return "kept";
+    }
+    if (this.phase === "rest") return "replace";
+    // The server's own timer answered before this side's log did.
+    if (this.phase === "done" && !this.ending?.result && !this.ending?.refusal && last)
+      this.conclude(last);
+    return "kept";
   }
 
   /** The newest state's view of this same machine. */
@@ -290,7 +320,7 @@ export class Shell {
       const attempt = this.attempt;
       const m = this.machine;
       const body = { machine: { source: m.source, pouch: m.pouch, compact: m.compact } };
-      void this.deps.intent(ActMachineArm, body, STALE_RETRIES).then((reply) => {
+      void this.deps.intent(ActMachineArm, body).then((reply) => {
         if (attempt !== this.attempt || reply.ok) return;
         this.reset(reply.refusal ? refusalLine(reply.refusal) : "The machine would not arm.");
       });
@@ -377,21 +407,17 @@ export class Shell {
   private send(attempt: number, log: PuzzleLog): void {
     const m = this.machine;
     const sent = this.bench
-      ? this.deps.intent(
-          ActBenchSolve,
-          {
-            machine: {
-              source: MachineBench,
-              family: m.family,
-              level: m.level,
-              compact: m.compact,
-              teach: this.teach,
-              log,
-            },
+      ? this.deps.intent(ActBenchSolve, {
+          machine: {
+            source: MachineBench,
+            family: m.family,
+            level: m.level,
+            compact: m.compact,
+            teach: this.teach,
+            log,
           },
-          STALE_RETRIES,
-        )
-      : this.deps.intent(ActMachineSolve, { machine: { log } }, STALE_RETRIES);
+        })
+      : this.deps.intent(ActMachineSolve, { machine: { log } });
     void sent.then((reply) => {
       if (attempt !== this.attempt) return;
       if (this.phase === "sending" && this.resendable(reply)) {

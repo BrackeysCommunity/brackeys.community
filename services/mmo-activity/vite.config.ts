@@ -69,8 +69,15 @@ function pack(): Plugin {
       return `export default ${JSON.stringify(rigs)};\n`;
     },
     "virtual:puzzle-sheet": () => {
+      const sheetFile = (file: string): any => {
+        if (!existsSync(sheetsDir + file))
+          throw new Error(
+            `the mock gateway plays by the world's sheets: services/mmo-world/sheets/${file} must sit beside the Activity when it is built`,
+          );
+        return json(sheetsDir + file);
+      };
       const cell = (file: string, id: string): number => {
-        const row = json(sheetsDir + file).rows.find((r: any) => r.id === id);
+        const row = sheetFile(file).rows.find((r: any) => r.id === id);
         if (row === undefined) throw new Error(`${file} has no row ${id}`);
         return row.value;
       };
@@ -80,7 +87,8 @@ function pack(): Plugin {
         maxPlay: cell("puzzles/params.json", "max-play-seconds") * 1000,
         practiceUses: cell("growth/params.json", "practice-uses"),
         practiceMax: cell("growth/params.json", "practice-max"),
-        gifts: json(`${sheetsDir}puzzles/practice.json`).rows.map((r: any) => ({
+        maxMoves: cell("puzzles/params.json", "max-moves"),
+        gifts: sheetFile("puzzles/practice.json").rows.map((r: any) => ({
           practice: r.practice,
           gives: r.gives,
         })),

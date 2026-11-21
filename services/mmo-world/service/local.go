@@ -47,29 +47,22 @@ func (l *Local) check() error {
 	return nil
 }
 
+// Act applies a request as chat sends it, as POST /v1/actions does; a
+// machine's countdown is armed and solved only through Host.
 func (l *Local) Act(ctx context.Context, req api.ActionRequest) (api.ActionReply, *api.Refusal, error) {
-	return l.act(ctx, req, true)
+	return actOn(ctx, l, req, true, chatCommand)
 }
 
-func (l *Local) act(ctx context.Context, req api.ActionRequest, checkVersion bool) (api.ActionReply, *api.Refusal, error) {
+func (l *Local) doCommand(ctx context.Context, cmd game.Command, discord string, version int64, checkVersion bool) (applied, error) {
 	arrived := l.now()
 	if err := l.check(); err != nil {
-		return api.ActionReply{}, nil, err
+		return applied{}, err
 	}
-	cmd, ref, _ := playerCommand(req)
-	if ref != nil {
-		return api.ActionReply{}, ref, nil
-	}
-	out, err := applyCommand(ctx, l.G, l.mem, &l.subs, cmd, req.DiscordID, req.Version, checkVersion, arrived)
+	out, err := applyCommand(ctx, l.G, l.mem, &l.subs, cmd, discord, version, checkVersion, arrived)
 	if err != nil {
 		l.broken = err
-		return api.ActionReply{}, nil, err
 	}
-	if out.ref != nil {
-		return api.ActionReply{}, out.ref, nil
-	}
-	rep, err := decodeReply(out.body, out.dup)
-	return rep, nil, err
+	return out, err
 }
 
 func (l *Local) now() time.Time {

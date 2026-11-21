@@ -143,13 +143,7 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
-	// A countdown is ended by the Activity's gateway, so it is armed and
-	// solved only there.
-	if game.Timed(req.Kind) {
-		refuse(w, http.StatusForbidden, api.Refusal{Code: api.CodeForbidden, Message: "machines are worked in the Activity"})
-		return
-	}
-	cmd, ref, status := playerCommand(req)
+	cmd, ref, status := chatCommand(req)
 	if ref != nil {
 		refuse(w, status, *ref)
 		return

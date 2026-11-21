@@ -93,7 +93,13 @@ func (m *machines) give(s step) (api.ActionReply, error) {
 		}
 	default:
 		m.clock = s.clock
-		rep, ref, err := m.l.Act(context.Background(), *s.req)
+		act := m.l.Act
+		if api.ActivityOnly(s.req.Kind) {
+			act = func(ctx context.Context, req api.ActionRequest) (api.ActionReply, *api.Refusal, error) {
+				return m.l.Host().Act(ctx, req, true)
+			}
+		}
+		rep, ref, err := act(context.Background(), *s.req)
 		if err != nil {
 			return rep, err
 		}

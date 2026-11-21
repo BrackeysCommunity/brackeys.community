@@ -17,7 +17,6 @@ import (
 	"github.com/coder/websocket"
 
 	"jams.team/mmo-world/api"
-	"jams.team/mmo-world/service"
 )
 
 // structural: the protocol's close code and id bounds.
@@ -30,10 +29,6 @@ const (
 	maxName     = 128 // an instance id, a family or a pouch id
 )
 
-// intents are the writes the Activity may send; everything else stays in
-// chat.
-var intents = []string{api.ActPress, api.ActMachineArm, api.ActMachineSolve, api.ActBenchSolve, api.ActBenchLesson}
-
 // conn is one open socket.
 type conn struct {
 	ws      *websocket.Conn
@@ -44,7 +39,6 @@ type conn struct {
 	// Under the gateway's lock.
 	seat    *Seat
 	discord string
-	arrived int64
 	stops   []func() // timers that end with the socket
 }
 
@@ -259,8 +253,8 @@ func (g *Gateway) greet(c *conn, late *time.Timer) *Seat {
 }
 
 // sit binds a socket to its seat in a session, making either on first
-// need. A socket already in the seat is replaced, and so is a user's
-// oldest when they hold too many; so is their oldest empty seat.
+// need. It replaces the seat's old socket and the user's oldest past
+// maxSockets; a new seat past maxSeats drops their oldest empty one.
 func (g *Gateway) sit(instance, discord, id string, who *player, c *conn, expires int64) *Seat {
 	g.mu.Lock()
 	if g.closed {
@@ -293,13 +287,13 @@ func (g *Gateway) sit(instance, discord, id string, who *player, c *conn, expire
 			held = append(held, o)
 		}
 	}
-	slices.SortFunc(held, func(a, b *conn) int { return int(a.arrived - b.arrived) })
+	slices.SortFunc(held, func(a, b *conn) int { return int(a.seat.sat - b.seat.sat) })
 	for len(held) >= maxSockets {
 		replaced, held = append(replaced, held[0]), held[1:]
 	}
 	g.arrivals++
 	seat.conn, seat.sat = c, g.arrivals
-	c.seat, c.discord, c.arrived = seat, discord, g.arrivals
+	c.seat, c.discord = seat, discord
 	// A socket does not outlive the sign-in it came with.
 	c.stops = append(c.stops, g.clock.AfterFunc(time.Unix(expires, 0).Sub(g.clock.Now()), func() { c.bye(api.ByeExpired) }))
 	// A replaced socket leaves its seat now, so it is not counted or shown
@@ -338,10 +332,19 @@ func (g *Gateway) unseatOldest(discord string, keep *Session) {
 	old := slices.MinFunc(empty, func(a, b *Seat) int { return int(a.sat - b.sat) })
 	sess := old.session
 	delete(sess.seats, old.Char)
-	if len(sess.seats) == 0 && g.sessions[sess.Instance] == sess {
-		if sess.unreap != nil {
-			sess.unreap()
-		}
+	if len(sess.seats) == 0 {
+		g.forget(sess)
+	}
+}
+
+// forget drops a session and the timer that would have; the caller holds
+// the gateway's lock.
+func (g *Gateway) forget(sess *Session) {
+	if sess.unreap != nil {
+		sess.unreap()
+		sess.unreap = nil
+	}
+	if g.sessions[sess.Instance] == sess {
 		delete(g.sessions, sess.Instance)
 	}
 }
@@ -382,8 +385,7 @@ func (g *Gateway) reap(sess *Session) {
 	if g.sessions[sess.Instance] != sess || sess.emptied.IsZero() || g.clock.Now().Sub(sess.emptied) < sessionKept {
 		return
 	}
-	sess.unreap = nil
-	delete(g.sessions, sess.Instance)
+	g.forget(sess)
 }
 
 // decodeFrame reads one client frame. A field the protocol does not have
@@ -479,7 +481,7 @@ func (g *Gateway) intent(ctx context.Context, s *Seat, c *conn, msg api.ClientMe
 		c.send(refusal(msg.Seq, "", api.CodeBadJSON, "an intent carries an id of 8 to 64 letters, digits and dashes"))
 		return
 	}
-	if !slices.Contains(intents, in.Kind) {
+	if !slices.Contains(api.ActivityKinds, in.Kind) {
 		c.send(refusal(msg.Seq, in.ID, api.CodeForbidden, "that is done in chat"))
 		return
 	}
@@ -512,7 +514,7 @@ func (g *Gateway) intent(ctx context.Context, s *Seat, c *conn, msg api.ClientMe
 		c.send(refusal(msg.Seq, in.ID, api.CodeBadJSON, "that intent id is taken"))
 	default:
 		c.send(api.ServerMessage{T: api.FrameReply, Seq: msg.Seq, Reply: &api.IntentReply{ID: in.ID, OK: true, Duplicate: rep.Duplicate,
-			Facts: service.SeenFacts(s.Char, rep.Facts), Pressed: rep.Pressed, Machine: rep.Machine}})
+			Facts: rep.Facts, Pressed: rep.Pressed, Machine: rep.Machine}})
 	}
 	g.show(ctx, s, true)
 }
@@ -527,6 +529,7 @@ func (g *Gateway) passHint(ctx context.Context, s *Seat, c *conn, msg api.Client
 		return
 	}
 	s.who.passed = s.armedAt
+	s.pass = nil
 	g.mu.Lock()
 	var others []*conn
 	for _, sess := range g.sessions {
@@ -586,9 +589,7 @@ func (g *Gateway) show(ctx context.Context, s *Seat, force bool) {
 			g.dismiss(s)
 			return
 		}
-		v := s.Viewer
-		v.Passed = s.who.passed
-		st, ok, err := g.cfg.Host.View(ctx, s.Char, v)
+		st, ok, err := g.cfg.Host.View(ctx, s.Char, s.Viewer, s.who.passed)
 		if err != nil {
 			g.log.Error("activity: building a state", "character", s.Char, "err", err.Error())
 			return

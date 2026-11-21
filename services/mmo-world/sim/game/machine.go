@@ -46,9 +46,9 @@ const (
 	SourceBench = "bench"
 )
 
-// structural: the practice a lock trains beside its family's, and the
-// ticks a machine that haywired but stays for another try is shut for, so
-// one failure cannot be repeated inside a tick.
+// structural: the practice a lock trains beside its family's, and how
+// long a machine that haywired and stays is shut to its character, so a
+// failure is not repeated within a tick.
 const (
 	practiceLockpick = "lockpick"
 	retryTicks       = 1
@@ -158,6 +158,7 @@ type Rig struct {
 	Master        bool
 	Guide         *puzzle.Move  // the first move of a solve, with the guide line
 	Hints         []puzzle.Move // as many as the practice allows
+	Pass          *puzzle.Move  // the move a master may pass on: the first hint, else the guide
 	Countdown     int64         // ms; 0 at a bench
 	MaxPlay       int64         // ms a bench machine may be played for; 0 elsewhere
 	Why           []Part
@@ -307,6 +308,12 @@ func (g *Game) rig(at spot, practice int64) Rig {
 	if n := out.Gifts.Hints; n > 0 {
 		hints := p.Hints(out.Layout)
 		out.Hints = hints[:min(int64(len(hints)), n)]
+	}
+	if out.Master {
+		out.Pass = out.Guide
+		if len(out.Hints) > 0 {
+			out.Pass = &out.Hints[0]
+		}
 	}
 	if at.source == SourceBench {
 		out.MaxPlay = p.MaxPlay()
@@ -458,7 +465,7 @@ func (g *Game) beatWorked(c *Char, key string, a *Armed, res puzzle.Result, tick
 	}
 	if !ok {
 		if !res.Solved {
-			g.haywired(c, a.Spec.Place, res.Haywire, c.C.At, tick, retryTicks)
+			return nil, true, g.failed(c, a.Spec.Family, a.Spec.Place, res, tick, retryTicks)
 		}
 		return nil, true, nil
 	}
@@ -515,6 +522,24 @@ func (g *Game) haywired(c *Char, place, haywire string, at hex.Hex, tick, least 
 	}
 }
 
+// failed is what a machine that haywired outside a fight does: its reach
+// past the fight from where the character stands, the haywire's fact, and
+// the practice a failure still pays. A fight's machine does the same
+// through the encounter.
+func (g *Game) failed(c *Char, family, place string, res puzzle.Result, tick, least int64, more ...fact.Datum) error {
+	rules := g.Puzzles()
+	g.haywired(c, place, res.Haywire, c.C.At, tick, least)
+	data := append([]fact.Datum{fact.S("family", family), fact.S("haywire", res.Haywire)}, more...)
+	data = append(data, fact.B("late", res.Late))
+	if row := rules.HaywireRow(res.Haywire); row != nil {
+		data = append(data, fact.N("magnitude", row.Magnitude))
+	}
+	if _, err := g.fact(c, "puzzle.haywire", tick, data...); err != nil {
+		return err
+	}
+	return g.practise(c, family, rules.Param("haywire-uses"), tick)
+}
+
 // alarm raises a tile's region at the next tick. One character's alarms
 // on one tile are one alarm a tick, however often a machine fails there.
 func (g *Game) alarm(c *Char, at hex.Hex, threat int64) {
@@ -529,8 +554,8 @@ func (g *Game) alarm(c *Char, at hex.Hex, threat int64) {
 func (g *Game) PouchLocked(c *Char, p *Pouch) int64 { return c.lockedFor(pouchPlace(p.ID), g.Tick()) }
 
 // pouchWorked opens a pouch whose lock was solved, paying exactly what it
-// holds, or leaves it shut after a haywire: for the lockdown's days
-// whatever the row, an alarm's too.
+// holds. After any haywire the pouch stays shut for at least the sheet's
+// lockdown days.
 func (g *Game) pouchWorked(c *Char, key string, a *Armed, res puzzle.Result, tick int64) error {
 	i := c.pouch(a.Pouch)
 	if i < 0 {
@@ -540,15 +565,7 @@ func (g *Game) pouchWorked(c *Char, key string, a *Armed, res puzzle.Result, tic
 	rules := g.Puzzles()
 	if !res.Solved {
 		p.Tries++
-		g.haywired(c, pouchPlace(p.ID), res.Haywire, c.C.At, tick, rules.LockdownDays()*sheets.TicksPerDay)
-		data := []fact.Datum{fact.S("family", p.Family), fact.S("haywire", res.Haywire), fact.S("pouch", p.ID), fact.B("late", res.Late)}
-		if row := rules.HaywireRow(res.Haywire); row != nil {
-			data = append(data, fact.N("magnitude", row.Magnitude))
-		}
-		if _, err := g.fact(c, "puzzle.haywire", tick, data...); err != nil {
-			return err
-		}
-		return g.practise(c, p.Family, rules.Param("haywire-uses"), tick)
+		return g.failed(c, p.Family, pouchPlace(p.ID), res, tick, rules.LockdownDays()*sheets.TicksPerDay, fact.S("pouch", p.ID))
 	}
 	family := p.Family
 	acc := ledger.Char(c.C.ID)

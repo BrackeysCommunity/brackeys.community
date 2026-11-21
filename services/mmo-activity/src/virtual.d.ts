@@ -9,6 +9,7 @@ declare module "virtual:puzzle-sheet" {
     grace: number;
     cleanPct: number;
     maxPlay: number;
+    maxMoves: number;
     practiceUses: number;
     practiceMax: number;
     gifts: { practice: number; gives: string }[];

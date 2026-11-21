@@ -124,8 +124,9 @@ func TestCountdown(t *testing.T) {
 	}
 }
 
-// TestCountdownUnseen ends machines nobody's socket ever showed: armed
-// through the host with no seat open, the countdown runs out at its Due.
+// TestCountdownUnseen ends machines nobody's socket ever showed. Only the
+// gateway's own writes start a countdown at once; one armed past it, with
+// no seat open, is found at the next tick and runs out at its Due.
 func TestCountdownUnseen(t *testing.T) {
 	w := newWorld(t)
 	c := w.create("u-tinker")
@@ -133,8 +134,13 @@ func TestCountdownUnseen(t *testing.T) {
 	testkit.MachineBeat(t, w.g, c, puzzle.Rewire, 1)
 	w.act(c, "arm-unseen", api.ActionRequest{Kind: api.ActMachineArm, Machine: &armBeat})
 	gw.Settle()
+	if gw.Countdowns() != 0 || gw.Players() != 0 {
+		t.Fatal("a write past the gateway was checked as one of its own")
+	}
+	w.tick()
+	gw.Settle()
 	if gw.Countdowns() != 1 {
-		t.Fatal("no countdown for a machine armed with no seat open")
+		t.Fatal("no countdown after a tick for a machine armed with no seat open")
 	}
 	list, err := w.Armed(t.Context())
 	if err != nil || len(list) != 1 {
@@ -152,10 +158,14 @@ func TestCountdownUnseen(t *testing.T) {
 	gw.Settle()
 	w.do(func() { testkit.MachineBeat(t, w.g, c, puzzle.Rewire, 1) })
 	w.act(c, "arm-unseen-2", api.ActionRequest{Kind: api.ActMachineArm, Machine: &armBeat})
+	w.tick()
 	gw.Settle()
+	if gw.Countdowns() != 1 {
+		t.Fatal("no countdown for the second machine armed past the gateway")
+	}
 
 	// Solved past the gateway, its timer goes with the next notice.
-	rig, _, err := w.View(t.Context(), c.C.ID, api.Viewer{})
+	rig, _, err := w.View(t.Context(), c.C.ID, api.Viewer{}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

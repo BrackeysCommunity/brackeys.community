@@ -130,11 +130,11 @@ func (w *world) CharacterOf(ctx context.Context, discord string) (string, error)
 	return w.host.CharacterOf(ctx, discord)
 }
 
-func (w *world) View(ctx context.Context, id string, v api.Viewer) (api.ActivityState, bool, error) {
+func (w *world) View(ctx context.Context, id string, v api.Viewer, passed int64) (api.ActivityState, bool, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.views[id]++
-	return w.host.View(ctx, id, v)
+	return w.host.View(ctx, id, v, passed)
 }
 
 // viewed is how many times a character's state has been built.

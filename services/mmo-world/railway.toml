@@ -19,7 +19,7 @@
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "services/mmo-world/Dockerfile"
-watchPatterns = ["services/mmo-world/**", "services/mmo-activity/**", "packages/mmo-api/**"]
+watchPatterns = ["services/mmo-world/**", "services/mmo-activity/**", "packages/mmo-api/**", "packages/mmo-words/**"]
 
 [deploy]
 healthcheckPath = "/healthz"

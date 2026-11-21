@@ -7,8 +7,7 @@ import { launch, routes, SignInError } from "./discord.ts";
 import { Session, type SessionDeps, type SocketLike } from "./session.ts";
 import { theme } from "./theme.ts";
 
-// The session's clock: a step in the device's wall clock would leave the
-// server's offset stale, so it never moves but forward.
+// Monotonic, so a step in the device's wall clock leaves the server offset good.
 const monotonic = () => performance.timeOrigin + performance.now();
 
 const after = (ms: number, f: () => void) => {

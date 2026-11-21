@@ -10,7 +10,7 @@ import {
   type Viewer,
 } from "./api.ts";
 import { button, el, lines, panel } from "./dom.ts";
-import { STALE_RETRIES, type IntentBody, type Session } from "./session.ts";
+import type { IntentBody, Session } from "./session.ts";
 import { MachinePanel } from "./shell/panel.ts";
 import { familyOf } from "./shell/registry.ts";
 import { plural, seconds } from "./units.ts";
@@ -240,44 +240,12 @@ export class App {
     return told.length ? panel("Just now", ...lines(...told)) : undefined;
   }
 
-  // Keeps the machine in hand in step with the state: the same machine is
-  // updated in place, one the server ended is shown its ending, and a new
-  // one replaces only a machine nobody has touched.
+  // Keeps the machine in hand in step with the state; the machine decides
+  // whether it stays, and a new one is built only when it gives way.
   private syncMachine(state: ActivityState): void {
     const m = state.machine;
     const k = m ? key(m) : "";
-    const shell = this.machine?.shell;
-    if (this.machine && shell) {
-      const same = k === this.machineKey;
-      const live = shell.phase === "play" || shell.phase === "sending";
-      // When the world armed a machine drawn otherwise than the one in
-      // hand, its drawing is the one the log will be replayed against:
-      // the one in hand gives way.
-      const redrawn = live && Boolean(m?.armed) && !same;
-      if (!redrawn) {
-        if (live && shell.acked && !(same && m?.armed)) {
-          if (state.last) this.machine.conclude(state.last.result);
-          return;
-        }
-        // A shell at rest takes an arming made in another window only by
-        // being built again over it.
-        if (same && shell.phase !== "done" && !(shell.phase === "rest" && m?.armed)) {
-          this.machine.update(m!);
-          return;
-        }
-        if (shell.phase !== "rest") {
-          // The server's own timer answered before this side's log did.
-          if (
-            shell.phase === "done" &&
-            !shell.ending?.result &&
-            !shell.ending?.refusal &&
-            state.last
-          )
-            this.machine.conclude(state.last.result);
-          return;
-        }
-      }
-    }
+    if (this.machine?.take(m, k === this.machineKey, state.last?.result) === "kept") return;
     this.dropMachine();
     const family = m && familyOf(m.family);
     if (!m || !family) return;
@@ -287,7 +255,7 @@ export class App {
         family,
         serverNow: () => this.session.serverNow(),
         online: () => this.session.open,
-        intent: (kind, body, stale) => this.session.intent(kind, body, stale),
+        intent: (kind, body) => this.session.intent(kind, body),
         passHint: (move) => this.session.passHint(move),
         why: () => this.openWhy({}),
         close: (again) => this.closeMachine(again),
@@ -347,7 +315,7 @@ export class App {
     this.notice = "";
     this.last = undefined;
     this.render();
-    const reply = await this.session.intent(kind, body, STALE_RETRIES);
+    const reply = await this.session.intent(kind, body);
     this.busy = false;
     if (reply.ok) this.last = { pressed: reply.pressed ?? [], facts: reply.facts ?? [] };
     else this.notice = reply.refusal ? refusalLine(reply.refusal) : "The world did not take that.";

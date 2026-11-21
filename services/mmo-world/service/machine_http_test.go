@@ -61,7 +61,7 @@ func TestMachinesOverHTTP(t *testing.T) {
 		t.Fatalf("after a create the listener heard %v", h)
 	}
 	look := api.Viewer{Family: puzzle.Rewire, Level: 1}
-	st, ok, err := r.srv.View(ctx, id, look)
+	st, ok, err := r.srv.View(ctx, id, look, 0)
 	if err != nil || !ok || st.Bench == nil || st.Machine == nil || st.Machine.Source != api.MachineBench || st.Now == 0 {
 		t.Fatalf("the bench where a new character stands: %+v %v", st, err)
 	}
@@ -88,7 +88,7 @@ func TestMachinesOverHTTP(t *testing.T) {
 		t.Fatal("a refused bench solve changed the world")
 	}
 	// The same log against the next machine is not a solve: it was drawn anew.
-	st, _, _ = r.srv.View(ctx, id, look)
+	st, _, _ = r.srv.View(ctx, id, look, 0)
 	solve.InteractionID, solve.Machine.Level, solve.Machine.Log = "bench-3", 1, &api.PuzzleLog{Moves: []api.PuzzleMove{{At: 10, A: 0, B: 0}}}
 	if rep, ref, err = r.cli.Act(ctx, solve); err != nil || ref != nil || rep.Machine.Solved || rep.Machine.Haywire != "" {
 		t.Fatalf("an unfinished bench log: %+v %v %v", rep.Machine, ref, err)
@@ -104,7 +104,7 @@ func TestMachinesOverHTTP(t *testing.T) {
 	g := r.srv.Game()
 	c := g.Char(id)
 	testkit.MachineBeat(t, g, c, puzzle.Rewire, 2)
-	st, _, _ = r.srv.View(ctx, id, api.Viewer{})
+	st, _, _ = r.srv.View(ctx, id, api.Viewer{}, 0)
 	log := rewired(st.Machine.Layout)
 	armed, ref, err := r.srv.Act(ctx, api.ActionRequest{InteractionID: "act-arm", CharacterID: id, Version: c.Version, Kind: api.ActMachineArm,
 		Machine: &api.MachineIntent{Source: api.MachineBeat}}, true)
@@ -127,7 +127,7 @@ func TestMachinesOverHTTP(t *testing.T) {
 	if err != nil || !slices.Equal(again, list) {
 		t.Fatalf("after a restart the countdowns are %+v, were %+v (%v)", again, list, err)
 	}
-	st, _, _ = r.srv.View(ctx, id, api.Viewer{})
+	st, _, _ = r.srv.View(ctx, id, api.Viewer{}, 0)
 	if st.Machine == nil || !st.Machine.Armed || st.Machine.Due != list[0].Due || st.Machine.Deadline+st.Machine.Grace != st.Machine.Due {
 		t.Fatalf("the armed machine after a restart: %+v", st.Machine)
 	}
@@ -136,7 +136,7 @@ func TestMachinesOverHTTP(t *testing.T) {
 	if err != nil || ref != nil || late.Machine == nil || late.Machine.Solved || !late.Machine.Late || late.Machine.Haywire == "" {
 		t.Fatalf("a log after the countdown ran out: %+v %v %v", late.Machine, ref, err)
 	}
-	if st, _, _ = r.srv.View(ctx, id, api.Viewer{}); st.Last == nil || !st.Last.Result.Late || st.Character.Armed {
+	if st, _, _ = r.srv.View(ctx, id, api.Viewer{}, 0); st.Last == nil || !st.Last.Result.Late || st.Character.Armed {
 		t.Fatalf("after the haywire: %+v", st.Last)
 	}
 	if _, ref, _ := r.srv.Act(ctx, api.ActionRequest{InteractionID: "mx-" + id + "-2", CharacterID: id, Kind: api.ActMachineSolve}, false); ref == nil || ref.Code != api.CodeNoMachine {
@@ -177,7 +177,7 @@ func TestSolveWaitingOnTheWorld(t *testing.T) {
 	if err != nil || ref != nil {
 		t.Fatal(ref, err)
 	}
-	st, _, _ := r.srv.View(ctx, id, api.Viewer{})
+	st, _, _ := r.srv.View(ctx, id, api.Viewer{}, 0)
 	m := st.Machine
 	log := rewired(m.Layout)
 	until := func(at int64) { ahead.Add(int64(time.Until(time.UnixMilli(at))) - ahead.Load()) }

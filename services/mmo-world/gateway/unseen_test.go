@@ -52,7 +52,7 @@ func TestNothingUnseen(t *testing.T) {
 	w.serve(nil)
 
 	// The teacher, who never opens the Activity, leaves a lesson.
-	taught, _, err := w.View(t.Context(), teacher.C.ID, api.Viewer{Family: puzzle.Rewire, Level: 1})
+	taught, _, err := w.View(t.Context(), teacher.C.ID, api.Viewer{Family: puzzle.Rewire, Level: 1}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

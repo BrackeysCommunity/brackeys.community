@@ -25,7 +25,7 @@ export interface PanelDeps {
   family: Family;
   serverNow(): number;
   online(): boolean;
-  intent(kind: string, body: IntentBody, stale?: number): Promise<IntentReply>;
+  intent(kind: string, body: IntentBody): Promise<IntentReply>;
   passHint(m: PuzzleMove): void;
   /** Opens the machine's why. */
   why(): void;
@@ -81,7 +81,7 @@ export class MachinePanel {
         wall: () => performance.now(),
         serverNow: () => deps.serverNow(),
         online: () => deps.online(),
-        intent: (kind, body, stale) => deps.intent(kind, body, stale),
+        intent: (kind, body) => deps.intent(kind, body),
         after: (ms, f) => {
           const id = setTimeout(f, ms);
           return () => clearTimeout(id);
@@ -100,12 +100,13 @@ export class MachinePanel {
     this.frame = requestAnimationFrame(loop);
   }
 
-  update(machine: MachineView): void {
-    this.shell.update(machine);
-  }
-
-  conclude(result: PuzzleResult): void {
-    this.shell.conclude(result);
+  /** The newest state's machine: see Shell.take. */
+  take(
+    machine: MachineView | undefined,
+    same: boolean,
+    last: PuzzleResult | undefined,
+  ): "kept" | "replace" {
+    return this.shell.take(machine, same, last);
   }
 
   showHint(m: PuzzleMove): void {

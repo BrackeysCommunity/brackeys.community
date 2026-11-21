@@ -60,7 +60,13 @@ func (s *seeing) act(c *game.Char, req api.ActionRequest) (api.ActionReply, *api
 	s.t.Helper()
 	s.n++
 	req.InteractionID, req.CharacterID, req.Version = "see-"+string(rune('a'+s.n%26))+string(rune('a'+s.n/26)), c.C.ID, c.Version
-	rep, ref, err := s.l.Act(context.Background(), req)
+	act := s.l.Act
+	if api.ActivityOnly(req.Kind) {
+		act = func(ctx context.Context, req api.ActionRequest) (api.ActionReply, *api.Refusal, error) {
+			return s.l.Host().Act(ctx, req, true)
+		}
+	}
+	rep, ref, err := act(context.Background(), req)
 	if err != nil {
 		s.t.Fatal(err)
 	}
@@ -69,7 +75,7 @@ func (s *seeing) act(c *game.Char, req api.ActionRequest) (api.ActionReply, *api
 
 func (s *seeing) view(c *game.Char, v api.Viewer) (api.ActivityState, string) {
 	s.t.Helper()
-	st := service.Filter(s.g, c, v, s.now)
+	st := service.Filter(s.g, c, v, 0, s.now)
 	body, err := json.Marshal(st)
 	if err != nil {
 		s.t.Fatal(err)
@@ -137,7 +143,7 @@ func TestFilter(t *testing.T) {
 	if m.Pass == nil || *m.Pass != m.Hints[0] {
 		t.Fatalf("the move to pass: %+v, hints %+v", m.Pass, m.Hints)
 	}
-	if again, _ := s.view(master, api.Viewer{Passed: m.ArmedAt}); again.Machine.CanPass || again.Machine.Pass != nil {
+	if again := service.Filter(s.g, master, api.Viewer{}, m.ArmedAt, s.now); again.Machine.CanPass || again.Machine.Pass != nil {
 		t.Fatalf("a machine already passed on: %+v", again.Machine)
 	}
 	if mine.Bench != nil || len(mine.Pouches) != 1 || mine.Fight == nil || mine.Fight.Machine != puzzle.Circuit || mine.Context.ID != master.C.ID {
@@ -259,11 +265,11 @@ func TestLocalHost(t *testing.T) {
 	if len(told) != 1 || !slices.Equal(told[0], []string{c.C.ID}) {
 		t.Fatalf("after a create the listener heard %v", told)
 	}
-	if _, ok, _ := host.View(ctx, "c-none", api.Viewer{}); ok {
+	if _, ok, _ := host.View(ctx, "c-none", api.Viewer{}, 0); ok {
 		t.Fatal("a view of nobody")
 	}
 	testkit.MachineBeat(t, g, c, puzzle.Rewire, 2)
-	st, ok, err := host.View(ctx, c.C.ID, api.Viewer{})
+	st, ok, err := host.View(ctx, c.C.ID, api.Viewer{}, 0)
 	if err != nil || !ok || st.Machine == nil || st.Machine.Armed {
 		t.Fatalf("the view at rest: %+v %v", st.Machine, err)
 	}
@@ -340,7 +346,7 @@ func TestLocalHost(t *testing.T) {
 	if err != nil || ref != nil || rep.Machine.Solved || !rep.Machine.Late || rep.Machine.Haywire == "" {
 		t.Fatalf("the expiry: %+v %v %v", rep.Machine, ref, err)
 	}
-	st, _, _ = host.View(ctx, c.C.ID, api.Viewer{})
+	st, _, _ = host.View(ctx, c.C.ID, api.Viewer{}, 0)
 	if st.Last == nil || st.Last.Result.Haywire == "" || !st.Last.Result.Late || st.Machine == nil || st.Machine.Armed {
 		t.Fatalf("after the countdown ran out: last %+v, machine %+v", st.Last, st.Machine)
 	}
@@ -369,7 +375,7 @@ func TestLocalHost(t *testing.T) {
 	if guild == "" {
 		t.Fatal("nobody runs the first settlement")
 	}
-	st, _, _ = host.View(ctx, teacher.C.ID, api.Viewer{Family: puzzle.Rewire, Level: 1})
+	st, _, _ = host.View(ctx, teacher.C.ID, api.Viewer{Family: puzzle.Rewire, Level: 1}, 0)
 	log = &api.PuzzleLog{}
 	for w, port := range st.Machine.Layout.Target {
 		log.Moves = append(log.Moves, api.PuzzleMove{At: int64(w+1) * 300, A: int64(w), B: port})
@@ -378,10 +384,10 @@ func TestLocalHost(t *testing.T) {
 	if ref != nil || !rep.Machine.Solved {
 		t.Fatalf("the teacher's bench solve: %+v %v", rep.Machine, ref)
 	}
-	if st, _, _ := host.View(ctx, learner.C.ID, api.Viewer{}); st.Bench == nil || st.Bench.Families[slices.IndexFunc(st.Bench.Families, func(f api.BenchFamily) bool { return f.Family == puzzle.Rewire })].Lessons != 1 {
+	if st, _, _ := host.View(ctx, learner.C.ID, api.Viewer{}, 0); st.Bench == nil || st.Bench.Families[slices.IndexFunc(st.Bench.Families, func(f api.BenchFamily) bool { return f.Family == puzzle.Rewire })].Lessons != 1 {
 		t.Fatalf("the learner's bench: %+v", st.Bench)
 	}
-	if st, _, _ := host.View(ctx, teacher.C.ID, api.Viewer{}); st.Bench.Given != 1 || st.Bench.Families[0].Lessons != 0 {
+	if st, _, _ := host.View(ctx, teacher.C.ID, api.Viewer{}, 0); st.Bench.Given != 1 || st.Bench.Families[0].Lessons != 0 {
 		t.Fatalf("the teacher's bench: %+v", st.Bench)
 	}
 	heard = len(told)

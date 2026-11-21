@@ -26,9 +26,9 @@ func found(g *game.Game, h hex.Hex) bool {
 // Filter is everything one character's owner may be shown: the one rule
 // for what a viewer sees, for the Activity and for the map. It names no
 // other character, and nothing a machine is generated from: no place, no
-// attempt, no key. A machine's level, countdown and haywire show at rest
-// only to a viewer whose practice buys the preview.
-func Filter(g *game.Game, c *game.Char, v api.Viewer, now time.Time) api.ActivityState {
+// attempt, no key. passed is the armedAt of the machine whose move the
+// viewer already passed on.
+func Filter(g *game.Game, c *game.Char, v api.Viewer, passed int64, now time.Time) api.ActivityState {
 	h := c.C.At
 	st := api.ActivityState{Tick: g.Tick(), Context: api.Context{Kind: contextSolo, ID: c.C.ID}, Character: apiCharacter(g, c),
 		Place: api.ActivityHere{Tile: tileView(g, h), Name: g.PlaceName(h)}}
@@ -42,7 +42,7 @@ func Filter(g *game.Game, c *game.Char, v api.Viewer, now time.Time) api.Activit
 	}
 	st.Fight = apiFight(g, c, g.Choose(c).Fight)
 	if rig, ok := g.Rig(c, apiViewer(v)); ok {
-		st.Machine = machineView(g, c, rig, v.Passed)
+		st.Machine = machineView(g, c, rig, passed)
 	}
 	if b, ok := g.BenchFor(c); ok {
 		st.Bench = benchView(g, c, b)
@@ -93,9 +93,9 @@ func practiceLine(g *game.Game, c *game.Char, family string) api.PracticeLine {
 }
 
 // machineView is a rig as its viewer may be shown it: the level,
-// countdown, why and haywire of a machine at rest are kept back unless
-// practice buys the preview. A master may pass one move on for each armed
-// machine: the first hint, else the guide; passed is the machine they did.
+// countdown, why and haywire show once armed, at a bench, or with the
+// preview. A master may pass one move (the first hint, else the guide) per
+// armed machine; passed is the armedAt of the one already passed on.
 func machineView(g *game.Game, c *game.Char, rig game.Rig, passed int64) *api.MachineView {
 	family := rig.Spec.Family
 	m := &api.MachineView{Source: rig.Source, Pouch: rig.Pouch, Family: family, Name: familyName(g, family), Layout: apiLayout(rig.Layout),
@@ -120,12 +120,8 @@ func machineView(g *game.Game, c *game.Char, rig game.Rig, passed int64) *api.Ma
 	}
 	if a := rig.Armed; a != nil {
 		m.Armed, m.ArmedAt, m.Deadline, m.Grace, m.Due = true, a.At, a.Deadline(), g.Puzzles().Grace(), g.MachineDue(a)
-		if rig.Master && passed != a.At {
-			m.Pass = m.Guide
-			if len(m.Hints) > 0 {
-				m.Pass = &m.Hints[0]
-			}
-			m.CanPass = m.Pass != nil
+		if rig.Pass != nil && passed != a.At {
+			m.Pass, m.CanPass = apiMove(*rig.Pass), true
 		}
 	}
 	return m

@@ -182,8 +182,8 @@ func (p *Puzzles) Countdown(family string, level, tier, practice int64) int64 {
 	return fixed.PercentOf((t.family+t.level)*msPerSecond, pct)
 }
 
-// CountdownParts is what Countdown is made of, the parts that are nothing
-// left out.
+// CountdownParts is what Countdown is made of: the family's part, and each
+// other part that is not zero.
 func (p *Puzzles) CountdownParts(family string, level, tier, practice int64) []Part {
 	t := p.timing(family, level, tier, practice)
 	out := []Part{{"family", t.family, UnitSeconds}}

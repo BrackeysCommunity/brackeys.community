@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"jams.team/mmo-world/gateway"
+	"jams.team/mmo-world/internal/envvar"
 	"jams.team/mmo-world/service"
 )
 
@@ -51,17 +52,17 @@ func run(guard *service.Guard, log *slog.Logger) error {
 	manual, disposable := os.Getenv(service.EnvManualClock) == "1", os.Getenv(service.EnvDisposable) == "1"
 	// Discord's client secret is guarded like a key: out of the logs and
 	// out of the database.
-	activity, activityPort, secret, err := gateway.FromEnv(service.Getenv(service.EnvPort, "8080"), manual, disposable, log)
+	activity, activityPort, secret, err := gateway.FromEnv(envvar.Get(service.EnvPort, "8080"), manual, disposable, log)
 	needles := append(sec.Needles[:len(sec.Needles):len(sec.Needles)], secret...)
 	guard.Arm(needles)
 	if err != nil {
 		return err
 	}
-	tickSeconds, err := service.Number(service.EnvTickSeconds, "600", 1, math.MaxInt32)
+	tickSeconds, err := envvar.Number(service.EnvTickSeconds, "600", 1, math.MaxInt32)
 	if err != nil {
 		return err
 	}
-	pollMS, err := service.Number(service.EnvPollMS, "1000", 1, maxPollMS)
+	pollMS, err := envvar.Number(service.EnvPollMS, "1000", 1, maxPollMS)
 	if err != nil {
 		return err
 	}
@@ -84,7 +85,7 @@ func run(guard *service.Guard, log *slog.Logger) error {
 	}
 	defer pool.Close()
 	standby := service.Standby(sec.World)
-	apiSrv, serveAPI := listen(service.Getenv(service.EnvPort, "8080"), limits{}, standby, log, stop)
+	apiSrv, serveAPI := listen(envvar.Get(service.EnvPort, "8080"), limits{}, standby, log, stop)
 	servers := []*http.Server{apiSrv}
 	serveActivity := func(http.Handler) {}
 	if activityPort != "" {
@@ -107,7 +108,7 @@ func run(guard *service.Guard, log *slog.Logger) error {
 	}
 	log.Info("key check holds: no key in the database, the log guard is armed", "world", sec.World)
 
-	events := service.NewEvents(service.Getenv(service.EnvPosthogHost, "https://us.i.posthog.com"), os.Getenv(service.EnvPosthogKey), log)
+	events := service.NewEvents(envvar.Get(service.EnvPosthogHost, "https://us.i.posthog.com"), os.Getenv(service.EnvPosthogKey), log)
 	defer events.Close()
 	srv, err := service.Open(ctx, pool, service.Config{Secrets: sec,
 		TickSeconds: int32(tickSeconds), Book: book, APIToken: apiToken, OperatorToken: os.Getenv(service.EnvOperatorToken),

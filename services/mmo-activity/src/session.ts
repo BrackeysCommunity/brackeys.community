@@ -1,4 +1,6 @@
 import {
+  ActBenchSolve,
+  ActMachineSolve,
   ByeBadHello,
   ByeExpired,
   ByeNoCharacter,
@@ -73,8 +75,11 @@ interface Pending {
   resolve(reply: IntentReply): void;
 }
 
-/** How many times a write is sent again when the row moved under it. */
-export const STALE_RETRIES = 3;
+// A solve names the server's own machine, so it is sent again this many
+// times when the row moved under it. Any other write was chosen against
+// the state on screen: a moved row is shown before it can be made again.
+const STALE_RETRIES = 3;
+const RETRIED_STALE: string[] = [ActMachineSolve, ActBenchSolve];
 
 const BYE_CODE = 4001;
 const RETRY_MIN = 500;
@@ -159,10 +164,9 @@ export class Session {
 
   /**
    * Sends a write and resolves with the world's answer. Intents go one at
-   * a time, each naming the row version of the state before it. `stale`
-   * is how many times to send again when the row had moved underneath.
+   * a time, each naming the row version of the state before it.
    */
-  intent(kind: string, body: IntentBody = {}, stale = 0): Promise<IntentReply> {
+  intent(kind: string, body: IntentBody = {}): Promise<IntentReply> {
     return new Promise((resolve) => {
       this.queue.push({
         id: this.deps.id(),
@@ -170,7 +174,7 @@ export class Session {
         kind,
         body,
         version: undefined,
-        stale,
+        stale: RETRIED_STALE.includes(kind) ? STALE_RETRIES : 0,
         sent: false,
         resolve,
       });

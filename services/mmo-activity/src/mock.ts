@@ -40,8 +40,7 @@ import {
   type Viewer,
 } from "./api.ts";
 import type { SocketLike } from "./session.ts";
-import { DONE } from "./shell/kit.ts";
-import { judge, play } from "./shell/play.ts";
+import { playLimited } from "./shell/play.ts";
 import { familyOf } from "./shell/registry.ts";
 import { name } from "./words.ts";
 
@@ -56,8 +55,10 @@ export interface MockDeps {
 }
 
 // The mock plays by the world's sheets; only the world service decides a
-// real outcome. A lockdown's length is an imitation.
+// real outcome. A lockdown's length and the haywire every machine does
+// are imitations.
 const LOCKDOWN_TICKS = 144;
+const HAYWIRE = { id: "alarm", name: "alarm", magnitude: 40, unit: "gauge" };
 
 /** What a practice level buys, as sim/puzzle's Gifts sums it. */
 function gifts(practice: number) {
@@ -226,8 +227,7 @@ export class MockGateway {
         !bench && shown
           ? [{ label: "family", value: Math.trunc(rig.countdown / 1000), unit: "s" }]
           : undefined,
-      haywire:
-        !bench && shown ? { id: "alarm", name: "alarm", magnitude: 40, unit: "gauge" } : undefined,
+      haywire: !bench && shown ? HAYWIRE : undefined,
       guide: gift.guide ? rig.hints[0] : undefined,
       hints: rig.hints.slice(0, gift.hints),
       armed: false,
@@ -241,7 +241,7 @@ export class MockGateway {
     const cancel = this.deps.after(
       Math.max(0, at + countdown + sheet.grace + 250 - this.deps.now()),
       () => {
-        this.resolve({ solved: false, clean: false, late: true, at: 0, haywire: "alarm" });
+        this.resolve({ solved: false, clean: false, late: true, at: 0, haywire: HAYWIRE.id });
         this.push();
       },
     );
@@ -252,7 +252,7 @@ export class MockGateway {
         ...view,
         level: view.level ?? this.level(view),
         countdown,
-        haywire: view.haywire ?? { id: "alarm", name: "alarm", magnitude: 40, unit: "gauge" },
+        haywire: view.haywire ?? HAYWIRE,
         armed: true,
         armedAt: at,
         deadline: at + countdown,
@@ -325,27 +325,18 @@ export class MockGateway {
         const a = this.armed;
         const family = a && familyOf(a.view.family);
         if (!a || !family) return refuse(CodeNoMachine, "no machine is armed");
-        const countdown = a.view.countdown ?? 0;
-        const elapsed = this.deps.now() - a.at;
-        const limit = countdown + sheet.grace;
-        const fail: PuzzleResult = {
-          solved: false,
-          clean: false,
-          at: 0,
-          haywire: a.view.haywire?.id ?? "alarm",
-        };
-        let result: PuzzleResult = { ...fail, late: true };
-        if (elapsed <= limit) {
-          const log = m?.log ?? { moves: [] };
-          const out = play(
-            family,
-            a.view.layout,
-            a.view.inner,
-            log,
-            Math.min(limit, elapsed + sheet.grace),
-          );
-          result = judge(out, fail, countdown, elapsed, sheet.grace, sheet.cleanPct);
-        }
+        const result = playLimited(
+          family,
+          a.view.layout,
+          a.view.inner,
+          m?.log ?? { moves: [] },
+          {
+            countdown: a.view.countdown ?? 0,
+            elapsed: this.deps.now() - a.at,
+            haywire: a.view.haywire?.id ?? HAYWIRE.id,
+          },
+          sheet,
+        );
         return ok({ machine: result, facts: this.resolve(result) });
       }
       case ActBenchSolve: {
@@ -353,17 +344,25 @@ export class MockGateway {
         const family = view && familyOf(view.family);
         if (!view || !family || view.source !== MachineBench)
           return refuse(CodeNotHere, "no bench rig is set up");
-        const out = play(family, view.layout, undefined, m?.log ?? { moves: [] }, sheet.maxPlay);
+        const result = playLimited(
+          family,
+          view.layout,
+          undefined,
+          m?.log ?? { moves: [] },
+          { countdown: 0, elapsed: -1, bench: true },
+          sheet,
+        );
         this.runs++;
         this.spent = JSON.stringify(view.layout);
         const bench = this.st.bench!;
-        const solved = out.status === DONE;
-        const gain = solved && bench.uses < bench.usesCap ? 1 : 0;
+        const gain = result.solved && bench.uses < bench.usesCap ? 1 : 0;
         bench.uses += gain;
         this.practise(view.family, gain);
         return ok({
-          machine: { solved, clean: false, at: solved ? out.at : 0 },
-          facts: solved ? [this.fact("bench.solved", { family: view.family, uses: gain })] : [],
+          machine: result,
+          facts: result.solved
+            ? [this.fact("bench.solved", { family: view.family, uses: gain })]
+            : [],
         });
       }
       case ActBenchLesson: {

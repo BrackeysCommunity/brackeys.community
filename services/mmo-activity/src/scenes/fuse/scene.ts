@@ -3,6 +3,7 @@ import {
   HIT,
   PICKUP,
   board,
+  distance,
   glyph,
   glyphName,
   letter,
@@ -222,12 +223,7 @@ export function mount(host: SceneHost): Scene {
       if (f === undefined) return;
       // A finger that slides off before it lifts has thought better of it.
       const still = pick(geo, (x) => model().pulled(x), p) === f;
-      host.dropped(
-        Math.hypot(p.x - geo.fuses[f]!.x, p.y - geo.fuses[f]!.y),
-        geo.r * PICKUP,
-        still,
-        ev,
-      );
+      host.dropped(distance(p, geo.fuses[f]!), geo.r * PICKUP, still, ev);
       if (still) host.move(f);
     },
     cancel() {

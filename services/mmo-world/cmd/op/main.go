@@ -20,6 +20,7 @@ import (
 
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/api/client"
+	"jams.team/mmo-world/internal/envvar"
 	"jams.team/mmo-world/replay"
 	"jams.team/mmo-world/service"
 	"jams.team/mmo-world/sim/game"
@@ -50,7 +51,7 @@ func main() {
 }
 
 func cli() *client.HTTP {
-	return client.New(service.Getenv(service.EnvURL, "http://localhost:8080"), os.Getenv(service.EnvOperatorToken))
+	return client.New(envvar.Get(service.EnvURL, "http://localhost:8080"), os.Getenv(service.EnvOperatorToken))
 }
 
 func show(v any) error {

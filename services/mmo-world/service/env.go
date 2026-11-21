@@ -4,13 +4,12 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"math"
 	"os"
-	"strconv"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"jams.team/mmo-world/internal/envvar"
 	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/sheets"
@@ -53,26 +52,9 @@ type Secrets struct {
 	Needles []string
 }
 
-// Getenv reads a variable with a fallback.
-func Getenv(name, fallback string) string {
-	if v := os.Getenv(name); v != "" {
-		return v
-	}
-	return fallback
-}
-
-// Number reads a whole-number variable with a fallback, within [lo, hi].
-func Number(name, fallback string, lo, hi int64) (int64, error) {
-	n, err := strconv.ParseInt(Getenv(name, fallback), 10, 64)
-	if err != nil || n < lo || n > hi {
-		return 0, fmt.Errorf("%s must be a whole number from %d to %d", name, lo, hi)
-	}
-	return n, nil
-}
-
 // BookFromEnv loads the sheets under the sheets root.
 func BookFromEnv() (*sheets.Book, error) {
-	return sheetfs.LoadBook(Getenv(EnvSheets, "."))
+	return sheetfs.LoadBook(envvar.Get(EnvSheets, "."))
 }
 
 // PoolFromEnv opens the database.
@@ -92,12 +74,12 @@ func SecretsFromEnv() (Secrets, error) {
 	if s.World == "" {
 		return Secrets{}, errors.New(EnvWorld + " must be set")
 	}
-	e, err := Number(EnvEpoch, "", math.MinInt32, math.MaxInt32)
+	e, err := envvar.Number(EnvEpoch, "", math.MinInt32, math.MaxInt32)
 	if err != nil {
 		return Secrets{}, err
 	}
 	s.Epoch = int32(e)
-	v, err := Number(EnvKeyVersion, "1", 0, math.MaxInt32)
+	v, err := envvar.Number(EnvKeyVersion, "1", 0, math.MaxInt32)
 	if err != nil {
 		return Secrets{}, err
 	}

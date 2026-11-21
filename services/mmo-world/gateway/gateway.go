@@ -27,11 +27,13 @@ import (
 // viewer's filtered state, the action path, and the countdowns running.
 type Host interface {
 	CharacterOf(ctx context.Context, discordID string) (string, error)
-	// View is one character's state, filtered for them. ok is false when
-	// the character is gone.
-	View(ctx context.Context, characterID string, v api.Viewer) (st api.ActivityState, ok bool, err error)
-	// Act applies a request as POST /v1/actions would. check is false
-	// only for the gateway's own expiry.
+	// View is one character's state, filtered for them; passed is the
+	// armedAt of the machine whose move they already passed on. ok is
+	// false when the character is gone.
+	View(ctx context.Context, characterID string, v api.Viewer, passed int64) (st api.ActivityState, ok bool, err error)
+	// Act applies a request as POST /v1/actions would, with the reply's
+	// facts as its character may read them. check is false only for the
+	// gateway's own expiry.
 	Act(ctx context.Context, req api.ActionRequest, check bool) (api.ActionReply, *api.Refusal, error)
 	Armed(ctx context.Context) ([]api.ArmedMachine, error)
 	// Countdown is one character's countdown, with Due 0 when none is
@@ -130,7 +132,7 @@ type Seat struct {
 	// What the state last sent lets the seat pass on, and on which machine.
 	pass    *api.PuzzleMove
 	armedAt int64
-	sat     int64 // the arrival it was last sat in, under the gateway's lock
+	sat     int64 // the arrival it was last sat in, which orders its socket; under the gateway's lock
 }
 
 // player is one character the gateway serves. Its lock puts that
@@ -229,12 +231,11 @@ func (g *Gateway) Start(ctx context.Context) error {
 	}
 	g.cfg.Host.Subscribe(g.changed)
 	go g.work()
+	ids := make([]string, 0, len(list))
 	for _, a := range list {
-		p := g.player(a.CharacterID)
-		p.mu.Lock()
-		g.keep(p, a.CharacterID, a.Due)
-		p.mu.Unlock()
+		ids = append(ids, a.CharacterID)
 	}
+	g.sweep(ctx, ids)
 	return nil
 }
 
@@ -258,9 +259,7 @@ func (g *Gateway) Close() {
 		}
 	}
 	for _, s := range g.sessions {
-		if s.unreap != nil {
-			s.unreap()
-		}
+		g.forget(s)
 	}
 	g.mu.Unlock()
 	// A socket closed with no bye dials again, and finds the next service.
@@ -348,16 +347,11 @@ func (g *Gateway) refresh(all bool, ids map[string]bool) {
 			}
 		}
 	}
-	// A countdown may start for a character nobody's seat shows: armed
-	// from another socket, or before any opened.
+	// Only the gateway's own writes start a countdown, and they show the
+	// writer; one nobody's seat shows may still have ended.
 	var timed []string
-	for id := range ids {
-		if !shown[id] {
-			timed = append(timed, id)
-		}
-	}
 	for id, p := range g.players {
-		if all && p.timer != nil && !shown[id] {
+		if p.timer != nil && !shown[id] && (all || ids[id]) {
 			timed = append(timed, id)
 		}
 	}
@@ -369,25 +363,26 @@ func (g *Gateway) refresh(all bool, ids map[string]bool) {
 		g.show(ctx, s, false)
 		s.who.mu.Unlock()
 	}
-	if !all {
-		for _, id := range timed {
-			g.check(ctx, id)
+	if all {
+		// A tick, a reload or a reset: any countdown may have started or
+		// ended unseen.
+		list, err := g.cfg.Host.Armed(ctx)
+		if err != nil {
+			g.log.Error("activity: reading the countdowns", "err", err.Error())
+			return
 		}
-		return
-	}
-	// A tick, a reload or a reset: any countdown may have started or ended
-	// unseen.
-	list, err := g.cfg.Host.Armed(ctx)
-	if err != nil {
-		g.log.Error("activity: reading the countdowns", "err", err.Error())
-		return
-	}
-	for _, a := range list {
-		if !shown[a.CharacterID] && !slices.Contains(timed, a.CharacterID) {
-			timed = append(timed, a.CharacterID)
+		for _, a := range list {
+			if !shown[a.CharacterID] && !slices.Contains(timed, a.CharacterID) {
+				timed = append(timed, a.CharacterID)
+			}
 		}
 	}
-	for _, id := range timed {
+	g.sweep(ctx, timed)
+}
+
+// sweep sets each character's countdown from the world's now.
+func (g *Gateway) sweep(ctx context.Context, ids []string) {
+	for _, id := range ids {
 		g.check(ctx, id)
 	}
 }
@@ -405,17 +400,34 @@ func (g *Gateway) player(id string) *player {
 }
 
 // check sets a character's countdown from the world's now; none for a
-// character who is gone.
+// character who is gone. A character with no record and no countdown is
+// given no record.
 func (g *Gateway) check(ctx context.Context, id string) {
-	p := g.player(id)
+	g.mu.Lock()
+	p := g.players[id]
+	g.mu.Unlock()
+	if p == nil {
+		if m, ok := g.countdown(ctx, id); !ok || m.Due == 0 {
+			return
+		}
+		p = g.player(id)
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if m, ok := g.countdown(ctx, id); ok {
+		g.keep(p, id, m.Due)
+	}
+}
+
+// countdown is a character's countdown as the host reads it; ok is false
+// when it could not be read.
+func (g *Gateway) countdown(ctx context.Context, id string) (api.ArmedMachine, bool) {
 	m, _, err := g.cfg.Host.Countdown(ctx, id)
 	if err != nil {
 		g.log.Error("activity: reading a countdown", "character", id, "err", err.Error())
-		return
+		return m, false
 	}
-	g.keep(p, id, m.Due)
+	return m, true
 }
 
 // due is when the server ends a machine in a state, or 0.

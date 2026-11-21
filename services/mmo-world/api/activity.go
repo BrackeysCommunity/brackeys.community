@@ -47,6 +47,14 @@ const (
 	ActBenchLesson  = "bench-lesson"
 )
 
+// ActivityKinds are the writes the Activity may send; everything else is
+// done in chat.
+var ActivityKinds = []string{ActPress, ActMachineArm, ActMachineSolve, ActBenchSolve, ActBenchLesson}
+
+// ActivityOnly reports whether a kind is refused in chat: a countdown is
+// ended by the Activity's gateway, so it is armed and solved only there.
+func ActivityOnly(kind string) bool { return kind == ActMachineArm || kind == ActMachineSolve }
+
 // Refusal codes the machine rules give.
 const (
 	CodeNoMachine    = "no-machine"
@@ -77,6 +85,7 @@ type PuzzleLog struct {
 	End   int64        `json:"end,omitempty"`
 }
 
+// PuzzleClue says fuse Before is pulled before fuse After.
 type PuzzleClue struct {
 	Before int64 `json:"before"`
 	After  int64 `json:"after"`
@@ -134,6 +143,7 @@ type TokenRequest struct {
 	Dev  string `json:"dev,omitempty"`
 }
 
+// TokenReply is a gateway session and who it signs in.
 type TokenReply struct {
 	Session     string `json:"session"`
 	Expires     int64  `json:"expires"` // unix seconds
@@ -148,9 +158,6 @@ type Viewer struct {
 	Family  string `json:"family,omitempty"`
 	Level   int64  `json:"level,omitempty"`
 	Pouch   string `json:"pouch,omitempty"`
-	// Passed is the armedAt of the machine whose hint this character has
-	// passed on. The gateway sets it; a client cannot.
-	Passed int64 `json:"-"`
 }
 
 // Context is the game context a seat is bound to. Solo, it is one
@@ -160,8 +167,7 @@ type Context struct {
 	ID   string `json:"id"`
 }
 
-// ClientMessage is one frame to the gateway. T is hello, look, intent,
-// pass-hint or ping.
+// ClientMessage is one frame to the gateway; T is a client Frame* name.
 type ClientMessage struct {
 	T      string       `json:"t"`
 	Seq    int64        `json:"seq,omitempty"`
@@ -171,6 +177,7 @@ type ClientMessage struct {
 	Hint   *PuzzleMove  `json:"hint,omitempty"`
 }
 
+// ClientHello opens a socket: the session token, the Activity instance and the screen.
 type ClientHello struct {
 	Session  string `json:"session"`
 	Instance string `json:"instance"`
@@ -187,17 +194,17 @@ type Intent struct {
 	Machine *MachineIntent `json:"machine,omitempty"`
 }
 
-// ServerMessage is one frame from the gateway. T is state, reply, hint,
-// bye or pong.
+// ServerMessage is one frame from the gateway; T is a server Frame* name.
 type ServerMessage struct {
 	T     string         `json:"t"`
 	Seq   int64          `json:"seq,omitempty"`
 	State *ActivityState `json:"state,omitempty"`
 	Reply *IntentReply   `json:"reply,omitempty"`
 	Hint  *PuzzleMove    `json:"hint,omitempty"`
-	Bye   string         `json:"bye,omitempty"` // expired, replaced, no-character, bad-hello, slow
+	Bye   string         `json:"bye,omitempty"` // a Bye* reason
 }
 
+// IntentReply is the world's answer to one intent.
 type IntentReply struct {
 	ID        string        `json:"id"`
 	OK        bool          `json:"ok"`
@@ -295,6 +302,7 @@ type PracticeLine struct {
 	Title string `json:"title,omitempty"`
 }
 
+// BenchFamily is one family a bench offers the viewer.
 type BenchFamily struct {
 	Family   string       `json:"family"`
 	Name     string       `json:"name"`
@@ -304,6 +312,7 @@ type BenchFamily struct {
 	Master   bool         `json:"master,omitempty"`
 }
 
+// BenchView is the bench where the viewer stands, with today's uses and caps.
 type BenchView struct {
 	Settlement string        `json:"settlement"`
 	Families   []BenchFamily `json:"families"`
@@ -315,6 +324,7 @@ type BenchView struct {
 	GivenCap   int64         `json:"givenCap"`
 }
 
+// PouchView is a locked pouch the viewer carries.
 type PouchView struct {
 	ID     string  `json:"id"`
 	Family string  `json:"family"`

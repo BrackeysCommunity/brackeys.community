@@ -55,6 +55,50 @@ export function judge(
   return { solved: true, clean, master: out.master, at: out.at };
 }
 
+/** The cells a limited play is read by, as sim/puzzle reads them; times in ms. */
+export interface PlaySheet {
+  grace: number;
+  cleanPct: number;
+  maxPlay: number;
+  maxMoves: number;
+}
+
+/** What one play is held to: sim/puzzle's Limits. elapsed < 0 is no server clock. */
+export interface PlayLimits {
+  countdown: number;
+  elapsed: number;
+  bench?: boolean;
+  /** The haywire a failed machine does; a bench rig has none. */
+  haywire?: string;
+}
+
+/**
+ * A log against a machine within its limits: sim/puzzle's Play, mirrored
+ * line for line. Late past the limit, a failure past the most moves a log
+ * may hold, and otherwise the replay to the horizon, judged. inner is the
+ * master's hidden panel; a bench rig has none.
+ */
+export function playLimited(
+  family: Family,
+  layout: PuzzleLayout,
+  inner: PuzzleLayout | undefined,
+  log: PuzzleLog,
+  lim: PlayLimits,
+  sheet: PlaySheet,
+): PuzzleResult {
+  const fail: PuzzleResult = { solved: false, clean: false, at: 0 };
+  let limit = sheet.maxPlay;
+  if (!lim.bench) {
+    fail.haywire = lim.haywire;
+    limit = lim.countdown + sheet.grace;
+  }
+  if (lim.elapsed >= 0 && lim.elapsed > limit) return { ...fail, late: true };
+  if (log.moves.length > sheet.maxMoves) return fail;
+  const horizon = lim.elapsed >= 0 ? Math.min(limit, lim.elapsed + sheet.grace) : limit;
+  const out = play(family, layout, lim.bench ? undefined : inner, log, horizon);
+  return judge(out, fail, lim.countdown, lim.elapsed, sheet.grace, sheet.cleanPct);
+}
+
 // feed plays moves into one panel that was started at base ms, and reports
 // its status, the ms it changed or stopped at, and the moves it took.
 function feed(

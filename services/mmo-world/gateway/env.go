@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"os"
 
-	"jams.team/mmo-world/service"
+	"jams.team/mmo-world/internal/envvar"
 )
 
 // The Activity listener's settings.
@@ -37,11 +37,11 @@ func FromEnv(apiPort string, manual, disposable bool, log *slog.Logger) (cfg Con
 	}
 	port = os.Getenv(EnvPort)
 	if port != "" {
-		if _, err := service.Number(EnvPort, "", 1, math.MaxUint16); err != nil {
+		if _, err := envvar.Number(EnvPort, "", 1, math.MaxUint16); err != nil {
 			return cfg, "", needles, err
 		}
 		if port == apiPort {
-			return cfg, "", needles, fmt.Errorf("%s must not be the API's %s: the Activity's listener is public", EnvPort, service.EnvPort)
+			return cfg, "", needles, fmt.Errorf("%s must not be the API's port: the Activity's listener is public", EnvPort)
 		}
 		if (cfg.AppID == "" || cfg.ClientSecret == "") && !manual && !disposable {
 			return cfg, "", needles, fmt.Errorf("%s needs %s and %s on a world players keep", EnvPort, EnvAppID, EnvClientSecret)

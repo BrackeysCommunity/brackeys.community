@@ -21,14 +21,11 @@ import (
 
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/api/client"
+	"jams.team/mmo-world/internal/envvar"
 	"jams.team/mmo-world/service"
 	"jams.team/mmo-world/sim/puzzle"
 	"jams.team/mmo-world/sim/sheets"
 )
-
-// The Activity run: a live world played through its Activity listener the
-// way the page plays it, with no Discord. It needs a disposable world with
-// dev sign-in on and the operator's paths open (GDD 7.11, 17.7).
 
 // EnvActivityURL is where the run finds the Activity listener.
 const EnvActivityURL = "MMO_ACTIVITY_URL"
@@ -38,8 +35,8 @@ const (
 	activityLevel = 3
 	// activityWait is how long the run waits for one frame it expects.
 	activityWait = 20 * time.Second
-	// intentGap keeps a seat under the gateway's intents a second, and
-	// lookGap under its looks.
+	// intentGap and lookGap keep a character under the gateway's per-second
+	// caps on intents and looks.
 	intentGap = 120 * time.Millisecond
 	lookGap   = 220 * time.Millisecond
 	// benchExtra is how many bench solves are made past the day's cap.
@@ -263,6 +260,20 @@ func held(st api.ActivityState) []any {
 	return []any{c.Coin, c.Goods, c.Practice, c.Titles, c.Pouches, c.Armed, c.InFight, st.Last}
 }
 
+// arm arms the beat's machine the seat faces and waits for the state that
+// says so; ahead is how many ms the server's clock runs ahead of this one.
+func (s *seat) arm(ctx context.Context, id, what string) (armed api.ActivityState, ahead int64, err error) {
+	rep, err := s.intent(ctx, id, api.ActMachineArm, &api.MachineIntent{Source: api.MachineBeat})
+	if err = taken(what, rep, err); err != nil {
+		return armed, 0, err
+	}
+	armed, err = s.until("the armed state", func(st api.ActivityState) bool { return st.Machine != nil && st.Machine.Armed })
+	if err != nil {
+		return armed, 0, err
+	}
+	return armed, armed.Now - time.Now().UnixMilli(), nil
+}
+
 // worked is one machine armed and solved through the socket.
 type worked struct {
 	family            string
@@ -291,17 +302,11 @@ func (s *seat) solve(ctx context.Context, n int) (worked, error) {
 	}
 	log := s.w.kit.Solve(service.LayoutOf(m.Layout))
 	id := fmt.Sprintf("%s-%s-%d", s.w.run, s.char, n)
-	rep, err := s.intent(ctx, id+"-arm", api.ActMachineArm, &api.MachineIntent{Source: api.MachineBeat})
-	if err := taken("arming the "+m.Family, rep, err); err != nil {
-		return out, err
-	}
-	out.armTrip = s.trip
-	armed, err := s.until("the armed state", func(st api.ActivityState) bool { return st.Machine != nil && st.Machine.Armed })
+	armed, ahead, err := s.arm(ctx, id+"-arm", "arming the "+m.Family)
 	if err != nil {
 		return out, err
 	}
-	// The server's clock is this one plus ahead.
-	ahead := armed.Now - time.Now().UnixMilli()
+	out.armTrip = s.trip
 	out.level, out.countdown = armed.Machine.Level, armed.Machine.Countdown
 	if armed.Machine.Deadline != armed.Machine.ArmedAt+armed.Machine.Countdown || out.level == 0 {
 		return out, fmt.Errorf("the armed %s carries no level or a deadline that is not its countdown", m.Family)
@@ -419,16 +424,12 @@ func (w *liveWorld) ranOut(ctx context.Context, open bool) (expiry, error) {
 		return expiry{}, err
 	}
 	defer func() { s.close() }()
-	rep, err := s.intent(ctx, w.run+"-"+char+"-arm", api.ActMachineArm, &api.MachineIntent{Source: api.MachineBeat})
-	if err := taken("arming a machine to leave", rep, err); err != nil {
-		return expiry{}, err
-	}
-	armed, err := s.until("the armed state", func(st api.ActivityState) bool { return st.Machine != nil && st.Machine.Armed })
+	armed, ahead, err := s.arm(ctx, w.run+"-"+char+"-arm", "arming a machine to leave")
 	if err != nil {
 		return expiry{}, err
 	}
 	out := expiry{open: open, countdown: armed.Machine.Countdown}
-	deadline := time.UnixMilli(armed.Machine.Deadline + (time.Now().UnixMilli() - armed.Now))
+	deadline := time.UnixMilli(armed.Machine.Deadline - ahead)
 	gone := func(st api.ActivityState) bool { return !st.Character.Armed && st.Last != nil }
 	var st api.ActivityState
 	if open {
@@ -576,13 +577,15 @@ func (w *liveWorld) served(ctx context.Context) (string, error) {
 }
 
 // ActivityRun plays every family through a live world's Activity listener
-// and writes activity.md.
+// the way the page does, with no Discord, and writes activity.md. The
+// world must be disposable, with dev sign-in on and the operator's paths
+// open (GDD 7.11, 17.7).
 func ActivityRun(b *sheets.Book, out string, _ int) ([]Measured, error) {
 	activity := strings.TrimRight(os.Getenv(EnvActivityURL), "/")
 	if activity == "" {
 		return nil, errors.New(EnvActivityURL + " must name the world's Activity listener, such as http://localhost:18787")
 	}
-	base := service.Getenv(service.EnvURL, "http://localhost:8080")
+	base := envvar.Get(service.EnvURL, "http://localhost:8080")
 	w := &liveWorld{api: client.New(base, os.Getenv(service.EnvAPIToken)), op: client.New(base, os.Getenv(service.EnvOperatorToken)),
 		activity: activity, kit: puzzleKit(b), run: strconv.FormatInt(time.Now().UnixMilli(), 36)}
 	ctx := context.Background()

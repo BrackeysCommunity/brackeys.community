@@ -93,7 +93,7 @@ func (h LocalHost) holdGame(context.Context) (*game.Game, time.Time, func(), err
 	return h.l.G, h.l.now(), func() {}, nil
 }
 
-func viewIn(ctx context.Context, w held, characterID string, v api.Viewer) (api.ActivityState, bool, error) {
+func viewIn(ctx context.Context, w held, characterID string, v api.Viewer, passed int64) (api.ActivityState, bool, error) {
 	g, now, release, err := w.holdGame(ctx)
 	if err != nil {
 		return api.ActivityState{}, false, err
@@ -103,7 +103,7 @@ func viewIn(ctx context.Context, w held, characterID string, v api.Viewer) (api.
 	if c == nil {
 		return api.ActivityState{}, false, nil
 	}
-	return Filter(g, c, v, now), true, nil
+	return Filter(g, c, v, passed, now), true, nil
 }
 
 func armedIn(ctx context.Context, w held) ([]api.ArmedMachine, error) {
@@ -128,23 +128,32 @@ func countdownIn(ctx context.Context, w held, characterID string) (api.ArmedMach
 	return due(g, c), true, nil
 }
 
-// View is one character's state as its owner may see it; ok is false when
-// the character is gone.
-func (s *Server) View(ctx context.Context, characterID string, v api.Viewer) (api.ActivityState, bool, error) {
-	return viewIn(ctx, s, characterID, v)
+// View is one character's state as its owner may see it; passed is the
+// armedAt of the machine whose move they already passed on. ok is false
+// when the character is gone.
+func (s *Server) View(ctx context.Context, characterID string, v api.Viewer, passed int64) (api.ActivityState, bool, error) {
+	return viewIn(ctx, s, characterID, v, passed)
 }
 
-// Act applies a player's request as POST /v1/actions does. check is false
-// only for a write the service itself makes for a character, which names
-// no row version.
-func (s *Server) Act(ctx context.Context, req api.ActionRequest, check bool) (api.ActionReply, *api.Refusal, error) {
-	cmd, ref, _ := playerCommand(req)
+// doer runs one command against a held world.
+type doer interface {
+	doCommand(ctx context.Context, cmd game.Command, discord string, version int64, checkVersion bool) (applied, error)
+}
+
+func (s *Server) doCommand(ctx context.Context, cmd game.Command, discord string, version int64, checkVersion bool) (applied, error) {
+	ctx, cancel := writeContext(ctx)
+	defer cancel()
+	return s.do(ctx, cmd, discord, version, checkVersion)
+}
+
+// actOn applies a request through d, made a command by command.
+func actOn(ctx context.Context, d doer, req api.ActionRequest, check bool,
+	command func(api.ActionRequest) (game.Command, *api.Refusal, int)) (api.ActionReply, *api.Refusal, error) {
+	cmd, ref, _ := command(req)
 	if ref != nil {
 		return api.ActionReply{}, ref, nil
 	}
-	ctx, cancel := writeContext(ctx)
-	defer cancel()
-	out, err := s.do(ctx, cmd, req.DiscordID, req.Version, check)
+	out, err := d.doCommand(ctx, cmd, req.DiscordID, req.Version, check)
 	if err != nil {
 		return api.ActionReply{}, nil, err
 	}
@@ -153,6 +162,24 @@ func (s *Server) Act(ctx context.Context, req api.ActionRequest, check bool) (ap
 	}
 	rep, err := decodeReply(out.body, out.dup)
 	return rep, nil, err
+}
+
+// hostAct is a write from the Activity, with the reply's facts as its
+// character may read them.
+func hostAct(ctx context.Context, d doer, req api.ActionRequest, check bool) (api.ActionReply, *api.Refusal, error) {
+	rep, ref, err := actOn(ctx, d, req, check, playerCommand)
+	if err == nil && ref == nil {
+		rep.Facts = SeenFacts(rep.Character.ID, rep.Facts)
+	}
+	return rep, ref, err
+}
+
+// Act applies a player's request as POST /v1/actions does, the countdown
+// kinds included, with the reply's facts as its character may read them.
+// check is false only for a write the service itself makes for a
+// character, which names no row version.
+func (s *Server) Act(ctx context.Context, req api.ActionRequest, check bool) (api.ActionReply, *api.Refusal, error) {
+	return hostAct(ctx, s, req, check)
 }
 
 // Armed are the countdowns running, for whoever must end them.
@@ -179,12 +206,12 @@ func (h LocalHost) CharacterOf(ctx context.Context, discordID string) (string, e
 	return h.l.mem.CharacterOf(ctx, discordID)
 }
 
-func (h LocalHost) View(ctx context.Context, characterID string, v api.Viewer) (api.ActivityState, bool, error) {
-	return viewIn(ctx, h, characterID, v)
+func (h LocalHost) View(ctx context.Context, characterID string, v api.Viewer, passed int64) (api.ActivityState, bool, error) {
+	return viewIn(ctx, h, characterID, v, passed)
 }
 
 func (h LocalHost) Act(ctx context.Context, req api.ActionRequest, check bool) (api.ActionReply, *api.Refusal, error) {
-	return h.l.act(ctx, req, check)
+	return hostAct(ctx, h.l, req, check)
 }
 
 func (h LocalHost) Armed(ctx context.Context) ([]api.ArmedMachine, error) { return armedIn(ctx, h) }
