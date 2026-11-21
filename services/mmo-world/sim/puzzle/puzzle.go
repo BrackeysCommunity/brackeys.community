@@ -236,9 +236,9 @@ type Layout struct {
 	Par   []int64 `json:"par,omitempty"`
 	Init  []int64 `json:"init,omitempty"`
 	Track []int64 `json:"track,omitempty"`
-	// A party version's own: Window is how close in ms its seats must act
-	// together, Pass the progress before the roles pass on, and Key and
-	// Code its extra arrays.
+	// Shape, Party and Seats are the spec's; a party version adds Window,
+	// how close in ms its seats must act, Pass, the progress before roles
+	// pass on, and Key and Code, its extra arrays.
 	Shape  int64   `json:"shape,omitempty"`
 	Party  string  `json:"party,omitempty"`
 	Seats  int64   `json:"seats,omitempty"`
@@ -343,7 +343,7 @@ func (p *Puzzles) Make(s Spec) Layout {
 }
 
 // Inner is the panel a master finds behind a solved machine: the same
-// family and shape, levels up and with more decoys. It is one player's.
+// family and shape, levels up and with more decoys, always laid out solo.
 func (p *Puzzles) Inner(s Spec) Layout {
 	s.Party, s.Seats = "", 0
 	s.Level += p.Param("inner-levels")
@@ -451,9 +451,6 @@ func (p *Puzzles) MaxPlay() int64 { return p.Param("max-play-seconds") * msPerSe
 // does not solve the machine in time, or breaks it, haywires. Walking
 // away after arming is an empty or unfinished log.
 func (p *Puzzles) Play(s Spec, log Log, lim Limits) Result {
-	if s.Party != "" {
-		return p.playParty(s, log, lim)
-	}
 	var fail Result
 	limit := p.MaxPlay()
 	if !lim.Bench {
@@ -473,11 +470,11 @@ func (p *Puzzles) Play(s Spec, log Log, lim Limits) Result {
 	}
 	l := p.Make(s)
 	var inner *Layout
-	if lim.Master {
+	if lim.Master && s.Party == "" {
 		in := p.Inner(s)
 		inner = &in
 	}
-	return p.judge(RunLog(l, inner, log, horizon, nil), fail, lim.Countdown, lim.Elapsed)
+	return p.judge(run(l, inner, log, horizon), fail, lim.Countdown, lim.Elapsed)
 }
 
 // judge reads a replay's outcome against a countdown: fail unless the

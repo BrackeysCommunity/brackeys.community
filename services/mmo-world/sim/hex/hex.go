@@ -3,7 +3,10 @@
 // knows about.
 package hex
 
-import "strconv"
+import (
+	"strconv"
+	"strings"
+)
 
 // Hex is an axial coordinate.
 type Hex struct{ Q, R int64 }
@@ -11,9 +14,30 @@ type Hex struct{ Q, R int64 }
 // structural: a ref is written in decimal.
 const decimal = 10
 
+// structural: coordinates are int64.
+const coordBits = 64
+
 // Ref is a hex's text form, "q,r".
 func (h Hex) Ref() string {
 	return strconv.FormatInt(h.Q, decimal) + "," + strconv.FormatInt(h.R, decimal)
+}
+
+// ParseRef reads a hex written as Ref spells it, and nothing else.
+func ParseRef(s string) (Hex, bool) {
+	q, r, found := strings.Cut(s, ",")
+	if !found {
+		return Hex{}, false
+	}
+	qn, err := strconv.ParseInt(q, decimal, coordBits)
+	if err != nil {
+		return Hex{}, false
+	}
+	rn, err := strconv.ParseInt(r, decimal, coordBits)
+	if err != nil {
+		return Hex{}, false
+	}
+	h := Hex{Q: qn, R: rn}
+	return h, h.Ref() == s
 }
 
 // structural: a hex has six neighbours, in this order, starting east and

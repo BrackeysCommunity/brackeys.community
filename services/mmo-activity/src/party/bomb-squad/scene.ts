@@ -21,12 +21,7 @@ export function dealt(layout: PuzzleLayout, glimpse?: PuzzleLayout): PuzzleLayou
   return { ...layout, clues };
 }
 
-/**
- * The fuse box with the cutters passed round: the family's box, showing
- * only the clue cards this seat was dealt, where only the seat holding the
- * cutters pulls. Nobody holds the order, so the box never says it is safe:
- * the server's result does.
- */
+/** The fuse box with this seat's dealt clue cards; the cutters are live only on the holder. */
 export function mount(host: PartySceneHost): Scene {
   const merged = () => host.model as BombSquadModel;
   const pass = host.layout.pass ?? 0;

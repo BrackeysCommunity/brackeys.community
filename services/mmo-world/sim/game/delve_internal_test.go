@@ -225,7 +225,7 @@ func TestForkVoteTieAndDefault(t *testing.T) {
 	}
 	present := ids("a", "b", "c", "d")
 	vote := func(leader string, cs ...Choice) (int64, int, int) {
-		way, push, leave := forkVote(&ForkState{Choices: cs}, present, leader)
+		way, push, leave := forkVote(&ForkState{Choices: cs}, present, leader, true)
 		return way, len(push), len(leave)
 	}
 	tie := []Choice{{Who: "a", Push: true, Way: 1}, {Who: "b", Push: true, Way: 0}, {Who: "c"}, {Who: "d"}}

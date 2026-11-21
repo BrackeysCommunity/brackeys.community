@@ -7,6 +7,7 @@ import (
 
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/party"
 )
 
@@ -102,8 +103,9 @@ func (g *Game) partyJoin(c *Char, cmd Command) error {
 	return err
 }
 
-// partyLeave leaves a party between encounters.
-func (g *Game) partyLeave(c *Char) error {
+// partyLeave leaves a party between encounters; one standing on a dungeon's
+// floor climbs out, as a fork's leaver does (GDD 4.9).
+func (g *Game) partyLeave(c *Char, cmd Command) error {
 	if g.partyOf(c) == nil {
 		return refuse(NotInParty, "%s is in no party", c.C.ID)
 	}
@@ -114,7 +116,13 @@ func (g *Game) partyLeave(c *Char) error {
 		g.leaveShared(sh, c)
 		g.saw(sh.Members...)
 	}
-	return g.quitParty(c, g.Tick())
+	if err := g.quitParty(c, g.Tick()); err != nil {
+		return err
+	}
+	if c.C.Floor > 0 && c.Delving != nil && ready(c) == nil {
+		return g.climbOut(c, ledger.SubKey(cmd.Key, "left"))
+	}
+	return nil
 }
 
 // quitParty takes a character out of its party, passing the lead on; a
@@ -203,8 +211,18 @@ func (g *Game) unshare(c *Char) {
 		e.Gone = append(e.Gone, c.C.ID)
 	}
 	g.leaveShared(sh, c)
-	if sh.Machine.Armed() {
-		sh.Machine.Seats = slices.DeleteFunc(sh.Machine.Seats, func(id string) bool { return id == c.C.ID })
+	// Seats never change while armed, so a seat leaving ends the countdown
+	// and the merged log with it.
+	if m := sh.Machine; m.Armed() && slices.Contains(m.Seats, c.C.ID) {
+		if m.Source == SourceGuardian {
+			spec := m.Spec
+			spec.Shape, spec.Party, spec.Seats = 0, "", 0
+			sh.Machine = &PartyMachine{Source: m.Source, Spec: spec}
+		} else {
+			sh.Machine = nil
+		}
+		sh.Movers = nil
+		g.saw(sh.Members...)
 	}
 	if e != nil && len(g.upIn(sh)) == 0 {
 		for _, o := range g.in(sh) {

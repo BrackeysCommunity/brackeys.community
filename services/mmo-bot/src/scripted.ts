@@ -496,12 +496,9 @@ class Player {
 }
 
 /**
- * Two scripted players through a party (GDD 7.5): one invites the other
- * from /party, the other joins from the invitation, they go out together,
- * explore into one shared encounter and pick on every beat from their own
- * cards until it ends, then the party is left. The party's thread runs
- * against a sink that keeps its cards, and with an operator token a hunt
- * is opened beside them for the game channel's card.
+ * Two scripted players through a party (GDD 7.5), from /party to leaving
+ * it, against a thread sink that keeps its cards; with an operator token
+ * a hunt is opened beside them for the game channel's card.
  */
 export async function partyRun(
   ctx: Ctx,

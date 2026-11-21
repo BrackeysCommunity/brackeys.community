@@ -10,12 +10,12 @@ import (
 // falls, the guardian's pool, and the name its first slayers gave it
 // (GDD 4.9).
 type Dungeon struct {
-	// Before floors were recorded one by one, only floor 1 was cleared,
-	// and it was kept here.
+	// FloorsCleared and ClearedAt are the deepest floor cleared and when; a
+	// save from before Floors holds its floor 1 only here.
 	FloorsCleared  int64      `json:"floorsCleared"`
-	ClearedAt      int64      `json:"clearedAt,omitempty"` // tick the deepest cleared floor was cleared
-	Fell           []fact.Ref `json:"fell,omitempty"`      // kept, never written again
-	GuardianHealth int64      `json:"guardianHealth"`      // kept, never written again
+	ClearedAt      int64      `json:"clearedAt,omitempty"`
+	Fell           []fact.Ref `json:"fell,omitempty"` // kept, never written again
+	GuardianHealth int64      `json:"guardianHealth"` // kept, never written again
 
 	Floors   []Floor   `json:"floors,omitempty"` // index n−1
 	Name     string    `json:"name,omitempty"`

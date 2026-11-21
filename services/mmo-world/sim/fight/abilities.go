@@ -9,7 +9,7 @@ import (
 
 // The Warden's and the Kindler's abilities that change a beat (GDD 5.9).
 // Each reads its measure from the holder's own tags, so a member without
-// the ability, or alone where it needs a party, fights as before.
+// the ability, or alone where it needs a party, fights unchanged.
 
 // failures is every failure that has landed in the encounter.
 func (e *Encounter) failures() int64 {

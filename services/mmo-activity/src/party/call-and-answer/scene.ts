@@ -10,12 +10,7 @@ import { CALL, type CallModel } from "./model.ts";
 // The calls the screen keeps in view, newest last.
 const SHOWN = 4;
 
-/**
- * Call and answer: Override's terminal with its screen dark. One seat
- * holds the keypad and presses; every other seat was dealt some of the
- * sequence's symbols, and a tap on a pad calls that symbol to the others.
- * The calls line up on every screen, and the keypad passes each round.
- */
+/** Override's dark terminal: keypad on the holder's screen, call pads on the others. */
 export function mount(host: PartySceneHost): Scene {
   const model = () => host.model as CallModel;
   const symbols = Math.max(1, host.layout.range ?? 1);

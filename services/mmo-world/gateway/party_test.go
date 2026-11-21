@@ -564,9 +564,9 @@ func TestMoveRateCap(t *testing.T) {
 	}
 }
 
-// TestBannedFirstSeat ends a party machine whose first seat is banned
-// mid-countdown: the merged write goes out under the seat that is first
-// now, and the machine is no longer armed.
+// TestBannedFirstSeat holds that a ban of an armed party machine's first
+// seat ends the countdown and the gateway writes nothing for it; the
+// seats left can arm again.
 func TestBannedFirstSeat(t *testing.T) {
 	for _, users := range [][]string{{"u-one", "u-two", "u-three"}, {"u-one", "u-two"}} {
 		t.Run(itoa(int64(len(users))), func(t *testing.T) { bannedFirstSeat(t, users) })
@@ -582,6 +582,10 @@ func bannedFirstSeat(t *testing.T, users []string) {
 	armOver(t, vs, sts, 1)
 	m := w.armed(sh)
 	seats := slices.Clone(m.Seats)
+	rec, _, err := w.Countdown(context.Background(), seats[1])
+	if err != nil {
+		t.Fatal(err)
+	}
 	w.do(func() {
 		if _, err := w.g.Act(game.Command{Key: "ban-first", Char: seats[0], Kind: game.Ban, Note: "test"}); err != nil {
 			t.Fatal(err)
@@ -589,19 +593,36 @@ func bannedFirstSeat(t *testing.T, users []string) {
 	})
 	w.tick()
 	w.gw.Settle()
-	rec, _, err := w.Countdown(context.Background(), seats[1])
+	w.do(func() {
+		if sh.Machine.Armed() {
+			t.Fatal("the machine is still armed after the ban")
+		}
+	})
+	w.clock.Advance(time.UnixMilli(rec.Due).Sub(w.clock.Now()) + time.Second)
+	w.gw.Settle()
+	if merged := w.merges(); len(merged) != 0 {
+		t.Fatalf("the merged writes after the first seat's ban: %+v", merged)
+	}
+	if len(users) < 3 {
+		return
+	}
+	rest := vs[1:]
+	rsts := make([]api.ActivityState, len(rest))
+	for i, v := range rest {
+		rsts[i] = v.caughtUp(sts[i+1])
+	}
+	armOver(t, rest, rsts, 0)
+	again := w.armed(sh)
+	if again.Seats[0] != seats[1] {
+		t.Fatalf("the first seat after arming again: %s, want %s", again.Seats[0], seats[1])
+	}
+	rec, _, err = w.Countdown(context.Background(), seats[1])
 	if err != nil {
 		t.Fatal(err)
 	}
 	w.clock.Advance(time.UnixMilli(rec.Due).Sub(w.clock.Now()) + time.Second)
 	w.gw.Settle()
-	merged := w.merges()
-	if len(merged) != 1 || merged[0].CharacterID != seats[1] {
-		t.Fatalf("the merged writes after the first seat's ban: %+v", merged)
+	if merged := w.merges(); len(merged) != 1 || merged[0].CharacterID != seats[1] {
+		t.Fatalf("the merged writes after arming again: %+v", merged)
 	}
-	w.do(func() {
-		if sh.Machine.Armed() {
-			t.Fatal("the machine is still armed")
-		}
-	})
 }

@@ -2,6 +2,7 @@ package game
 
 import (
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/puzzle"
 )
 
@@ -23,7 +24,7 @@ func (g *Game) race(sh *Shared) {
 // raced settles a race once one side's log lands: solved, it takes the
 // machine, and the rival's haywires in the same command; failed, the
 // rival races no more.
-func (g *Game) raced(sh *Shared, m *PartyMachine, res puzzle.Result, tick int64) error {
+func (g *Game) raced(sh *Shared, m *PartyMachine, res puzzle.Result, tick, now int64) error {
 	o := g.SharedByID(m.Rival)
 	if o == nil || !o.Machine.Armed() || o.Machine.Rival != sh.ID {
 		return nil
@@ -44,6 +45,13 @@ func (g *Game) raced(sh *Shared, m *PartyMachine, res puzzle.Result, tick int64)
 		}
 		s.LastMachine = &MachineDone{Source: om.Source, Family: om.Spec.Family, Level: om.Spec.Level, Tick: tick, Result: lost}
 		g.touchOnce(s)
+	}
+	if o.Fork != nil {
+		o.Fork.Worked = true
+		o.Fork.Open = []int64{gen.WayOpen}
+	}
+	if o.Opened > 0 && om.At > 0 && now > om.At {
+		o.Opened += now - om.At
 	}
 	o.Machine, o.LostRace = nil, sh.ID
 	return nil

@@ -48,9 +48,9 @@ func (Hunter) Toward(o api.Options, to api.Hex) (api.ActionRequest, bool) {
 	if o.Fight != nil || o.Long != nil {
 		return api.ActionRequest{}, false
 	}
-	best, dir := distance(o.At, to), -1
+	best, dir := hexDistance(o.At, to), -1
 	for _, m := range o.Moves {
-		if d := distance(m.To, to); m.Open && d < best {
+		if d := hexDistance(m.To, to); m.Open && d < best {
 			best, dir = d, m.Dir
 		}
 	}
@@ -58,19 +58,6 @@ func (Hunter) Toward(o api.Options, to api.Hex) (api.ActionRequest, bool) {
 		return api.ActionRequest{}, false
 	}
 	return api.ActionRequest{Kind: api.ActStep, Dir: dir}, true
-}
-
-// distance is the hex distance between two tiles in axial coordinates.
-func distance(a, b api.Hex) int64 {
-	dq, dr := a.Q-b.Q, a.R-b.R
-	return max(abs(dq), abs(dr), abs(dq+dr))
-}
-
-func abs(x int64) int64 {
-	if x < 0 {
-		return -x
-	}
-	return x
 }
 
 // Sum is a slain hunt's parts against its roll, line by line, from its

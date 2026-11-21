@@ -260,8 +260,9 @@ func (g *Game) forkChoose(c *Char, cmd Command, sh *Shared, present []*Char, ch 
 }
 
 // forkVote is the way most pushers voted for: a tie goes to the leader's
-// way if the leader voted among the tied, else to the lowest of them.
-func forkVote(f *ForkState, present []*Char, leader string) (way int64, pushers, leavers []*Char) {
+// way if the leader voted among the tied, else to the lowest of them. The
+// third way counts only while it stands open or a pusher holds a key.
+func forkVote(f *ForkState, present []*Char, leader string, hidden bool) (way int64, pushers, leavers []*Char) {
 	var votes [gen.WayHidden + 1]int64
 	for _, m := range present {
 		ch, _ := choiceOf(f, m.C.ID)
@@ -270,11 +271,13 @@ func forkVote(f *ForkState, present []*Char, leader string) (way int64, pushers,
 			continue
 		}
 		pushers = append(pushers, m)
-		votes[ch.Way]++
+		if hidden || ch.Way != gen.WayHidden {
+			votes[ch.Way]++
+		}
 	}
 	most := slices.Max(votes[:])
 	way = int64(slices.Index(votes[:], most))
-	if ch, ok := choiceOf(f, leader); ok && ch.Push && votes[ch.Way] == most {
+	if ch, ok := choiceOf(f, leader); ok && ch.Push && (hidden || ch.Way != gen.WayHidden) && votes[ch.Way] == most {
 		way = ch.Way
 	}
 	return way, pushers, leavers
@@ -293,7 +296,9 @@ func (g *Game) resolveFork(sh *Shared, present []*Char, tick int64, actor *Char)
 	if p := g.partyOf(present[0]); p != nil {
 		leader = p.Leader
 	}
-	way, pushers, leavers := forkVote(f, present, leader)
+	_, pushers, _ := forkVote(f, present, leader, true)
+	hidden := slices.Contains(f.Open, gen.WayHidden) || keyHolder(pushers, h) != nil
+	way, pushers, leavers := forkVote(f, present, leader, hidden)
 	key := ledger.SubKey("fork", h.Ref(), strconv.FormatInt(n, decimal), strconv.FormatInt(tick, decimal))
 	for _, m := range present {
 		if m != actor {
@@ -399,8 +404,8 @@ func (g *Game) Fork(c *Char) *ForkRead {
 	present := g.atFork(sh)
 	fp := g.r.Gen.FloorAt(h, sh.Floor, c.Delving.Way, g.tierAt(h))
 	out := &ForkRead{Shared: sh.ID, Floor: sh.Floor, Choices: f.Choices, Opened: sh.Opened, Worked: f.Worked}
-	if sh.Opened > 0 && len(present) > 1 {
-		out.Due = sh.Opened + g.PartyWindowMs()
+	if len(present) > 1 {
+		out.Due = g.WindowDue(sh)
 	}
 	for _, m := range present {
 		out.Present = append(out.Present, m.C.ID)

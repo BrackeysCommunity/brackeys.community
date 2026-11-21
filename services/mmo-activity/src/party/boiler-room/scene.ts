@@ -16,12 +16,7 @@ function chevron(at: Point, dir: number, w: number): string {
   return `M${at.x - w},${base}L${at.x},${tip}L${at.x + w},${base}`;
 }
 
-/**
- * The boiler room: Pressure's gauges and wheels with every needle coupled
- * to every valve, and each valve in one seat's hands. A seat turns only
- * its own wheels; while it holds one, every other gauge shows its needle
- * falling.
- */
+/** Pressure's gauges: only this seat's wheels live, every needle falling while a wheel is held. */
 export function mount(host: PartySceneHost): Scene {
   const n = host.layout.size;
   const mine = Array.from({ length: n }, (_, v) => v).filter(

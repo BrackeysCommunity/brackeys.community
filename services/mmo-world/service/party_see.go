@@ -5,7 +5,6 @@ import (
 	"slices"
 
 	"jams.team/mmo-world/api"
-	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/party"
 )
@@ -46,64 +45,21 @@ func huntInReach(g *game.Game, c *game.Char) *game.Hunt {
 	return nil
 }
 
-func isDown(c *game.Char) bool {
-	return slices.ContainsFunc(c.C.Conditions, func(x char.Condition) bool { return x.Tag == char.Down })
-}
-
-// picked is the option a member holds on a shared beat, or "".
-func picked(sh *game.Shared, who string) string {
-	if i := slices.IndexFunc(sh.Picks, func(p game.HeldPick) bool { return p.Who == who }); i >= 0 {
-		return sh.Picks[i].Option
-	}
-	return ""
-}
-
-// upIn are the members in a shared encounter who are up and still in it,
-// in seat order: who picks, and who sits at its machine.
-func upIn(g *game.Game, sh *game.Shared) []*game.Char {
-	var out []*game.Char
-	for _, id := range sh.Members {
-		m := g.Char(id)
-		if m == nil || m.Fight == nil || m.Fight.Shared != sh.ID {
-			continue
-		}
-		if e := m.Fight.E; !slices.Contains(e.Down, id) && !slices.Contains(e.Gone, id) {
-			out = append(out, m)
-		}
-	}
-	return out
-}
-
-// atFork are the members standing at a fork, free to choose.
-func atFork(g *game.Game, sh *game.Shared) []*game.Char {
-	var out []*game.Char
-	for _, id := range sh.Members {
-		m := g.Char(id)
-		if m != nil && m.C.At == sh.Hex && m.C.Floor == sh.Floor && m.Delving != nil && !isDown(m) && m.Long == nil && m.Fight == nil {
-			out = append(out, m)
-		}
-	}
-	return out
-}
-
 // seatsOf are who would sit at a shared encounter's or fork's machine now:
 // its seats once armed, else those present.
 func seatsOf(g *game.Game, sh *game.Shared) []string {
 	if sh.Machine.Armed() {
 		return slices.Clone(sh.Machine.Seats)
 	}
-	present := upIn(g, sh)
-	if sh.Fork != nil {
-		present = atFork(g, sh)
-	}
 	var out []string
-	for _, m := range present {
+	for _, m := range g.SeatsOf(sh) {
 		out = append(out, m.C.ID)
 	}
 	return out
 }
 
-// encounterIn is a shared encounter's one encounter while it runs, or nil.
+// encounterIn is a member whose fight is the shared encounter while it
+// runs, or nil.
 func encounterIn(g *game.Game, sh *game.Shared) *game.Char {
 	for _, id := range sh.Members {
 		if m := g.Char(id); m != nil && m.Fight != nil && m.Fight.Shared == sh.ID && !m.Fight.E.Over {
@@ -133,13 +89,13 @@ func memberView(g *game.Game, viewer *game.Char, id string, sh *game.Shared, fol
 	out := api.PartyMember{Name: charName(g, id), You: id == viewer.C.ID, Seat: noSeat, Follows: follows}
 	if m := g.Char(id); m != nil {
 		out.Here = m.C.At == viewer.C.At && m.C.Floor == viewer.C.Floor
-		out.Down, out.Floor = isDown(m), m.C.Floor
+		out.Down, out.Floor = game.IsDown(m), m.C.Floor
 	}
 	if sh != nil {
 		if i := slices.Index(sh.Members, id); i >= 0 {
 			out.Seat = int64(i)
 		}
-		out.Picked = picked(sh, id) != ""
+		out.Picked = sh.PickOf(id) != ""
 		if sh.Fork != nil {
 			out.Picked = slices.ContainsFunc(sh.Fork.Choices, func(x game.Choice) bool { return x.Who == id })
 		}
@@ -200,15 +156,15 @@ func partyBeat(g *game.Game, sh *game.Shared, mine string) *api.PartyBeat {
 	}
 	e := in.Fight.E
 	out := &api.PartyBeat{Beat: int64(e.At) + 1, Beats: int64(len(e.Beats)), Kind: e.Beats[e.At], Cautious: g.Rules().Fight.Cautious(),
-		Waiting: sh.Machine.Armed(), Mine: picked(sh, mine)}
-	for _, m := range upIn(g, sh) {
+		Waiting: sh.Machine.Armed(), Mine: sh.PickOf(mine)}
+	for _, m := range g.UpIn(sh) {
 		out.Present++
-		if picked(sh, m.C.ID) != "" {
+		if sh.PickOf(m.C.ID) != "" {
 			out.Picked++
 		}
 	}
-	if sh.Opened > 0 {
-		out.Opened, out.Due = sh.Opened, sh.Opened+g.PartyWindowMs()
+	if due := g.WindowDue(sh); due > 0 {
+		out.Opened, out.Due = sh.Opened, due
 	}
 	return out
 }
@@ -321,7 +277,7 @@ func pressers(g *game.Game, viewer string, x *game.Hunt) []api.HuntPresser {
 // up and not down in it, in no encounter, and not yet this tick.
 func canPress(g *game.Game, c *game.Char, x *game.Hunt) bool {
 	h, tick := x.H, g.Tick()
-	if h.Over || tick >= h.Ends || !game.InReach(c, x) || isDown(c) || c.Banned || c.Fight != nil || c.Armed != nil ||
+	if h.Over || tick >= h.Ends || !game.InReach(c, x) || game.IsDown(c) || c.Banned || c.Fight != nil || c.Armed != nil ||
 		slices.Contains(h.Down, c.C.ID) {
 		return false
 	}

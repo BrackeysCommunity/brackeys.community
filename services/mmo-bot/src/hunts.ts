@@ -6,10 +6,9 @@ import { huntClosedCard, huntPostCard } from "./screens/hunt.ts";
 import type { HuntPost } from "./world.ts";
 
 /**
- * The hunt cards in the server's game channel (GDD 7.6): one a hunt,
- * posted when it opens, edited as its health falls at most once a world
- * tick (flow M5: on a timer, not on every beat), and closed with its
- * spoils table. With no game channel set, nothing is posted.
+ * The hunt cards in the game channel (GDD 7.6): one a hunt, posted when
+ * it opens, edited on a timer at most once a world tick, and closed with
+ * its spoils table. With no game channel set, nothing is posted.
  */
 
 export const HUNT_POLL_MS = 10_000;

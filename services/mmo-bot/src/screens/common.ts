@@ -13,6 +13,16 @@ import { type Action, encodeId, type LaunchCard, launchTarget, target } from "..
 import { capitalise, type Lexicon } from "../lexicon.ts";
 import { amount, num, outOf, plural, seconds, signed, ticks } from "../units.ts";
 
+/** A unix time as Discord draws it live: "in 2 minutes". */
+export function relative(ms: number): string {
+  return `<t:${Math.floor(ms / 1000)}:R>`;
+}
+
+/** Goods as a comma list of amounts, empty when there are none. */
+export function goodsLine(goods: readonly api.Goods[], lex: Lexicon): string {
+  return goods.map((g) => amount(g.units, lex.material(g.material))).join(", ");
+}
+
 /** Where every hub card appears and who sees it. */
 export const PRIVATE = "Your hub · only you can see this";
 

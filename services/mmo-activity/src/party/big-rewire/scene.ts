@@ -7,12 +7,7 @@ import { plural } from "../../units.ts";
 import { PartyBar, familyHost, playArea } from "../wrap.ts";
 import { EMPTY, GRAB, PLUG, type BigRewireModel } from "./model.ts";
 
-/**
- * The big junction box, wired by several hands: the family's box, where a
- * press on a plug takes hold of that wire and the drop plugs it. Every
- * hand's held wire is ringed on every screen, with the seat holding it,
- * because a plug run across a wire someone else holds drops every hand.
- */
+/** The junction box with every hand's held wire ringed and labelled with its seat. */
 export function mount(host: PartySceneHost): Scene {
   const merged = () => host.model as BigRewireModel;
   const layout = host.layout;

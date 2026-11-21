@@ -398,6 +398,7 @@ test("a party's thread opens once, marked opening first, with every member added
     store,
     sink,
     new ThreadBudget(),
+    { editMs: 0 },
   );
   const modes = await Promise.all([poster.note(note), poster.note(note), poster.note(note)]);
   expect(modes).toEqual(["thread", "thread", "thread"]);
@@ -447,6 +448,35 @@ test("the thread card is edited when someone picks, at most once in the edit win
   await Bun.sleep(80);
   await poster.poll();
   expect(calls.filter((c) => c.startsWith("edit"))).toHaveLength(1);
+});
+
+test("a party that ends inside the edit window is closed once the window has passed", async () => {
+  const store = memoryStore();
+  const { sink, calls } = fakeThreads(store);
+  let clock = 1_000;
+  let board: api.Parties = { tick: 1, parties: [mm8.board] };
+  const poster = new PartyPoster(
+    { parties: async () => board },
+    lex,
+    store,
+    sink,
+    new ThreadBudget(),
+    { editMs: 60, now: () => clock },
+  );
+  await poster.note(note);
+  clock = 1_010;
+  board = { tick: 2, parties: [] };
+  await poster.poll();
+  await poster.poll();
+  expect(calls.filter((c) => c.startsWith("edit") || c.startsWith("archive"))).toEqual([]);
+  expect(await store.get("mmo-bot:party:pt-1")).not.toBeNull();
+  clock = 1_100;
+  await Bun.sleep(120);
+  expect(calls.filter((c) => c.startsWith("edit") || c.startsWith("archive"))).toEqual([
+    "edit The party has ended",
+    "archive th-1",
+  ]);
+  expect(await store.get("mmo-bot:party:pt-1")).toBeNull();
 });
 
 test("past the thread budget the party plays in its own cards, and its thread opens once the budget allows", async () => {

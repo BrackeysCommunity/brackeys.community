@@ -73,11 +73,7 @@ interface Crank {
   shade: SVGCircleElement;
 }
 
-/**
- * The tandem winch: two of Crank's dynamos side by side, charging only
- * while both run in the band together. A seat winds the crank it holds
- * now, and the cranks change hands every few seconds.
- */
+/** Two dynamos side by side with a speed gauge each, and the crank this seat holds. */
 export function mount(host: PartySceneHost): Scene {
   const model = () => host.model as WinchModel;
   const step = Math.max(host.layout.step ?? 0, 1);

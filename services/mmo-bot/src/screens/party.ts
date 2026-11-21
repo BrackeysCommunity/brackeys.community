@@ -8,7 +8,7 @@ import { riskLine } from "../../../../packages/mmo-words/src/index.ts";
 import * as api from "../api.ts";
 import { authorLine, type Card, COLOUR, type Picture } from "../card.ts";
 import { encodeId } from "../ids.ts";
-import type { Lexicon } from "../lexicon.ts";
+import { capitalise, type Lexicon } from "../lexicon.ts";
 import { amount, band, bandShort, plural } from "../units.ts";
 import type { PartyRead } from "../world.ts";
 import {
@@ -21,8 +21,9 @@ import {
   launch,
   option,
   PRIVATE,
+  relative,
 } from "./common.ts";
-import { dungeonName, floorOf } from "./dungeon.ts";
+import { dungeonName, floorOf, tagWords, wayLabel } from "./dungeon.ts";
 
 /**
  * A party's cards (GDD 7.5): forming it, the beat each member picks on
@@ -34,9 +35,21 @@ import { dungeonName, floorOf } from "./dungeon.ts";
 /** Where a party thread's cards appear and who sees them. */
 export const THREAD = "Party thread · every member sees this";
 
-/** A unix time as Discord draws it live: "in 2 minutes". */
-export function relative(ms: number): string {
-  return `<t:${Math.floor(ms / 1000)}:R>`;
+/** The "Time left" field of a beat's picks; `idle` is how the unstarted clock reads. */
+function timeLeftField(
+  due: number | undefined,
+  takes: string,
+  opts: { waiting?: boolean; idle?: string } = {},
+): EmbedField {
+  const { waiting, idle = "then" } = opts;
+  return {
+    name: "Time left",
+    value: waiting
+      ? "The clock waits while the party's machine is armed."
+      : due
+        ? `${relative(due)}. Anyone who has not picked then takes ${takes}.`
+        : `The first pick starts the clock. Anyone who has not picked ${idle} takes ${takes}.`,
+  };
 }
 
 function memberLine(m: api.PartyMember, beat: boolean): string {
@@ -183,14 +196,7 @@ export function partyBeatCard(
       inline: true,
     })),
   ];
-  fields.push({
-    name: "Time left",
-    value: beat?.waiting
-      ? "The clock waits while the party's machine is armed."
-      : beat?.due
-        ? `${relative(beat.due)}. Anyone who has not picked then takes ${cautious}.`
-        : `The first pick starts the clock. Anyone who has not picked when it ends takes ${cautious}.`,
-  });
+  fields.push(timeLeftField(beat?.due, cautious, { waiting: beat?.waiting, idle: "when it ends" }));
   const opening = mine
     ? `You picked **${lex.name("fights.options", mine)}**. ${beat ? `${beat.picked} of ${plural(beat.present, "member")} have picked.` : ""}\n\n`
     : "";
@@ -433,12 +439,7 @@ export function threadCard(b: api.PartyBoard, lex: Lexicon, picture?: ThreadPict
     );
     card.title = `${kind}: everyone picks`;
     card.description = `The beat resolves when all ${plural(b.beat.present, "member")} have picked or the time runs out.`;
-    fields.push({
-      name: "Time left",
-      value: b.beat.waiting
-        ? "The clock waits while the party's machine is armed."
-        : `${due} Anyone who has not picked then takes ${cautious}.`,
-    });
+    fields.push(timeLeftField(b.due, cautious, { waiting: b.beat.waiting }));
     card.footer = "Picks stay hidden until the beat resolves.";
     card.rows = [{ buttons: [btn("Pick", "p-card", b.id, 0, { style: "primary" })] }];
     card.colour = COLOUR.rust;
@@ -446,14 +447,12 @@ export function threadCard(b: api.PartyBoard, lex: Lexicon, picture?: ThreadPict
     const f = b.fork;
     const ways = f.ways;
     card.author = authorLine("Party", floorOf(f.floor, f.up), "the fork");
-    card.title = `${floorOf(f.floor, f.up)} of ${dungeonName(f, lex)} cleared`.replace(/^./, (c) =>
-      c.toUpperCase(),
-    );
+    card.title = capitalise(`${floorOf(f.floor, f.up)} of ${dungeonName(f, lex)} cleared`);
     card.description = "Each member pushes, naming a way, or leaves. Only those who push vote.";
     for (const w of ways)
       fields.push({
-        name: `${["A", "B", "C"][ways.indexOf(w)]}. ${w.name}`,
-        value: `${w.tags.map((t) => t.replace(/-/g, " ")).join(", ") || "no tags"} · ${w.open ? "open" : "closed"} · ${plural(w.votes, "vote")}`,
+        name: wayLabel(w, ways),
+        value: `${tagWords(w.tags)} · ${w.open ? "open" : "closed"} · ${plural(w.votes, "vote")}`,
       });
     fields.push({
       name: "Time left",

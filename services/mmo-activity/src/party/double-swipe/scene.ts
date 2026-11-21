@@ -64,11 +64,7 @@ interface Drawn {
   shade: SVGRectElement;
 }
 
-/**
- * The double swipe: two of Keycard's readers that must both read a pass
- * within a moment of each other. A seat swipes the reader it holds on the
- * pass in hand, and the readers change hands on each pass.
- */
+/** Two Keycard readers; a seat swipes only the reader it holds on this pass. */
 export function mount(host: PartySceneHost): Scene {
   const model = () => host.model as SwipeModel;
   const passes = host.layout.size;

@@ -25,12 +25,20 @@ func (g *Game) setReady(c *Char, cmd Command) error {
 	if err := idle(c); err != nil {
 		return err
 	}
-	ft := g.r.Fight.Tier(cmd.Units)
+	ReadyAt(g.r, c, cmd.Units, cmd.Units)
+	_, err := g.fact(c, "character.readied", g.Tick(), fact.N("tier", cmd.Units), fact.S("note", cmd.Note))
+	return err
+}
+
+// ReadyAt raises a character's worn gear to one tier's expected level and
+// its practice to another's, never lowering either.
+func ReadyAt(r *Rules, c *Char, gear, practiced int64) {
 	for _, slot := range []string{char.Hand, char.Body} {
 		if in := c.C.In(slot, 0); in != nil {
-			in.Level = max(in.Level, ft.ExpectedLevel)
+			in.Level = max(in.Level, r.Fight.Tier(gear).ExpectedLevel)
 		}
 	}
+	ft := r.Fight.Tier(practiced)
 	for _, skill := range readySkills {
 		i := slices.IndexFunc(c.C.Practice, func(k char.Skill) bool { return k.ID == skill })
 		if i < 0 {
@@ -40,6 +48,4 @@ func (g *Game) setReady(c *Char, cmd Command) error {
 		c.C.Practice[i].Level = max(c.C.Practice[i].Level, ft.ExpectedPractice)
 	}
 	slices.SortFunc(c.C.Practice, func(a, b char.Skill) int { return cmp.Compare(a.ID, b.ID) })
-	_, err := g.fact(c, "character.readied", g.Tick(), fact.N("tier", cmd.Units), fact.S("note", cmd.Note))
-	return err
 }

@@ -153,12 +153,16 @@ func (g *Game) partySolve(c *Char, cmd Command) ([]fight.Pressed, *puzzle.Result
 		return nil, nil, err
 	}
 	if m.Rival != "" {
-		if err := g.raced(sh, m, res, tick); err != nil {
+		if err := g.raced(sh, m, res, tick, cmd.Now); err != nil {
 			return nil, nil, err
 		}
 	}
 	if sh.Machine == m {
 		sh.Machine = nil
+	}
+	// The window waits while the machine runs.
+	if sh.Opened > 0 && m.At > 0 && cmd.Now > m.At {
+		sh.Opened += cmd.Now - m.At
 	}
 	sh.Movers = movers
 	for _, s := range seats {

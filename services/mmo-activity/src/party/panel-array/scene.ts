@@ -10,11 +10,7 @@ import { panelOf, type PanelModel } from "./model.ts";
 // How long grit that has just blown in is ringed.
 const ARRIVED_MS = 1500;
 
-/**
- * The panel array: Scrub's plate cut into bands of rows, one a seat. A
- * seat rubs only its own band; every few rubs blow grit onto the next
- * seat's reading, and the cell it lands on is ringed on every screen.
- */
+/** Scrub's plate with this seat's band live and newly blown grit ringed on every screen. */
 export function mount(host: PartySceneHost): Scene {
   const model = () => host.model as PanelModel;
   const n = host.layout.size;

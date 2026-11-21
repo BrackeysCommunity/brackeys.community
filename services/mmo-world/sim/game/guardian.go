@@ -213,7 +213,7 @@ func (g *Game) guardianSlain(h hex.Hex, e *fight.Encounter, sh *Shared, row *she
 			}
 		}
 		g.carriedFrom(c, parts[who])
-		g.touch(c)
+		g.touchOnce(c)
 	}
 	for _, s := range rolled {
 		data = append(data, fact.N("rolled:"+s.Material, s.Qty))

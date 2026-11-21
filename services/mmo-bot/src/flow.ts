@@ -1210,10 +1210,8 @@ function postNotice(done: number, units: number): string {
 
 /** The market nearest a tile. */
 function nearest(at: api.Hex, markets: readonly api.Hex[]): api.Hex | undefined {
-  const dist = (h: api.Hex) =>
-    Math.max(Math.abs(h.q - at.q), Math.abs(h.r - at.r), Math.abs(h.q + h.r - at.q - at.r));
   return markets.reduce<api.Hex | undefined>(
-    (best, h) => (!best || dist(h) < dist(best) ? h : best),
+    (best, h) => (!best || hexDistance(h, at) < hexDistance(best, at) ? h : best),
     undefined,
   );
 }

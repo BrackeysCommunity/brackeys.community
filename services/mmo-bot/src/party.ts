@@ -10,14 +10,14 @@ import { threadCard, threadEndedCard, type ThreadPicture } from "./screens/party
  * the channel where /party or the hub's Party button was pressed, with its
  * members added (a public thread where a private one is refused). The
  * thread keeps one card, who has picked and never what, edited at most
- * every two seconds and polled from the world; the thread is archived
+ * every PARTY_EDIT_MS and polled from the world; the thread is archived
  * when the party ends. Past the server's thread budget the party plays on
  * in ephemeral cards until a thread can open. The thread and its card are
  * the bot's own bookkeeping, kept under mmo-bot:party:<id>.
  */
 
 export const PARTY_POLL_MS = 5_000;
-/** One edit of a thread's card in this many ms at most (spike D rule 2). */
+/** The least ms between two edits of a thread's card. */
 export const PARTY_EDIT_MS = 2_000;
 /** A thread marked opening for this long without its id is taken as never opened. */
 export const OPENING_STALE_MS = 60_000;
@@ -263,6 +263,23 @@ export class PartyPoster {
   /** Says the party has ended on its card, archives the thread and forgets it. */
   private async close(k: Kept): Promise<void> {
     if (k.state === "open" && k.thread) {
+      const wait = k.card ? k.at + this.editMs - this.now() : 0;
+      if (wait > 0) {
+        const party = k.party;
+        const t = this.pending.get(party);
+        if (t) clearTimeout(t);
+        this.pending.set(
+          party,
+          setTimeout(() => {
+            this.pending.delete(party);
+            void this.serial(party, async () => {
+              const k2 = await this.kept(party);
+              if (k2) await this.close(k2);
+            }).catch((e: unknown) => this.log(`[party] ${party}: ${String(e)}`));
+          }, wait),
+        );
+        return;
+      }
       if (k.card) await this.sink.edit(k.thread, k.card, threadEndedCard(k.picture));
       await this.sink.archive(k.thread);
       this.budget.closed(k.server);

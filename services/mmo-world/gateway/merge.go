@@ -184,12 +184,9 @@ func (g *Gateway) expireParty(ml *mergedLog) {
 		return
 	}
 	if !ok || m.Context != ml.key || m.ArmedAt != ml.armedAt || m.Due == 0 {
-		var found bool
-		if m, found = g.reseat(ctx, ml); !found {
-			// Solved, or ended some other way: nothing is left to end.
-			ml.gone = true
-			return
-		}
+		// Solved, or ended some other way: nothing is left to end.
+		ml.gone = true
+		return
 	}
 	if now := g.clock.Now().UnixMilli(); now < m.Due {
 		ml.due = m.Due
@@ -231,11 +228,6 @@ func (g *Gateway) writeMerged(ctx context.Context, ml *mergedLog, n int) bool {
 		ml.sent = false
 		return false
 	}
-	if ref != nil && ref.Code == api.CodeNoMachine {
-		if _, found := g.reseat(ctx, ml); found {
-			return g.writeMerged(ctx, ml, n)
-		}
-	}
 	if ref != nil && ref.Code != api.CodeNoMachine && ref.Code != api.CodeRivalWon {
 		g.log.Warn("activity: a party's merged log was refused", "context", ml.key, "code", ref.Code)
 	}
@@ -245,21 +237,4 @@ func (g *Gateway) writeMerged(ctx context.Context, ml *mergedLog, n int) bool {
 		ml.stop = nil
 	}
 	return true
-}
-
-// reseat finds the machine under another first seat when the one kept no
-// longer sits at it (a ban takes a seat away), so the machine still ends.
-// The caller holds the log's lock.
-func (g *Gateway) reseat(ctx context.Context, ml *mergedLog) (api.ArmedMachine, bool) {
-	all, err := g.cfg.Host.Armed(ctx)
-	if err != nil {
-		return api.ArmedMachine{}, false
-	}
-	for _, m := range all {
-		if m.Context == ml.key && m.ArmedAt == ml.armedAt && m.Due > 0 && m.CharacterID != ml.seat0 {
-			ml.seat0 = m.CharacterID
-			return m, true
-		}
-	}
-	return api.ArmedMachine{}, false
 }

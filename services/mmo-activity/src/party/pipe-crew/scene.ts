@@ -18,11 +18,7 @@ interface Gauge {
   fill: SVGRectElement;
 }
 
-/**
- * The pipe crew: Leak's pipe cut into runs, one a seat, each with its own
- * gauge. This seat's joints are lit and taken; the others' are dimmed, and
- * a touch on one is not sent.
- */
+/** Leak's pipe in runs, this seat's joints lit and the others' dimmed. */
 export function mount(host: PartySceneHost): Scene {
   const model = () => host.model as PipeModel;
   const n = host.layout.size;

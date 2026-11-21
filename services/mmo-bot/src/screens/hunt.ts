@@ -9,7 +9,7 @@ import { target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
 import { amount, bandShort, num, plural, ticks } from "../units.ts";
 import type { HuntPost } from "../world.ts";
-import { back, banner, btn, launch, PRIVATE } from "./common.ts";
+import { back, banner, btn, goodsLine, launch, PRIVATE } from "./common.ts";
 
 /**
  * A hunt's cards (GDD 7.6): the live hunt as one presser sees it, and the
@@ -26,10 +26,6 @@ const BAR = 10;
 export function healthLine(health: number, max: number): string {
   const full = max > 0 ? Math.round((Math.max(0, health) * BAR) / max) : 0;
   return `\`${"█".repeat(full)}${"░".repeat(BAR - full)}\` ${num(health)} of ${amount(max, "health")}`;
-}
-
-function goodsLine(goods: readonly api.Goods[], lex: Lexicon): string {
-  return goods.map((g) => amount(g.units, lex.material(g.material))).join(", ") || "nothing";
 }
 
 function huntPicture(h: HuntPost, lex: Lexicon): Picture | "form" {
@@ -81,7 +77,10 @@ export function huntCard(
       name: "Your part",
       value: `${amount(view.mine, "health")} removed: ${view.share}% of the spoils as it stands`,
     });
-  fields.push({ name: "Spoils, the most each line can roll", value: goodsLine(h.spoils, lex) });
+  fields.push({
+    name: "Spoils, the most each line can roll",
+    value: goodsLine(h.spoils, lex) || "nothing",
+  });
   const options = (view?.canPress ? (view.options ?? []) : []).filter((x) => !x.puzzle);
   const buttons: Button[] = options.slice(0, 4).map((x) =>
     btn(
@@ -128,7 +127,7 @@ export function huntPostCard(h: HuntPost, lex: Lexicon): Card {
     table: h.pressers.length ? pressersTable(h.pressers) : undefined,
     fields: [
       { name: "Hunters", value: plural(h.pressers.length, "presser"), inline: true },
-      { name: "Spoils, the most each line can roll", value: goodsLine(h.spoils, lex) },
+      { name: "Spoils, the most each line can roll", value: goodsLine(h.spoils, lex) || "nothing" },
     ],
     footer: "Anyone on its tile or the next may press once a tick. Spoils split by health removed.",
     rows: [{ buttons: [btn("Join the hunt", "hunt", h.id, 0, { style: "danger" })] }],
@@ -153,14 +152,18 @@ export function huntClosedCard(h: HuntPost, lex: Lexicon): Card {
           header: ["Presser", "Removed (health)", "Spoils (goods)"],
           rows: shares
             .slice(0, 12)
-            .map((s) => [s.name.slice(0, 20), num(s.removed), goodsLine(s.goods, lex)]),
+            .map((s) => [
+              s.name.slice(0, 20),
+              num(s.removed),
+              goodsLine(s.goods, lex) || "nothing",
+            ]),
         }
       : h.pressers.length
         ? pressersTable(h.pressers)
         : undefined,
     fields: h.slain
       ? [
-          { name: "Rolled", value: goodsLine(h.rolled ?? [], lex) },
+          { name: "Rolled", value: goodsLine(h.rolled ?? [], lex) || "nothing" },
           { name: "Hunters", value: plural(shares.length, "presser"), inline: true },
         ]
       : [{ name: "Hunters", value: plural(h.pressers.length, "presser"), inline: true }],

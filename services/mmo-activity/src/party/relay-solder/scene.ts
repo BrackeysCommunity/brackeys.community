@@ -18,11 +18,7 @@ interface Joint {
   tag: SVGTextElement;
 }
 
-/**
- * Relay solder: Splice's board, its trace cut into segments of a few
- * positions, each a seat's. The iron is in one seat's hand; at the end of
- * a segment it lifts, and the next seat sets it down at the joint.
- */
+/** Splice's board with the joints marked and the iron's holder in the bar. */
 export function mount(host: PartySceneHost): Scene {
   const model = () => host.model as SolderModel;
   const cols = host.layout.size;

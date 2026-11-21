@@ -83,7 +83,7 @@ func (m *MachineCmd) log() puzzle.Log {
 // Timed reports whether the service stamps a kind with its clock.
 func Timed(kind string) bool {
 	switch kind {
-	case MachineArm, MachineSolve, PartyPick, PartyWindow, DungeonPush, DungeonLeave:
+	case MachineArm, MachineSolve, Press, PartyPick, PartyWindow, DungeonPush, DungeonLeave:
 		return true
 	}
 	return false

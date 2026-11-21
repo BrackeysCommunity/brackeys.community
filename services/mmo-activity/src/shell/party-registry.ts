@@ -14,10 +14,9 @@ export interface PartySceneHost extends SceneHost {
 }
 
 /**
- * One puzzles.party row played by several hands on one machine: the
- * merged model of sim/puzzle's PartyRule, and a scene with each seat's
- * gesture. A move's seat is 0 when it is missing, as the wire leaves a
- * zero out.
+ * One puzzles.party row played by several hands on one machine: the merged model of sim/puzzle's
+ * PartyRule, and a scene with each seat's gesture. A move's seat is 0 when it is missing, as the
+ * wire leaves a zero out.
  */
 export interface PartyVersion {
   readonly id: string;

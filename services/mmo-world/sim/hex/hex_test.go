@@ -118,3 +118,16 @@ func TestDiscOffsetWalksTheDisc(t *testing.T) {
 		}
 	}
 }
+
+func TestParseRef(t *testing.T) {
+	for _, h := range []hex.Hex{{}, {Q: 3, R: -1}, {Q: -24, R: 7}, {Q: -5, R: -9}} {
+		if got, ok := hex.ParseRef(h.Ref()); !ok || got != h {
+			t.Fatalf("%v read back as %v, %v", h, got, ok)
+		}
+	}
+	for _, s := range []string{"1", "a,b", "01,2", "1,2,3", "", "+1,2", "1, 2"} {
+		if _, ok := hex.ParseRef(s); ok {
+			t.Fatalf("%q was read as a tile", s)
+		}
+	}
+}

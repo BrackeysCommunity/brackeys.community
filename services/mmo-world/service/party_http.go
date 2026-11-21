@@ -100,7 +100,7 @@ func partyState(g *game.Game, c *game.Char) (out api.PartyState, thread []string
 		out.Hunt = huntView(g, c, x)
 	}
 	for _, o := range g.Chars {
-		if o != c && o.C.Floor == c.C.Floor && party.Within(o.C.At, c.C.At) {
+		if o != c && game.Within(o, c) {
 			out.Reach = append(out.Reach, api.Reachable{CharacterID: o.C.ID, Name: charName(g, o.C.ID), InParty: o.Party != ""})
 		}
 	}
@@ -160,10 +160,10 @@ func partyBoard(g *game.Game, p *party.Party) api.PartyBoard {
 	for _, m := range p.Members {
 		b := api.BoardMember{CharacterID: m.ID, Name: charName(g, m.ID)}
 		if c := g.Char(m.ID); c != nil {
-			b.Down = isDown(c)
+			b.Down = game.IsDown(c)
 		}
 		if sh != nil {
-			b.Picked = picked(sh, m.ID) != ""
+			b.Picked = sh.PickOf(m.ID) != ""
 			if sh.Fork != nil {
 				b.Chose = slices.ContainsFunc(sh.Fork.Choices, func(x game.Choice) bool { return x.Who == m.ID })
 			}
@@ -173,8 +173,8 @@ func partyBoard(g *game.Game, p *party.Party) api.PartyBoard {
 	if sh == nil {
 		return out
 	}
-	if sh.Opened > 0 && !sh.Machine.Armed() {
-		out.Opened, out.Due = sh.Opened, sh.Opened+g.PartyWindowMs()
+	if due := g.WindowDue(sh); due > 0 {
+		out.Opened, out.Due = sh.Opened, due
 	}
 	out.Beat = partyBeat(g, sh, "")
 	if sh.Fork != nil {

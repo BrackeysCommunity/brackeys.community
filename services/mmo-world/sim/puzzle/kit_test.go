@@ -582,9 +582,8 @@ func TestOverrideRing(t *testing.T) {
 	}
 }
 
-// The opening Rewire's band under the Battle model, the odds band its
-// solve rate reaches, is at most one band worse than on MM7's puzzle
-// sheets, for all its look-alike port.
+// The opening Rewire's odds band under the Battle model is at most one band
+// worse than on the frozen puzzle sheets, for all its look-alike port.
 func TestIntroBand(t *testing.T) {
 	bands := book(t).OddsBands
 	bandOf := func(p *puzzle.Puzzles) (int64, string) {

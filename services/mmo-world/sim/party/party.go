@@ -1,7 +1,5 @@
-// Package party is a party as rules (GDD 7.5): two to four characters who
-// press, split and delve together, the invitations that form one, and who
-// leads it. It holds no state of the world; the game keeps the parties
-// and ends one.
+// Package party is a party as rules (GDD 7.5): its members, the invitations
+// that form it, and who leads it. It holds no world state.
 package party
 
 import (
@@ -13,8 +11,8 @@ import (
 	"jams.team/mmo-world/sim/hex"
 )
 
-// Party is two to four characters who press, split and delve together.
-// It never ticks; the game ends it.
+// Party is characters who press, split and delve together; it never ticks,
+// and the game ends it.
 type Party struct {
 	ID      string   `json:"id"` // "pt-<n>"
 	Leader  string   `json:"leader"`

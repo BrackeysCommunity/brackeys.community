@@ -99,7 +99,7 @@ func (g *Gateway) move(ctx context.Context, s *Seat, c *conn, msg api.ClientMess
 	}
 	ml.mu.Lock()
 	if ml.sent || ml.gone {
-		// It is over; a move a slow screen sent after is no matter.
+		// The machine is over: a late move from a slow screen is dropped.
 		ml.mu.Unlock()
 		return
 	}

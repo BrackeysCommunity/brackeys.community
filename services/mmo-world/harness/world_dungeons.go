@@ -119,21 +119,7 @@ func Pick(opts []fight.Option, last bool) string {
 // tier's expected level and its practice at another's, so its fights are
 // the ones the sheets aim at.
 func Ready(r *game.Rules, c *game.Char, gear, practiced int64) {
-	ft := r.Fight.Tier(practiced)
-	for _, slot := range []string{char.Hand, char.Body} {
-		if in := c.C.In(slot, 0); in != nil {
-			in.Level = max(in.Level, r.Fight.Tier(gear).ExpectedLevel)
-		}
-	}
-	for _, skill := range []string{"fight", "travel", "gather", "lockpick"} {
-		i := slices.IndexFunc(c.C.Practice, func(k char.Skill) bool { return k.ID == skill })
-		if i < 0 {
-			c.C.Practice = append(c.C.Practice, char.Skill{ID: skill})
-			i = len(c.C.Practice) - 1
-		}
-		c.C.Practice[i].Level = max(c.C.Practice[i].Level, ft.ExpectedPractice)
-	}
-	slices.SortFunc(c.C.Practice, func(a, b char.Skill) int { return cmp.Compare(a.ID, b.ID) })
+	game.ReadyAt(r, c, gear, practiced)
 }
 
 // Machine arms the machine of a source a character's party (or the

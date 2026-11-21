@@ -212,11 +212,9 @@ func DelveRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	return nil, errors.Join(slices.Concat(errs, d.unmet())...)
 }
 
-// deepBunker is the nearest bunker of seven floors in a region of the
-// founded world's first tier, else its deepest bunker there, nearest
-// first: a floor steps from its region's live tier, and a party readied
-// to the ceiling meets the ceiling's creatures on floor 1 of a bunker in
-// a tier-4 region.
+// deepBunker is the nearest seven-floor bunker in a first-tier region,
+// else the deepest there: floors step from their region's live tier, so
+// only a low-tier entrance leaves room to go deeper.
 func deepBunker(g *game.Game, from hex.Hex) (hex.Hex, bool) {
 	var best hex.Hex
 	floors := int64(0)
@@ -449,7 +447,8 @@ func (d *liveDelve) machineAtRest(ctx context.Context) (*member, string, bool) {
 func (d *liveDelve) work(ctx context.Context, by *member, src string) error {
 	first := by.seat
 	rep, err := first.intent(ctx, d.id("arm"), api.ActMachineArm, &api.MachineIntent{Source: src})
-	// The seat's version moves with every other member's pick.
+	// Another member's pick moves this seat's version, so a stale arm is
+	// looked at again and retried.
 	for try := 0; err == nil && !rep.OK && rep.Refusal != nil && rep.Refusal.Code == api.CodeStale && try < staleTries; try++ {
 		if _, err = first.look(ctx, api.Viewer{}); err == nil {
 			rep, err = first.intent(ctx, d.id("arm"), api.ActMachineArm, &api.MachineIntent{Source: src})

@@ -179,10 +179,8 @@ type Delving struct {
 	Way     int64        `json:"way"`     // the way into this floor, −1 for floor 1
 	Carried []item.Spoil `json:"carried,omitempty"`
 	Climb   int64        `json:"climb,omitempty"` // floors still to climb when carried up
-	// Fork is an open fork the delver stands at; Bonus percent more haul on
-	// this floor, from a solved fork machine.
-	Fork  *ForkState `json:"fork,omitempty"`
-	Bonus int64      `json:"bonus,omitempty"`
+	// Bonus is percent more haul on this floor, from a solved fork machine.
+	Bonus int64 `json:"bonus,omitempty"`
 }
 
 // attachDelve makes a decoded Delve runnable: a shared encounter is one

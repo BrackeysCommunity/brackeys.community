@@ -9,6 +9,7 @@ import (
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fight"
 	"jams.team/mmo-world/sim/fixed"
+	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/party"
@@ -166,16 +167,8 @@ func (g *Game) afterShared(sh *Shared, actor *Char, in []*Char, packs [][]*item.
 	key string, tick int64, w *worked) error {
 	e := in[0].Fight.E
 	beat := sh.beatOf(e, pressed)
-	for _, x := range facts {
-		if strings.HasPrefix(x.Kind, "encounter.") {
-			x.Data = append(x.Data, append(fact.At(sh.Hex), fact.S("archetype", e.Creature.Archetype), fact.S("tags", joinTags(e.Creature.Tags)))...)
-		}
-		if w != nil {
-			x.Data = append(x.Data, w.data(x.Kind)...)
-		}
-		if _, err := g.Log.Append(x); err != nil {
-			return err
-		}
+	if err := g.logEncounterFacts(sh.Hex, e, facts, w); err != nil {
+		return err
 	}
 	var subjects []fact.Ref
 	var wins int64
@@ -239,9 +232,27 @@ func (sh *Shared) beatOf(e *fight.Encounter, pressed []fight.Pressed) int64 {
 	return int64(e.At)
 }
 
+// logEncounterFacts logs an encounter step's facts, the encounter ones
+// placed and named.
+func (g *Game) logEncounterFacts(h hex.Hex, e *fight.Encounter, facts []fact.Fact, w *worked) error {
+	for _, x := range facts {
+		if strings.HasPrefix(x.Kind, "encounter.") {
+			x.Data = append(x.Data, append(fact.At(h), fact.S("archetype", e.Creature.Archetype), fact.S("tags", joinTags(e.Creature.Tags)))...)
+		}
+		if w != nil {
+			x.Data = append(x.Data, w.data(x.Kind)...)
+		}
+		if _, err := g.Log.Append(x); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // wonBeat is a won press's mark on the tile, as a solo one leaves.
 func (g *Game) wonBeat(c *Char, e *fight.Encounter) {
 	g.Pending = append(g.Pending, world.Action{Kind: world.ActWinBeat, Hex: c.C.At, By: char.Ref(c.C.ID), Tag: e.Creature.Archetype})
+	// The world refuses an ease of nothing, which a small scale floors to.
 	more := g.charScale(c, "beat-threat", fixed.Hundredths) - fixed.Hundredths
 	if ease := -g.r.wp("beat-won-threat") * more / fixed.Hundredths; more > 0 && ease > 0 {
 		g.Pending = append(g.Pending, world.Action{Kind: world.ActEase, Hex: c.C.At, By: char.Ref(c.C.ID), Units: ease})

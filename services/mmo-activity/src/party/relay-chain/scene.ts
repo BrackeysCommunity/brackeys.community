@@ -45,11 +45,7 @@ class Panel implements Model {
   }
 }
 
-/**
- * One link of the relay chain: the family's scope and knobs for this
- * seat's own panel, and in the bar a lock lamp for every seat's panel. The
- * chain holds when every panel locks within the window of the last.
- */
+/** This seat's own panel, with a lock lamp in the bar for every seat's. */
 export function mount(host: PartySceneHost): Scene {
   const merged = () => host.model as RelayChainModel;
   const per = merged().per;

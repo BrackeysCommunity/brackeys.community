@@ -42,12 +42,7 @@ interface Drag {
   p: Point;
 }
 
-/**
- * The split panel. A wires seat sees only its own wires' colours and drags
- * them into ports it cannot read; a ports seat sees the ports' glyphs and
- * which glyph some colours go to, and lights a port for everyone. Nobody
- * is dealt the answer, so the panel never says it is wired: the server does.
- */
+/** The wires seat's colours to drag, and the ports seat's glyphs and lit port. */
 export function mount(host: PartySceneHost): Scene {
   const merged = () => host.model as SplitPanelModel;
   const layout = host.layout;

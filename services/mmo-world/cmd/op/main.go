@@ -24,6 +24,7 @@ import (
 	"jams.team/mmo-world/replay"
 	"jams.team/mmo-world/service"
 	"jams.team/mmo-world/sim/game"
+	simhex "jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/store"
 )
@@ -209,19 +210,11 @@ func run(args []string) error {
 
 // hexArg reads a tile written "q,r".
 func hexArg(s string) (api.Hex, error) {
-	q, r, ok := strings.Cut(s, ",")
+	h, ok := simhex.ParseRef(s)
 	if !ok {
 		return api.Hex{}, fmt.Errorf("a tile is q,r, not %q", s)
 	}
-	qn, err := strconv.ParseInt(q, 10, 64)
-	if err != nil {
-		return api.Hex{}, err
-	}
-	rn, err := strconv.ParseInt(r, 10, 64)
-	if err != nil {
-		return api.Hex{}, err
-	}
-	return api.Hex{Q: qn, R: rn}, nil
+	return api.Hex{Q: h.Q, R: h.R}, nil
 }
 
 // namerOf is the first of those who named a dungeon: a hide is recorded

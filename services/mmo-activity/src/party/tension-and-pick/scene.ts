@@ -21,12 +21,7 @@ function inside(l: Lever, p: Point): boolean {
   return p.x >= l.x && p.x <= l.x + l.width && p.y >= l.y && p.y <= l.y + l.height;
 }
 
-/**
- * The pin lock worked by two hands: the family's lock, where only the
- * seat holding the pick lifts pins, and in the bar the tension lever the
- * other seat pulls. The pin must be set inside the window after the pull,
- * and every pin set passes both roles on.
- */
+/** The family's lock for the pick seat, and the tension lever in the bar for the other. */
 export function mount(host: PartySceneHost): Scene {
   const merged = () => host.model as TensionPickModel;
   const lock = lockPins.mount(

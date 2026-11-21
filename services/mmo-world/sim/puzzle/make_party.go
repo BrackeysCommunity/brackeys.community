@@ -122,33 +122,16 @@ func (p *Puzzles) Probe(s Spec, log Log) Status {
 	if int64(len(log.Moves)) > p.Param("max-moves") {
 		return Broke
 	}
-	l := p.Make(s)
-	if s.Party != "" {
-		return RunParty(l, log, math.MaxInt64, nil).Status
-	}
-	return RunLog(l, nil, log, math.MaxInt64, nil).Status
+	return run(p.Make(s), nil, log, math.MaxInt64).Status
 }
 
-// playParty is Play for a party machine, which has no inner panel.
-func (p *Puzzles) playParty(s Spec, log Log, lim Limits) Result {
-	var fail Result
-	limit := p.MaxPlay()
-	if !lim.Bench {
-		fail.Haywire = p.Haywire(s.Family, s.Where())
-		limit = lim.Countdown + p.Grace()
+// run replays a log on a laid-out machine, by the party rule when it is
+// a party's.
+func run(l Layout, inner *Layout, log Log, horizon int64) Outcome {
+	if l.Party != "" {
+		return RunParty(l, log, horizon, nil)
 	}
-	if lim.Elapsed >= 0 && lim.Elapsed > limit {
-		fail.Late = true
-		return fail
-	}
-	if int64(len(log.Moves)) > p.Param("max-moves") {
-		return fail
-	}
-	horizon := limit
-	if lim.Elapsed >= 0 {
-		horizon = min(limit, lim.Elapsed+p.Grace())
-	}
-	return p.judge(RunParty(p.Make(s), log, horizon, nil), fail, lim.Countdown, lim.Elapsed)
+	return RunLog(l, inner, log, horizon, nil)
 }
 
 // RunParty plays a merged log against a party layout, as RunLog does a

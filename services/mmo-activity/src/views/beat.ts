@@ -1,4 +1,4 @@
-import type { ActivityState, Fact, Fight, Option, Pressed } from "../api.ts";
+import type { ActivityState, DeckView, Fact, Fight, Option, Pressed } from "../api.ts";
 import { button, el, lines, panel } from "../dom.ts";
 import { band, outOf, ticks } from "../units.ts";
 import { factLine, name, riskLine } from "../words.ts";
@@ -16,18 +16,9 @@ export interface BeatActions {
   now?: number;
 }
 
-/**
- * A deck the viewer may swap into the off hand before picking on this
- * beat (Second slot). The state lists them once the service sets them.
- */
-export interface DeckChoice {
-  id: string;
-  name: string;
-}
-
 /** The decks a beat offers to swap in, when the state lists any. */
-export function decksOf(f: Fight): DeckChoice[] {
-  return (f as Fight & { decks?: DeckChoice[] }).decks ?? [];
+export function decksOf(f: Fight): DeckView[] {
+  return f.decks ?? [];
 }
 
 function optionName(o: Option): string {
@@ -66,7 +57,7 @@ function sharedLines(st: ActivityState, f: Fight, act: BeatActions): HTMLElement
   if (members.length) {
     const list = el("ul", { class: "why seats" });
     for (const m of members) {
-      const li = el("li", { text: memberLine(m) });
+      const li = el("li", { text: memberLine(m, st.floor?.up) });
       if (m.picked) li.dataset.picked = "true";
       list.append(li);
     }

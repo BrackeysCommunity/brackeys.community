@@ -1,29 +1,13 @@
-import type { ActivityState, PartyMember, PartyView } from "../api.ts";
+import type { ActivityState, PartyMember, PartyResult, PartyView } from "../api.ts";
 import { el, lines, panel } from "../dom.ts";
 import { band, seconds } from "../units.ts";
 import { name } from "../words.ts";
 
-/**
- * One member's press on a beat the party resolved together. The state
- * carries it once the service sets it; until then a member sees its own
- * press from its reply.
- */
-export interface PartyPress {
-  name: string;
-  option: string;
-  band: string;
-  success: boolean;
-}
+export type { PartyPress, PartyResult } from "../api.ts";
 
-/** The last beat the party resolved, for every member at once. */
-export interface PartyResult {
-  beat: number;
-  pressed: PartyPress[];
-}
-
-/** The last resolved beat a party view names, when the state carries it. */
+/** The last resolved beat a party view names, when there is one. */
 export function partyResult(p: PartyView | undefined): PartyResult | undefined {
-  return (p as (PartyView & { last?: PartyResult }) | undefined)?.last;
+  return p?.last;
 }
 
 /** Each press of a resolved beat as one line. */
@@ -57,8 +41,8 @@ export function windowNode(due: number, now: number, what: string): HTMLElement 
 }
 
 /** One member as the rest of the party is shown them: never what they picked. */
-export function memberLine(m: PartyMember): string {
-  const where = m.here ? "here" : m.floor ? `on floor ${m.floor}` : "elsewhere";
+export function memberLine(m: PartyMember, up?: boolean): string {
+  const where = m.here ? "here" : m.floor ? `on ${up ? "level" : "floor"} ${m.floor}` : "elsewhere";
   const parts = [where];
   if (m.down) parts.push("down");
   if (m.seat >= 0) parts.push(m.picked ? "has chosen" : "still choosing");
@@ -67,8 +51,8 @@ export function memberLine(m: PartyMember): string {
 }
 
 /**
- * The viewer's party (GDD 4.9): who is in it, where each stands, who has
- * chosen on the open beat. Inviting, leaving and following are in chat.
+ * The viewer's party (GDD 7.5): who is in it, where each stands, who has chosen on the open beat.
+ * Inviting, leaving and following are in chat.
  */
 export function partyView(st: ActivityState): HTMLElement {
   const p = st.party!;
@@ -82,7 +66,7 @@ export function partyView(st: ActivityState): HTMLElement {
     ),
   );
   const list = el("ul", { class: "why" });
-  for (const m of p.members) list.append(el("li", { text: memberLine(m) }));
+  for (const m of p.members) list.append(el("li", { text: memberLine(m, st.floor?.up) }));
   root.append(list, ...lines("Invite, leave and follow from chat: press Party there."));
   return root;
 }

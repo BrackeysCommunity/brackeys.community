@@ -44,13 +44,9 @@ func window(g *game.Game, sh *game.Shared) (api.OpenWindow, bool) {
 	if sh.Opened == 0 || sh.Machine.Armed() {
 		return api.OpenWindow{}, false
 	}
-	present := upIn(g, sh)
-	if sh.Fork != nil {
-		present = atFork(g, sh)
-	}
-	for _, m := range present {
+	for _, m := range g.SeatsOf(sh) {
 		if !m.Banned && m.Armed == nil {
-			return api.OpenWindow{Shared: sh.ID, Character: m.C.ID, Opened: sh.Opened, Due: sh.Opened + g.PartyWindowMs()}, true
+			return api.OpenWindow{Shared: sh.ID, Character: m.C.ID, Opened: sh.Opened, Due: g.WindowDue(sh)}, true
 		}
 	}
 	return api.OpenWindow{}, false

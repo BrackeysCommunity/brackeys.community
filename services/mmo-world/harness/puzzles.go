@@ -299,13 +299,9 @@ type partyLog struct {
 	seats   int64
 }
 
-// partyReplay plays a family's party machine through the service's own
-// action path: for two to four seats, a party of characters standing
-// together faces the family's machine, the first seat arms it, and the
-// version's own merged log, every move seated, is sent as one solve. It
-// stands the party on more tiles until it has met every version of the
-// family, then sends half of a solve. It then replays the game and fails unless the
-// replay is the same.
+// partyReplay plays every party version of a family at two to four seats
+// through the service's action path, each merged log sent as one solve and
+// then half of one, and fails unless a replay of the game is the same.
 func partyReplay(b *sheets.Book, family string) (partyPlay, error) {
 	out := partyPlay{family: family}
 	m, err := newMachines(b, "puzzles-party-"+family)

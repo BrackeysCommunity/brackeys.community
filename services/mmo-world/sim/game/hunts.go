@@ -49,11 +49,9 @@ func (g *Game) huntFact(tick int64, h hex.Hex, kind string, subjects []fact.Ref,
 	return err
 }
 
-// OpenHunt opens a hunt of a fights.hunts row on a tile: the spawn rule,
-// the operator, and later milestones' troubles and staging all open
-// hunts through it. A guardian's row, a tile outside the awake regions or
-// off the land, and a second open hunt of the row in the region are
-// refused.
+// OpenHunt opens a hunt of a fights.hunts row on a tile; every hunt opens
+// through it. A guardian's row, a tile outside the awake regions or off the
+// land, and a second open hunt of the row in the region are refused.
 func (g *Game) OpenHunt(row string, h hex.Hex, tick int64, why string) (*Hunt, error) {
 	def, ok := g.r.Fight.Hunt(row)
 	if !ok || def.Kind != "" {

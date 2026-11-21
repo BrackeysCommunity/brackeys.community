@@ -9,7 +9,7 @@ import { authorLine, type Card, COLOUR } from "../card.ts";
 import { encodeId } from "../ids.ts";
 import { capitalise, type Lexicon } from "../lexicon.ts";
 import { amount, plural } from "../units.ts";
-import { back, banner, btn, factNum, PRIVATE } from "./common.ts";
+import { back, banner, btn, factNum, goodsLine, PRIVATE, relative } from "./common.ts";
 
 /**
  * A dungeon's cards (GDD 4.9): its entrance, a fork with its ways, the
@@ -41,7 +41,7 @@ export function wayLabel(w: api.WayView, ways: readonly api.WayView[]): string {
 }
 
 /** Tags as words. */
-function tagWords(tags: readonly string[]): string {
+export function tagWords(tags: readonly string[]): string {
   return tags.map((t) => t.replace(/-/g, " ")).join(", ") || "no tags";
 }
 
@@ -86,7 +86,7 @@ function nameButton(f: api.FloorView, v: number): Button {
 
 function poolLine(f: api.FloorView, lex: Lexicon): string | undefined {
   if (!f.pool?.length) return undefined;
-  return f.pool.map((g) => amount(g.units, lex.material(g.material))).join(", ");
+  return goodsLine(f.pool, lex);
 }
 
 /** The dungeon's entrance: its kind and name, the deepest floor reached, who is down inside, and the way in. */
@@ -167,7 +167,7 @@ export function forkCard(o: api.Options, here: api.Here, lex: Lexicon, notice?: 
   if (f.due)
     fields.push({
       name: "Time left",
-      value: `<t:${Math.floor(f.due / 1000)}:R>; whoever has not chosen then takes the default`,
+      value: `${relative(f.due)}; whoever has not chosen then takes the default`,
       inline: true,
     });
   if (f.choices?.length) fields.push({ name: "Chosen so far", value: choiceLines(f, ways) });
@@ -228,8 +228,7 @@ export function pushLeaveCard(
     value: waiting ? plural(waiting, "member") : "nobody: it resolves now",
     inline: true,
   });
-  if (f.due)
-    fields.push({ name: "Time left", value: `<t:${Math.floor(f.due / 1000)}:R>`, inline: true });
+  if (f.due) fields.push({ name: "Time left", value: relative(f.due), inline: true });
   return {
     context: PRIVATE,
     author: authorLine("Dungeon", floorOf(f.floor, f.up), mine.push ? "pushing on" : "leaving"),

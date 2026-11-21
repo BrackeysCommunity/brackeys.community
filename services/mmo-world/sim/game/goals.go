@@ -2,7 +2,6 @@ package game
 
 import (
 	"cmp"
-	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -257,8 +256,8 @@ func (g *Game) reachable(cond goal.Condition) error {
 	if cond.Verb != goal.Reach || cond.Dungeon == "" {
 		return nil
 	}
-	var h hex.Hex
-	if _, err := fmt.Sscanf(cond.Dungeon, "%d,%d", &h.Q, &h.R); err != nil || h.Ref() != cond.Dungeon {
+	h, ok := hex.ParseRef(cond.Dungeon)
+	if !ok {
 		return refuse(BadArgs, "no dungeon %q", cond.Dungeon)
 	}
 	plan, ok := g.r.Gen.Dungeon(h)
@@ -283,9 +282,8 @@ func (g *Game) placed(ref string) bool {
 		n, ok := goal.SettlementOf(ref)
 		return ok && n < len(g.Places) && ref == goal.SettlementRef(n)
 	case goal.PlaceTile:
-		var h hex.Hex
-		_, err := fmt.Sscanf(id, "%d,%d", &h.Q, &h.R)
-		return err == nil && ref == goal.TileRef(h)
+		h, ok := hex.ParseRef(id)
+		return ok && ref == goal.TileRef(h)
 	}
 	return false
 }

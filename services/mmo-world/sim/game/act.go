@@ -10,7 +10,6 @@ import (
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fight"
-	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
@@ -364,7 +363,7 @@ func (g *Game) act(c *Char, cmd Command) ([]fight.Pressed, error) {
 	case PartyJoin:
 		return nil, g.partyJoin(c, cmd)
 	case PartyLeave:
-		return nil, g.partyLeave(c)
+		return nil, g.partyLeave(c, cmd)
 	case PartyPick:
 		return g.partyPick(c, cmd)
 	case PartyWindow:
@@ -590,28 +589,15 @@ func (g *Game) pressOption(c *Char, key, pick string, tick int64, w *worked) ([]
 	if err := g.guardianPressed(c.C.At, e, nil, tick); err != nil {
 		return nil, err
 	}
-	for _, x := range facts {
-		if strings.HasPrefix(x.Kind, "encounter.") {
-			x.Data = append(x.Data, append(fact.At(c.C.At), fact.S("archetype", e.Creature.Archetype), fact.S("tags", joinTags(e.Creature.Tags)))...)
-		}
-		if w != nil {
-			x.Data = append(x.Data, w.data(x.Kind)...)
-		}
-		if _, err := g.Log.Append(x); err != nil {
-			return nil, err
-		}
+	if err := g.logEncounterFacts(c.C.At, e, facts, w); err != nil {
+		return nil, err
 	}
 	g.deeds(c, pressed)
 	if err := g.lost(c, key, pack, tick); err != nil {
 		return nil, err
 	}
 	if len(pressed) > 0 && pressed[0].Outcome.Success {
-		g.Pending = append(g.Pending, world.Action{Kind: world.ActWinBeat, Hex: c.C.At, By: char.Ref(c.C.ID), Tag: e.Creature.Archetype})
-		// The world refuses an ease of nothing, which a small scale floors to.
-		more := g.charScale(c, "beat-threat", fixed.Hundredths) - fixed.Hundredths
-		if ease := -g.r.wp("beat-won-threat") * more / fixed.Hundredths; more > 0 && ease > 0 {
-			g.Pending = append(g.Pending, world.Action{Kind: world.ActEase, Hex: c.C.At, By: char.Ref(c.C.ID), Units: ease})
-		}
+		g.wonBeat(c, e)
 	}
 	if e.Over {
 		return pressed, g.close(c, key, tick)

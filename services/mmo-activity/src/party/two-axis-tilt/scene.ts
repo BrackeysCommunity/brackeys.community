@@ -9,11 +9,7 @@ import { HEX, type TwoAxisModel } from "./model.ts";
 const SQUARE_AXES = ["east–west", "south–north"];
 const HEX_AXES = ["east–west", "SE–NW", "SW–NE"];
 
-/**
- * The tumbler maze tipped by several hands: the family's maze, where a
- * swipe only tips the box along the axis this seat holds. The bar says
- * which axis that is, and when the axes pass on.
- */
+/** The family's maze, with the bar naming the axis this seat tips. */
 export function mount(host: PartySceneHost): Scene {
   const merged = () => host.model as TwoAxisModel;
   const layout = host.layout;
