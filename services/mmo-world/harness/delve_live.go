@@ -99,6 +99,7 @@ type liveDelve struct {
 	entries  int
 	named    string
 	deepest  int64
+	floors   int64
 	notes    []string
 	card     api.HuntCard
 }
@@ -175,9 +176,15 @@ func DelveRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 		activity: activity, kit: puzzleKit(b), run: strconv.FormatInt(time.Now().UnixMilli(), 36)}}
 	home := r.Gen.Settlement(0).Hex
 	var ok bool
-	if d.bunker, ok = deepBunker(r.Gen, home); !ok {
-		return nil, fmt.Errorf("no %d-floor %s within %d tiles of the first settlement", delveFloors, delveKind, delveSearch)
+	founded, err := game.New(r)
+	if err != nil {
+		return nil, err
 	}
+	if d.bunker, ok = deepBunker(founded, home); !ok {
+		return nil, fmt.Errorf("no %s within %d tiles of the first settlement", delveKind, delveSearch)
+	}
+	plan, _ := r.Gen.Dungeon(d.bunker)
+	d.floors = plan.Floors
 	if d.huntAt, ok = passableBeside(r.Gen, home); !ok {
 		return nil, errors.New("no passable land beside the first settlement")
 	}
@@ -205,26 +212,32 @@ func DelveRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	return nil, errors.Join(slices.Concat(errs, d.unmet())...)
 }
 
-// deepBunker is the nearest bunker of seven floors to a settlement whose
-// bottom is no deeper than the tier ceiling, else the nearest of any.
-func deepBunker(g *gen.Gen, from hex.Hex) (hex.Hex, bool) {
-	var any hex.Hex
-	found := false
+// deepBunker is the nearest bunker of seven floors in a region of the
+// founded world's first tier, else its deepest bunker there, nearest
+// first: a floor steps from its region's live tier, and a party readied
+// to the ceiling meets the ceiling's creatures on floor 1 of a bunker in
+// a tier-4 region.
+func deepBunker(g *game.Game, from hex.Hex) (hex.Hex, bool) {
+	var best hex.Hex
+	floors := int64(0)
 	for r := int64(1); r <= delveSearch; r++ {
 		for _, h := range hex.Ring(from, r) {
-			p, ok := g.Dungeon(h)
-			if !ok || p.Kind != delveKind || p.Floors != delveFloors {
+			p, ok := g.Rules().Gen.Dungeon(h)
+			if !ok || p.Kind != delveKind {
 				continue
 			}
-			if p.SeedTier == 1 {
+			if ri := g.World.RegionAt(h); ri < 0 || g.World.Regions[ri].Tier > 1 {
+				continue
+			}
+			if p.Floors == delveFloors {
 				return h, true
 			}
-			if !found {
-				any, found = h, true
+			if p.Floors > floors {
+				best, floors = h, p.Floors
 			}
 		}
 	}
-	return any, found
+	return best, floors > 0
 }
 
 func passableBeside(g *gen.Gen, h hex.Hex) (hex.Hex, bool) {
@@ -256,8 +269,7 @@ func (d *liveDelve) delve(ctx context.Context) error {
 		}
 		d.party = append(d.party, m)
 	}
-	plan, _ := d.r.Gen.Dungeon(d.bunker)
-	ready := min(int64(len(d.r.Book.FightTiers)), plan.SeedTier+(plan.Floors-1)/2+1)
+	ready := min(int64(len(d.r.Book.FightTiers)), 1+(d.floors-1)/2+1)
 	for _, m := range d.party {
 		if err := d.ready(ctx, m, ready); err != nil {
 			return err
@@ -636,8 +648,11 @@ func (d *liveDelve) huntID(ctx context.Context, at api.Hex) (string, error) {
 // unmet are the proof's conditions the run did not meet.
 func (d *liveDelve) unmet() []error {
 	var out []error
-	if d.deepest < delveFloors {
-		out = append(out, fmt.Errorf("the party reached floor %d of %d", d.deepest, delveFloors))
+	if d.floors < delveFloors {
+		out = append(out, fmt.Errorf("the nearest first-tier bunker runs %d floors, not %d", d.floors, delveFloors))
+	}
+	if d.deepest < d.floors {
+		out = append(out, fmt.Errorf("the party reached floor %d of %d", d.deepest, d.floors))
 	}
 	together := 0
 	for _, m := range d.machines {
@@ -667,9 +682,9 @@ func (d *liveDelve) write(b *sheets.Book, base string, took time.Duration) *line
 	pr("")
 	pr("## The bunker")
 	pr("")
-	pr("The nearest %s of %d floors to the first settlement, at %s, found from the world's own keys (floors are never shown), preferring one whose bottom is no deeper than the tier ceiling. Four new characters, readied by the operator (`set-ready`) to a tier above its bottom floor's, capped at the ceiling, form a party by invitation, follow their leader there, and go down: each beat's pick held through `/v1/actions` (`party-pick`), each fork's push the same way, and each machine armed from the first seat's socket and worked by every seat streaming its own moves of the version's merged log.", delveKind, delveFloors, d.bunker.Ref())
+	pr("The nearest %s of %d floors in a first-tier region of the founded world, else the deepest there, found from the world's own keys (floors are never shown): %s, of %d floors. Four new characters, readied by the operator (`set-ready`) to a tier above its bottom floor's, capped at the ceiling, form a party by invitation, follow their leader there, and go down: each beat's pick held through `/v1/actions` (`party-pick`), each fork's push the same way, and each machine armed from the first seat's socket and worked by every seat streaming its own moves of the version's merged log.", delveKind, delveFloors, d.bunker.Ref(), d.floors)
 	pr("")
-	pr("Deepest floor reached: %d of %d. Named: %s.", d.deepest, delveFloors, either(d.named != "", "\""+d.named+"\"", "no"))
+	pr("Deepest floor reached: %d of %d. Named: %s.", d.deepest, d.floors, either(d.named != "", "\""+d.named+"\"", "no"))
 	pr("")
 	pr("| Machine | Family | Version | Seats | Moves | Result |")
 	pr("| --- | --- | --- | --- | --- | --- |")
