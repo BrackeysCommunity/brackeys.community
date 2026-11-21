@@ -128,6 +128,8 @@ export function factLine(f: Fact): string {
   switch (f.kind) {
     case "machine.armed":
       return `${machine} armed.`;
+    case "machine.moved-on":
+      return `${machine} solved, but the fight had moved on: nothing came of it.`;
     case "puzzle.solved":
       return `${machine} solved in ${stopwatch(n("ms"))}.`;
     case "puzzle.haywire":

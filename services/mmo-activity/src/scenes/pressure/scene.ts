@@ -5,7 +5,7 @@ import {
   PICKUP,
   board,
   letter,
-  nearest,
+  reach,
   pointers,
   say,
   set,
@@ -64,8 +64,8 @@ export function needleY(geo: Geometry, value: number, range: number): number {
 
 /** The valve whose wheel a pointer picks up, and how far it was from the nearest. */
 export function pick(geo: Geometry, p: Point): { valve: number | undefined; miss: number } {
-  const hit = nearest(geo.wheels, p);
-  return { valve: hit.distance <= geo.r * PICKUP ? hit.index : undefined, miss: hit.distance };
+  const { index, miss } = reach(geo.wheels, p, geo.r);
+  return { valve: index, miss };
 }
 
 interface Drag {

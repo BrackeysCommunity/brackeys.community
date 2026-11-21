@@ -160,7 +160,6 @@ export class MachinePanel {
             () => {
               if (!pass) return;
               this.deps.passHint(pass);
-              s.markPassed();
             },
             { disabled: !pass },
           ),

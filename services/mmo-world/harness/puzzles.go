@@ -10,6 +10,7 @@ import (
 
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/service"
+	"jams.team/mmo-world/sim/canon"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/puzzle"
@@ -133,10 +134,11 @@ func (m *machines) again() (*machines, error) {
 }
 
 // same reports how a replay differs from the game it replays: a reply
-// (the character, the facts, the fact the log became) or the digest.
-func (m *machines) same(o *machines) error {
+// (the character, the facts, the fact the log became) or the digest. It
+// returns the digest both games ended on.
+func (m *machines) same(o *machines) (canon.Sum, error) {
 	if len(m.steps) != len(o.steps) {
-		return fmt.Errorf("%s: %d steps replayed as %d", m.label, len(m.steps), len(o.steps))
+		return canon.Sum{}, fmt.Errorf("%s: %d steps replayed as %d", m.label, len(m.steps), len(o.steps))
 	}
 	for i, s := range m.steps {
 		if s.req == nil {
@@ -144,28 +146,28 @@ func (m *machines) same(o *machines) error {
 		}
 		a, err := json.Marshal(s.reply)
 		if err != nil {
-			return err
+			return canon.Sum{}, err
 		}
 		b, err := json.Marshal(o.steps[i].reply)
 		if err != nil {
-			return err
+			return canon.Sum{}, err
 		}
 		if !bytes.Equal(a, b) {
-			return fmt.Errorf("%s: %s %s gave\n%s\nand replayed gave\n%s", m.label, s.req.Kind, s.req.InteractionID, a, b)
+			return canon.Sum{}, fmt.Errorf("%s: %s %s gave\n%s\nand replayed gave\n%s", m.label, s.req.Kind, s.req.InteractionID, a, b)
 		}
 	}
 	d1, err := m.g.Digest()
 	if err != nil {
-		return err
+		return canon.Sum{}, err
 	}
 	d2, err := o.g.Digest()
 	if err != nil {
-		return err
+		return canon.Sum{}, err
 	}
 	if d1 != d2 {
-		return fmt.Errorf("%s: digest %s replayed as %s", m.label, d1, d2)
+		return canon.Sum{}, fmt.Errorf("%s: digest %s replayed as %s", m.label, d1, d2)
 	}
-	return nil
+	return d1, nil
 }
 
 // solving is the kit's own solve of the machine a character has before
@@ -195,6 +197,7 @@ type benchPlay struct {
 	family        string
 	logs          []benchLog
 	first, second *machines
+	digest        canon.Sum // the one both games ended on
 }
 
 // benchReplay plays a family at the bench of a fresh game: the kit's own
@@ -258,7 +261,8 @@ func benchReplay(b *sheets.Book, family string) (benchPlay, error) {
 		return out, err
 	}
 	out.first, out.second = m, again
-	return out, m.same(again)
+	out.digest, err = m.same(again)
+	return out, err
 }
 
 // PuzzlesRun is the Puzzles run: a move log replayed gives the same fact
@@ -286,15 +290,7 @@ func PuzzlesRun(b *sheets.Book, out string, _ int) ([]Measured, error) {
 		for _, l := range play.logs {
 			pr("| %s | %s | %s | %s | %s |", play.family, l.name, logLine(l.log), became(play.first.steps[l.step].reply), became(play.second.steps[l.step].reply))
 		}
-		d1, err := play.first.g.Digest()
-		if err != nil {
-			return nil, err
-		}
-		d2, err := play.second.g.Digest()
-		if err != nil {
-			return nil, err
-		}
-		pr("| %s | the game's digest, a tick later | – | `%s` | `%s` |", play.family, d1, d2)
+		pr("| %s | the game's digest, a tick later | – | `%s` | `%s` |", play.family, play.digest, play.digest)
 	}
 	return nil, doc.save(out, "puzzles.md")
 }

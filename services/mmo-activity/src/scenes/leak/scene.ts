@@ -5,7 +5,7 @@ import {
   PICKUP,
   board,
   letter,
-  nearest,
+  reach,
   pointers,
   say,
   set,
@@ -61,8 +61,8 @@ export function geometry(n: number, size: Size): Geometry {
 
 /** The joint a tap lands on, if it is near one, and how far it was from the nearest. */
 export function land(geo: Geometry, p: Point): { slot: number | undefined; miss: number } {
-  const hit = nearest(geo.slots, p);
-  return { slot: hit.distance <= geo.r * PICKUP ? hit.index : undefined, miss: hit.distance };
+  const { index, miss } = reach(geo.slots, p, geo.r);
+  return { slot: index, miss };
 }
 
 type State = "dry" | "leak" | "held" | "sealed";

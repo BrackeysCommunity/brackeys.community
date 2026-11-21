@@ -141,10 +141,10 @@ func (w *liveWorld) join(ctx context.Context, discord string, look api.Viewer) (
 			s.in <- msg
 		}
 	}()
-	if err := s.send(ctx, api.ClientMessage{T: "hello", Hello: &api.ClientHello{Session: tok.Session, Instance: "proof-" + w.run, Viewer: look}}); err != nil {
+	if err := s.send(ctx, api.ClientMessage{T: api.FrameHello, Hello: &api.ClientHello{Session: tok.Session, Instance: "proof-" + w.run, Viewer: look}}); err != nil {
 		return nil, err
 	}
-	if _, err := s.frame("the first state", "state", activityWait); err != nil {
+	if _, err := s.frame("the first state", api.FrameState, activityWait); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -170,10 +170,10 @@ func (s *seat) frame(what, t string, wait time.Duration) (api.ServerMessage, err
 			if !ok {
 				return msg, fmt.Errorf("%s: the socket closed waiting for %s", s.char, what)
 			}
-			if msg.T == "state" && msg.State != nil {
+			if msg.T == api.FrameState && msg.State != nil {
 				s.state = *msg.State
 			}
-			if msg.T == "bye" {
+			if msg.T == api.FrameBye {
 				return msg, fmt.Errorf("%s: told %q waiting for %s", s.char, msg.Bye, what)
 			}
 			if msg.T == t {
@@ -193,7 +193,7 @@ func (s *seat) until(what string, ok func(api.ActivityState) bool) (api.Activity
 func (s *seat) untilWithin(what string, wait time.Duration, ok func(api.ActivityState) bool) (api.ActivityState, error) {
 	deadline := time.Now().Add(wait)
 	for !ok(s.state) {
-		if _, err := s.frame(what, "state", time.Until(deadline)); err != nil {
+		if _, err := s.frame(what, api.FrameState, time.Until(deadline)); err != nil {
 			return s.state, err
 		}
 	}
@@ -203,10 +203,10 @@ func (s *seat) untilWithin(what string, wait time.Duration, ok func(api.Activity
 // look says what the seat has on screen and returns the state that answers.
 func (s *seat) look(ctx context.Context, v api.Viewer) (api.ActivityState, error) {
 	time.Sleep(lookGap)
-	if err := s.send(ctx, api.ClientMessage{T: "look", Look: &v}); err != nil {
+	if err := s.send(ctx, api.ClientMessage{T: api.FrameLook, Look: &v}); err != nil {
 		return s.state, err
 	}
-	_, err := s.frame("the state after a look", "state", activityWait)
+	_, err := s.frame("the state after a look", api.FrameState, activityWait)
 	return s.state, err
 }
 
@@ -218,10 +218,10 @@ func (s *seat) intent(ctx context.Context, id, kind string, m *api.MachineIntent
 	defer func() { s.trip = time.Since(sent) }()
 	s.seq++
 	in := api.Intent{ID: id, Version: s.state.Character.Version, Kind: kind, Machine: m}
-	if err := s.send(ctx, api.ClientMessage{T: "intent", Seq: s.seq, Intent: &in}); err != nil {
+	if err := s.send(ctx, api.ClientMessage{T: api.FrameIntent, Seq: s.seq, Intent: &in}); err != nil {
 		return api.IntentReply{}, err
 	}
-	msg, err := s.frame("the reply to "+kind, "reply", activityWait)
+	msg, err := s.frame("the reply to "+kind, api.FrameReply, activityWait)
 	if err != nil {
 		return api.IntentReply{}, err
 	}
@@ -362,11 +362,11 @@ func (w *liveWorld) family(ctx context.Context, family string) ([]worked, error)
 	var out []worked
 	var s *seat
 	for n := range 2 {
-		// A new character's first puzzle is the opening Rewire, whatever
+		// A new character's first puzzle is the opening machine, whatever
 		// the beat holds; a lock would not be.
 		want := family
 		if n == 0 {
-			want = puzzle.Rewire
+			want, _ = w.kit.IntroMachine()
 		}
 		if err := w.machine(ctx, char, want, activityLevel, n); err != nil {
 			return out, err
@@ -410,7 +410,8 @@ func (w *liveWorld) ranOut(ctx context.Context, open bool) (expiry, error) {
 	if err != nil {
 		return expiry{}, err
 	}
-	if err := w.machine(ctx, char, puzzle.Rewire, 1, 0); err != nil {
+	intro, level := w.kit.IntroMachine()
+	if err := w.machine(ctx, char, intro, level, 0); err != nil {
 		return expiry{}, err
 	}
 	s, err := w.join(ctx, discord, api.Viewer{})
@@ -469,7 +470,8 @@ func (w *liveWorld) bench(ctx context.Context) (benchDay, error) {
 	if err != nil {
 		return benchDay{}, err
 	}
-	rig := api.Viewer{Family: puzzle.Rewire, Level: 1}
+	intro, level := w.kit.IntroMachine()
+	rig := api.Viewer{Family: intro, Level: level}
 	s, err := w.join(ctx, discord, rig)
 	if err != nil {
 		return benchDay{}, err
@@ -551,14 +553,14 @@ func (w *liveWorld) served(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if strings.Contains(page, "__DISCORD_CLIENT_ID__") || !strings.Contains(page, "discord-client-id") {
+	if strings.Contains(page, api.ActivityClientIDMark) || !strings.Contains(page, "discord-client-id") {
 		return "", errors.New("the page is not the build with the client id written in")
 	}
 	ref := assetRef.FindStringSubmatch(page)
 	if ref == nil {
 		return "", errors.New("the page names no asset: is MMO_ACTIVITY_DIR the production build?")
 	}
-	for _, prefix := range []string{"", "/.proxy"} {
+	for _, prefix := range []string{"", api.ActivityProxyPrefix} {
 		_, h, err := get(prefix + "/" + ref[1])
 		if err != nil {
 			return "", err

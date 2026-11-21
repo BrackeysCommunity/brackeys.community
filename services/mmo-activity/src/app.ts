@@ -10,7 +10,7 @@ import {
   type Viewer,
 } from "./api.ts";
 import { button, el, lines, panel } from "./dom.ts";
-import type { IntentBody, Session } from "./session.ts";
+import { STALE_RETRIES, type IntentBody, type Session } from "./session.ts";
 import { MachinePanel } from "./shell/panel.ts";
 import { familyOf } from "./shell/registry.ts";
 import { plural, seconds } from "./units.ts";
@@ -259,7 +259,9 @@ export class App {
           if (state.last) this.machine.conclude(state.last.result);
           return;
         }
-        if (same && shell.phase !== "done") {
+        // A shell at rest takes an arming made in another window only by
+        // being built again over it.
+        if (same && shell.phase !== "done" && !(shell.phase === "rest" && m?.armed)) {
           this.machine.update(m!);
           return;
         }
@@ -345,7 +347,7 @@ export class App {
     this.notice = "";
     this.last = undefined;
     this.render();
-    const reply = await this.session.intent(kind, body);
+    const reply = await this.session.intent(kind, body, STALE_RETRIES);
     this.busy = false;
     if (reply.ok) this.last = { pressed: reply.pressed ?? [], facts: reply.facts ?? [] };
     else this.notice = reply.refusal ? refusalLine(reply.refusal) : "The world did not take that.";

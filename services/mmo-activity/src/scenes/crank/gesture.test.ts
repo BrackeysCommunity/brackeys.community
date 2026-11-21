@@ -4,10 +4,11 @@ import { expect, test } from "vite-plus/test";
 import { goldenCases } from "../../../test/golden.ts";
 import { stage, type Stage } from "../../../test/stage.ts";
 import { HIT, type Point } from "../../shell/board.ts";
+import { angleOf, sweep } from "../../shell/board.ts";
 import { DONE } from "../../shell/kit.ts";
 import crank from "./index.ts";
 import type { CrankModel } from "./model.ts";
-import { DEAD, QUARTER, angleOf, geometry, sweep } from "./scene.ts";
+import { DEAD, QUARTER, geometry } from "./scene.ts";
 
 const cases = goldenCases("crank");
 const small = cases.find((c) => c.name === "level-1-full")!;
@@ -145,10 +146,10 @@ test("a hint warns of a spike's start in seconds", () => {
 
 test("angles run clockwise on the screen and the sweep takes the short way", () => {
   const hub = { x: 0, y: 0 };
-  expect(angleOf(hub, { x: 0, y: 10 })).toBeCloseTo(90);
-  expect(sweep(350, 10)).toBeCloseTo(20);
-  expect(sweep(10, 350)).toBeCloseTo(-20);
-  expect(sweep(-170, 170)).toBeCloseTo(-20);
+  expect(angleOf(hub, { x: 0, y: 10 })).toBeCloseTo(0.25);
+  expect(sweep(350 / 360, 10 / 360)).toBeCloseTo(20 / 360);
+  expect(sweep(10 / 360, 350 / 360)).toBeCloseTo(-20 / 360);
+  expect(sweep(-170 / 360, 170 / 360)).toBeCloseTo(-20 / 360);
 });
 
 test("the handle is a thumb wide and the wheel fits, on a phone and at full size", () => {

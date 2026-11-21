@@ -357,6 +357,11 @@
       "weight": 5
     },
     {
+      "id": "machine-moved-on",
+      "kind": "machine.moved-on",
+      "weight": 5
+    },
+    {
       "id": "puzzle-mastered",
       "kind": "puzzle.mastered",
       "weight": 45

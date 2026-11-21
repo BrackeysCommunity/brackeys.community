@@ -128,11 +128,17 @@ func TestFilter(t *testing.T) {
 	if m == nil || !m.Armed || m.Source != api.MachineBeat || m.Level != 3 || m.Countdown == 0 || m.Haywire == nil || len(m.Why) == 0 || m.Inner == nil || !m.CanPass {
 		t.Fatalf("the master's armed machine: %+v", m)
 	}
-	if m.ArmedAt != s.now.UnixMilli() || m.Deadline != m.ArmedAt+m.Countdown || m.Grace != g.MachineGrace() || m.Due != m.Deadline+m.Grace || mine.Now != s.now.UnixMilli() {
+	if m.ArmedAt != s.now.UnixMilli() || m.Deadline != m.ArmedAt+m.Countdown || m.Grace != g.Puzzles().Grace() || m.Due != m.Deadline+m.Grace || mine.Now != s.now.UnixMilli() {
 		t.Fatalf("the countdown: armed at %d, deadline %d, countdown %d, grace %d", m.ArmedAt, m.Deadline, m.Countdown, m.Grace)
 	}
 	if len(m.Hints) != 2 || m.Guide == nil || m.Practice.Level != 16 || m.Practice.Title == "" {
 		t.Fatalf("what mastery buys: %d hints, guide %v, practice %+v", len(m.Hints), m.Guide, m.Practice)
+	}
+	if m.Pass == nil || *m.Pass != m.Hints[0] {
+		t.Fatalf("the move to pass: %+v, hints %+v", m.Pass, m.Hints)
+	}
+	if again, _ := s.view(master, api.Viewer{Passed: m.ArmedAt}); again.Machine.CanPass || again.Machine.Pass != nil {
+		t.Fatalf("a machine already passed on: %+v", again.Machine)
 	}
 	if mine.Bench != nil || len(mine.Pouches) != 1 || mine.Fight == nil || mine.Fight.Machine != puzzle.Circuit || mine.Context.ID != master.C.ID {
 		t.Fatalf("the master's state: bench %v, pouches %v, fight %+v", mine.Bench, mine.Pouches, mine.Fight)
@@ -280,7 +286,7 @@ func TestLocalHost(t *testing.T) {
 		t.Fatalf("armed on the service's clock: %+v", c.Armed)
 	}
 	list, _ := host.Armed(ctx)
-	if len(list) != 1 || list[0].CharacterID != c.C.ID || list[0].ArmedAt != armedAt || list[0].Due != armedAt+c.Armed.Countdown+g.MachineGrace() {
+	if len(list) != 1 || list[0].CharacterID != c.C.ID || list[0].ArmedAt != armedAt || list[0].Due != armedAt+c.Armed.Countdown+g.Puzzles().Grace() {
 		t.Fatalf("countdowns running: %+v", list)
 	}
 

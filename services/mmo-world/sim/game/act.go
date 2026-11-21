@@ -356,6 +356,15 @@ const (
 	maxKey  = 128
 )
 
+// idle is free, and neither banned nor working a machine: what a bench
+// or an operator's machine needs.
+func idle(c *Char) error {
+	if c.Banned || c.Armed != nil {
+		return refuse(Busy, "%s is banned or has a machine armed", c.C.ID)
+	}
+	return free(c)
+}
+
 // free reports why a character cannot start something new: a long action
 // running, an encounter open, or down.
 func free(c *Char) error {

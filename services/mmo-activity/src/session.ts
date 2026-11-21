@@ -1,13 +1,27 @@
-import type {
-  ActivityState,
-  ClientMessage,
-  IntentReply,
-  MachineIntent,
-  PuzzleMove,
-  ServerMessage,
-  TokenReply,
-  TokenRequest,
-  Viewer,
+import {
+  ByeBadHello,
+  ByeExpired,
+  ByeNoCharacter,
+  ByeReplaced,
+  CodeStale,
+  FrameBye,
+  FrameHello,
+  FrameHint,
+  FrameIntent,
+  FrameLook,
+  FramePassHint,
+  FramePing,
+  FrameReply,
+  FrameState,
+  type ActivityState,
+  type ClientMessage,
+  type IntentReply,
+  type MachineIntent,
+  type PuzzleMove,
+  type ServerMessage,
+  type TokenReply,
+  type TokenRequest,
+  type Viewer,
 } from "./api.ts";
 import { SignInError } from "./discord.ts";
 
@@ -27,6 +41,7 @@ export interface SessionDeps {
   open(): SocketLike;
   instance: string;
   viewer: Viewer;
+  /** Unix ms on a clock that never steps back or jumps, so the server's offset holds. */
   now(): number;
   /** A timer; the returned function cancels it. */
   after(ms: number, f: () => void): () => void;
@@ -57,6 +72,9 @@ interface Pending {
   sent: boolean;
   resolve(reply: IntentReply): void;
 }
+
+/** How many times a write is sent again when the row moved under it. */
+export const STALE_RETRIES = 3;
 
 const BYE_CODE = 4001;
 const RETRY_MIN = 500;
@@ -136,7 +154,7 @@ export class Session {
   /** Says what this screen has open: a phone's caps, a bench rig, a pouch. */
   look(viewer: Viewer): void {
     this.viewer = { ...viewer };
-    if (this.greeted) this.send({ t: "look", look: this.viewer });
+    if (this.greeted) this.send({ t: FrameLook, look: this.viewer });
   }
 
   /**
@@ -161,7 +179,7 @@ export class Session {
   }
 
   passHint(hint: PuzzleMove): void {
-    this.send({ t: "pass-hint", hint });
+    this.send({ t: FramePassHint, hint });
   }
 
   private setLink(link: Link): void {
@@ -202,7 +220,7 @@ export class Session {
       if (this.socket !== socket) return;
       this.lastFrame = this.deps.now();
       this.send({
-        t: "hello",
+        t: FrameHello,
         hello: { session: this.session, instance: this.deps.instance, viewer: this.viewer },
       });
       this.deps.note?.("socket-open");
@@ -230,16 +248,16 @@ export class Session {
 
   private receive(msg: ServerMessage): void {
     switch (msg.t) {
-      case "state":
+      case FrameState:
         if (msg.state) this.took(msg.state);
         return;
-      case "reply":
+      case FrameReply:
         if (msg.reply) this.answered(msg.reply);
         return;
-      case "hint":
+      case FrameHint:
         if (msg.hint) for (const f of this.hintListeners) f(msg.hint);
         return;
-      case "bye":
+      case FrameBye:
         this.bye(msg.bye ?? "");
         return;
     }
@@ -269,7 +287,7 @@ export class Session {
   private answered(reply: IntentReply): void {
     const p = this.flight;
     if (!p || p.id !== reply.id) return;
-    const moved = reply.refusal?.code === "stale" ? reply.refusal.version : undefined;
+    const moved = reply.refusal?.code === CodeStale ? reply.refusal.version : undefined;
     if (moved !== undefined && p.stale > 0) {
       p.stale--;
       p.id = this.deps.id();
@@ -293,17 +311,17 @@ export class Session {
   private bye(why: string): void {
     this.deps.note?.("socket-bye", { why });
     switch (why) {
-      case "replaced":
+      case ByeReplaced:
         this.halt("replaced", "This character is open in another window.");
         return;
-      case "no-character":
+      case ByeNoCharacter:
         this.halt(
           "no-character",
           "You have no character yet. Start with /play in chat, then come back.",
         );
         return;
-      case "expired":
-      case "bad-hello":
+      case ByeExpired:
+      case ByeBadHello:
         // The token is spent; the reconnect signs in again.
         this.session = "";
         this.lost();
@@ -322,7 +340,7 @@ export class Session {
 
   private transmit(p: Pending): void {
     p.sent = this.send({
-      t: "intent",
+      t: FrameIntent,
       seq: p.seq,
       intent: { id: p.id, version: p.version ?? 0, kind: p.kind, ...p.body },
     });
@@ -345,7 +363,7 @@ export class Session {
         this.lost();
         return;
       }
-      this.send({ t: "ping" });
+      this.send({ t: FramePing });
       this.ping();
     });
   }

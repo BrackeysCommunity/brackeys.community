@@ -83,16 +83,17 @@ type Config struct {
 
 // structural: the protocol's sizes and waits.
 const (
-	maxFrame    = 64 << 10 // a socket frame, in bytes
-	maxBody     = 4 << 10  // a token or beacon body, in bytes
-	maxBehind   = 8        // frames a socket may fall behind
-	maxIntents  = 10       // intents a seat may send in a second
-	maxLooks    = 5        // looks a seat may send in a second
-	maxUnseated = 256      // sockets that may be open with no hello answered yet
-	maxSockets  = 4        // sockets one Discord user may hold open
-	maxMissed   = 2        // pings a socket may leave unanswered
-	maxTries    = 3        // views built again because the world reloaded meanwhile
-	helloWait   = 10 * time.Second
+	maxFrame    = 64 << 10        // a socket frame, in bytes
+	maxBody     = 4 << 10         // a token or beacon body, in bytes
+	maxBehind   = 8               // frames a socket may fall behind
+	maxIntents  = 10              // intents a character's seats may send in a second
+	maxLooks    = 5               // looks a character's seats may send in a second
+	maxUnseated = 256             // sockets that may be open with no hello answered yet
+	maxSockets  = 4               // sockets one Discord user may hold open
+	maxSeats    = 8               // seats one Discord user may hold, open or kept
+	maxMissed   = 2               // pings a socket may leave unanswered
+	maxTries    = 3               // views built again because the world reloaded meanwhile
+	helloWait   = 5 * time.Second // a real client says hello as the socket opens
 	pingEvery   = 20 * time.Second
 	writeWait   = 10 * time.Second
 	hostWait    = 30 * time.Second
@@ -126,12 +127,10 @@ type Seat struct {
 	session *Session
 	who     *player
 	epoch   int64 // the world's epoch its owner was last checked at
-	// What the state last sent lets the seat pass on.
-	canPass bool
+	// What the state last sent lets the seat pass on, and on which machine.
+	pass    *api.PuzzleMove
 	armedAt int64
-	hints   []api.PuzzleMove
-	recent  window // intents in the last second
-	looks   window // looks in the last second
+	sat     int64 // the arrival it was last sat in, under the gateway's lock
 }
 
 // player is one character the gateway serves. Its lock puts that
@@ -141,6 +140,10 @@ type player struct {
 	mu     sync.Mutex
 	timer  *countdown // under the gateway's lock
 	passed int64      // armedAt of the machine a hint was last passed on
+	// Kept for the character, so a socket opened again starts no fresh
+	// window.
+	recent window // intents in the last second
+	looks  window // looks in the last second
 }
 
 // countdown is the timer that ends one armed machine.
@@ -345,9 +348,16 @@ func (g *Gateway) refresh(all bool, ids map[string]bool) {
 			}
 		}
 	}
+	// A countdown may start for a character nobody's seat shows: armed
+	// from another socket, or before any opened.
 	var timed []string
+	for id := range ids {
+		if !shown[id] {
+			timed = append(timed, id)
+		}
+	}
 	for id, p := range g.players {
-		if p.timer != nil && !shown[id] && (all || ids[id]) {
+		if all && p.timer != nil && !shown[id] {
 			timed = append(timed, id)
 		}
 	}

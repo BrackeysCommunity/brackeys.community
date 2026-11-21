@@ -33,8 +33,8 @@ export function until(done: boolean): Status {
 export interface SceneHost {
   readonly surface: HTMLElement; // the play area; the scene owns its children
   readonly layout: PuzzleLayout;
-  // The shell's running model; read it, never step it. The shell may swap
-  // it for a fresh one, so read it from the host each frame.
+  // The shell's running model: never keep or step it. The shell may swap
+  // it, so read it from the host each frame.
   readonly model: Model;
   readonly compact: boolean;
   readonly guide: PuzzleMove | undefined;
@@ -58,7 +58,7 @@ export interface Scene {
 
 export interface Family {
   readonly id: string;
-  // How long a hint stays lit, where the family's needs longer than most.
+  // How long this family's hints stay lit, when 3 s is too short.
   readonly hintMs?: number;
   start(layout: PuzzleLayout): Model;
   mount(host: SceneHost): Scene;

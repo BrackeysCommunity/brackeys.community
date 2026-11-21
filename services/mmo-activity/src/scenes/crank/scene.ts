@@ -2,12 +2,12 @@ import "./scene.css";
 import {
   HIT,
   board,
-  distance,
   pointers,
   say,
   set,
   svg,
   text,
+  turning,
   type Point,
   type Size,
 } from "../../shell/board.ts";
@@ -54,19 +54,7 @@ export function geometry(size: Size): Geometry {
   };
 }
 
-/** A point's angle round the hub in degrees, clockwise on the screen from three o'clock. */
-export function angleOf(hub: Point, p: Point): number {
-  return (Math.atan2(p.y - hub.y, p.x - hub.x) * 180) / Math.PI;
-}
-
-/** The shorter way round from one angle to another, in degrees; clockwise is positive. */
-export function sweep(from: number, to: number): number {
-  return ((((to - from + 180) % 360) + 360) % 360) - 180;
-}
-
 interface Drag {
-  /** The finger's last angle; none while it is on the hub. */
-  angle: number | undefined;
   /** Clockwise degrees not yet spent on a pulse. */
   wound: number;
 }
@@ -97,6 +85,7 @@ export function mount(host: SceneHost): Scene {
   let guide: SVGPathElement | undefined;
   let lit: SVGPathElement | undefined;
   let drag: Drag | undefined;
+  const finger = turning(DEAD);
   let seen: Model | undefined;
   let turned = 0;
   let spin = 0;
@@ -182,7 +171,8 @@ export function mount(host: SceneHost): Scene {
       build();
     }
     // The handle follows a finger; let go, the wheel coasts at its speed.
-    if (drag?.angle !== undefined) spin = drag.angle;
+    const held = drag && finger.angle();
+    if (held !== undefined) spin = held * 360;
     else spin += Math.max(0, Math.min(100, at - lastAt)) * m.speed * COAST;
     lastAt = at;
     const spiking = m.spiking(Math.trunc(at / step));
@@ -217,22 +207,15 @@ export function mount(host: SceneHost): Scene {
 
   const unbind = pointers(host.surface, {
     down(p) {
-      const far = distance(p, geo.hub) >= DEAD;
-      drag = { angle: far ? angleOf(geo.hub, p) : undefined, wound: 0 };
+      finger.start(geo.hub, p);
+      drag = { wound: 0 };
       return true;
     },
     move(p) {
       if (!drag) return;
-      if (distance(p, geo.hub) < DEAD) {
-        drag.angle = undefined;
-        return;
-      }
-      const angle = angleOf(geo.hub, p);
       // Winding back only unwinds what has not been spent, so a wiggle
       // sends nothing.
-      if (drag.angle !== undefined)
-        drag.wound = Math.max(-QUARTER, drag.wound + sweep(drag.angle, angle));
-      drag.angle = angle;
+      drag.wound = Math.max(-QUARTER, drag.wound + finger.turn(geo.hub, p) * 360);
       while (drag && drag.wound >= QUARTER) {
         drag.wound -= QUARTER;
         turned++;

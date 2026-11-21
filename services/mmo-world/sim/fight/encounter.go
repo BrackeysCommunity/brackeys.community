@@ -152,11 +152,7 @@ func (r *Rules) Assemble(site Site, c Creature) *Encounter {
 		if r.beats[b].Puzzle {
 			fams := r.P.Families(all, b == BeatLock)
 			if len(fams) == 0 {
-				fallback := puzzle.Rewire
-				if b == BeatLock {
-					fallback = puzzle.Pins
-				}
-				fams = r.P.Families(tags.Of(r.P.Family(fallback).AppearsOn), b == BeatLock)
+				fams = r.P.Families(tags.Of(r.P.Family(r.P.Fallback(b == BeatLock)).AppearsOn), b == BeatLock)
 			}
 			place := site.Place
 			if place == "" {
@@ -480,7 +476,7 @@ func (r *Rules) machine(e *Encounter, m *Member, s Situation, oc Outcome, tick i
 		st := State{Tag: tags.Tag(hw.Tag), On: OnSelf, Who: m.Ch.ID}
 		// A state that counts beats is put on for the row's beats after
 		// this one, which ends as the machine does.
-		if row := r.states[st.Tag]; row != nil && row.Beats > 0 {
+		if r.StateBeats(st.Tag) > 0 {
 			st.Left = hw.Magnitude + 1
 		}
 		r.put(e, m, st, tick)

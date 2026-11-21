@@ -3,6 +3,19 @@ declare module "virtual:pack" {
   export const names: Record<string, string>;
 }
 
+declare module "virtual:puzzle-sheet" {
+  /** The sheet cells the mock gateway plays by. Times in ms. */
+  const sheet: {
+    grace: number;
+    cleanPct: number;
+    maxPlay: number;
+    practiceUses: number;
+    practiceMax: number;
+    gifts: { practice: number; gives: string }[];
+  };
+  export default sheet;
+}
+
 declare module "virtual:rigs" {
   import type { PuzzleLayout, PuzzleMove } from "./api.ts";
 

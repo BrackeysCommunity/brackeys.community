@@ -2,12 +2,12 @@ import "./scene.css";
 import {
   HIT,
   board,
-  distance,
   letter,
   nearest,
   pointers,
   set,
   svg,
+  turning,
   type Point,
   type Size,
 } from "../../shell/board.ts";
@@ -66,14 +66,8 @@ export function settle(detent: number, pos: number): number {
   return detent;
 }
 
-function wrap(angle: number): number {
-  return angle > Math.PI ? angle - Math.PI * 2 : angle <= -Math.PI ? angle + Math.PI * 2 : angle;
-}
-
 interface Hold {
   dial: number;
-  /** The finger's angle about the hub, when it is far enough out to have one. */
-  angle: number | undefined;
   /** The way the last detent was crossed: 1 clockwise, -1 the other way, 0 none yet. */
   way: number;
 }
@@ -113,6 +107,7 @@ export function mount(host: SceneHost): Scene {
   const turned = Array.from({ length: n }, () => 0);
   const pos = Array.from({ length: n }, () => 0);
   let hold: Hold | undefined;
+  let finger = turning(geo.r * HUB);
   let caught = false;
   let pulseAt = -PULSE_MS;
   let slipUntil = 0;
@@ -256,32 +251,17 @@ export function mount(host: SceneHost): Scene {
     down(p) {
       const dial = pick(geo, p);
       if (dial === undefined) return false;
-      const c = geo.dials[dial]!;
-      const out = distance(p, c) >= geo.r * HUB;
-      hold = {
-        dial,
-        angle: out ? Math.atan2(p.y - c.y, p.x - c.x) : undefined,
-        way: 0,
-      };
+      finger = turning(geo.r * HUB);
+      finger.start(geo.dials[dial]!, p);
+      hold = { dial, way: 0 };
       pos[dial] = turned[dial]!;
       caught = false;
       return true;
     },
     move(p) {
       if (!hold) return;
-      const c = geo.dials[hold.dial]!;
-      if (distance(p, c) < geo.r * HUB) {
-        hold.angle = undefined;
-        return;
-      }
-      const angle = Math.atan2(p.y - c.y, p.x - c.x);
-      if (hold.angle === undefined) {
-        hold.angle = angle;
-        return;
-      }
       const d = hold.dial;
-      pos[d]! += (wrap(angle - hold.angle) / (Math.PI * 2)) * range;
-      hold.angle = angle;
+      pos[d]! += finger.turn(geo.dials[d]!, p) * range;
       const steps = settle(turned[d]!, pos[d]!) - turned[d]!;
       for (let i = Math.abs(steps); i > 0; i--) crossed(d, Math.sign(steps));
     },

@@ -20,25 +20,8 @@ import (
 	"jams.team/mmo-world/service"
 )
 
-// structural: the frames of the protocol, and why a socket is told to go.
+// structural: the protocol's close code and id bounds.
 const (
-	tHello    = "hello"
-	tLook     = "look"
-	tIntent   = "intent"
-	tPassHint = "pass-hint"
-	tPing     = "ping"
-	tState    = "state"
-	tReply    = "reply"
-	tHint     = "hint"
-	tBye      = "bye"
-	tPong     = "pong"
-
-	byeExpired     = "expired"
-	byeReplaced    = "replaced"
-	byeNoCharacter = "no-character"
-	byeBadHello    = "bad-hello"
-	byeSlow        = "slow"
-
 	// closeBye is the close code after a bye; the reason repeats it.
 	closeBye = websocket.StatusCode(4001)
 
@@ -97,7 +80,7 @@ func (c *conn) send(msg api.ServerMessage) {
 	select {
 	case c.out <- frame{data: data}:
 	default:
-		c.bye(byeSlow)
+		c.bye(api.ByeSlow)
 	}
 }
 
@@ -106,7 +89,7 @@ func (c *conn) bye(why string) {
 	if !c.closing.CompareAndSwap(false, true) {
 		return
 	}
-	data, _ := json.Marshal(api.ServerMessage{T: tBye, Bye: why})
+	data, _ := json.Marshal(api.ServerMessage{T: api.FrameBye, Bye: why})
 	select {
 	case c.out <- frame{data: data, bye: why}:
 	default:
@@ -212,7 +195,7 @@ func (g *Gateway) socket(w http.ResponseWriter, r *http.Request) {
 	defer g.leave(c)
 	go c.write()
 	go g.pings(c)
-	late := time.AfterFunc(g.helloWait, func() { c.bye(byeBadHello) })
+	late := time.AfterFunc(g.helloWait, func() { c.bye(api.ByeBadHello) })
 	seat := g.greet(c, late)
 	greeted()
 	for {
@@ -238,13 +221,13 @@ func (g *Gateway) greet(c *conn, late *time.Timer) *Seat {
 		return nil
 	}
 	msg, err := decodeFrame(data)
-	if err != nil || msg.T != tHello || msg.Hello == nil || !named(msg.Hello.Instance) || !validViewer(msg.Hello.Viewer) {
-		c.bye(byeBadHello)
+	if err != nil || msg.T != api.FrameHello || msg.Hello == nil || !named(msg.Hello.Instance) || !validViewer(msg.Hello.Viewer) {
+		c.bye(api.ByeBadHello)
 		return nil
 	}
 	discord, expires, ok := g.verify(msg.Hello.Session)
 	if !ok {
-		c.bye(byeExpired)
+		c.bye(api.ByeExpired)
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(g.ctx, hostWait)
@@ -257,7 +240,7 @@ func (g *Gateway) greet(c *conn, late *time.Timer) *Seat {
 		return nil
 	}
 	if id == "" {
-		c.bye(byeNoCharacter)
+		c.bye(api.ByeNoCharacter)
 		return nil
 	}
 	// The character's lock is held from before the seat can be found, so
@@ -270,14 +253,14 @@ func (g *Gateway) greet(c *conn, late *time.Timer) *Seat {
 		c.end()
 		return nil
 	}
-	seat.Discord, seat.epoch, seat.Viewer, seat.recent, seat.looks = discord, epoch, msg.Hello.Viewer, nil, nil
+	seat.Discord, seat.epoch, seat.Viewer = discord, epoch, msg.Hello.Viewer
 	g.show(ctx, seat, true)
 	return seat
 }
 
 // sit binds a socket to its seat in a session, making either on first
 // need. A socket already in the seat is replaced, and so is a user's
-// oldest when they hold too many.
+// oldest when they hold too many; so is their oldest empty seat.
 func (g *Gateway) sit(instance, discord, id string, who *player, c *conn, expires int64) *Seat {
 	g.mu.Lock()
 	if g.closed {
@@ -296,6 +279,7 @@ func (g *Gateway) sit(instance, discord, id string, who *player, c *conn, expire
 	sess.emptied = time.Time{}
 	seat := sess.seats[id]
 	if seat == nil {
+		g.unseatOldest(discord, sess)
 		seat = &Seat{Discord: discord, Char: id, session: sess, who: who}
 		sess.seats[id] = seat
 	}
@@ -314,10 +298,10 @@ func (g *Gateway) sit(instance, discord, id string, who *player, c *conn, expire
 		replaced, held = append(replaced, held[0]), held[1:]
 	}
 	g.arrivals++
-	seat.conn = c
+	seat.conn, seat.sat = c, g.arrivals
 	c.seat, c.discord, c.arrived = seat, discord, g.arrivals
 	// A socket does not outlive the sign-in it came with.
-	c.stops = append(c.stops, g.clock.AfterFunc(time.Unix(expires, 0).Sub(g.clock.Now()), func() { c.bye(byeExpired) }))
+	c.stops = append(c.stops, g.clock.AfterFunc(time.Unix(expires, 0).Sub(g.clock.Now()), func() { c.bye(api.ByeExpired) }))
 	// A replaced socket leaves its seat now, so it is not counted or shown
 	// to while it closes.
 	for _, o := range replaced {
@@ -328,9 +312,38 @@ func (g *Gateway) sit(instance, discord, id string, who *player, c *conn, expire
 	}
 	g.mu.Unlock()
 	for _, o := range replaced {
-		o.bye(byeReplaced)
+		o.bye(api.ByeReplaced)
 	}
 	return seat
+}
+
+// unseatOldest makes room for a user's new seat by forgetting their
+// oldest empty one, and its session if nothing is left in it. The caller
+// holds the gateway's lock.
+func (g *Gateway) unseatOldest(discord string, keep *Session) {
+	var held, empty []*Seat
+	for _, sess := range g.sessions {
+		for _, s := range sess.seats {
+			if s.Discord == discord {
+				held = append(held, s)
+				if s.conn == nil && sess != keep {
+					empty = append(empty, s)
+				}
+			}
+		}
+	}
+	if len(held) < maxSeats || len(empty) == 0 {
+		return
+	}
+	old := slices.MinFunc(empty, func(a, b *Seat) int { return int(a.sat - b.sat) })
+	sess := old.session
+	delete(sess.seats, old.Char)
+	if len(sess.seats) == 0 && g.sessions[sess.Instance] == sess {
+		if sess.unreap != nil {
+			sess.unreap()
+		}
+		delete(g.sessions, sess.Instance)
+	}
 }
 
 // leave forgets a socket that has ended. A session whose last socket
@@ -409,7 +422,7 @@ func validIntentID(id string) bool {
 
 // refusal answers a frame the gateway will not act on.
 func refusal(seq int64, id, code, text string) api.ServerMessage {
-	return api.ServerMessage{T: tReply, Seq: seq, Reply: &api.IntentReply{ID: id, Refusal: &api.Refusal{Code: code, Message: text}}}
+	return api.ServerMessage{T: api.FrameReply, Seq: seq, Reply: &api.IntentReply{ID: id, Refusal: &api.Refusal{Code: code, Message: text}}}
 }
 
 // handle acts on one frame from a seated socket.
@@ -433,9 +446,9 @@ func (g *Gateway) handle(s *Seat, c *conn, data []byte) {
 	ctx, cancel := context.WithTimeout(g.ctx, hostWait)
 	defer cancel()
 	switch msg.T {
-	case tPing:
-		c.send(api.ServerMessage{T: tPong, Seq: msg.Seq})
-	case tLook:
+	case api.FramePing:
+		c.send(api.ServerMessage{T: api.FramePong, Seq: msg.Seq})
+	case api.FrameLook:
 		if msg.Look == nil || !validViewer(*msg.Look) {
 			c.send(refusal(msg.Seq, "", api.CodeBadJSON, "a look says what is on screen"))
 			return
@@ -443,15 +456,15 @@ func (g *Gateway) handle(s *Seat, c *conn, data []byte) {
 		s.who.mu.Lock()
 		defer s.who.mu.Unlock()
 		// Every look builds a state with the world held.
-		if !s.looks.take(g.clock.Now(), maxLooks) {
+		if !s.who.looks.take(g.clock.Now(), maxLooks) {
 			c.send(refusal(msg.Seq, "", api.CodeBusy, "too many looks at once"))
 			return
 		}
 		s.Viewer = *msg.Look
 		g.show(ctx, s, true)
-	case tIntent:
+	case api.FrameIntent:
 		g.intent(ctx, s, c, msg)
-	case tPassHint:
+	case api.FramePassHint:
 		g.passHint(ctx, s, c, msg)
 	default:
 		c.send(refusal(msg.Seq, "", api.CodeBadJSON, "no such frame"))
@@ -472,7 +485,7 @@ func (g *Gateway) intent(ctx context.Context, s *Seat, c *conn, msg api.ClientMe
 	}
 	s.who.mu.Lock()
 	defer s.who.mu.Unlock()
-	if !s.recent.take(g.clock.Now(), maxIntents) {
+	if !s.who.recent.take(g.clock.Now(), maxIntents) {
 		c.send(refusal(msg.Seq, in.ID, api.CodeBusy, "too many presses at once"))
 		return
 	}
@@ -493,23 +506,23 @@ func (g *Gateway) intent(ctx context.Context, s *Seat, c *conn, msg api.ClientMe
 		g.log.Error("activity: an intent failed", "character", s.Char, "kind", in.Kind, "err", err.Error())
 		c.send(refusal(msg.Seq, in.ID, api.CodeInternal, "the world could not take that"))
 	case ref != nil:
-		c.send(api.ServerMessage{T: tReply, Seq: msg.Seq, Reply: &api.IntentReply{ID: in.ID, Refusal: ref}})
+		c.send(api.ServerMessage{T: api.FrameReply, Seq: msg.Seq, Reply: &api.IntentReply{ID: in.ID, Refusal: ref}})
 	case rep.Character.ID != s.Char:
 		// A stored reply under this id is somebody else's.
 		c.send(refusal(msg.Seq, in.ID, api.CodeBadJSON, "that intent id is taken"))
 	default:
-		c.send(api.ServerMessage{T: tReply, Seq: msg.Seq, Reply: &api.IntentReply{ID: in.ID, OK: true, Duplicate: rep.Duplicate,
+		c.send(api.ServerMessage{T: api.FrameReply, Seq: msg.Seq, Reply: &api.IntentReply{ID: in.ID, OK: true, Duplicate: rep.Duplicate,
 			Facts: service.SeenFacts(s.Char, rep.Facts), Pressed: rep.Pressed, Machine: rep.Machine}})
 	}
 	g.show(ctx, s, true)
 }
 
-// passHint relays one of a master's hint moves to the other seats in the
-// same context, once for each armed machine.
+// passHint relays the move a master's state says they may pass on to the
+// other seats in the same context; the next state says they have.
 func (g *Gateway) passHint(ctx context.Context, s *Seat, c *conn, msg api.ClientMessage) {
 	s.who.mu.Lock()
 	defer s.who.mu.Unlock()
-	if msg.Hint == nil || !s.canPass || s.who.passed == s.armedAt || !slices.Contains(s.hints, *msg.Hint) {
+	if msg.Hint == nil || s.pass == nil || *msg.Hint != *s.pass {
 		c.send(refusal(msg.Seq, "", api.CodeForbidden, "no hint to pass"))
 		return
 	}
@@ -525,7 +538,7 @@ func (g *Gateway) passHint(ctx context.Context, s *Seat, c *conn, msg api.Client
 	}
 	g.mu.Unlock()
 	for _, o := range others {
-		o.send(api.ServerMessage{T: tHint, Hint: msg.Hint})
+		o.send(api.ServerMessage{T: api.FrameHint, Hint: msg.Hint})
 	}
 	g.show(ctx, s, false)
 }
@@ -554,7 +567,7 @@ func (g *Gateway) dismiss(s *Seat) {
 	c := s.conn
 	g.mu.Unlock()
 	if c != nil {
-		c.bye(byeExpired)
+		c.bye(api.ByeExpired)
 	}
 }
 
@@ -573,7 +586,9 @@ func (g *Gateway) show(ctx context.Context, s *Seat, force bool) {
 			g.dismiss(s)
 			return
 		}
-		st, ok, err := g.cfg.Host.View(ctx, s.Char, s.Viewer)
+		v := s.Viewer
+		v.Passed = s.who.passed
+		st, ok, err := g.cfg.Host.View(ctx, s.Char, v)
 		if err != nil {
 			g.log.Error("activity: building a state", "character", s.Char, "err", err.Error())
 			return
@@ -588,15 +603,10 @@ func (g *Gateway) show(ctx context.Context, s *Seat, force bool) {
 			return
 		}
 		g.keep(s.who, s.Char, due(st.Machine))
-		s.canPass, s.armedAt, s.hints = false, 0, nil
-		if m := st.Machine; m != nil && m.Armed {
-			if s.who.passed == m.ArmedAt {
-				m.CanPass = false
-			}
-			s.canPass, s.armedAt, s.hints = m.CanPass, m.ArmedAt, slices.Clone(m.Hints)
-			if m.Guide != nil {
-				s.hints = append(s.hints, *m.Guide)
-			}
+		s.pass, s.armedAt = nil, 0
+		if m := st.Machine; m != nil && m.Armed && m.CanPass && m.Pass != nil {
+			move := *m.Pass
+			s.pass, s.armedAt = &move, m.ArmedAt
 		}
 		g.mu.Lock()
 		s.Context = st.Context
@@ -610,7 +620,7 @@ func (g *Gateway) show(ctx context.Context, s *Seat, force bool) {
 			return
 		}
 		s.last = sum
-		c.send(api.ServerMessage{T: tState, State: &st})
+		c.send(api.ServerMessage{T: api.FrameState, State: &st})
 		return
 	}
 	// The next notice builds it again; nothing sent stands in its way.

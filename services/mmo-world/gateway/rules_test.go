@@ -33,10 +33,17 @@ func (h *fakeHost) CharacterOf(_ context.Context, discord string) (string, error
 	return h.players[discord], nil
 }
 
-func (h *fakeHost) View(_ context.Context, id string, _ api.Viewer) (api.ActivityState, bool, error) {
+// View holds back the pass on a machine already passed on, as the
+// service's filter does.
+func (h *fakeHost) View(_ context.Context, id string, v api.Viewer) (api.ActivityState, bool, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	st, ok := h.states[id]
+	if m := st.Machine; m != nil && m.Armed && v.Passed == m.ArmedAt {
+		passed := *m
+		passed.CanPass, passed.Pass = false, nil
+		st.Machine = &passed
+	}
 	return st, ok, nil
 }
 
@@ -91,19 +98,19 @@ func solo(id string) api.ActivityState {
 
 // TestHintRelay seats two characters in one context and a third in its
 // own. A master's one hint for an armed machine reaches the other seat
-// of its context and nobody else, once, and only a move the master was
-// shown.
+// of its context and nobody else, once, and only the move their state
+// says they may pass.
 func TestHintRelay(t *testing.T) {
 	party := api.Context{Kind: "party", ID: "p-1"}
 	first, second, guide := api.PuzzleMove{At: 1, A: 2, B: 3}, api.PuzzleMove{A: 4, C: 1}, api.PuzzleMove{A: 7}
 	clock := newClock()
-	machine := func(armedAt int64) *api.MachineView {
+	machine := func(armedAt int64, pass api.PuzzleMove) *api.MachineView {
 		return &api.MachineView{Source: api.MachineBeat, Family: "rewire", Armed: true, ArmedAt: armedAt, Deadline: clock.Now().Add(time.Hour).UnixMilli(),
 			Due:     clock.Now().Add(time.Hour).UnixMilli(),
-			CanPass: true, Hints: []api.PuzzleMove{first, second}, Guide: &guide}
+			CanPass: true, Pass: &pass, Hints: []api.PuzzleMove{first, second}, Guide: &guide}
 	}
 	h := &fakeHost{players: map[string]string{"u-master": "c-1", "u-partner": "c-2", "u-stranger": "c-3"}, states: map[string]api.ActivityState{
-		"c-1": {Context: party, Character: api.Character{ID: "c-1"}, Machine: machine(1000)},
+		"c-1": {Context: party, Character: api.Character{ID: "c-1"}, Machine: machine(1000, first)},
 		"c-2": {Context: party, Character: api.Character{ID: "c-2"}},
 		"c-3": solo("c-3"),
 	}}
@@ -119,7 +126,8 @@ func TestHintRelay(t *testing.T) {
 		v.send(api.ClientMessage{T: "pass-hint", Seq: v.seq, Hint: m})
 	}
 
-	// A seat with nothing to pass, a move the master was never shown.
+	// A seat with nothing to pass, a move the master was never shown, a
+	// hint that is not the one to pass.
 	pass(partner, &first)
 	if r := partner.reply(); r.Refusal == nil || r.Refusal.Code != api.CodeForbidden {
 		t.Fatalf("a hint from a seat with none to pass: %+v", r)
@@ -128,16 +136,20 @@ func TestHintRelay(t *testing.T) {
 	if r := master.reply(); r.Refusal == nil {
 		t.Fatalf("a hint the master was never shown: %+v", r)
 	}
+	pass(master, &second)
+	if r := master.reply(); r.Refusal == nil {
+		t.Fatalf("a hint that is not the one to pass: %+v", r)
+	}
 	pass(master, nil)
 	if r := master.reply(); r.Refusal == nil {
 		t.Fatalf("a pass with no hint: %+v", r)
 	}
 
-	pass(master, &second)
-	if msg := partner.next(); msg.T != "hint" || msg.Hint == nil || *msg.Hint != second {
+	pass(master, &first)
+	if msg := partner.next(); msg.T != "hint" || msg.Hint == nil || *msg.Hint != first {
 		t.Fatalf("the partner was sent %+v", msg)
 	}
-	if st := master.state(); st.Machine.CanPass || !st.Machine.Armed {
+	if st := master.state(); st.Machine.CanPass || st.Machine.Pass != nil || !st.Machine.Armed {
 		t.Fatalf("the master's machine after passing: %+v", st.Machine)
 	}
 	pass(master, &first)
@@ -151,7 +163,7 @@ func TestHintRelay(t *testing.T) {
 	// The next armed machine has its own hint, and the guide line counts.
 	h.set(func() {
 		st := h.states["c-1"]
-		st.Machine = machine(2000)
+		st.Machine = machine(2000, guide)
 		h.states["c-1"] = st
 	}, []string{"c-1"})
 	if st := master.state(); !st.Machine.CanPass || st.Machine.ArmedAt != 2000 {
@@ -272,6 +284,16 @@ func TestSocketRules(t *testing.T) {
 		v.state()
 	}
 	refused(`{"t":"look","seq":%d,"look":{"family":"rewire","level":2}}`, api.CodeBusy)
+	// Another socket for the same character starts no fresh window.
+	v2 := w.dial("", nil)
+	v2.send(hello("i-2"))
+	v2.state()
+	v2.seq++
+	v2.send(api.ClientMessage{T: "look", Seq: v2.seq, Look: &api.Viewer{Family: "rewire", Level: 2}})
+	if r := v2.reply(); r.Refusal == nil || r.Refusal.Code != api.CodeBusy {
+		t.Fatalf("a look from a fresh socket in the same second: %+v", r)
+	}
+	v2.drop()
 	w.clock.Advance(time.Second)
 	v.seq++
 	v.send(api.ClientMessage{T: "look", Seq: v.seq, Look: &api.Viewer{Family: "rewire", Level: 2}})
@@ -398,4 +420,19 @@ func TestSocketOutlivesReadTimeout(t *testing.T) {
 	v.state()
 	time.Sleep(500 * time.Millisecond)
 	v.quiet()
+}
+
+// TestSeatCap forgets a user's oldest empty seat once they hold as many
+// as they may, so instance ids made up one after another hold nothing.
+func TestSeatCap(t *testing.T) {
+	h := &fakeHost{players: map[string]string{"u-1": "c-1"}, states: map[string]api.ActivityState{"c-1": solo("c-1")}}
+	w := faked(t, h, nil)
+	for i := range gateway.MaxSeats + 1 {
+		v := w.join("u-1", fmt.Sprintf("i-%d", i), api.Viewer{}, nil)
+		v.state()
+		v.drop()
+	}
+	if w.gw.SessionOf("i-0") != nil || w.gw.SessionOf("i-1") == nil || w.gw.SessionOf(fmt.Sprintf("i-%d", gateway.MaxSeats)) == nil {
+		t.Fatal("the oldest empty seat was kept past the cap, or a newer one went")
+	}
 }

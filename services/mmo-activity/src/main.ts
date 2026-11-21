@@ -7,6 +7,10 @@ import { launch, routes, SignInError } from "./discord.ts";
 import { Session, type SessionDeps, type SocketLike } from "./session.ts";
 import { theme } from "./theme.ts";
 
+// The session's clock: a step in the device's wall clock would leave the
+// server's offset stale, so it never moves but forward.
+const monotonic = () => performance.timeOrigin + performance.now();
+
 const after = (ms: number, f: () => void) => {
   const t = setTimeout(f, ms);
   return () => clearTimeout(t);
@@ -82,7 +86,7 @@ async function mocked(
     open: () => gateway.open(),
     instance: "mock",
     viewer: { compact },
-    now: Date.now,
+    now: monotonic,
     after,
     id: newId,
   };
@@ -106,7 +110,7 @@ async function live(compact: boolean): Promise<SessionDeps> {
     open: () => new WebSocket(r.socket) as SocketLike,
     instance: l.instance,
     viewer: { compact },
-    now: Date.now,
+    now: monotonic,
     after,
     id: newId,
     note: (kind, data) => beacon(kind, { instance: l.instance, platform: l.platform, ...data }),

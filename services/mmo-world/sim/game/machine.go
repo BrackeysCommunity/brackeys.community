@@ -13,6 +13,7 @@ import (
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/puzzle"
 	"jams.team/mmo-world/sim/sheets"
+	"jams.team/mmo-world/sim/tags"
 	"jams.team/mmo-world/sim/world"
 )
 
@@ -55,13 +56,6 @@ const (
 
 // structural: the beat whose machine is not a lock.
 const beatPuzzle = "puzzle"
-
-// structural: milliseconds in a second.
-const msPerSecond = 1000
-
-// MachineGrace is the milliseconds a move log may arrive past its
-// countdown before it is late.
-func (g *Game) MachineGrace() int64 { return g.Puzzles().Param("network-grace") * msPerSecond }
 
 // TrigPouch is the tiles.triggers row that turns a find into a locked
 // pouch.
@@ -106,7 +100,7 @@ func (a *Armed) Deadline() int64 { return a.At + a.Countdown }
 
 // MachineDue is when an armed machine's log is late: its deadline and the
 // grace. Whoever ends a machine left alone ends it then.
-func (g *Game) MachineDue(a *Armed) int64 { return a.Deadline() + g.MachineGrace() }
+func (g *Game) MachineDue(a *Armed) int64 { return a.Deadline() + g.Puzzles().Grace() }
 
 // Pouch is a find that came locked: its goods wait in its own pool until
 // its lock is solved.
@@ -336,6 +330,13 @@ func (g *Game) haywireOf(spec puzzle.Spec, intro bool) string {
 	return p.Haywire(spec.Family, spec.Where())
 }
 
+// HaywireBeats reports whether a haywire row puts on a state that lasts
+// so many beats, rather than the rest of the encounter.
+func (g *Game) HaywireBeats(id string) bool {
+	row := g.Puzzles().HaywireRow(id)
+	return row != nil && row.Effect == puzzle.EffectShort && g.r.Fight.StateBeats(tags.Tag(row.Tag)) > 0
+}
+
 // Rig is the machine a character may work now: the one it armed, else the
 // one machineAt finds.
 func (g *Game) Rig(c *Char, v Viewer) (Rig, bool) {
@@ -426,44 +427,55 @@ func (g *Game) machineSolve(c *Char, cmd Command) ([]fight.Pressed, *puzzle.Resu
 	tick := g.Tick()
 	var pressed []fight.Pressed
 	var err error
+	moved := false
 	if a.Source == SourcePouch {
 		err = g.pouchWorked(c, cmd.Key, a, res, tick)
 	} else {
-		pressed, err = g.beatWorked(c, cmd.Key, a, res, tick)
+		pressed, moved, err = g.beatWorked(c, cmd.Key, a, res, tick)
 	}
 	if err != nil {
 		return nil, nil, err
 	}
 	c.Armed = nil
+	if moved && res.Solved {
+		// Nothing was pressed or paid, so there is no result to show.
+		c.LastMachine = nil
+		_, err := g.fact(c, "machine.moved-on", tick, fact.S("family", a.Spec.Family), fact.N("level", a.Spec.Level))
+		return nil, nil, err
+	}
 	c.LastMachine = &MachineDone{Source: a.Source, Family: a.Spec.Family, Level: a.Spec.Level, Tick: tick, Result: res}
 	return pressed, &res, nil
 }
 
 // beatWorked presses the beat's machine option with the replayed result,
 // then does what reaches past the fight: a master's extra practice, an
-// alarm, a lockdown.
-func (g *Game) beatWorked(c *Char, key string, a *Armed, res puzzle.Result, tick int64) ([]fight.Pressed, error) {
-	if c.Fight == nil {
-		return nil, nil
+// alarm, a lockdown. moved is a beat that no longer offers the machine:
+// nothing is pressed, and a failed log still haywires.
+func (g *Game) beatWorked(c *Char, key string, a *Armed, res puzzle.Result, tick int64) (pressed []fight.Pressed, moved bool, err error) {
+	pick, ok := "", false
+	if c.Fight != nil {
+		pick, ok = g.machineOption(c)
 	}
-	pick, ok := g.machineOption(c)
 	if !ok {
-		return nil, nil
+		if !res.Solved {
+			g.haywired(c, a.Spec.Place, res.Haywire, c.C.At, tick, retryTicks)
+		}
+		return nil, true, nil
 	}
 	family, at := a.Spec.Family, c.C.At
 	e := c.Fight.E
 	beat := e.At
 	before := c.C.Level(family)
-	pressed, err := g.pressOption(c, key, pick, tick, &worked{res: res, compact: a.Spec.Compact})
+	pressed, err = g.pressOption(c, key, pick, tick, &worked{res: res, compact: a.Spec.Compact})
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if err := g.mastered(c, family, before, tick); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if n := g.masterUses(res); n > 0 {
 		if err := g.practise(c, family, n, tick); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	}
 	if !res.Solved {
@@ -473,7 +485,7 @@ func (g *Game) beatWorked(c *Char, key string, a *Armed, res puzzle.Result, tick
 		}
 		g.haywired(c, a.Spec.Place, res.Haywire, at, tick, least)
 	}
-	return pressed, nil
+	return pressed, false, nil
 }
 
 // masterUses is the extra practice a solved inner panel pays.
@@ -669,10 +681,7 @@ func (g *Game) setMachine(c *Char, cmd Command) error {
 	if top := g.topLevel(); cmd.Note == "" || !g.Puzzles().Known(cmd.Asset) || cmd.Units < 1 || cmd.Units > top {
 		return refuse(BadArgs, "a machine needs a family, a level from 1 to %d and a note", top)
 	}
-	if c.Banned || c.Armed != nil {
-		return refuse(Busy, "%s is banned or has a machine armed", c.C.ID)
-	}
-	if err := free(c); err != nil {
+	if err := idle(c); err != nil {
 		return err
 	}
 	g.FaceMachine(c, cmd.Asset, cmd.Units)

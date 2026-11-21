@@ -3,7 +3,9 @@ package service_test
 import (
 	"context"
 	"io"
+	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -139,5 +141,68 @@ func TestMachinesOverHTTP(t *testing.T) {
 	}
 	if _, ref, _ := r.srv.Act(ctx, api.ActionRequest{InteractionID: "mx-" + id + "-2", CharacterID: id, Kind: api.ActMachineSolve}, false); ref == nil || ref.Code != api.CodeNoMachine {
 		t.Fatalf("a second expiry: %+v", ref)
+	}
+}
+
+// TestSolveWaitingOnTheWorld sends a solve in time while the world is
+// held past the countdown's end: it is judged on when it arrived. The
+// machine kinds are the Activity's, so POST /v1/actions refuses them.
+func TestSolveWaitingOnTheWorld(t *testing.T) {
+	ctx := context.Background()
+	var ahead atomic.Int64
+	stamped := make(chan struct{}, 1)
+	clock := func() time.Time {
+		if pc, _, _, ok := runtime.Caller(1); ok && strings.HasSuffix(runtime.FuncForPC(pc).Name(), "service.(*Server).do") {
+			select {
+			case stamped <- struct{}{}:
+			default:
+			}
+		}
+		return time.Now().Add(time.Duration(ahead.Load()))
+	}
+	r := startOn(t, pgtest.Pool(t), io.Discard, func(c *service.Config) { c.Now = clock })
+	rep, ref, err := r.cli.Act(ctx, api.ActionRequest{InteractionID: "start", DiscordID: "tinker", Kind: api.ActCreate, Option: api.StartKnife})
+	if err != nil || ref != nil {
+		t.Fatal(ref, err)
+	}
+	id := rep.Character.ID
+	c := r.srv.Game().Char(id)
+	testkit.MachineBeat(t, r.srv.Game(), c, puzzle.Rewire, 2)
+	arm := api.ActionRequest{InteractionID: "act-arm", CharacterID: id, Version: c.Version, Kind: api.ActMachineArm,
+		Machine: &api.MachineIntent{Source: api.MachineBeat}}
+	if _, ref, _ := r.cli.Act(ctx, arm); ref == nil || ref.Code != api.CodeForbidden {
+		t.Fatalf("arming over POST /v1/actions: %+v", ref)
+	}
+	armed, ref, err := r.srv.Act(ctx, arm, true)
+	if err != nil || ref != nil {
+		t.Fatal(ref, err)
+	}
+	st, _, _ := r.srv.View(ctx, id, api.Viewer{})
+	m := st.Machine
+	log := rewired(m.Layout)
+	until := func(at int64) { ahead.Add(int64(time.Until(time.UnixMilli(at))) - ahead.Load()) }
+	until(m.ArmedAt + log.Moves[len(log.Moves)-1].At + 500)
+	<-stamped // the arm's
+
+	release := r.srv.Hold()
+	done := make(chan api.ActionReply, 1)
+	go func() {
+		rep, ref, err := r.srv.Act(ctx, api.ActionRequest{InteractionID: "act-solve", CharacterID: id, Version: armed.Character.Version,
+			Kind: api.ActMachineSolve, Machine: &api.MachineIntent{Log: log}}, true)
+		if err != nil || ref != nil {
+			t.Error(ref, err)
+		}
+		done <- rep
+	}()
+	select {
+	case <-stamped:
+	case <-time.After(10 * time.Second):
+		release()
+		t.Fatal("the solve never read the clock")
+	}
+	until(m.Due + 5_000)
+	release()
+	if got := <-done; got.Machine == nil || !got.Machine.Solved || got.Machine.Late {
+		t.Fatalf("a solve sent in time and held past the deadline: %+v", got.Machine)
 	}
 }

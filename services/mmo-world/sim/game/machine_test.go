@@ -205,7 +205,7 @@ func TestMachineLateAndEmpty(t *testing.T) {
 	}
 	rig := armNow()
 	s := solve(b.solving(rig))
-	s.Now = armedAt + rig.Countdown + b.g.MachineGrace() + 1
+	s.Now = armedAt + rig.Countdown + b.g.Puzzles().Grace() + 1
 	res := b.must(b.c, s)
 	f := kindOf(res.Facts, "puzzle.haywire")
 	if res.Machine.Solved || !res.Machine.Late || res.Machine.Haywire == "" || f == nil {
@@ -791,4 +791,44 @@ func TestMastery(t *testing.T) {
 	if got := c.C.PracticeOf(puzzle.Fuse).Uses - uses; got != p.Param("live-solve-uses")+p.Param("master-solve-uses") {
 		t.Fatalf("%d uses from a master's solve", got)
 	}
+}
+
+// TestMachineBeatMovedOn solves and fails machines whose beat no longer
+// offers them by the time the log arrives: a solve pays nothing and shows
+// no result, and a failed log still shuts the place.
+func TestMachineBeatMovedOn(t *testing.T) {
+	b := newBench(t)
+	armGone := func() game.Rig {
+		b.tick()
+		testkit.MachineBeat(t, b.g, b.c, puzzle.Signal, 1)
+		rig := b.rig(b.c, game.Viewer{})
+		a := arm(game.SourceBeat)
+		a.Now = armedAt
+		b.must(b.c, a)
+		b.c.Fight = nil
+		return rig
+	}
+	rig := armGone()
+	s := solve(b.solving(rig))
+	s.Now = armedAt + 900
+	res := b.must(b.c, s)
+	if res.Machine != nil || b.c.LastMachine != nil || b.c.Armed != nil || kindOf(res.Facts, "machine.moved-on") == nil || kindOf(res.Facts, "puzzle.solved") != nil {
+		t.Fatalf("a solve on a beat that moved on: %+v, last %+v, facts %+v", res.Machine, b.c.LastMachine, res.Facts)
+	}
+	if len(b.c.Lockdowns) != 0 {
+		t.Fatalf("a solve shut the place: %+v", b.c.Lockdowns)
+	}
+	b.audit()
+
+	armGone()
+	s = solve(&puzzle.Log{})
+	s.Now = armedAt + 900
+	res = b.must(b.c, s)
+	if res.Machine == nil || res.Machine.Solved || res.Machine.Haywire == "" || b.c.LastMachine == nil || b.c.Armed != nil {
+		t.Fatalf("a failed log on a beat that moved on: %+v, last %+v", res.Machine, b.c.LastMachine)
+	}
+	if len(b.c.Lockdowns) != 1 || b.c.Lockdowns[0].Until <= b.g.Tick() {
+		t.Fatalf("a failed log on a beat that moved on left the place open: %+v", b.c.Lockdowns)
+	}
+	b.audit()
 }

@@ -99,10 +99,11 @@ func decodeReply(body []byte, dup bool) (api.ActionReply, error) {
 }
 
 // applyCommand validates, resolves and records one command, idempotent on
-// its interaction id: a second send gets the first one's stored reply. An
-// error leaves g part-way, and the caller restores or abandons it, unless
-// it is untouched.
-func applyCommand(ctx context.Context, g *game.Game, rec records, cmd game.Command, discord string, version int64, checkVersion bool, now time.Time) (applied, error) {
+// its interaction id: a second send gets the first one's stored reply,
+// and subs are told who a recorded write changed. An error leaves g
+// part-way, and the caller restores or abandons it, unless it is
+// untouched.
+func applyCommand(ctx context.Context, g *game.Game, rec records, subs *listeners, cmd game.Command, discord string, version int64, checkVersion bool, now time.Time) (applied, error) {
 	var bad *game.Refused
 	if errors.As(game.ValidKey(cmd.Key), &bad) {
 		return applied{ref: apiRefusal(bad), status: http.StatusBadRequest}, nil
@@ -139,6 +140,7 @@ func applyCommand(ctx context.Context, g *game.Game, rec records, cmd game.Comma
 	if err := rec.SaveAction(ctx, g, cmd, res.Char, discord, body, now); err != nil {
 		return applied{}, err
 	}
+	subs.tell(told(res))
 	return applied{body: body, res: res}, nil
 }
 

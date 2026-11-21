@@ -8,7 +8,7 @@ import {
   glyph,
   glyphName,
   letter,
-  nearest,
+  reach,
   pieceColour,
   pointers,
   set,
@@ -49,17 +49,17 @@ export function geometry(n: number, size: Size): Geometry {
 
 /** The wire whose plug a pointer picks up: the nearest within a thumb's reach. */
 export function pick(geo: Geometry, at: number[], p: Point): number | undefined {
-  const hit = nearest(
+  return reach(
     at.map((port) => geo.seats[port]!),
     p,
-  );
-  return hit.distance <= geo.r * PICKUP ? hit.index : undefined;
+    geo.r,
+  ).index;
 }
 
 /** The port a drop lands in, if it is near one, and how far it missed the nearest. */
 export function land(geo: Geometry, p: Point): { port: number | undefined; miss: number } {
-  const hit = nearest(geo.seats, p);
-  return { port: hit.distance <= geo.r * PICKUP ? hit.index : undefined, miss: hit.distance };
+  const { index, miss } = reach(geo.seats, p, geo.r);
+  return { port: index, miss };
 }
 
 interface Drag {

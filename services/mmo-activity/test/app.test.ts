@@ -62,7 +62,7 @@ async function boot(name: string, clock?: FakeClock) {
   await wait();
   clock?.advance(0);
   await wait();
-  return { root, session };
+  return { root, session, gateway };
 }
 
 function texts(root: Element): string[] {
@@ -241,6 +241,18 @@ test("a machine armed before the page opened shows its countdown from the deadli
   expect(
     [...root.querySelectorAll<HTMLButtonElement>("nav button")].filter((b) => !b.disabled),
   ).toHaveLength(1);
+});
+
+test("a machine armed in another window starts this one's countdown", async () => {
+  const clock = new FakeClock();
+  const { root, session, gateway } = await boot("beat", clock);
+  await wait(40);
+  expect(root.querySelector(".machine")?.getAttribute("data-phase")).toBe("rest");
+  gateway.armElsewhere();
+  await wait();
+  expect(session.state?.machine?.armed).toBe(true);
+  expect(root.querySelector(".machine")?.getAttribute("data-phase")).toBe("play");
+  expect(root.querySelector(".countdown-text")!.textContent).toMatch(/s left$/);
 });
 
 test("walking away is a haywire: the world's own timer ends the machine and the page shows it", async () => {

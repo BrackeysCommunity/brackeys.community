@@ -1,3 +1,4 @@
+import type { Button } from "../../../packages/discord-kit/src/index.ts";
 import type * as api from "./api.ts";
 import { type Card, problems } from "./card.ts";
 import { answer, type Ctx, launchFor, modalFor, type Press } from "./flow.ts";
@@ -94,14 +95,19 @@ export async function scripted(
       `no "${action}" that opens a modal on the card "${card.author} / ${card.title}"`,
     );
   };
+  /** The custom id of a live page button whose action (and target, if given) matches. */
+  const matching = (b: Button, action: string, target?: string) => {
+    if (b.kind !== "page" || b.disabled) return undefined;
+    const id = decodeId(b.customId);
+    return id?.action === action && (target === undefined || id.target === target) ? id : undefined;
+  };
   /** Presses the first button or select whose action (and target, if given) matches. */
   const press = async (action: string, target?: string, value?: string) => {
     for (const row of card.rows) {
       if ("buttons" in row) {
         for (const b of row.buttons) {
-          if (b.kind !== "page" || b.disabled) continue;
-          const id = decodeId(b.customId);
-          if (id?.action !== action || (target !== undefined && id.target !== target)) continue;
+          const id = matching(b, action, target);
+          if (!id) continue;
           const launch = launchFor(id);
           if (!launch) return send({ id });
           run.presses++;
@@ -125,11 +131,7 @@ export async function scripted(
   const has = (action: string, target?: string) =>
     card.rows.some((r) =>
       "buttons" in r
-        ? r.buttons.some((b) => {
-            if (b.kind !== "page" || b.disabled) return false;
-            const id = decodeId(b.customId);
-            return id?.action === action && (target === undefined || id.target === target);
-          })
+        ? r.buttons.some((b) => matching(b, action, target) !== undefined)
         : decodeId(r.select.customId)?.action === action,
     );
   /** /play, and on past since-you-left to the hub when it shows first. */

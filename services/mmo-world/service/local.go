@@ -52,6 +52,7 @@ func (l *Local) Act(ctx context.Context, req api.ActionRequest) (api.ActionReply
 }
 
 func (l *Local) act(ctx context.Context, req api.ActionRequest, checkVersion bool) (api.ActionReply, *api.Refusal, error) {
+	arrived := l.now()
 	if err := l.check(); err != nil {
 		return api.ActionReply{}, nil, err
 	}
@@ -59,16 +60,13 @@ func (l *Local) act(ctx context.Context, req api.ActionRequest, checkVersion boo
 	if ref != nil {
 		return api.ActionReply{}, ref, nil
 	}
-	out, err := applyCommand(ctx, l.G, l.mem, cmd, req.DiscordID, req.Version, checkVersion, l.now())
+	out, err := applyCommand(ctx, l.G, l.mem, &l.subs, cmd, req.DiscordID, req.Version, checkVersion, arrived)
 	if err != nil {
 		l.broken = err
 		return api.ActionReply{}, nil, err
 	}
 	if out.ref != nil {
 		return api.ActionReply{}, out.ref, nil
-	}
-	if !out.dup {
-		l.subs.tell(told(out.res))
 	}
 	rep, err := decodeReply(out.body, out.dup)
 	return rep, nil, err

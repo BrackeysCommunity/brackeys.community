@@ -17,12 +17,9 @@ import (
 	"jams.team/mmo-world/api"
 )
 
-// structural: what Discord's proxy puts in front of every path, the
-// placeholder the build leaves for the application id, and the bounds of
-// a telemetry beacon.
+// structural: the static build's files and caching, and the bounds of a
+// telemetry beacon.
 const (
-	proxyPrefix    = "/.proxy"
-	clientIDMark   = "__DISCORD_CLIENT_ID__"
 	indexFile      = "index.html"
 	assetsDir      = "assets/"
 	cacheForever   = "public, max-age=31536000, immutable"
@@ -49,7 +46,7 @@ func (g *Gateway) Handler() http.Handler {
 	})
 	mux.HandleFunc("/", g.static)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if rest, ok := strings.CutPrefix(r.URL.Path, proxyPrefix); ok && (rest == "" || rest[0] == '/') {
+		if rest, ok := strings.CutPrefix(r.URL.Path, api.ActivityProxyPrefix); ok && (rest == "" || rest[0] == '/') {
 			r = r.Clone(r.Context())
 			r.URL.Path, r.URL.RawPath = "/"+strings.TrimPrefix(rest, "/"), ""
 		}
@@ -128,8 +125,7 @@ func (g *Gateway) token(w http.ResponseWriter, r *http.Request) {
 	reply(w, http.StatusOK, api.TokenReply{Session: session, Expires: expires, DiscordID: discord, CharacterID: id})
 }
 
-// window is when something happened in the last second, to hold it to so
-// many a second.
+// window holds the times of the last second's events, for a per-second cap.
 type window []time.Time
 
 // take counts one more now, unless that is more than most.
@@ -273,7 +269,7 @@ func (g *Gateway) index(w http.ResponseWriter) {
 		refuse(w, http.StatusInternalServerError, api.CodeInternal, "the page could not be read")
 		return
 	}
-	page = bytes.ReplaceAll(page, []byte(clientIDMark), []byte(html.EscapeString(g.cfg.AppID)))
+	page = bytes.ReplaceAll(page, []byte(api.ActivityClientIDMark), []byte(html.EscapeString(g.cfg.AppID)))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	_, _ = w.Write(page)

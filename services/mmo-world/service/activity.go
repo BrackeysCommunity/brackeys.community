@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"sync"
+	"time"
 
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/sim/game"
@@ -71,19 +72,66 @@ func (s *Server) CharacterOf(ctx context.Context, discordID string) (string, err
 	return s.st.CharacterOf(ctx, discordID)
 }
 
-// View is one character's state as its owner may see it; ok is false when
-// the character is gone.
-func (s *Server) View(ctx context.Context, characterID string, v api.Viewer) (api.ActivityState, bool, error) {
+// held is a world as the Activity's host reads it: the game under its
+// lock or guard, and the clock a state is built on.
+type held interface {
+	holdGame(ctx context.Context) (g *game.Game, now time.Time, release func(), err error)
+}
+
+func (s *Server) holdGame(ctx context.Context) (*game.Game, time.Time, func(), error) {
 	unlock, err := s.take(ctx, true)
+	if err != nil {
+		return nil, time.Time{}, nil, err
+	}
+	return s.g, s.cfg.Now(), unlock, nil
+}
+
+func (h LocalHost) holdGame(context.Context) (*game.Game, time.Time, func(), error) {
+	if err := h.l.check(); err != nil {
+		return nil, time.Time{}, nil, err
+	}
+	return h.l.G, h.l.now(), func() {}, nil
+}
+
+func viewIn(ctx context.Context, w held, characterID string, v api.Viewer) (api.ActivityState, bool, error) {
+	g, now, release, err := w.holdGame(ctx)
 	if err != nil {
 		return api.ActivityState{}, false, err
 	}
-	defer unlock()
-	c := s.g.Char(characterID)
+	defer release()
+	c := g.Char(characterID)
 	if c == nil {
 		return api.ActivityState{}, false, nil
 	}
-	return Filter(s.g, c, v, s.cfg.Now()), true, nil
+	return Filter(g, c, v, now), true, nil
+}
+
+func armedIn(ctx context.Context, w held) ([]api.ArmedMachine, error) {
+	g, _, release, err := w.holdGame(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	return armed(g), nil
+}
+
+func countdownIn(ctx context.Context, w held, characterID string) (api.ArmedMachine, bool, error) {
+	g, _, release, err := w.holdGame(ctx)
+	if err != nil {
+		return api.ArmedMachine{}, false, err
+	}
+	defer release()
+	c := g.Char(characterID)
+	if c == nil {
+		return api.ArmedMachine{}, false, nil
+	}
+	return due(g, c), true, nil
+}
+
+// View is one character's state as its owner may see it; ok is false when
+// the character is gone.
+func (s *Server) View(ctx context.Context, characterID string, v api.Viewer) (api.ActivityState, bool, error) {
+	return viewIn(ctx, s, characterID, v)
 }
 
 // Act applies a player's request as POST /v1/actions does. check is false
@@ -108,28 +156,12 @@ func (s *Server) Act(ctx context.Context, req api.ActionRequest, check bool) (ap
 }
 
 // Armed are the countdowns running, for whoever must end them.
-func (s *Server) Armed(ctx context.Context) ([]api.ArmedMachine, error) {
-	unlock, err := s.take(ctx, true)
-	if err != nil {
-		return nil, err
-	}
-	defer unlock()
-	return armed(s.g), nil
-}
+func (s *Server) Armed(ctx context.Context) ([]api.ArmedMachine, error) { return armedIn(ctx, s) }
 
 // Countdown is one character's countdown, with Due 0 when none is running;
 // ok is false when the character is gone.
 func (s *Server) Countdown(ctx context.Context, characterID string) (api.ArmedMachine, bool, error) {
-	unlock, err := s.take(ctx, true)
-	if err != nil {
-		return api.ArmedMachine{}, false, err
-	}
-	defer unlock()
-	c := s.g.Char(characterID)
-	if c == nil {
-		return api.ArmedMachine{}, false, nil
-	}
-	return due(s.g, c), true, nil
+	return countdownIn(ctx, s, characterID)
 }
 
 // Subscribe has f told which characters each saved command changed, and
@@ -147,37 +179,18 @@ func (h LocalHost) CharacterOf(ctx context.Context, discordID string) (string, e
 	return h.l.mem.CharacterOf(ctx, discordID)
 }
 
-func (h LocalHost) View(_ context.Context, characterID string, v api.Viewer) (api.ActivityState, bool, error) {
-	if err := h.l.check(); err != nil {
-		return api.ActivityState{}, false, err
-	}
-	c := h.l.G.Char(characterID)
-	if c == nil {
-		return api.ActivityState{}, false, nil
-	}
-	return Filter(h.l.G, c, v, h.l.now()), true, nil
+func (h LocalHost) View(ctx context.Context, characterID string, v api.Viewer) (api.ActivityState, bool, error) {
+	return viewIn(ctx, h, characterID, v)
 }
 
 func (h LocalHost) Act(ctx context.Context, req api.ActionRequest, check bool) (api.ActionReply, *api.Refusal, error) {
 	return h.l.act(ctx, req, check)
 }
 
-func (h LocalHost) Armed(context.Context) ([]api.ArmedMachine, error) {
-	if err := h.l.check(); err != nil {
-		return nil, err
-	}
-	return armed(h.l.G), nil
-}
+func (h LocalHost) Armed(ctx context.Context) ([]api.ArmedMachine, error) { return armedIn(ctx, h) }
 
-func (h LocalHost) Countdown(_ context.Context, characterID string) (api.ArmedMachine, bool, error) {
-	if err := h.l.check(); err != nil {
-		return api.ArmedMachine{}, false, err
-	}
-	c := h.l.G.Char(characterID)
-	if c == nil {
-		return api.ArmedMachine{}, false, nil
-	}
-	return due(h.l.G, c), true, nil
+func (h LocalHost) Countdown(ctx context.Context, characterID string) (api.ArmedMachine, bool, error) {
+	return countdownIn(ctx, h, characterID)
 }
 
 func (h LocalHost) Subscribe(f func(characterIDs []string)) { h.l.subs.add(f) }

@@ -1,3 +1,4 @@
+import sheet from "virtual:puzzle-sheet";
 import type { GoldenRig } from "virtual:rigs";
 
 import {
@@ -6,9 +7,22 @@ import {
   ActMachineArm,
   ActMachineSolve,
   ActPress,
+  CodeBadArgs,
+  CodeLockedDown,
   CodeMachineArmed,
+  CodeNeedsActivity,
+  CodeNoEncounter,
   CodeNoLesson,
   CodeNoMachine,
+  CodeNotHere,
+  CodeStale,
+  FrameHello,
+  FrameIntent,
+  FrameLook,
+  FramePing,
+  FramePong,
+  FrameReply,
+  FrameState,
   MachineBeat,
   MachineBench,
   MachinePouch,
@@ -27,7 +41,7 @@ import {
 } from "./api.ts";
 import type { SocketLike } from "./session.ts";
 import { DONE } from "./shell/kit.ts";
-import { play } from "./shell/play.ts";
+import { judge, play } from "./shell/play.ts";
 import { familyOf } from "./shell/registry.ts";
 import { name } from "./words.ts";
 
@@ -41,16 +55,20 @@ export interface MockDeps {
   after(ms: number, f: () => void): () => void;
 }
 
-// Imitations of sheet cells, close enough to play against; only the world
-// service decides a real outcome.
-const GRACE = 2000;
-const BENCH_PLAY = 600_000;
-const PREVIEW = 2;
-const HINT = 6;
-const GUIDE = 8;
-const SECOND_HINT = 12;
-const MASTERY = 16;
+// The mock plays by the world's sheets; only the world service decides a
+// real outcome. A lockdown's length is an imitation.
 const LOCKDOWN_TICKS = 144;
+
+/** What a practice level buys, as sim/puzzle's Gifts sums it. */
+function gifts(practice: number) {
+  const got = sheet.gifts.filter((g) => practice >= g.practice).map((g) => g.gives);
+  return {
+    preview: got.includes("preview"),
+    guide: got.includes("guide-line"),
+    mastery: got.includes("mastery"),
+    hints: got.filter((g) => g === "hint").length,
+  };
+}
 
 interface Armed {
   view: MachineView;
@@ -98,26 +116,35 @@ export class MockGateway {
     return socket;
   }
 
+  /** Arms the machine in view as another window would, and says so. */
+  armElsewhere(): void {
+    const view = this.machine();
+    if (!view || this.armed) return;
+    this.arm(view, this.deps.now());
+    this.st.character.version++;
+    this.push();
+  }
+
   private send(msg: ServerMessage): void {
     this.socket?.deliver(msg);
   }
 
   private take(msg: ClientMessage): void {
     switch (msg.t) {
-      case "hello":
+      case FrameHello:
         this.viewer = msg.hello?.viewer ?? {};
         this.push();
         return;
-      case "look":
+      case FrameLook:
         this.viewer = msg.look ?? {};
         this.push();
         return;
-      case "ping":
-        this.send({ t: "pong" });
+      case FramePing:
+        this.send({ t: FramePong });
         return;
-      case "intent":
+      case FrameIntent:
         if (msg.intent) {
-          this.send({ t: "reply", seq: msg.seq, reply: this.act(msg.intent) });
+          this.send({ t: FrameReply, seq: msg.seq, reply: this.act(msg.intent) });
           this.push();
         }
         return;
@@ -125,7 +152,7 @@ export class MockGateway {
   }
 
   private push(): void {
-    this.send({ t: "state", state: this.view() });
+    this.send({ t: FrameState, state: this.view() });
   }
 
   // The whole state as this viewer sees it now.
@@ -182,16 +209,17 @@ export class MockGateway {
     const rig = cases[this.runs % Math.max(1, cases.length)];
     if (!rig) return undefined;
     const p = this.practice(family);
+    const gift = gifts(p.level);
     const bench = source === MachineBench;
-    const shown = bench || p.level >= PREVIEW;
+    const shown = bench || gift.preview;
     return {
       source,
       family,
       name: name("puzzles.families", family),
       layout: rig.layout,
-      inner: p.level >= MASTERY ? rig.inner : undefined,
+      inner: gift.mastery ? rig.inner : undefined,
       compact: rig.compact,
-      preview: p.level >= PREVIEW,
+      preview: gift.preview,
       level: shown ? rig.level : undefined,
       countdown: !bench && shown ? rig.countdown : undefined,
       why:
@@ -200,17 +228,18 @@ export class MockGateway {
           : undefined,
       haywire:
         !bench && shown ? { id: "alarm", name: "alarm", magnitude: 40, unit: "gauge" } : undefined,
-      guide: p.level >= GUIDE ? rig.hints[0] : undefined,
-      hints: rig.hints.slice(0, p.level >= SECOND_HINT ? 2 : p.level >= HINT ? 1 : 0),
+      guide: gift.guide ? rig.hints[0] : undefined,
+      hints: rig.hints.slice(0, gift.hints),
       armed: false,
-      practice: { ...p, title: p.level >= MASTERY ? name("puzzles.titles", family) : undefined },
+      practice: { ...p, title: gift.mastery ? name("puzzles.titles", family) : undefined },
     };
   }
 
   private arm(view: MachineView, at: number): void {
     const countdown = view.countdown ?? this.countdown(view);
+    const pass = view.hints?.[0] ?? view.guide;
     const cancel = this.deps.after(
-      Math.max(0, at + countdown + GRACE + 250 - this.deps.now()),
+      Math.max(0, at + countdown + sheet.grace + 250 - this.deps.now()),
       () => {
         this.resolve({ solved: false, clean: false, late: true, at: 0, haywire: "alarm" });
         this.push();
@@ -227,9 +256,9 @@ export class MockGateway {
         armed: true,
         armedAt: at,
         deadline: at + countdown,
-        grace: GRACE,
-        due: at + countdown + GRACE,
-        canPass: view.practice.level >= MASTERY,
+        grace: sheet.grace,
+        due: at + countdown + sheet.grace,
+        ...(gifts(view.practice.level).mastery && pass ? { canPass: true, pass } : {}),
       },
     };
   }
@@ -254,7 +283,7 @@ export class MockGateway {
       refusal: { code, message, version: this.st.character.version },
     });
     if (intent.version !== this.st.character.version)
-      return refuse("stale", "the character has moved on since this was shown");
+      return refuse(CodeStale, "the character has moved on since this was shown");
     if (this.armed && intent.kind !== ActMachineSolve)
       return refuse(CodeMachineArmed, "a machine's countdown is running");
     const reply = this.apply(intent, refuse);
@@ -275,8 +304,8 @@ export class MockGateway {
     switch (intent.kind) {
       case ActPress: {
         const option = this.st.fight?.options.find((o) => o.id === intent.option);
-        if (!option) return refuse("no-encounter", "there is no such option on this beat");
-        if (option.puzzle) return refuse("needs-activity", "a machine is worked in the Activity");
+        if (!option) return refuse(CodeNoEncounter, "there is no such option on this beat");
+        if (option.puzzle) return refuse(CodeNeedsActivity, "a machine is worked in the Activity");
         this.st.fight = undefined;
         this.st.machine = undefined;
         this.st.character.inFight = false;
@@ -288,7 +317,7 @@ export class MockGateway {
         const view = this.machine();
         if (!view || view.source === MachineBench || !familyOf(view.family))
           return refuse(CodeNoMachine, "there is no machine here to arm");
-        if (view.locked) return refuse("locked-down", "the machine has locked this character out");
+        if (view.locked) return refuse(CodeLockedDown, "the machine has locked this character out");
         this.arm(view, this.deps.now());
         return ok({ facts: [this.fact("machine.armed", { family: view.family })] });
       }
@@ -298,32 +327,24 @@ export class MockGateway {
         if (!a || !family) return refuse(CodeNoMachine, "no machine is armed");
         const countdown = a.view.countdown ?? 0;
         const elapsed = this.deps.now() - a.at;
-        const limit = countdown + GRACE;
-        let result: PuzzleResult = {
+        const limit = countdown + sheet.grace;
+        const fail: PuzzleResult = {
           solved: false,
           clean: false,
-          late: true,
           at: 0,
-          haywire: "alarm",
+          haywire: a.view.haywire?.id ?? "alarm",
         };
+        let result: PuzzleResult = { ...fail, late: true };
         if (elapsed <= limit) {
+          const log = m?.log ?? { moves: [] };
           const out = play(
             family,
             a.view.layout,
             a.view.inner,
-            m?.log ?? { moves: [] },
-            Math.min(limit, elapsed + GRACE),
+            log,
+            Math.min(limit, elapsed + sheet.grace),
           );
-          const seen = Math.max(out.at, elapsed - GRACE);
-          result =
-            out.status === DONE
-              ? {
-                  solved: true,
-                  clean: out.master || (countdown - seen) * 2 >= countdown,
-                  master: out.master,
-                  at: out.at,
-                }
-              : { solved: false, clean: false, at: 0, haywire: a.view.haywire?.id ?? "alarm" };
+          result = judge(out, fail, countdown, elapsed, sheet.grace, sheet.cleanPct);
         }
         return ok({ machine: result, facts: this.resolve(result) });
       }
@@ -331,8 +352,8 @@ export class MockGateway {
         const view = this.machine();
         const family = view && familyOf(view.family);
         if (!view || !family || view.source !== MachineBench)
-          return refuse("not-here", "no bench rig is set up");
-        const out = play(family, view.layout, undefined, m?.log ?? { moves: [] }, BENCH_PLAY);
+          return refuse(CodeNotHere, "no bench rig is set up");
+        const out = play(family, view.layout, undefined, m?.log ?? { moves: [] }, sheet.maxPlay);
         this.runs++;
         this.spent = JSON.stringify(view.layout);
         const bench = this.st.bench!;
@@ -356,7 +377,7 @@ export class MockGateway {
         return ok({ facts: [this.fact("lesson.taken", { family: f.family })] });
       }
     }
-    return refuse("bad-arguments", "the mock does not know that intent");
+    return refuse(CodeBadArgs, "the mock does not know that intent");
   }
 
   // What an armed machine's result does to the fixture's world.
@@ -397,7 +418,7 @@ export class MockGateway {
     const line = this.st.bench?.families.find((f) => f.family === family)?.practice;
     if (!line) return;
     line.uses += uses;
-    while (line.uses >= line.need) {
+    while (line.need > 0 && line.uses >= line.need) {
       line.uses -= line.need;
       line.level++;
       line.need = need(line.level);
@@ -412,8 +433,9 @@ export class MockGateway {
   }
 }
 
+// Game.PracticeNeed, from the same cells.
 function need(level: number): number {
-  return 20 * (level + 1);
+  return level >= sheet.practiceMax ? 0 : sheet.practiceUses * (level + 1);
 }
 
 class MockSocket implements SocketLike {

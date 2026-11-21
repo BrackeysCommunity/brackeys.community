@@ -6,7 +6,7 @@ import {
   glyph,
   glyphName,
   letter,
-  nearest,
+  reach,
   pieceColour,
   pointers,
   set,
@@ -65,8 +65,8 @@ export function geometry(n: number, clues: number, size: Size): Geometry {
 
 /** The fuse a pointer is on, among those still in the box. */
 export function pick(geo: Geometry, out: (fuse: number) => boolean, p: Point): number | undefined {
-  const hit = nearest(geo.fuses, p);
-  return hit.distance <= geo.r * PICKUP && !out(hit.index) ? hit.index : undefined;
+  const { index } = reach(geo.fuses, p, geo.r);
+  return index !== undefined && !out(index) ? index : undefined;
 }
 
 interface Card {

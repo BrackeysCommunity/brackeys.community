@@ -103,7 +103,7 @@ func TestMachineLogReplays(t *testing.T) {
 			}
 
 			c, rig, _, _ := arm(1, false)
-			m.clock += rig.Countdown + m.g.MachineGrace() + 1
+			m.clock += rig.Countdown + m.g.Puzzles().Grace() + 1
 			if rep := solve(c, puzzle.Log{}); rep.Machine.Solved || !rep.Machine.Late || !hasFact(rep, "puzzle.haywire") {
 				t.Fatalf("a countdown left to run out: %s", became(rep))
 			}
@@ -116,7 +116,7 @@ func TestMachineLogReplays(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := m.same(again); err != nil {
+			if _, err := m.same(again); err != nil {
 				t.Fatal(err)
 			}
 

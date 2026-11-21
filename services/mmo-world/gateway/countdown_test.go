@@ -125,7 +125,7 @@ func TestCountdown(t *testing.T) {
 }
 
 // TestCountdownUnseen ends machines nobody's socket ever showed: armed
-// through the API with no seat open, and found at the next tick.
+// through the host with no seat open, the countdown runs out at its Due.
 func TestCountdownUnseen(t *testing.T) {
 	w := newWorld(t)
 	c := w.create("u-tinker")
@@ -133,14 +133,27 @@ func TestCountdownUnseen(t *testing.T) {
 	testkit.MachineBeat(t, w.g, c, puzzle.Rewire, 1)
 	w.act(c, "arm-unseen", api.ActionRequest{Kind: api.ActMachineArm, Machine: &armBeat})
 	gw.Settle()
-	if gw.Countdowns() != 0 {
-		t.Fatal("a countdown for a machine no state has shown")
+	if gw.Countdowns() != 1 {
+		t.Fatal("no countdown for a machine armed with no seat open")
+	}
+	list, err := w.Armed(t.Context())
+	if err != nil || len(list) != 1 {
+		t.Fatalf("countdowns running: %+v %v", list, err)
+	}
+	w.clock.Advance(time.UnixMilli(list[0].Due).Sub(w.clock.Now()) + 249*time.Millisecond)
+	if n := len(w.expiries()); n != 0 {
+		t.Fatalf("%d expiries before the countdown ran out", n)
+	}
+	w.clock.Advance(time.Millisecond)
+	if n := len(w.expiries()); n != 1 || c.Armed != nil || c.LastMachine == nil || !c.LastMachine.Result.Late {
+		t.Fatalf("%d expiries after an unseen countdown ran out; last %+v", n, c.LastMachine)
 	}
 	w.tick()
 	gw.Settle()
-	if gw.Countdowns() != 1 {
-		t.Fatal("no countdown after the tick that found an armed machine")
-	}
+	w.do(func() { testkit.MachineBeat(t, w.g, c, puzzle.Rewire, 1) })
+	w.act(c, "arm-unseen-2", api.ActionRequest{Kind: api.ActMachineArm, Machine: &armBeat})
+	gw.Settle()
+
 	// Solved past the gateway, its timer goes with the next notice.
 	rig, _, err := w.View(t.Context(), c.C.ID, api.Viewer{})
 	if err != nil {
@@ -153,7 +166,7 @@ func TestCountdownUnseen(t *testing.T) {
 	}
 	gw.Settle()
 	w.clock.Advance(10 * time.Minute)
-	if gw.Countdowns() != 0 || len(w.expiries()) != 0 {
+	if gw.Countdowns() != 0 || len(w.expiries()) != 1 {
 		t.Fatalf("%d countdowns, %d expiries after a solve past the gateway", gw.Countdowns(), len(w.expiries()))
 	}
 }

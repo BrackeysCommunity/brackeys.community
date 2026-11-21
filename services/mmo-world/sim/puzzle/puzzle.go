@@ -256,12 +256,6 @@ func (p *Puzzles) tune(family, key string, level int64) int64 {
 	return v
 }
 
-// Generate lays out a machine. The same place, beat, family, level and
-// tier always give the same machine.
-func (p *Puzzles) Generate(family string, level, tier int64, w Where) Layout {
-	return p.Make(Spec{Family: family, Level: level, Tier: tier, Place: w.Place, Beat: w.Beat})
-}
-
 // Make lays out the machine a spec names. A second try at the same
 // machine is drawn afresh, so it is not the first one over again.
 func (p *Puzzles) Make(s Spec) Layout {
@@ -339,7 +333,9 @@ type Result struct {
 	Haywire string `json:"haywire,omitempty"`
 }
 
-func (p *Puzzles) grace() int64 { return p.Param("network-grace") * msPerSecond }
+// Grace is the milliseconds a move log may arrive past its countdown
+// before it is late.
+func (p *Puzzles) Grace() int64 { return p.Param("network-grace") * msPerSecond }
 
 // MaxPlay is the longest a play may run, in milliseconds: all that ends a
 // bench machine.
@@ -353,7 +349,7 @@ func (p *Puzzles) Play(s Spec, log Log, lim Limits) Result {
 	limit := p.MaxPlay()
 	if !lim.Bench {
 		fail.Haywire = p.Haywire(s.Family, s.Where())
-		limit = lim.Countdown + p.grace()
+		limit = lim.Countdown + p.Grace()
 	}
 	if lim.Elapsed >= 0 && lim.Elapsed > limit {
 		fail.Late = true
@@ -364,7 +360,7 @@ func (p *Puzzles) Play(s Spec, log Log, lim Limits) Result {
 	}
 	horizon := limit
 	if lim.Elapsed >= 0 {
-		horizon = min(limit, lim.Elapsed+p.grace())
+		horizon = min(limit, lim.Elapsed+p.Grace())
 	}
 	l := p.Make(s)
 	var inner *Layout
@@ -385,17 +381,10 @@ func (p *Puzzles) judge(out Outcome, fail Result, countdown, elapsed int64) Resu
 	}
 	seen := out.At
 	if elapsed >= 0 {
-		seen = max(seen, elapsed-p.grace())
+		seen = max(seen, elapsed-p.Grace())
 	}
 	clean := countdown > 0 && fixed.AtPercent(countdown-seen, countdown, p.Param("clean-solve-left"))
 	return Result{Solved: true, Clean: clean, Master: out.Master, At: out.At}
-}
-
-// Replay plays a move log against a layout and a countdown, with no
-// server clock and no inner panel.
-func (p *Puzzles) Replay(l Layout, moves []Move, countdown int64, w Where) Result {
-	out := RunLog(l, nil, Log{Moves: moves}, countdown+p.grace(), nil)
-	return p.judge(out, Result{Haywire: p.Haywire(l.Family, w)}, countdown, -1)
 }
 
 // Solve is a log that solves a layout and stops at the solve: what the
@@ -445,6 +434,15 @@ var pouchLocks = []string{Pins, Maze}
 
 // IntroMachine is the family and level of a character's first machine.
 func (p *Puzzles) IntroMachine() (family string, level int64) { return Rewire, introLevel }
+
+// Fallback is the family a puzzle beat, or a lock beat, draws from when
+// nothing on its site offers one.
+func (p *Puzzles) Fallback(lock bool) string {
+	if lock {
+		return Pins
+	}
+	return Rewire
+}
 
 // PouchLocks are the families a pouch may be locked with.
 func (p *Puzzles) PouchLocks() []string { return pouchLocks }

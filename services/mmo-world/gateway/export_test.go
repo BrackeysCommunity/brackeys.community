@@ -5,7 +5,10 @@ import "time"
 // MaxUnseated is how many sockets may wait to say hello.
 const MaxUnseated = maxUnseated
 
-// MaxLooks is how many looks a seat may send in a second.
+// MaxSeats is how many seats one Discord user may hold.
+const MaxSeats = maxSeats
+
+// MaxLooks is how many looks a character's seats may send in a second.
 const MaxLooks = maxLooks
 
 // Settle waits until every notice from the host has been acted on.

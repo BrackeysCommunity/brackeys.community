@@ -78,7 +78,7 @@ func (g *Game) BenchAt(c *Char) (Bench, bool) {
 // BenchFor is the bench a character may use now: one stands open where it
 // is, and it is free, not banned and has no machine armed.
 func (g *Game) BenchFor(c *Char) (Bench, bool) {
-	if c.Banned || c.Armed != nil || free(c) != nil {
+	if idle(c) != nil {
 		return Bench{}, false
 	}
 	return g.BenchAt(c)
@@ -118,10 +118,10 @@ func (g *Game) atBench(c *Char, m *MachineCmd) (Bench, error) {
 	if m == nil {
 		return Bench{}, refuse(BadArgs, "a bench command names a family")
 	}
-	if err := free(c); err != nil {
+	if err := idle(c); err != nil {
 		return Bench{}, err
 	}
-	b, ok := g.BenchFor(c)
+	b, ok := g.BenchAt(c)
 	if !ok {
 		return Bench{}, refuse(NotHere, "no tinker's bench stands open here")
 	}

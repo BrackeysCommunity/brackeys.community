@@ -1,5 +1,5 @@
 // Command op is the operator CLI: inspect, correct, grant, ban, audit, economy,
-// reset and replay a world.
+// stand a character before a machine, reset and replay a world.
 //
 // Writes go through the running service's operator API, so the service
 // stays the only writer and every correction replays. replay reads the

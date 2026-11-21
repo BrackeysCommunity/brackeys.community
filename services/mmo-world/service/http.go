@@ -143,6 +143,12 @@ func (s *Server) action(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &req) {
 		return
 	}
+	// A countdown is ended by the Activity's gateway, so it is armed and
+	// solved only there.
+	if game.Timed(req.Kind) {
+		refuse(w, http.StatusForbidden, api.Refusal{Code: api.CodeForbidden, Message: "machines are worked in the Activity"})
+		return
+	}
 	cmd, ref, status := playerCommand(req)
 	if ref != nil {
 		refuse(w, status, *ref)
@@ -199,12 +205,15 @@ func (s *Server) apply(w http.ResponseWriter, ctx context.Context, cmd game.Comm
 // interaction id gets the stored reply.
 func (s *Server) do(ctx context.Context, cmd game.Command, discord string, version int64, checkVersion bool) (applied, error) {
 	start := time.Now()
+	// A countdown is read when the command arrived, not when the world was
+	// free: a tick being saved must not make a solve late.
+	arrived := s.cfg.Now()
 	unlock, err := s.take(ctx, true)
 	if err != nil {
 		return applied{}, err
 	}
 	defer unlock()
-	out, err := applyCommand(ctx, s.g, s.st, cmd, discord, version, checkVersion, s.cfg.Now())
+	out, err := applyCommand(ctx, s.g, s.st, &s.subs, cmd, discord, version, checkVersion, arrived)
 	if err != nil {
 		if !errors.As(err, new(untouched)) {
 			err = s.reload(ctx, err)
@@ -219,7 +228,6 @@ func (s *Server) do(ctx context.Context, cmd game.Command, discord string, versi
 	if out.ref == nil && !out.dup {
 		s.capture("mmo_action", out.res.Char.C.ID, map[string]any{"kind": cmd.Kind, "tick": s.g.Tick(),
 			"ms": time.Since(start).Milliseconds(), "facts": len(out.res.Facts)})
-		s.subs.tell(told(out.res))
 	}
 	return out, nil
 }

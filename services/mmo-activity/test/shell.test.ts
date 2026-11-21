@@ -478,12 +478,12 @@ test("a hint is lit on the shell's clock and goes out by it", () => {
   expect(h.host().hinted()).toBeUndefined();
 });
 
-test("a master may pass one hint once the machine is armed", () => {
-  const h = harness({ hints: [{ at: 0, a: 1 }], canPass: true });
+test("a master may pass the move the server states once the machine is armed", () => {
+  const h = harness({ hints: [{ at: 0, a: 1 }], canPass: true, pass: { at: 0, a: 1 } });
   expect(h.shell.passable()).toBeUndefined();
   h.host().move(1);
   expect(h.shell.passable()).toEqual({ at: 0, a: 1 });
-  h.shell.markPassed();
+  h.shell.update({ ...h.shell.machine, canPass: false, pass: undefined });
   expect(h.shell.passable()).toBeUndefined();
 });
 
@@ -609,6 +609,22 @@ test("a solve is not sent again once the server would no longer take it", async 
   await settle();
   expect(h.shell.phase).toBe("done");
   expect(h.shell.ending?.refusal?.code).toBe("busy");
+  expect(h.timers).toHaveLength(0);
+});
+
+test("a bench solve the world could not take goes again; one on a moved row is the session's", async () => {
+  const h = harness({ source: "bench", level: 2, maxPlay: 600_000 });
+  h.host().move(3);
+  expect(h.sent[0]!.kind).toBe("bench-solve");
+  expect(h.sent[0]!.stale).toBeGreaterThan(0);
+  h.sent[0]!.answer({ ok: false, refusal: { code: "busy", message: "too many" } });
+  await settle();
+  expect(h.shell.phase).toBe("sending");
+  h.timers.shift()!();
+  expect(h.sent[1]!.kind).toBe("bench-solve");
+  h.sent[1]!.answer({ ok: false, refusal: { code: "stale", message: "moved" } });
+  await settle();
+  expect(h.shell.phase).toBe("done");
   expect(h.timers).toHaveLength(0);
 });
 

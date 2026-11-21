@@ -7,6 +7,7 @@ import { defineConfig } from "vite-plus";
 const world = fileURLToPath(new URL("../mmo-world/", import.meta.url));
 const packDir = `${world}packs/wasteland/`;
 const goldenDir = `${world}sim/puzzle/testdata/golden/`;
+const sheetsDir = `${world}sheets/`;
 
 // The sheets of the pack's names the Activity shows.
 const NAMED = [
@@ -28,7 +29,8 @@ function json(path: string): any {
  * The setting is a pack, so its colours and names are read from it when the
  * Activity is built, never typed here. `virtual:rigs` is the golden layouts
  * with their traces dropped, for the mock gateway; it is empty where the
- * vectors are not checked out beside the build.
+ * vectors are not checked out beside the build. `virtual:puzzle-sheet` is
+ * the few cells the mock plays by, read from the world's sheets.
  */
 function pack(): Plugin {
   const modules: Record<string, () => string> = {
@@ -65,6 +67,25 @@ function pack(): Plugin {
         });
       }
       return `export default ${JSON.stringify(rigs)};\n`;
+    },
+    "virtual:puzzle-sheet": () => {
+      const cell = (file: string, id: string): number => {
+        const row = json(sheetsDir + file).rows.find((r: any) => r.id === id);
+        if (row === undefined) throw new Error(`${file} has no row ${id}`);
+        return row.value;
+      };
+      const sheet = {
+        grace: cell("puzzles/params.json", "network-grace") * 1000,
+        cleanPct: cell("puzzles/params.json", "clean-solve-left"),
+        maxPlay: cell("puzzles/params.json", "max-play-seconds") * 1000,
+        practiceUses: cell("growth/params.json", "practice-uses"),
+        practiceMax: cell("growth/params.json", "practice-max"),
+        gifts: json(`${sheetsDir}puzzles/practice.json`).rows.map((r: any) => ({
+          practice: r.practice,
+          gives: r.gives,
+        })),
+      };
+      return `export default ${JSON.stringify(sheet)};\n`;
     },
   };
   return {

@@ -5,7 +5,6 @@ import {
   CodeBusy,
   CodeInternal,
   CodeNoMachine,
-  CodeStale,
   MachineBench,
   type Fact,
   type IntentReply,
@@ -16,8 +15,9 @@ import {
   type PuzzleResult,
   type Refusal,
 } from "../api.ts";
-import type { IntentBody } from "../session.ts";
+import { STALE_RETRIES, type IntentBody } from "../session.ts";
 import { refusalLine } from "../words.ts";
+import { Drops } from "./drops.ts";
 import { GOING, type Family, type Scene, type SceneHost, type Status } from "./kit.ts";
 import { Run, movedBack } from "./play.ts";
 
@@ -50,32 +50,17 @@ export interface Ending {
   facts: Fact[];
 }
 
-// How often a solve or an arm is sent again when the row moved under it.
-const STALE_RETRIES = 3;
-
-// A solve turned away for a reason that is not the rules' leaves the
-// machine armed, so the same log goes again after this wait: for as long
-// as the server would still take it, or this many times when the page
-// never learned when that is.
+// A solve turned away by a fault, not by the rules, leaves the machine
+// armed, so the same log goes again after this wait: for as long as the
+// server would still take it, or this many times on a bench or when the
+// page never learned when that is. A row that moved is the session's to
+// send again.
 const RESEND_MS = 400;
 const RESENDS_UNTIMED = 5;
-const RESENDABLE: string[] = [CodeInternal, CodeBusy, CodeStale];
+const RESENDABLE: string[] = [CodeInternal, CodeBusy];
 
 // How long a hint stays lit, unless its family asks for longer.
 const HINT_MS = 3000;
-
-// How often, at most, a play's missed touches are reported while it runs.
-const DROPS_EVERY = 5000;
-
-/** Touches counted since the last report, and how far they landed from their marks. */
-interface Drops {
-  n: number;
-  landed: number;
-  sumPx: number;
-  worstPx: number;
-  hitPx: number;
-  pointer: string;
-}
 
 /**
  * One machine on screen, from study to result. It owns the clock, the log
@@ -102,18 +87,20 @@ export class Shell {
   private stopped = 0; // the ms the play ended at
   private hinted = 0;
   private lit: { move: PuzzleMove; until: number } | undefined; // the hint on show
-  private passed = false;
   private attempt = 0;
   private sent: PuzzleLog | undefined; // the log on its way
   private resends = 0;
-  private drops: Drops | undefined;
-  private dropsAt = 0; // this device's clock at the last report of them
+  private readonly drops: Drops;
 
   constructor(
     private readonly deps: ShellDeps,
     machine: MachineView,
   ) {
     this.machine = machine;
+    this.drops = new Drops(
+      () => deps.wall(),
+      (event, data) => deps.beacon(event, data),
+    );
     this.run = this.fresh();
     if (machine.armed && machine.armedAt) {
       // Armed before this page knew it: the log is gone, so the model runs
@@ -198,7 +185,7 @@ export class Shell {
         this.note = "This rig has been on the bench as long as one may. The bench sets up another.";
         this.finish(at);
       }
-      if (this.drops && this.deps.wall() - this.dropsAt >= DROPS_EVERY) this.reportDrops();
+      this.drops.tick(this.machine.family);
     }
     this.scene?.frame(this.now() - (this.phase === "rest" ? 0 : this.run.base));
   }
@@ -225,15 +212,10 @@ export class Shell {
     this.lit = { move, until: this.deps.wall() + (this.deps.family.hintMs ?? HINT_MS) };
   }
 
-  /** The move a master may pass to the others, once a machine. */
+  /** The move a master may pass to the others, as the server states it. */
   passable(): PuzzleMove | undefined {
-    if (this.passed || this.phase !== "play" || !this.machine.canPass) return undefined;
-    return this.machine.hints?.[0] ?? this.machine.guide;
-  }
-
-  markPassed(): void {
-    this.passed = true;
-    this.deps.changed();
+    if (this.phase !== "play" || !this.machine.canPass) return undefined;
+    return this.machine.pass;
   }
 
   /** Whether the log can be sent as it stands: a hidden panel left, or a bench rig given up. */
@@ -247,7 +229,7 @@ export class Shell {
 
   destroy(): void {
     this.attempt++;
-    this.reportDrops();
+    this.drops.report(this.machine.family);
     this.scene?.destroy();
     this.scene = undefined;
   }
@@ -277,40 +259,9 @@ export class Shell {
         if (this.lit && this.deps.wall() > this.lit.until) this.lit = undefined;
         return outer ? this.lit?.move : undefined;
       },
-      dropped: (missPx, hitPx, landed, ev) => {
-        const d = (this.drops ??= {
-          n: 0,
-          landed: 0,
-          sumPx: 0,
-          worstPx: 0,
-          hitPx: 0,
-          pointer: "",
-        });
-        d.n++;
-        if (landed) d.landed++;
-        d.sumPx += missPx;
-        d.worstPx = Math.max(d.worstPx, missPx);
-        d.hitPx = hitPx;
-        d.pointer = ev.pointerType;
-      },
+      dropped: (missPx, hitPx, landed, ev) =>
+        this.drops.add({ missPx, hitPx, landed, pointer: ev.pointerType }),
     };
-  }
-
-  // One summary of the touches since the last, so a tap is never a request.
-  private reportDrops(): void {
-    const d = this.drops;
-    this.drops = undefined;
-    this.dropsAt = this.deps.wall();
-    if (!d) return;
-    this.deps.beacon("drop", {
-      family: this.machine.family,
-      touches: d.n,
-      landed: d.landed,
-      missPx: Math.round(d.sumPx / d.n),
-      worstPx: Math.round(d.worstPx),
-      hitPx: Math.round(d.hitPx),
-      pointer: d.pointer,
-    });
   }
 
   private mount(): void {
@@ -332,7 +283,7 @@ export class Shell {
     }
     this.note = "";
     this.t0 = this.deps.wall();
-    this.dropsAt = this.t0;
+    this.drops.begin();
     this.last = 0;
     this.phase = "play";
     if (!this.bench) {
@@ -415,7 +366,7 @@ export class Shell {
   private finish(end: number): void {
     this.stopped = Math.max(end, this.moves.at(-1)?.at ?? 0);
     this.phase = "sending";
-    this.reportDrops();
+    this.drops.report(this.machine.family);
     const log = { moves: this.moves, end: this.stopped };
     this.sent = log;
     this.resends = 0;
@@ -426,16 +377,20 @@ export class Shell {
   private send(attempt: number, log: PuzzleLog): void {
     const m = this.machine;
     const sent = this.bench
-      ? this.deps.intent(ActBenchSolve, {
-          machine: {
-            source: MachineBench,
-            family: m.family,
-            level: m.level,
-            compact: m.compact,
-            teach: this.teach,
-            log,
+      ? this.deps.intent(
+          ActBenchSolve,
+          {
+            machine: {
+              source: MachineBench,
+              family: m.family,
+              level: m.level,
+              compact: m.compact,
+              teach: this.teach,
+              log,
+            },
           },
-        })
+          STALE_RETRIES,
+        )
       : this.deps.intent(ActMachineSolve, { machine: { log } }, STALE_RETRIES);
     void sent.then((reply) => {
       if (attempt !== this.attempt) return;
@@ -462,12 +417,12 @@ export class Shell {
   }
 
   // Whether a solve the world turned away should go again as it is. A
-  // refused command is never stored, so the same log is safe to repeat,
-  // and the machine is still armed until the server ends it.
+  // refused command is never stored, so the same log is safe to repeat:
+  // an armed machine stays armed until the server ends it, and a bench
+  // run only moves when a solve applies.
   private resendable(reply: IntentReply): boolean {
-    if (this.bench || reply.machine || !RESENDABLE.includes(reply.refusal?.code ?? ""))
-      return false;
-    const due = this.machine.due;
+    if (reply.machine || !RESENDABLE.includes(reply.refusal?.code ?? "")) return false;
+    const due = this.bench ? undefined : this.machine.due;
     return due ? this.deps.serverNow() < due : this.resends < RESENDS_UNTIMED;
   }
 

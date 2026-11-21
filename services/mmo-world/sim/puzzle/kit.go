@@ -148,26 +148,12 @@ func feed(play Play, moves []Move, end, horizon, base int64, see func(int64, []i
 	return stop(st, at, len(moves))
 }
 
-// Solve is the moves that solve a layout. A family played move by move
-// gets one a second; for a family on the clock the moves alone do not say
-// when to stop, and Puzzles.Solve does.
-func Solve(l Layout) []Move {
-	f := registry[l.Family]
-	moves := f.Solve(&l).Moves
-	if _, ok := f.(Timed); !ok {
-		for i := range moves {
-			moves[i].At = int64(i) * msPerSecond
-		}
-	}
-	return moves
-}
-
 // untimed is a machine played move by move: the clock does nothing to it.
 type untimed struct{}
 
 func (untimed) Run(at int64) (Status, int64) { return Going, at }
 
-// structural: Solve's hand presses four times a second.
+// structural: the pace of a family's own Solve log, four presses a second.
 const pressMs = 250
 
 // presses is a log pressed at Solve's pace.

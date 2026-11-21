@@ -1,4 +1,4 @@
-import type { PuzzleLayout, PuzzleLog, PuzzleMove } from "../api.ts";
+import type { PuzzleLayout, PuzzleLog, PuzzleMove, PuzzleResult } from "../api.ts";
 import { BROKE, DONE, GOING, type Family, type Model, type Status } from "./kit.ts";
 
 // Where a log left the machine: the family model's own answer, before a
@@ -33,6 +33,26 @@ export function play(
     out.master = last === DONE;
   }
   return out;
+}
+
+/**
+ * What an outcome counts as against a countdown: sim/puzzle's judge,
+ * mirrored. fail unless solved, and clean when cleanPct of the countdown
+ * was left. With a server clock (elapsed >= 0) the solve counts from no
+ * earlier than the grace before the log arrived.
+ */
+export function judge(
+  out: Outcome,
+  fail: PuzzleResult,
+  countdown: number,
+  elapsed: number,
+  grace: number,
+  cleanPct: number,
+): PuzzleResult {
+  if (out.status !== DONE) return fail;
+  const seen = elapsed >= 0 ? Math.max(out.at, elapsed - grace) : out.at;
+  const clean = countdown > 0 && (countdown - seen) * 100 >= countdown * cleanPct;
+  return { solved: true, clean, master: out.master, at: out.at };
 }
 
 // feed plays moves into one panel that was started at base ms, and reports

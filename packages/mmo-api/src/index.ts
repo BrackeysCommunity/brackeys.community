@@ -19,19 +19,93 @@ export const PathActivitySocket = "/api/activity/ws";
  */
 export const PathActivityLog = "/api/activity/log";
 /**
- * Machine actions, as the Activity sends them and POST /v1/actions takes them.
+ * What Discord's proxy puts in front of every path, and the placeholder
+ * the Activity's build leaves for the application id.
+ */
+export const ActivityProxyPrefix = "/.proxy";
+/**
+ * What Discord's proxy puts in front of every path, and the placeholder
+ * the Activity's build leaves for the application id.
+ */
+export const ActivityClientIDMark = "__DISCORD_CLIENT_ID__";
+/**
+ * The frames of the Activity's socket.
+ */
+export const FrameHello = "hello";
+/**
+ * The frames of the Activity's socket.
+ */
+export const FrameLook = "look";
+/**
+ * The frames of the Activity's socket.
+ */
+export const FrameIntent = "intent";
+/**
+ * The frames of the Activity's socket.
+ */
+export const FramePassHint = "pass-hint";
+/**
+ * The frames of the Activity's socket.
+ */
+export const FramePing = "ping";
+/**
+ * The frames of the Activity's socket.
+ */
+export const FrameState = "state";
+/**
+ * The frames of the Activity's socket.
+ */
+export const FrameReply = "reply";
+/**
+ * The frames of the Activity's socket.
+ */
+export const FrameHint = "hint";
+/**
+ * The frames of the Activity's socket.
+ */
+export const FrameBye = "bye";
+/**
+ * The frames of the Activity's socket.
+ */
+export const FramePong = "pong";
+/**
+ * Why the gateway tells a socket to go.
+ */
+export const ByeExpired = "expired";
+/**
+ * Why the gateway tells a socket to go.
+ */
+export const ByeReplaced = "replaced";
+/**
+ * Why the gateway tells a socket to go.
+ */
+export const ByeNoCharacter = "no-character";
+/**
+ * Why the gateway tells a socket to go.
+ */
+export const ByeBadHello = "bad-hello";
+/**
+ * Why the gateway tells a socket to go.
+ */
+export const ByeSlow = "slow";
+/**
+ * Machine actions, as the Activity sends them. POST /v1/actions takes the
+ * bench's; a countdown's are the Activity's alone.
  */
 export const ActMachineArm = "machine-arm";
 /**
- * Machine actions, as the Activity sends them and POST /v1/actions takes them.
+ * Machine actions, as the Activity sends them. POST /v1/actions takes the
+ * bench's; a countdown's are the Activity's alone.
  */
 export const ActMachineSolve = "machine-solve";
 /**
- * Machine actions, as the Activity sends them and POST /v1/actions takes them.
+ * Machine actions, as the Activity sends them. POST /v1/actions takes the
+ * bench's; a countdown's are the Activity's alone.
  */
 export const ActBenchSolve = "bench-solve";
 /**
- * Machine actions, as the Activity sends them and POST /v1/actions takes them.
+ * Machine actions, as the Activity sends them. POST /v1/actions takes the
+ * bench's; a countdown's are the Activity's alone.
  */
 export const ActBenchLesson = "bench-lesson";
 /**
@@ -268,8 +342,8 @@ export interface HaywireLine {
 }
 /**
  * MachineView is the machine a viewer may work. Level, Countdown, Why and
- * Haywire are set at rest only for a viewer with the preview; all of them
- * once armed, and at a bench.
+ * Haywire are set at rest only for a viewer with the preview, and always
+ * once armed. A bench rig carries its Level and MaxPlay and none of the rest.
  */
 export interface MachineView {
   source: string;
@@ -289,6 +363,7 @@ export interface MachineView {
   guide?: PuzzleMove;
   hints?: PuzzleMove[];
   canPass?: boolean;
+  pass?: PuzzleMove; // the move a master may pass on, while CanPass
   armed: boolean;
   armedAt?: number /* int64 */; // unix ms
   deadline?: number /* int64 */; // unix ms, grace not included

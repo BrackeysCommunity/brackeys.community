@@ -8,7 +8,38 @@ const (
 	PathActivityLog    = "/api/activity/log"
 )
 
-// Machine actions, as the Activity sends them and POST /v1/actions takes them.
+// What Discord's proxy puts in front of every path, and the placeholder
+// the Activity's build leaves for the application id.
+const (
+	ActivityProxyPrefix  = "/.proxy"
+	ActivityClientIDMark = "__DISCORD_CLIENT_ID__"
+)
+
+// The frames of the Activity's socket.
+const (
+	FrameHello    = "hello"
+	FrameLook     = "look"
+	FrameIntent   = "intent"
+	FramePassHint = "pass-hint"
+	FramePing     = "ping"
+	FrameState    = "state"
+	FrameReply    = "reply"
+	FrameHint     = "hint"
+	FrameBye      = "bye"
+	FramePong     = "pong"
+)
+
+// Why the gateway tells a socket to go.
+const (
+	ByeExpired     = "expired"
+	ByeReplaced    = "replaced"
+	ByeNoCharacter = "no-character"
+	ByeBadHello    = "bad-hello"
+	ByeSlow        = "slow"
+)
+
+// Machine actions, as the Activity sends them. POST /v1/actions takes the
+// bench's; a countdown's are the Activity's alone.
 const (
 	ActMachineArm   = "machine-arm"
 	ActMachineSolve = "machine-solve"
@@ -117,6 +148,9 @@ type Viewer struct {
 	Family  string `json:"family,omitempty"`
 	Level   int64  `json:"level,omitempty"`
 	Pouch   string `json:"pouch,omitempty"`
+	// Passed is the armedAt of the machine whose hint this character has
+	// passed on. The gateway sets it; a client cannot.
+	Passed int64 `json:"-"`
 }
 
 // Context is the game context a seat is bound to. Solo, it is one
@@ -222,8 +256,8 @@ type HaywireLine struct {
 }
 
 // MachineView is the machine a viewer may work. Level, Countdown, Why and
-// Haywire are set at rest only for a viewer with the preview; all of them
-// once armed, and at a bench.
+// Haywire are set at rest only for a viewer with the preview, and always
+// once armed. A bench rig carries its Level and MaxPlay and none of the rest.
 type MachineView struct {
 	Source    string        `json:"source"`
 	Pouch     string        `json:"pouch,omitempty"`
@@ -242,6 +276,7 @@ type MachineView struct {
 	Guide     *PuzzleMove   `json:"guide,omitempty"`
 	Hints     []PuzzleMove  `json:"hints,omitempty"`
 	CanPass   bool          `json:"canPass,omitempty"`
+	Pass      *PuzzleMove   `json:"pass,omitempty"` // the move a master may pass on, while CanPass
 	Armed     bool          `json:"armed"`
 	ArmedAt   int64         `json:"armedAt,omitempty"`  // unix ms
 	Deadline  int64         `json:"deadline,omitempty"` // unix ms, grace not included

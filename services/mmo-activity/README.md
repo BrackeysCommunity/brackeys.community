@@ -57,7 +57,7 @@ export MMO_URL=http://localhost:8080 MMO_ACTIVITY_URL=http://localhost:8787 MMO_
 services/mmo-bot/scripts/local-world.sh wipe
 ```
 
-- `harness activity` signs in by the dev sign-in, opens a socket a
+- `harness activity` signs in by the dev sign-in, opens a socket as a
   character and, for each of the fourteen families, studies a machine,
   arms it, sends the kit's own solve and sends it again (the same fact,
   no second effect). It also leaves an armed machine to run out and works

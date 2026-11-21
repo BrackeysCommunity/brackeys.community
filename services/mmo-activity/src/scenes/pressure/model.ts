@@ -13,6 +13,13 @@ const LEAK = 5;
 // The leak is counted in hundredths of a unit a step.
 const HUNDREDTHS = 100;
 
+// One valve turned dir: its needle rises by nudge, its neighbours' fall by couple.
+function turnValve(v: number[], a: number, dir: number, nudge: number, couple: number): void {
+  v[a]! += dir * nudge;
+  if (a > 0) v[a - 1]! -= dir * couple;
+  if (a + 1 < v.length) v[a + 1]! -= dir * couple;
+}
+
 // Pressure, as sim/puzzle/pressure.go plays it: a valve lifts its own
 // needle and drops its neighbours', one needle leaks, and the machine is
 // solved once every needle has sat in the band for the hold.
@@ -85,9 +92,7 @@ export class PressureModel implements Model {
     const b = m.b ?? 0;
     const n = this.v.length;
     if (!within(a, n) || (b !== 1 && b !== -1)) return BROKE;
-    this.v[a]! += b * this.nudge;
-    if (a > 0) this.v[a - 1]! -= b * (this.par[COUPLE] ?? 0);
-    if (a + 1 < n) this.v[a + 1]! -= b * (this.par[COUPLE] ?? 0);
+    turnValve(this.v, a, b, this.nudge, this.par[COUPLE] ?? 0);
     // The needles are floored in order and the burst ends the pass, as the
     // replay does, so the two leave the same numbers behind.
     for (const [i, x] of this.v.entries()) {

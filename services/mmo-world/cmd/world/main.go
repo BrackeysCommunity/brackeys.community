@@ -13,7 +13,6 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"sync/atomic"
@@ -49,15 +48,15 @@ func run(guard *service.Guard, log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	manual, disposable := os.Getenv(service.EnvManualClock) == "1", os.Getenv(service.EnvDisposable) == "1"
 	// Discord's client secret is guarded like a key: out of the logs and
 	// out of the database.
-	appID, clientSecret := os.Getenv(gateway.EnvAppID), os.Getenv(gateway.EnvClientSecret)
-	_ = os.Unsetenv(gateway.EnvClientSecret)
-	needles := sec.Needles
-	if clientSecret != "" {
-		needles = append(needles[:len(needles):len(needles)], clientSecret, url.QueryEscape(clientSecret))
-	}
+	activity, activityPort, secret, err := gateway.FromEnv(service.Getenv(service.EnvPort, "8080"), manual, disposable, log)
+	needles := append(sec.Needles[:len(sec.Needles):len(sec.Needles)], secret...)
 	guard.Arm(needles)
+	if err != nil {
+		return err
+	}
 	tickSeconds, err := service.Number(service.EnvTickSeconds, "600", 1, math.MaxInt32)
 	if err != nil {
 		return err
@@ -66,30 +65,12 @@ func run(guard *service.Guard, log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	manual, disposable := os.Getenv(service.EnvManualClock) == "1", os.Getenv(service.EnvDisposable) == "1"
 	apiToken := os.Getenv(service.EnvAPIToken)
 	if apiToken == "" {
 		if !manual && !disposable {
 			return fmt.Errorf("%s must be set on a world players keep", service.EnvAPIToken)
 		}
 		log.Warn("the player API is open: no " + service.EnvAPIToken)
-	}
-	activityPort := os.Getenv(gateway.EnvPort)
-	if activityPort != "" {
-		if _, err := service.Number(gateway.EnvPort, "", 1, math.MaxUint16); err != nil {
-			return err
-		}
-		if activityPort == service.Getenv(service.EnvPort, "8080") {
-			return fmt.Errorf("%s must not be the API's %s: the Activity's listener is public", gateway.EnvPort, service.EnvPort)
-		}
-		if (appID == "" || clientSecret == "") && !manual && !disposable {
-			return fmt.Errorf("%s needs %s and %s on a world players keep", gateway.EnvPort, gateway.EnvAppID, gateway.EnvClientSecret)
-		}
-	}
-	dev := os.Getenv(gateway.EnvDev) == "1"
-	if dev && !disposable {
-		log.Warn(gateway.EnvDev + " is ignored: only a disposable world signs in without Discord")
-		dev = false
 	}
 	book, err := service.BookFromEnv()
 	if err != nil {
@@ -139,18 +120,18 @@ func run(guard *service.Guard, log *slog.Logger) error {
 	served := srv.Handler()
 	var gw *gateway.Gateway
 	if activityPort != "" {
-		gw = gateway.New(gateway.Config{Host: srv, AppID: appID, ClientSecret: clientSecret, DiscordAPI: os.Getenv(gateway.EnvDiscordAPI),
-			Dir: os.Getenv(gateway.EnvDir), Dev: dev, Log: log, Health: served, Events: events})
+		activity.Host, activity.Health, activity.Events = srv, served, events
+		gw = gateway.New(activity)
 		if err := gw.Start(ctx); err != nil {
 			shutdown()
 			srv.Close(context.Background())
 			return err
 		}
 		serveActivity(gw.Handler())
-		if os.Getenv(gateway.EnvDir) == "" {
+		if activity.Dir == "" {
 			log.Warn("no Activity build is served: no " + gateway.EnvDir)
 		}
-		log.Info("the Activity is served", "world", sec.World, "port", activityPort, "dev", dev)
+		log.Info("the Activity is served", "world", sec.World, "port", activityPort, "dev", activity.Dev)
 	}
 	serveAPI(served)
 	log.Info("world service up", "world", sec.World, "tick", srv.Tick(), "due", srv.Due(), "addr", apiSrv.Addr)

@@ -7,7 +7,6 @@ import (
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/puzzle"
-	"jams.team/mmo-world/sim/tags"
 )
 
 // structural: a solo context is one character's own.
@@ -43,7 +42,7 @@ func Filter(g *game.Game, c *game.Char, v api.Viewer, now time.Time) api.Activit
 	}
 	st.Fight = apiFight(g, c, g.Choose(c).Fight)
 	if rig, ok := g.Rig(c, apiViewer(v)); ok {
-		st.Machine = machineView(g, c, rig)
+		st.Machine = machineView(g, c, rig, v.Passed)
 	}
 	if b, ok := g.BenchFor(c); ok {
 		st.Bench = benchView(g, c, b)
@@ -93,10 +92,11 @@ func practiceLine(g *game.Game, c *game.Char, family string) api.PracticeLine {
 	return out
 }
 
-// machineView is a rig as its viewer may be shown it. The rig already
-// holds what the viewer's practice buys; what is kept back here is the
-// level, countdown and haywire of a machine at rest with no preview.
-func machineView(g *game.Game, c *game.Char, rig game.Rig) *api.MachineView {
+// machineView is a rig as its viewer may be shown it: the level,
+// countdown, why and haywire of a machine at rest are kept back unless
+// practice buys the preview. A master may pass one move on for each armed
+// machine: the first hint, else the guide; passed is the machine they did.
+func machineView(g *game.Game, c *game.Char, rig game.Rig, passed int64) *api.MachineView {
 	family := rig.Spec.Family
 	m := &api.MachineView{Source: rig.Source, Pouch: rig.Pouch, Family: family, Name: familyName(g, family), Layout: apiLayout(rig.Layout),
 		Compact: rig.Spec.Compact, Intro: rig.Intro, Preview: rig.Gifts.Preview, MaxPlay: rig.MaxPlay, Locked: rig.Locked,
@@ -119,7 +119,14 @@ func machineView(g *game.Game, c *game.Char, rig game.Rig) *api.MachineView {
 		m.Hints = append(m.Hints, *apiMove(x))
 	}
 	if a := rig.Armed; a != nil {
-		m.Armed, m.ArmedAt, m.Deadline, m.Grace, m.Due, m.CanPass = true, a.At, a.Deadline(), g.MachineGrace(), g.MachineDue(a), rig.Master
+		m.Armed, m.ArmedAt, m.Deadline, m.Grace, m.Due = true, a.At, a.Deadline(), g.Puzzles().Grace(), g.MachineDue(a)
+		if rig.Master && passed != a.At {
+			m.Pass = m.Guide
+			if len(m.Hints) > 0 {
+				m.Pass = &m.Hints[0]
+			}
+			m.CanPass = m.Pass != nil
+		}
 	}
 	return m
 }
@@ -138,7 +145,7 @@ func haywireLine(g *game.Game, id string) *api.HaywireLine {
 	unit := row.Unit
 	if row.Effect == puzzle.EffectShort {
 		unit = api.UnitEncounter
-		if g.Rules().Fight.StateBeats(tags.Tag(row.Tag)) > 0 {
+		if g.HaywireBeats(row.ID) {
 			unit = api.UnitBeats
 		}
 	}

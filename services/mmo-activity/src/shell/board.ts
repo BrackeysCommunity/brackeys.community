@@ -114,6 +114,56 @@ export function nearest(points: Point[], p: Point): { index: number; distance: n
   return best;
 }
 
+/** The nearest point within a thumb's reach of p, for pieces of radius r, and how far the nearest was. */
+export function reach(
+  points: Point[],
+  p: Point,
+  r: number,
+): { index: number | undefined; miss: number } {
+  const hit = nearest(points, p);
+  return { index: hit.distance <= r * PICKUP ? hit.index : undefined, miss: hit.distance };
+}
+
+/** A point's angle round a hub in turns, clockwise on the screen from three o'clock. */
+export function angleOf(hub: Point, p: Point): number {
+  return Math.atan2(p.y - hub.y, p.x - hub.x) / (Math.PI * 2);
+}
+
+/** The shorter way round from one angle to another, in turns; clockwise is positive. */
+export function sweep(from: number, to: number): number {
+  return ((((to - from + 0.5) % 1) + 1) % 1) - 0.5;
+}
+
+/**
+ * A finger turning about a hub. turn gives the turns since the last
+ * reading, the shorter way round; nearer the hub than dead px a finger's
+ * angle means nothing, so it reads 0 and the next one starts afresh.
+ */
+export function turning(dead: number): {
+  start(hub: Point, p: Point): void;
+  turn(hub: Point, p: Point): number;
+  /** The finger's last angle in turns; none while it is on the hub. */
+  angle(): number | undefined;
+} {
+  let last: number | undefined;
+  return {
+    angle: () => last,
+    start(hub, p) {
+      last = distance(p, hub) >= dead ? angleOf(hub, p) : undefined;
+    },
+    turn(hub, p) {
+      if (distance(p, hub) < dead) {
+        last = undefined;
+        return 0;
+      }
+      const angle = angleOf(hub, p);
+      const d = last === undefined ? 0 : sweep(last, angle);
+      last = angle;
+      return d;
+    },
+  };
+}
+
 export interface Gesture {
   /** A pointer went down. Return false to let it pass. */
   down(p: Point, ev: PointerEvent): boolean | void;
