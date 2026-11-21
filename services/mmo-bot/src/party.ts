@@ -113,10 +113,12 @@ export class PartyPoster {
   /** One party's work at a time, in the order asked. */
   private serial<T>(party: string, f: () => Promise<T>): Promise<T> {
     const run = (this.chains.get(party) ?? Promise.resolve()).then(f, f);
-    this.chains.set(
-      party,
-      run.catch(() => {}),
-    );
+    const stored: Promise<unknown> = run
+      .catch(() => {})
+      .finally(() => {
+        if (this.chains.get(party) === stored) this.chains.delete(party);
+      });
+    this.chains.set(party, stored);
     return run;
   }
 

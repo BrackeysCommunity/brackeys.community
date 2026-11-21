@@ -499,7 +499,7 @@ type beginning struct {
 
 // begin assembles an encounter on the character's tile against one of
 // the creatures its biome holds, picked by a keyed draw. Party members on
-// the tile and floor who are free are in it too, as one shared encounter.
+// the tile and floor who are ready are in it too, as one shared encounter.
 func (g *Game) begin(c *Char, ambush bool, due int64) error {
 	h := c.C.At
 	kinds := g.r.Gen.Creatures(h)
@@ -611,7 +611,7 @@ func (g *Game) close(c *Char, key string, tick int64) error {
 	e := c.Fight.E
 	c.Fight = nil
 	c.Swapped = 0
-	if err := g.floorClosed(c, e); err != nil {
+	if err := g.floorClosed(c, e, []*Char{c}); err != nil {
 		return err
 	}
 	acc := ledger.Char(c.C.ID)

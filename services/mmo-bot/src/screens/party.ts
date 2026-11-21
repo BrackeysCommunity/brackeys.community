@@ -399,7 +399,7 @@ function threadPicture(p?: ThreadPicture): Picture | "form" {
   return p ? { media: p.media, alt: `Banner of ${p.place}` } : "form";
 }
 
-/** The one card a party's thread keeps (from the canvas): the beat or the fork, who has picked or chosen, never what, and the time left. */
+/** The one card a party's thread keeps: the beat or the fork, who has picked or chosen, never what, and the time left. */
 export function threadCard(b: api.PartyBoard, lex: Lexicon, picture?: ThreadPicture): Card {
   const names = b.members.map((m) => m.name);
   const fields: EmbedField[] = b.members.map((m) => ({
@@ -456,7 +456,9 @@ export function threadCard(b: api.PartyBoard, lex: Lexicon, picture?: ThreadPict
       });
     fields.push({
       name: "Time left",
-      value: `${due} Whoever has not chosen then takes the default.`,
+      value: f.waiting
+        ? "The clock waits while the party's machine is armed."
+        : `${due} Whoever has not chosen then takes the default.`,
     });
     card.footer = "Choices at a fork are open.";
     card.rows = [{ buttons: [btn("Choose a way", "p-card", b.id, 0, { style: "primary" })] }];

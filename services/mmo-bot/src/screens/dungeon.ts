@@ -153,7 +153,7 @@ export function entranceCard(
   };
 }
 
-/** A fork (from the canvas): the floor cleared, the ways down with their tags and votes, and push or leave. */
+/** A fork: the floor cleared, the ways down with their tags and votes, and push or leave. */
 export function forkCard(o: api.Options, here: api.Here, lex: Lexicon, notice?: string): Card {
   const f = here.floor!;
   const v = o.version;

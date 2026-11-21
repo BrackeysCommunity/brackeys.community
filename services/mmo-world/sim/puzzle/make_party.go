@@ -58,15 +58,9 @@ func (p *Puzzles) makeParty(s Spec) Layout {
 		panic("puzzle: party version " + s.Party + " needs two seats or more")
 	}
 	n, dec := p.partySize(row, s)
-	l := Layout{Family: s.Family, Level: s.Level, Tier: s.Tier, Size: n, Decoys: dec, Range: p.layouts[s.Family].Range,
-		Shape: s.Shape, Party: s.Party, Seats: s.Seats, Window: row.Window, Pass: row.Pass}
-	if r := p.shapeRow(s.Family, s.Shape); r != nil && r.Range > 0 {
-		l.Range = r.Range
-	}
+	l := p.header(s, n, dec)
+	l.Window, l.Pass = row.Window, row.Pass
 	f := registry[s.Family]
-	if _, ok := f.(Timed); ok {
-		l.Step = stepMs
-	}
 	parts := append(s.layParts(), draw.Str(s.Party), draw.Int(s.Seats), draw.Int(s.Shape), draw.Int(s.Attempt))
 	k := Kit{
 		S:     p.gen.Stream("puzzle.party", parts...),
@@ -96,13 +90,7 @@ func (p *Puzzles) PartyVersion(family string, w Where) string {
 			ids, weights = append(ids, id), append(weights, r.Weight)
 		}
 	}
-	switch len(ids) {
-	case 0:
-		return ""
-	case 1:
-		return ids[0]
-	}
-	return ids[p.gen.Pick(weights, "puzzle.party-version", w.parts(family)...)]
+	return pickWeighted(p, ids, weights, "puzzle.party-version", w.parts(family)...)
 }
 
 // Deal is each seat's view of the machine a spec names, in seat order. A

@@ -118,26 +118,39 @@ func viewIn(ctx context.Context, w held, characterID string, v api.Viewer, passe
 	return Filter(g, c, v, passed, now), true, nil
 }
 
-func armedIn(ctx context.Context, w held) ([]api.ArmedMachine, error) {
+// inGame runs f on the held game.
+func inGame[T any](ctx context.Context, w held, f func(*game.Game) T) (T, error) {
 	g, _, release, err := w.holdGame(ctx)
 	if err != nil {
-		return nil, err
+		var zero T
+		return zero, err
 	}
 	defer release()
-	return armed(g), nil
+	return f(g), nil
+}
+
+// withChar runs f on the held game and a character; ok is false, and f not
+// run, when the character is gone.
+func withChar[T any](ctx context.Context, w held, id string, f func(*game.Game, *game.Char) T) (T, bool, error) {
+	var zero T
+	g, _, release, err := w.holdGame(ctx)
+	if err != nil {
+		return zero, false, err
+	}
+	defer release()
+	c := g.Char(id)
+	if c == nil {
+		return zero, false, nil
+	}
+	return f(g, c), true, nil
+}
+
+func armedIn(ctx context.Context, w held) ([]api.ArmedMachine, error) {
+	return inGame(ctx, w, armed)
 }
 
 func countdownIn(ctx context.Context, w held, characterID string) (api.ArmedMachine, bool, error) {
-	g, _, release, err := w.holdGame(ctx)
-	if err != nil {
-		return api.ArmedMachine{}, false, err
-	}
-	defer release()
-	c := g.Char(characterID)
-	if c == nil {
-		return api.ArmedMachine{}, false, nil
-	}
-	return due(g, c), true, nil
+	return withChar(ctx, w, characterID, due)
 }
 
 // View is one character's state as its owner may see it; passed is the

@@ -122,12 +122,13 @@ type Site struct {
 	Troubled bool
 	Floor    int64 // a dungeon floor, from 1; 0 outside
 	// The rest are zero outside a dungeon's floors.
-	Beats    int64 // 0: the tier's count; else exactly a floor's
-	Half     bool  // half way to the next tier: the midpoint difficulty
-	Beyond   int64 // whole tiers past the tier ceiling
-	MixLock  bool  // the floor needs a Lock or Puzzle; a Hazard is not enough
-	Guardian *Pool // the dungeon's guardian, on the bottom floor's last beat
-	Hidden   int64 // beats everyone starts hidden
+	Beats    int64  // 0: the tier's count; else exactly a floor's
+	Half     bool   // half way to the next tier: the midpoint difficulty
+	Beyond   int64  // whole tiers past the tier ceiling
+	MixLock  bool   // the floor needs a Lock or Puzzle; a Hazard is not enough
+	Guardian *Pool  // the dungeon's guardian, on the bottom floor's last beat
+	Hidden   int64  // beats everyone starts hidden
+	Only     string // every beat this kind: no draw, mix, joiner, flight or guardian
 }
 
 // Assemble builds an encounter: its beat count from the creature's tier
@@ -150,6 +151,13 @@ func (r *Rules) Assemble(site Site, c Creature) *Encounter {
 		n = pick.Between(tier.BeatsMin, tier.BeatsMax)
 	}
 	all := append(slices.Clone(c.Tags), site.Tags...)
+	if site.Only != "" {
+		for range n {
+			e.Beats = append(e.Beats, site.Only)
+		}
+		r.machines(e, site, c, all)
+		return e
+	}
 	weights := make([]int64, len(r.beatIDs))
 	for _, bt := range r.beatTags {
 		if slices.Contains(all, tags.Tag(bt.Tag)) {
@@ -211,6 +219,12 @@ func (r *Rules) Assemble(site Site, c Creature) *Encounter {
 	} else if j != nil {
 		j.Until = min(j.Until, len(e.Beats)-1)
 	}
+	r.machines(e, site, c, all)
+	return e
+}
+
+// machines gives each puzzle beat its family and level.
+func (r *Rules) machines(e *Encounter, site Site, c Creature, all []tags.Tag) {
 	for i, b := range e.Beats {
 		fam, lvl := "", int64(0)
 		if r.beats[b].Puzzle {
@@ -231,11 +245,13 @@ func (r *Rules) Assemble(site Site, c Creature) *Encounter {
 		e.Machines = append(e.Machines, fam)
 		e.Levels = append(e.Levels, lvl)
 	}
-	return e
 }
 
+// BeatHazard is the beat a carry up is made of.
+const BeatHazard = "hazard"
+
 func (r *Rules) mixes(beat string) bool {
-	return beat == "hazard" || r.beats[beat].Puzzle
+	return beat == BeatHazard || r.beats[beat].Puzzle
 }
 
 // BeatLock is the beat whose machine is a lock; any other machine beat

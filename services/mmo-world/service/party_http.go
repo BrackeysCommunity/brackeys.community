@@ -136,26 +136,8 @@ func partyBoards(g *game.Game, ended endings) api.Parties {
 	return out
 }
 
-// boardShared is the party's shared encounter or fork its card shows:
-// one with its encounter running first, else a fork.
-func boardShared(g *game.Game, p *party.Party) *game.Shared {
-	var fork *game.Shared
-	for _, sh := range g.Shared {
-		if sh.Party != p.ID {
-			continue
-		}
-		if encounterIn(g, sh) != nil {
-			return sh
-		}
-		if sh.Fork != nil && fork == nil {
-			fork = sh
-		}
-	}
-	return fork
-}
-
 func partyBoard(g *game.Game, p *party.Party) api.PartyBoard {
-	sh := boardShared(g, p)
+	sh := partyShared(g, p, nil)
 	out := api.PartyBoard{ID: p.ID, Members: []api.BoardMember{}}
 	for _, m := range p.Members {
 		b := api.BoardMember{CharacterID: m.ID, Name: charName(g, m.ID)}
@@ -196,10 +178,8 @@ func forkBoard(g *game.Game, sh *game.Shared) *api.ForkBoard {
 		if f == nil || !ok {
 			continue
 		}
-		out := &api.ForkBoard{Dungeon: d.Dungeon, Name: d.Name, Kind: d.Kind, Up: d.Up, Floor: f.Floor, Ways: waysView(g, f.Ways)}
-		for i := range out.Ways {
-			out.Ways[i].Next = nil
-		}
+		out := &api.ForkBoard{Dungeon: d.Dungeon, Name: d.Name, Kind: d.Kind, Up: d.Up, Floor: f.Floor, Ways: waysView(g, f.Ways, false),
+			Waiting: sh.Machine.Armed()}
 		return out
 	}
 	return nil

@@ -33,10 +33,8 @@ func (g *Game) forkOf(c *Char) (*ForkState, *Shared) {
 	if c.C.Floor == 0 {
 		return nil, nil
 	}
-	for _, sh := range g.Shared {
-		if sh.Fork != nil && sh.Hex == c.C.At && sh.Floor == c.C.Floor && slices.Contains(sh.Members, c.C.ID) {
-			return sh.Fork, sh
-		}
+	if sh := g.sharedWhere(c, c.C.Floor, func(sh *Shared) bool { return sh.Fork != nil }); sh != nil {
+		return sh.Fork, sh
 	}
 	return nil, nil
 }
@@ -44,8 +42,14 @@ func (g *Game) forkOf(c *Char) (*ForkState, *Shared) {
 // sharedAt is the record of the party encounter a member has just fought
 // on floor n, if it was a party's.
 func (g *Game) sharedAt(c *Char, n int64) *Shared {
+	return g.sharedWhere(c, n, func(*Shared) bool { return true })
+}
+
+// sharedWhere is the first record on floor n of the hex c stands on that
+// lists c as a member and passes ok.
+func (g *Game) sharedWhere(c *Char, n int64, ok func(*Shared) bool) *Shared {
 	for _, sh := range g.Shared {
-		if sh.Hex == c.C.At && sh.Floor == n && slices.Contains(sh.Members, c.C.ID) {
+		if sh.Hex == c.C.At && sh.Floor == n && slices.Contains(sh.Members, c.C.ID) && ok(sh) {
 			return sh
 		}
 	}

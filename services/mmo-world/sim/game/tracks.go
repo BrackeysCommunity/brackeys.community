@@ -100,7 +100,7 @@ func (g *Game) followTrack(c *Char, cmd Command) error {
 	c.C.Facing = dir
 	g.visited(c, k.To, g.Tick())
 	g.Pending = append(g.Pending, world.Action{Kind: world.ActVisit, Hex: k.To, By: char.Ref(c.C.ID), Dir: &dir})
-	g.soloEncounter(c, k.Creature, 0, 0)
+	g.soloEncounter(c, k.Creature, 0, 0, "")
 	_, err := g.fact(c, "track.followed", g.Tick(), append([]fact.Datum{fact.S("creature", k.Creature), fact.N("tick", k.Tick)}, fact.At(k.To)...)...)
 	return err
 }
@@ -108,7 +108,7 @@ func (g *Game) followTrack(c *Char, cmd Command) error {
 // soloEncounter starts an encounter for a character alone against a
 // creature of an archetype it did not draw: one it followed, or what
 // waits on a floor it carries someone up.
-func (g *Game) soloEncounter(c *Char, arch string, floor, beats int64) *fight.Encounter {
+func (g *Game) soloEncounter(c *Char, arch string, floor, beats int64, only string) *fight.Encounter {
 	h := c.C.At
 	c.Encounters++
 	id := "e-" + c.C.ID + "-" + strconv.FormatInt(c.Encounters, decimal)
@@ -116,7 +116,7 @@ func (g *Game) soloEncounter(c *Char, arch string, floor, beats int64) *fight.En
 	place := append(g.World.Place(h).Tags(), high...)
 	ms := g.measures(h)
 	cr := g.r.Fight.Spawn(arch, extra, place, ms)
-	site := fight.Site{ID: id, Place: machinePlace(h, floor), Tags: place, Measures: ms, Party: 1, Floor: floor, Beats: beats}
+	site := fight.Site{ID: id, Place: machinePlace(h, floor), Tags: place, Measures: ms, Party: 1, Floor: floor, Beats: beats, Only: only}
 	e := g.r.Fight.Assemble(site, cr)
 	c.Fight = &Fight{E: e, Measures: ms}
 	return e

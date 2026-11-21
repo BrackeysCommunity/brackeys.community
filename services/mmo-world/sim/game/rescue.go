@@ -7,12 +7,8 @@ import (
 )
 
 // A rescue on a dungeon's floors (GDD 4.9, 11.6): the rescuer goes
-// through every floor that stands cleared with no encounter and clears the
-// rest, lifts the downed where it lies, and carries it up through one
-// hazard beat a floor climbed before the climb; The way back skips them.
-
-// structural: the beat a carry up is made of.
-const beatHazard = "hazard"
+// through every floor that stands cleared with no encounter, clears the
+// rest, and lifts the downed where it lies to carry it up (carryUp).
 
 // rescuing is the downed character a delver has come down for: one who
 // called for help and lies deeper on this dungeon's floors, carried by
@@ -92,11 +88,7 @@ func (g *Game) carryUp(c *Char, key string) error {
 		arch = kinds[0]
 	}
 	beats := n * g.fp("carry-up-beats")
-	e := g.soloEncounter(c, arch, n, beats)
-	e.Beats, e.Machines, e.Levels, e.Joined = nil, nil, nil, nil
-	for range beats {
-		e.Beats, e.Machines, e.Levels = append(e.Beats, beatHazard), append(e.Machines, ""), append(e.Levels, 0)
-	}
+	g.soloEncounter(c, arch, n, beats, fight.BeatHazard)
 	_, err := g.fact(c, "dungeon.reached", g.Tick(), append([]fact.Datum{fact.N("floor", n), fact.N("carrying", 1)}, fact.At(h)...)...)
 	return err
 }

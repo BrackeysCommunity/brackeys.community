@@ -264,13 +264,7 @@ func (p *Puzzles) Shape(family string, level int64, w Where) int64 {
 			open, weights = append(open, r.Shape), append(weights, r.Weight)
 		}
 	}
-	switch len(open) {
-	case 0:
-		return 0
-	case 1:
-		return open[0]
-	}
-	return open[p.gen.Pick(weights, "puzzle.shape", draw.Str(w.Place), draw.Int(w.Beat), draw.Str(family), draw.Int(level))]
+	return pickWeighted(p, open, weights, "puzzle.shape", draw.Str(w.Place), draw.Int(w.Beat), draw.Str(family), draw.Int(level))
 }
 
 // Shapes are the shape numbers a family has rows for, in order.
@@ -370,19 +364,40 @@ func (s Spec) layParts() []draw.Part {
 	return append(s.Where().parts(s.Family), draw.Int(s.Level), draw.Int(s.Tier))
 }
 
-// layWith runs the family's Lay for a spec at n pieces and dec decoys, on
-// the stream label keyed on the spec's parts and then more. The kit comes
-// back so a party version can go on drawing from the same stream.
-func (p *Puzzles) layWith(s Spec, n, dec int64, label draw.Purpose, more ...draw.Part) (Layout, Kit) {
+// header is a layout's fields before the family lays its part: the spec's
+// identity at n pieces and dec decoys, the shape's range, and the step of a
+// timed family.
+func (p *Puzzles) header(s Spec, n, dec int64) Layout {
 	l := Layout{Family: s.Family, Level: s.Level, Tier: s.Tier, Size: n, Decoys: dec, Range: p.layouts[s.Family].Range,
 		Shape: s.Shape, Party: s.Party, Seats: s.Seats}
 	if r := p.shapeRow(s.Family, s.Shape); r != nil && r.Range > 0 {
 		l.Range = r.Range
 	}
-	f := registry[s.Family]
-	if _, ok := f.(Timed); ok {
+	if _, ok := registry[s.Family].(Timed); ok {
 		l.Step = stepMs
 	}
+	return l
+}
+
+// pickWeighted draws one of ids by weights on a stream of its own: the zero
+// value for none, the only id for one.
+func pickWeighted[T any](p *Puzzles, ids []T, weights []int64, label draw.Purpose, parts ...draw.Part) T {
+	switch len(ids) {
+	case 0:
+		var zero T
+		return zero
+	case 1:
+		return ids[0]
+	}
+	return ids[p.gen.Pick(weights, label, parts...)]
+}
+
+// layWith runs the family's Lay for a spec at n pieces and dec decoys, on
+// the stream label keyed on the spec's parts and then more. The kit comes
+// back so a party version can go on drawing from the same stream.
+func (p *Puzzles) layWith(s Spec, n, dec int64, label draw.Purpose, more ...draw.Part) (Layout, Kit) {
+	l := p.header(s, n, dec)
+	f := registry[s.Family]
 	k := Kit{
 		S:     p.gen.Stream(label, append(s.layParts(), more...)...),
 		Tune:  func(key string) int64 { return p.tune(s.Family, key, s.Level) },

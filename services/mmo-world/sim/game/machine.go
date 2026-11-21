@@ -703,17 +703,8 @@ func (g *Game) topLevel() int64 {
 // family that is picked, a puzzle for any other. A solve wins the
 // encounter; a haywire leaves it for another try.
 func (g *Game) FaceMachine(c *Char, family string, level int64) {
-	beat := beatPuzzle
-	if g.Puzzles().Family(family).Lockpick {
-		beat = fight.BeatLock
-	}
-	h := c.C.At
-	place := g.World.Place(h).Tags()
-	ms := g.measures(h)
-	c.Encounters++
-	e := &fight.Encounter{ID: "e-" + c.C.ID + "-" + strconv.FormatInt(c.Encounters, decimal), Creature: g.r.Fight.Spawn(g.r.Book.Creatures[0].ID, nil, place, ms),
-		Site: place, Measures: ms, Beats: []string{beat}, Machines: []string{family}, Levels: []int64{level}, Party: 1, Guardian: -1}
-	c.Long, c.Fight = nil, &Fight{E: e, Measures: ms}
+	e := g.faceEncounter([]*Char{c}, family, level)
+	c.Long, c.Fight = nil, &Fight{E: e, Measures: e.Measures}
 }
 
 // setMachine is an operator standing a free character before a machine,

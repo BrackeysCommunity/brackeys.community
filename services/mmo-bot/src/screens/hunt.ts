@@ -50,10 +50,9 @@ function pressersTable(pressers: readonly api.HuntPresser[]) {
 }
 
 /**
- * A live hunt as one presser sees it (from the canvas): the pool, who has
- * pressed and how much they removed, the viewer's share now, and the press.
- * A press's options come with the viewer's own read; without them it is
- * pressed in the Activity.
+ * A live hunt as one presser sees it: the pool, who has pressed and how much
+ * they removed, the viewer's share now, and the press. A press's options come
+ * with the viewer's own read; without them it is pressed in the Activity.
  */
 export function huntCard(
   o: api.Options,
@@ -115,7 +114,7 @@ export function huntCard(
   };
 }
 
-/** A live hunt's card in the game channel (from the canvas): the pool, the window's end, and each presser's health removed. */
+/** A live hunt's card in the game channel: the pool, the window's end, and each presser's health removed. */
 export function huntPostCard(h: HuntPost, lex: Lexicon): Card {
   const creature = lex.name("creatures.archetypes", h.creature);
   return {

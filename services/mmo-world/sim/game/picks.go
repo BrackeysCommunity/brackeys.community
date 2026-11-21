@@ -206,6 +206,11 @@ func (g *Game) afterShared(sh *Shared, actor *Char, in []*Char, packs [][]*item.
 		}
 		if slices.Contains(e.Gone, c.C.ID) && !e.Over {
 			g.leaveShared(sh, c)
+			if e.Floor > 0 && c.Delving != nil {
+				if err := g.climbOut(c, ledger.SubKey(e.ID, "gone", c.C.ID)); err != nil {
+					return err
+				}
+			}
 		}
 		g.dropIfDown(c)
 	}
@@ -267,7 +272,7 @@ func (g *Game) closeShared(sh *Shared, actor *Char, e *fight.Encounter, key stri
 	for _, c := range in {
 		c.Fight = nil
 		c.Swapped = 0
-		if err := g.floorClosed(c, e); err != nil {
+		if err := g.floorClosed(c, e, in); err != nil {
 			return err
 		}
 	}

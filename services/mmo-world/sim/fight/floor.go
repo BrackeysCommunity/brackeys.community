@@ -112,10 +112,18 @@ func (r *Rules) guardLast(e *Encounter, mix func()) {
 	mix()
 }
 
-// onPool: the encounter is on its last beat, the guardian's, with the
-// dungeon's pool attached.
+// EndsOnGuardian reports whether a floor's last beat is the guardian's.
+func (e *Encounter) EndsOnGuardian() bool {
+	return e.Floor > 0 && len(e.Beats) > 0 && e.Beats[len(e.Beats)-1] == BeatGuardian
+}
+
+// AtGuardian reports whether the encounter is on that last beat.
+func (e *Encounter) AtGuardian() bool { return e.EndsOnGuardian() && e.Final() }
+
+// onPool: the encounter is on the guardian's beat with the dungeon's pool
+// attached.
 func (e *Encounter) onPool() bool {
-	return e.Pool != nil && !e.Over && e.Final() && e.Beats[e.At] == BeatGuardian
+	return e.Pool != nil && !e.Over && e.AtGuardian()
 }
 
 // wound takes health off the beat's guardian, and off the pool when the

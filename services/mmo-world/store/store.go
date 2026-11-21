@@ -446,7 +446,7 @@ func (s *Store) rows(ctx context.Context, q *db.Queries, g *game.Game) error {
 	if err := s.factions(ctx, q, g); err != nil {
 		return err
 	}
-	if err := s.tiles(ctx, q, g); err != nil {
+	if err := s.tiles(ctx, q, g, false); err != nil {
 		return err
 	}
 	for _, c := range g.Chars {
@@ -498,16 +498,26 @@ func (s *Store) factions(ctx context.Context, q *db.Queries, g *game.Game) error
 }
 
 // tiles writes stored tiles in the world's order: a tile first stored
-// takes the next seq, so reading by seq gives the same order back.
-func (s *Store) tiles(ctx context.Context, q *db.Queries, g *game.Game) error {
-	live := make(map[hex.Hex]bool, len(g.World.Tiles))
+// takes the next seq, so reading by seq gives the same order back. With
+// dungeons set it looks only at new tiles and those holding a dungeon,
+// the only ones a command changes, and skips the removal pass.
+func (s *Store) tiles(ctx context.Context, q *db.Queries, g *game.Game, dungeons bool) error {
+	var live map[hex.Hex]bool
+	if !dungeons {
+		live = make(map[hex.Hex]bool, len(g.World.Tiles))
+	}
 	for _, t := range g.World.Tiles {
-		live[t.Hex] = true
+		if live != nil {
+			live[t.Hex] = true
+		}
 		seq, ok := s.seq[t.Hex]
 		if !ok {
 			seq = s.next
 			s.next++
 			s.seq[t.Hex] = seq
+		}
+		if dungeons && ok && t.Dungeon == nil {
+			continue
 		}
 		body, err := json.Marshal(t)
 		if err != nil {
@@ -524,6 +534,9 @@ func (s *Store) tiles(ctx context.Context, q *db.Queries, g *game.Game) error {
 			}
 			s.mark(k, body)
 		}
+	}
+	if dungeons {
+		return nil
 	}
 	for h := range s.seq {
 		if live[h] {
@@ -694,12 +707,12 @@ func (s *Store) snapshot(ctx context.Context, q *db.Queries, g *game.Game, diges
 
 // SaveAction writes one accepted command in one transaction: its record
 // (unique on the interaction id), the characters it changed, the tiles it
-// changed at once (a dungeon's name or guardian), the world row, and its
-// facts and ledger. discord names the Discord user of a created
-// character. A command changes others than its own character, whoever it
-// paid, handed goods or carried: each is written with it, so no stored
-// character lags the stored ledger. A world-level command has no
-// character (c is nil) and is recorded under none.
+// writes (its dungeon records: a name, a guardian, a record made; the tick
+// save writes the rest), the world row, and its facts and ledger. discord
+// names the Discord user of a created character. A command changes others
+// than its own character, whoever it paid, handed goods or carried: each is
+// written with it, so no stored character lags the stored ledger. A world-
+// level command has no character (c is nil) and is recorded under none.
 func (s *Store) SaveAction(ctx context.Context, g *game.Game, cmd game.Command, c *game.Char, discord string, reply []byte, now time.Time) error {
 	facts, txns := g.Flush()
 	cmdJSON, err := json.Marshal(cmd)
@@ -730,7 +743,7 @@ func (s *Store) SaveAction(ctx context.Context, g *game.Game, cmd game.Command, 
 				return err
 			}
 		}
-		if err := s.tiles(ctx, q, g); err != nil {
+		if err := s.tiles(ctx, q, g, true); err != nil {
 			return err
 		}
 		var err error

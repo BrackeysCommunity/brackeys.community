@@ -1935,6 +1935,7 @@ export interface ForkBoard {
   up?: boolean;
   floor: number /* int64 */;
   ways: WayView[];
+  waiting?: boolean; // the party's machine is armed, so the window waits
 }
 /**
  * HuntBoard is GET /v1/hunts: every live hunt, and those closed since the

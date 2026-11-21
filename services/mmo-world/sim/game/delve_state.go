@@ -104,8 +104,8 @@ type Shared struct {
 	Machine *PartyMachine `json:"machine,omitempty"`
 	Fork    *ForkState    `json:"fork,omitempty"`
 	Movers  []string      `json:"movers,omitempty"` // seats that moved on the machine, from the solve
-	// LostRace is the context whose solve took a fork machine this one
-	// was racing for, until it is armed again.
+	// LostRace is the context whose solve took the fork machine this one
+	// raced for; a late solve is refused RivalWon.
 	LostRace string `json:"lostRace,omitempty"`
 	// Last is the beat it resolved last, for the members' views. It is
 	// not state: a reload forgets it, and no rule reads it.

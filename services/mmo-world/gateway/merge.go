@@ -18,16 +18,15 @@ type mergedLog struct {
 	key     string // the context
 	armedAt int64
 
-	mu     sync.Mutex
-	seat0  string // whose write ends it; its key names the machine
-	source string
-	due    int64
-	moves  []api.PuzzleMove
-	stop   func() // the countdown's timer, while one is set
-	// sent is set while the one merged solve is written, and stays once it
-	// is; gone once the machine is over, so the record is dropped.
-	sent bool
-	gone bool
+	mu        sync.Mutex
+	seat0     string // whose write ends it; its key names the machine
+	source    string
+	due       int64
+	moves     []api.PuzzleMove
+	stop      func() // the countdown's timer, while one is set
+	sent      bool   // the one merged solve is being or has been written
+	gone      bool   // the machine is over; the record is to be dropped
+	rejudging bool   // a judging again is armed
 }
 
 // partySeat is the party machine a seat's last state shows armed.
@@ -40,12 +39,6 @@ type partySeat struct {
 
 // contextKey names a context in one string, as the host names it.
 func contextKey(c api.Context) string { return c.Kind + ":" + c.ID }
-
-// partySource reports whether a machine is a party's, whose countdown is
-// its context's and whose log is merged.
-func partySource(source string) bool {
-	return source == api.MachineParty || source == api.MachineFork || source == api.MachineGuardian
-}
 
 // keepParty sets, moves or replaces a context's countdown from the host's
 // record of its machine. A record older than the one kept is a stale read.
@@ -207,8 +200,52 @@ func (g *Gateway) finishParty(ctx context.Context, ml *mergedLog, n int) {
 	if ml.sent || ml.gone {
 		return
 	}
-	// A failure leaves the countdown to end it.
-	g.writeMerged(ctx, ml, n)
+	if !g.writeMerged(ctx, ml, n) {
+		g.rejudgeLater(ml)
+	}
+}
+
+// rejudge judges a merged log again after a Judge or a write failed on
+// the move that completed it: the countdown's own end is always late.
+func (g *Gateway) rejudge(ml *mergedLog) {
+	g.mu.Lock()
+	closed := g.closed
+	g.mu.Unlock()
+	if closed {
+		return
+	}
+	ml.mu.Lock()
+	ml.rejudging = false
+	if ml.sent || ml.gone {
+		ml.mu.Unlock()
+		return
+	}
+	log := api.PuzzleLog{Moves: slices.Clone(ml.moves)}
+	n, seat0 := len(log.Moves), ml.seat0
+	ml.mu.Unlock()
+	ctx, cancel := context.WithTimeout(g.ctx, hostWait)
+	defer cancel()
+	status, err := g.cfg.Host.Judge(ctx, seat0, log)
+	if err != nil {
+		g.log.Error("activity: judging a party's merged log again", "context", ml.key, "err", err.Error())
+		ml.mu.Lock()
+		g.rejudgeLater(ml)
+		ml.mu.Unlock()
+		return
+	}
+	if status == JudgeDone || status == JudgeBroke {
+		g.finishParty(ctx, ml, n)
+	}
+}
+
+// rejudgeLater arms a judging of the merged log again. The caller holds
+// ml.mu; one is armed at a time, however many failures ask for it.
+func (g *Gateway) rejudgeLater(ml *mergedLog) {
+	if ml.rejudging {
+		return
+	}
+	ml.rejudging = true
+	g.clock.AfterFunc(expirySlack, func() { g.rejudge(ml) })
 }
 
 // writeMerged writes a context's one machine-solve with its first n moves;

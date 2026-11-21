@@ -47,6 +47,8 @@ type step struct {
 	clock int64
 	reply api.ActionReply
 	plant func(*machines) error
+	// merged is a party solve the gateway writes unchecked.
+	merged bool
 }
 
 func newMachines(b *sheets.Book, label string) (*machines, error) {
@@ -66,12 +68,21 @@ func newMachines(b *sheets.Book, label string) (*machines, error) {
 // send gives the game a new request for its character at the clock as it
 // stands. A refusal is an error: nothing here should be refused.
 func (m *machines) send(req api.ActionRequest) (api.ActionReply, error) {
+	return m.sendStep(req, false)
+}
+
+// sendMerged is send for a party's merged log.
+func (m *machines) sendMerged(req api.ActionRequest) (api.ActionReply, error) {
+	return m.sendStep(req, true)
+}
+
+func (m *machines) sendStep(req api.ActionRequest, merged bool) (api.ActionReply, error) {
 	m.n++
 	req.InteractionID = fmt.Sprintf("%s-%d", m.label, m.n)
 	if c := m.g.Char(req.CharacterID); c != nil {
 		req.Version = c.Version
 	}
-	return m.give(step{req: &req, clock: m.clock})
+	return m.give(step{req: &req, clock: m.clock, merged: merged})
 }
 
 // create makes a character for a new Discord user.
@@ -99,7 +110,7 @@ func (m *machines) give(s step) (api.ActionReply, error) {
 		act := m.l.Act
 		if api.ActivityOnly(s.req.Kind) {
 			act = func(ctx context.Context, req api.ActionRequest) (api.ActionReply, *api.Refusal, error) {
-				return m.l.Host().Act(ctx, req, true)
+				return m.l.Host().Act(ctx, req, !s.merged)
 			}
 		}
 		rep, ref, err := act(context.Background(), *s.req)
@@ -135,7 +146,7 @@ func (m *machines) again() (*machines, error) {
 		return nil, err
 	}
 	for _, s := range m.steps {
-		if _, err := out.give(step{req: s.req, clock: s.clock, plant: s.plant}); err != nil {
+		if _, err := out.give(step{req: s.req, clock: s.clock, plant: s.plant, merged: s.merged}); err != nil {
 			return nil, fmt.Errorf("replay: %w", err)
 		}
 	}
@@ -354,7 +365,7 @@ func partyReplay(b *sheets.Book, family string) (partyPlay, error) {
 			name += fmt.Sprintf(" (tile %d)", try)
 		}
 		m.clock = rig.Machine.At + log.Stop()
-		rep, err := m.send(api.ActionRequest{Kind: api.ActMachineSolve, CharacterID: ids[0], Machine: &api.MachineIntent{Source: api.MachineParty, Log: service.LogOf(log)}})
+		rep, err := m.sendMerged(api.ActionRequest{Kind: api.ActMachineSolve, CharacterID: ids[0], Machine: &api.MachineIntent{Source: api.MachineParty, Log: service.LogOf(log)}})
 		if err != nil {
 			return err
 		}

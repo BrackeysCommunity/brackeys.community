@@ -7,6 +7,11 @@ import (
 	"jams.team/mmo-world/api"
 )
 
+// boundTo reports whether a seat is open and bound to a context.
+func (s *Seat) boundTo(key string) bool {
+	return s != nil && s.conn != nil && contextKey(s.Context) == key
+}
+
 // allSeated reports whether everyone who must sit at a seat's party machine
 // has a seat open in the same instance, bound to the same context: the
 // first touch arms the machine for all of them (GDD 7.11). A seat with no
@@ -20,7 +25,7 @@ func (g *Gateway) allSeated(ctx context.Context, s *Seat) (bool, error) {
 	defer g.mu.Unlock()
 	for _, id := range members {
 		o := s.session.seats[id]
-		if o == nil || o.conn == nil || contextKey(o.Context) != key {
+		if !o.boundTo(key) {
 			return false, nil
 		}
 	}
@@ -42,7 +47,7 @@ func (g *Gateway) here(s *Seat, m *api.MachineView, sat []string) {
 			continue
 		}
 		o := s.session.seats[sat[at]]
-		m.Seats[i].Here = o != nil && o.conn != nil && contextKey(o.Context) == key
+		m.Seats[i].Here = o.boundTo(key)
 	}
 }
 
@@ -56,7 +61,7 @@ func (g *Gateway) nudge(s *Seat) {
 	key := contextKey(s.Context)
 	var ids []string
 	for _, o := range s.session.seats {
-		if o != s && o.conn != nil && contextKey(o.Context) == key {
+		if o != s && o.boundTo(key) {
 			ids = append(ids, o.Char)
 		}
 	}
@@ -120,6 +125,9 @@ func (g *Gateway) move(ctx context.Context, s *Seat, c *conn, msg api.ClientMess
 	status, err := g.cfg.Host.Judge(ctx, s.Char, log)
 	if err != nil {
 		g.log.Error("activity: judging a party's merged log", "context", ps.key, "err", err.Error())
+		ml.mu.Lock()
+		g.rejudgeLater(ml)
+		ml.mu.Unlock()
 		return
 	}
 	if status == JudgeDone || status == JudgeBroke {
@@ -134,7 +142,7 @@ func (g *Gateway) relay(from *Seat, key string, mv api.PuzzleMove) {
 	var to []*conn
 	for _, sess := range g.sessions {
 		for _, o := range sess.seats {
-			if o != from && o.conn != nil && o.synced == o.conn && contextKey(o.Context) == key {
+			if o != from && o.synced == o.conn && o.boundTo(key) {
 				to = append(to, o.conn)
 			}
 		}

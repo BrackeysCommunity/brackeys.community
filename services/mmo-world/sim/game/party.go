@@ -177,7 +177,7 @@ func (g *Game) partyTurn(tick int64) error {
 }
 
 // joining are who an encounter a character begins takes in: the members
-// of its party on its tile and floor who are free and among no other
+// of its party on its tile and floor who are ready and among no other
 // encounter or fork, in join order; alone, just the character.
 func (g *Game) joining(c *Char) []*Char {
 	p := g.partyOf(c)

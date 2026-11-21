@@ -35,8 +35,8 @@ const (
 // huntRef is how a fact names a hunt.
 func huntRef(id string) fact.Ref { return fact.Ref{Kind: "hunt", ID: id} }
 
-// huntFact writes a fact of the region holding h, dated tick: a turn of
-// the clock writes before the world's tick has moved.
+// huntFact writes a fact of the region holding h at tick, passed in
+// because a clock turn writes before World.Tick moves.
 func (g *Game) huntFact(tick int64, h hex.Hex, kind string, subjects []fact.Ref, data ...fact.Datum) error {
 	region := ""
 	if r := g.World.RegionAt(h); r >= 0 {

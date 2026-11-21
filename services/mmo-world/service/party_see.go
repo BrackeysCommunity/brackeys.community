@@ -18,8 +18,7 @@ const (
 
 // contextOf is the context a character's seat is bound to (GDD 7.5): its
 // party while it is in one, else a live hunt it stands in reach of, else
-// its own. A watcher who is not in the party is in its own context, and
-// nothing of the party reaches it.
+// its own.
 func contextOf(g *game.Game, c *game.Char) api.Context {
 	if p := g.PartyOf(c); p != nil {
 		return api.Context{Kind: api.ContextParty, ID: p.ID}
@@ -45,12 +44,8 @@ func huntInReach(g *game.Game, c *game.Char) *game.Hunt {
 	return nil
 }
 
-// seatsOf are who would sit at a shared encounter's or fork's machine now:
-// its seats once armed, else those present.
+// seatsOf are who sits at a shared encounter's or fork's machine, by id.
 func seatsOf(g *game.Game, sh *game.Shared) []string {
-	if sh.Machine.Armed() {
-		return slices.Clone(sh.Machine.Seats)
-	}
 	var out []string
 	for _, m := range g.SeatsOf(sh) {
 		out = append(out, m.C.ID)
@@ -58,29 +53,28 @@ func seatsOf(g *game.Game, sh *game.Shared) []string {
 	return out
 }
 
-// encounterIn is a member whose fight is the shared encounter while it
-// runs, or nil.
-func encounterIn(g *game.Game, sh *game.Shared) *game.Char {
-	for _, id := range sh.Members {
-		if m := g.Char(id); m != nil && m.Fight != nil && m.Fight.Shared == sh.ID && !m.Fight.E.Over {
-			return m
-		}
-	}
-	return nil
-}
-
-// partySharedOf is the party's shared encounter or fork the viewer is in,
-// else any of the party's: whose picks the members' rows show.
-func partySharedOf(g *game.Game, c *game.Char, p *party.Party) *game.Shared {
-	if sh := g.SharedOf(c); sh != nil {
-		return sh
-	}
-	for _, sh := range g.Shared {
-		if sh.Party == p.ID {
+// partyShared is the party's shared encounter or fork whose picks its
+// rows show: the viewer's own, else one with its encounter running, else
+// a fork.
+func partyShared(g *game.Game, p *party.Party, viewer *game.Char) *game.Shared {
+	if viewer != nil {
+		if sh := g.SharedOf(viewer); sh != nil && sh.Party == p.ID {
 			return sh
 		}
 	}
-	return nil
+	var fork *game.Shared
+	for _, sh := range g.Shared {
+		if sh.Party != p.ID {
+			continue
+		}
+		if g.EncounterOf(sh) != nil {
+			return sh
+		}
+		if sh.Fork != nil && fork == nil {
+			fork = sh
+		}
+	}
+	return fork
 }
 
 // memberView is one party member as the viewer is shown them: where they
@@ -106,7 +100,7 @@ func memberView(g *game.Game, viewer *game.Char, id string, sh *game.Shared, fol
 // partyView is the viewer's party: its members by name, and the open beat
 // with the viewer's own pick only.
 func partyView(g *game.Game, c *game.Char, p *party.Party) *api.PartyView {
-	sh := partySharedOf(g, c, p)
+	sh := partyShared(g, p, c)
 	out := &api.PartyView{ID: p.ID, Leader: p.Leader == c.C.ID, Members: []api.PartyMember{}}
 	for _, m := range p.Members {
 		out.Members = append(out.Members, memberView(g, c, m.ID, sh, m.Follows))
@@ -150,11 +144,10 @@ func rivalView(g *game.Game, sh *game.Shared) *api.RivalView {
 // partyBeat is a shared encounter's open beat and its window. mine names
 // whose pick it carries; "" carries none.
 func partyBeat(g *game.Game, sh *game.Shared, mine string) *api.PartyBeat {
-	in := encounterIn(g, sh)
-	if in == nil {
+	e := g.EncounterOf(sh)
+	if e == nil {
 		return nil
 	}
-	e := in.Fight.E
 	out := &api.PartyBeat{Beat: int64(e.At) + 1, Beats: int64(len(e.Beats)), Kind: e.Beats[e.At], Cautious: g.Rules().Fight.Cautious(),
 		Waiting: sh.Machine.Armed(), Mine: sh.PickOf(mine)}
 	for _, m := range g.UpIn(sh) {
@@ -204,7 +197,7 @@ func floorView(g *game.Game, c *game.Char) *api.FloorView {
 		out.Downed = append(out.Downed, charName(g, id))
 	}
 	if f := d.Fork; f != nil {
-		out.Ways = waysView(g, f.Ways)
+		out.Ways = waysView(g, f.Ways, true)
 		out.Opened, out.Due = f.Opened, f.Due
 		for _, x := range f.Choices {
 			ch := api.ChoiceView{Name: charName(g, x.Who), Push: x.Push}
@@ -217,7 +210,7 @@ func floorView(g *game.Game, c *game.Char) *api.FloorView {
 	return out
 }
 
-func waysView(g *game.Game, ways []game.WayRead) []api.WayView {
+func waysView(g *game.Game, ways []game.WayRead, next bool) []api.WayView {
 	out := []api.WayView{}
 	for _, w := range ways {
 		name := g.Rules().Name("map.forks:" + w.Fork)
@@ -225,7 +218,10 @@ func waysView(g *game.Game, ways []game.WayRead) []api.WayView {
 			name = w.Fork
 		}
 		v := api.WayView{ID: game.WayOption(w.Way), Name: name, Tags: slices.Clone(w.Tags), Open: w.Open, Machine: w.Machine,
-			Next: slices.Clone(w.Next), Votes: w.Votes}
+			Votes: w.Votes}
+		if next {
+			v.Next = slices.Clone(w.Next)
+		}
 		if v.Tags == nil {
 			v.Tags = []string{}
 		}
@@ -305,32 +301,6 @@ func huntView(g *game.Game, c *game.Char, x *game.Hunt) *api.HuntView {
 	return out
 }
 
-// restSource is the party machine a shared encounter or fork holds at
-// rest for the viewer, and its family: a guardian mark's, a fork's still
-// unworked, or the beat's.
-func restSource(g *game.Game, c *game.Char, sh *game.Shared) (source, family string) {
-	if m := sh.Machine; m != nil && m.Source == game.SourceGuardian {
-		return game.SourceGuardian, m.Spec.Family
-	}
-	if sh.Fork != nil {
-		if f := g.Fork(c); f != nil && !f.Worked {
-			for _, w := range f.Ways {
-				if w.Machine != "" && !w.Open {
-					return game.SourceFork, w.Machine
-				}
-			}
-		}
-		return "", ""
-	}
-	if c.Fight == nil || c.Fight.Shared != sh.ID || g.MachineOn(c) == "" {
-		return "", ""
-	}
-	if family, _, ok := g.Rules().Fight.Machine(c.Fight.E); ok {
-		return game.SourceParty, family
-	}
-	return "", ""
-}
-
 // seatViews are a party machine's seats by name.
 func seatViews(g *game.Game, c *game.Char, seats []string) []api.SeatView {
 	out := []api.SeatView{}
@@ -348,12 +318,13 @@ func seatViews(g *game.Game, c *game.Char, seats []string) []api.SeatView {
 // with no seat is shown no machine.
 func partyMachineView(g *game.Game, c *game.Char, sh *game.Shared) *api.MachineView {
 	if !sh.Machine.Armed() {
-		source, family := restSource(g, c, sh)
+		source, spec, ok := g.RestMachine(c)
 		seats := seatsOf(g, sh)
 		seat := slices.Index(seats, c.C.ID)
-		if source == "" || seat < 0 {
+		if !ok || seat < 0 {
 			return nil
 		}
+		family := spec.Family
 		return &api.MachineView{Source: source, Family: family, Name: familyName(g, family), Layout: api.PuzzleLayout{Family: family},
 			Practice: practiceLine(g, c, family), Seat: int64(seat), Seats: seatViews(g, c, seats)}
 	}
@@ -367,7 +338,7 @@ func partyMachineView(g *game.Game, c *game.Char, sh *game.Shared) *api.MachineV
 		Level: spec.Level, Countdown: m.Countdown, Practice: practiceLine(g, c, spec.Family), Party: spec.Party, Seat: rig.Seat,
 		Seats: seatViews(g, c, m.Seats), Movers: int64(len(sh.Movers)), Armed: true, ArmedAt: m.At, Deadline: m.Deadline(),
 		Grace: p.Grace(), Due: g.PartyDue(m), Haywire: haywireLine(g, p.Haywire(spec.Family, spec.Where()))}
-	for _, w := range p.CountdownParts(spec.Family, spec.Level, spec.Tier, m.Practice) {
+	for _, w := range p.MachineCountdownParts(spec, m.Practice) {
 		out.Why = append(out.Why, api.Reason{Label: w.Label, Value: w.Value, Unit: w.Unit})
 	}
 	if rig.Glimpse != nil {
@@ -382,8 +353,8 @@ func partyMachineView(g *game.Game, c *game.Char, sh *game.Shared) *api.MachineV
 	return out
 }
 
-// seeParty adds to a viewer's state what its party, its dungeon and a hunt
-// in reach show it, and the party's machine in place of its own.
+// seeParty adds to a viewer's state its party, the dungeon it stands at
+// or in, and a hunt in reach.
 func seeParty(g *game.Game, c *game.Char, st *api.ActivityState) {
 	if p := g.PartyOf(c); p != nil {
 		st.Party = partyView(g, c, p)

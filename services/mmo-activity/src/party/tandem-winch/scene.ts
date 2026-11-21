@@ -1,6 +1,6 @@
 import "./scene.css";
 import { TURN } from "../../scenes/crank/model.ts";
-import { DEAD, QUARTER } from "../../scenes/crank/scene.ts";
+import { DEAD, QUARTER, speedX, turnArrow } from "../../scenes/crank/scene.ts";
 import {
   HIT,
   board,
@@ -21,11 +21,9 @@ import { seconds } from "../../units.ts";
 import { PartyBar, playArea, seatName } from "../wrap.ts";
 import { CRANKS, type WinchModel } from "./model.ts";
 
-// The degrees a ms a wheel is drawn coasting per unit of speed, how much
-// of a gauge lies past the blow mark, and how long a touch on the other
-// seat's crank is answered.
+// The degrees a ms a wheel is drawn coasting per unit of speed, and how
+// long a touch on the other seat's crank is answered.
 const COAST = 0.0007;
-const PAST_BLOW = 1.1;
 const REFUSED_MS = 1200;
 
 /** Where everything sits, in CSS px of the play area. */
@@ -102,20 +100,9 @@ export function mount(host: PartySceneHost): Scene {
   let lastAt = 0;
   let refused: { crank: number; until: number } | undefined;
 
-  function speedX(c: number, speed: number): number {
-    const m = model();
+  function gaugeX(c: number, speed: number): number {
     const g = geo.gauges[c]!;
-    const max = Math.max(1, m.blow * PAST_BLOW);
-    return g.x + (g.width * Math.min(speed, max)) / max;
-  }
-
-  // Three quarters of a circle round a hub with an arrowhead: the way to turn.
-  function way(hub: Point, r: number): string {
-    const head = 7;
-    return (
-      `M${hub.x},${hub.y - r}A${r},${r} 0 1 1 ${hub.x - r},${hub.y}` +
-      `m${-head},${head}l${head},${-head}l${head},${head}`
-    );
+    return speedX(g.x, g.width, model().blow, speed);
   }
 
   function build(): void {
@@ -140,9 +127,9 @@ export function mount(host: PartySceneHost): Scene {
     );
     cranks = geo.hubs.map((hub, c) => {
       const g = geo.gauges[c]!;
-      const lo = speedX(c, m.lo);
-      const hi = speedX(c, m.hi);
-      const blow = speedX(c, m.blow);
+      const lo = gaugeX(c, m.lo);
+      const hi = gaugeX(c, m.hi);
+      const blow = gaugeX(c, m.blow);
       const end = g.x + g.width;
       const needle = svg("path", { class: "needle" });
       const wheel = svg(
@@ -167,7 +154,7 @@ export function mount(host: PartySceneHost): Scene {
         }),
         needle,
         wheel,
-        svg("path", { class: "way", d: way(hub, r * 0.5) }),
+        svg("path", { class: "way", d: turnArrow(hub, r * 0.5, 7) }),
         shade,
         who,
       );
@@ -206,7 +193,7 @@ export function mount(host: PartySceneHost): Scene {
         class: `wheel${drag?.crank === c ? " held" : ""}${spiking ? " loaded" : ""}`,
         transform: `translate(${hub.x} ${hub.y}) rotate(${spin[c]})`,
       });
-      const x = speedX(c, m.cranks[c]!.speed);
+      const x = gaugeX(c, m.cranks[c]!.speed);
       set(k.needle, { d: `M${x - 6},${geo.top - 10}h12l-6,8ZM${x},${geo.top - 2}v${geo.bar + 4}` });
       const seat = m.seatAt(c, ms);
       say(k.who, seat === host.seat ? "You wind this" : `${seatName(seat)} winds this`);

@@ -59,11 +59,7 @@ func (g *Game) partyArm(c *Char, cmd Command) error {
 		m.Seats = append(m.Seats, s.C.ID)
 		m.Practice = max(m.Practice, s.C.Level(spec.Family))
 	}
-	if spec.Party != "" {
-		m.Countdown = p.PartyCountdown(spec, m.Practice)
-	} else {
-		m.Countdown = p.Countdown(spec.Family, spec.Level, spec.Tier, m.Practice)
-	}
+	m.Countdown = p.MachineCountdown(spec, m.Practice)
 	sh.Machine, sh.LostRace, sh.Movers = m, "", nil
 	for _, s := range seats {
 		s.Worked++
@@ -157,20 +153,8 @@ func (g *Game) partySolve(c *Char, cmd Command) ([]fight.Pressed, *puzzle.Result
 			return nil, nil, err
 		}
 	}
-	if sh.Machine == m {
-		sh.Machine = nil
-	}
-	// The window waits while the machine runs.
-	if sh.Opened > 0 && m.At > 0 && cmd.Now > m.At {
-		sh.Opened += cmd.Now - m.At
-	}
+	g.endPartyMachine(sh, m, res, cmd.Now, tick, c)
 	sh.Movers = movers
-	for _, s := range seats {
-		s.LastMachine = &MachineDone{Source: m.Source, Family: m.Spec.Family, Level: m.Spec.Level, Tick: tick, Result: res}
-		if s != c {
-			g.touchOnce(s)
-		}
-	}
 	return pressed, &res, nil
 }
 
@@ -346,22 +330,9 @@ func (g *Game) PartyRigOf(c *Char) (PartyRig, bool) {
 	p := g.Puzzles()
 	parts := p.Deal(m.Spec)
 	out.Layout = parts[min(out.Seat, int64(len(parts)-1))]
-	if len(parts) > 1 && g.dealtSplit(m.Spec.Party) && p.Gifts(c.C.Level(m.Spec.Family)).Glimpse {
-		next := parts[(out.Seat+1)%int64(len(parts))]
-		out.Glimpse = &next
-	}
+	out.Glimpse = p.Glimpse(m.Spec, out.Seat, c.C.Level(m.Spec.Family))
 	return out, true
 }
-
-// dealtSplit reports whether a party version deals each seat its own part.
-func (g *Game) dealtSplit(version string) bool {
-	i := slices.IndexFunc(g.r.Book.PartyVersions, func(v sheets.PartyVersion) bool { return v.ID == version })
-	return i >= 0 && g.r.Book.PartyVersions[i].Deals == dealsSplit
-}
-
-// structural: the puzzles.party deals value that hides from each seat
-// what the others hold.
-const dealsSplit = "split"
 
 // ArmedParties are the shared encounters and forks whose machine's
 // countdown is running.
@@ -379,11 +350,10 @@ func (g *Game) ArmedParties() []*Shared {
 // the grace.
 func (g *Game) PartyDue(m *PartyMachine) int64 { return m.Deadline() + g.Puzzles().Grace() }
 
-// FacePartyMachine puts characters who stand together into one shared
-// encounter of one beat, a machine of a family and level, as FaceMachine
-// does one character: a lock for a family that is picked, a puzzle for
-// any other.
-func (g *Game) FacePartyMachine(cs []*Char, family string, level int64) *Shared {
+// faceEncounter is the one-beat encounter of a machine of a family and
+// level that characters standing together face: a lock for a family that
+// is picked, a puzzle for any other.
+func (g *Game) faceEncounter(cs []*Char, family string, level int64) *fight.Encounter {
 	beat := beatPuzzle
 	if g.Puzzles().Family(family).Lockpick {
 		beat = fight.BeatLock
@@ -391,13 +361,23 @@ func (g *Game) FacePartyMachine(cs []*Char, family string, level int64) *Shared 
 	lead := cs[0]
 	h := lead.C.At
 	place := g.World.Place(h).Tags()
-	ms := append(g.measures(h), tags.Measure{ID: measurePartySize, Value: int64(len(cs))})
+	ms := g.measures(h)
+	if len(cs) > 1 {
+		ms = append(ms, tags.Measure{ID: measurePartySize, Value: int64(len(cs))})
+	}
 	lead.Encounters++
-	e := &fight.Encounter{ID: "e-" + lead.C.ID + "-" + strconv.FormatInt(lead.Encounters, decimal), Creature: g.r.Fight.Spawn(g.r.Book.Creatures[0].ID, nil, place, ms),
+	return &fight.Encounter{ID: "e-" + lead.C.ID + "-" + strconv.FormatInt(lead.Encounters, decimal), Creature: g.r.Fight.Spawn(g.r.Book.Creatures[0].ID, nil, place, ms),
 		Site: place, Measures: ms, Beats: []string{beat}, Machines: []string{family}, Levels: []int64{level}, Party: int64(len(cs)), Guardian: -1}
-	sh := g.newShared(g.partyOf(lead), h, lead.C.Floor, cs)
+}
+
+// FacePartyMachine puts characters who stand together into one shared
+// encounter of one beat, a machine of a family and level, as FaceMachine
+// does one character.
+func (g *Game) FacePartyMachine(cs []*Char, family string, level int64) *Shared {
+	e := g.faceEncounter(cs, family, level)
+	sh := g.newShared(g.partyOf(cs[0]), cs[0].C.At, cs[0].C.Floor, cs)
 	for _, c := range cs {
-		c.Long, c.Fight = nil, &Fight{E: e, Measures: ms, Shared: sh.ID}
+		c.Long, c.Fight = nil, &Fight{E: e, Measures: e.Measures, Shared: sh.ID}
 	}
 	return sh
 }

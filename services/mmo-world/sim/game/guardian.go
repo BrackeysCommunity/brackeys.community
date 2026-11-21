@@ -78,7 +78,7 @@ func (g *Game) guardianPool(h hex.Hex, tick int64) *fight.Pool {
 // h. The pool is not saved with the encounter, so a press attaches it
 // first; anything else is left alone.
 func (g *Game) attachPool(h hex.Hex, e *fight.Encounter, tick int64) {
-	if e == nil || e.Floor == 0 || len(e.Beats) == 0 || e.Beats[len(e.Beats)-1] != fight.BeatGuardian {
+	if e == nil || !e.EndsOnGuardian() {
 		return
 	}
 	if p, _, ok := g.guardianRow(h); ok && p.Floors == e.Floor {
@@ -91,8 +91,7 @@ func (g *Game) attachPool(h hex.Hex, e *fight.Encounter, tick int64) {
 // on the beat for each mark passed. sh is nil for a lone delver. A press
 // that did not reach the guardian's beat changes nothing.
 func (g *Game) guardianPressed(h hex.Hex, e *fight.Encounter, sh *Shared, tick int64) error {
-	last := len(e.Beats) - 1
-	if e.Pool == nil || e.Floor == 0 || e.At != last || e.Beats[last] != fight.BeatGuardian || e.Guardian < 0 {
+	if e.Pool == nil || !e.AtGuardian() || e.Guardian < 0 {
 		return nil
 	}
 	_, row, ok := g.guardianRow(h)
@@ -227,7 +226,7 @@ func (g *Game) guardianSlain(h hex.Hex, e *fight.Encounter, sh *Shared, row *she
 // guardiansTurn makes guardians whole: one whose window ran out unslain,
 // and one slain once the bottom floor has refilled.
 func (g *Game) guardiansTurn(tick int64) error {
-	refill := g.r.wp("dungeon-refill-days") * sheets.TicksPerDay
+	refill := g.refillTicks()
 	for _, t := range g.World.Tiles {
 		d := t.Dungeon
 		if d == nil || d.Guardian == nil {

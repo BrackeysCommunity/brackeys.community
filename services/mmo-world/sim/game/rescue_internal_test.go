@@ -53,7 +53,7 @@ func TestRescueThroughClearedFloors(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := r.Fight.E
-	if want := 3 * g.fp("carry-up-beats"); int64(len(e.Beats)) != want || slices.ContainsFunc(e.Beats, func(b string) bool { return b != beatHazard }) {
+	if want := 3 * g.fp("carry-up-beats"); int64(len(e.Beats)) != want || slices.ContainsFunc(e.Beats, func(b string) bool { return b != fight.BeatHazard }) {
 		t.Fatalf("the carry up is %v, not %d hazard beats", e.Beats, want)
 	}
 	endFight(t, g, r, fight.Won, nil)

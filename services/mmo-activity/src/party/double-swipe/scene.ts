@@ -1,6 +1,14 @@
 import "./scene.css";
 import type { Read } from "../../scenes/keycard/model.ts";
-import { crossings, grabs, type Geometry as Reader } from "../../scenes/keycard/scene.ts";
+import {
+  cardGroup,
+  crossings,
+  grabs,
+  msX,
+  passLamps,
+  strikeMarks,
+  type Geometry as Reader,
+} from "../../scenes/keycard/scene.ts";
 import {
   HIT,
   PICKUP,
@@ -97,32 +105,12 @@ export function mount(host: PartySceneHost): Scene {
   let refused: { reader: number; until: number } | undefined;
   let dead = false;
 
-  function msX(r: Reader, ms: number): number {
-    const fastest = model().fastest;
-    const share = (ms - fastest) / Math.max(1, slowest - fastest);
-    return r.x + r.width * Math.max(0, Math.min(1, share));
-  }
-
   function build(): void {
     const m = model();
     status = text("status", size.width / 2, 20);
-    lamps = Array.from({ length: passes }, (_, i) =>
-      svg(
-        "g",
-        { transform: `translate(${8 + 66 + i * 22} ${geo.lamps})` },
-        svg("circle", { r: 8 }),
-        svg("path", { class: "read", d: "M-4,0L-1,3L5,-4" }),
-      ),
-    );
+    lamps = passLamps(passes, 8, geo.lamps);
     const right = size.width - 8;
-    strikes = Array.from({ length: m.strikes }, (_, i) =>
-      svg(
-        "g",
-        { transform: `translate(${right - 8 - i * 18} ${geo.lamps})` },
-        svg("circle", { r: 5 }),
-        svg("path", { d: "M-5,-5L5,5M5,-5L-5,5" }),
-      ),
-    );
+    strikes = strikeMarks(m.strikes, right, geo.lamps);
     root.append(
       status,
       text("label", 8, geo.lamps + 4, "Passes"),
@@ -141,16 +129,7 @@ export function mount(host: PartySceneHost): Scene {
         svg("circle", { r: 7 }),
         svg("path", { class: "read", d: "M-4,0L-1,3L5,-4" }),
       );
-      const card = svg(
-        "g",
-        { class: "card" },
-        svg("rect", { x: -cw / 2, y: -ch / 2, width: cw, height: ch, rx: 6 }),
-        svg("rect", { class: "stripe", x: -cw / 2, y: -ch / 2 + 10, width: cw, height: 12 }),
-        svg("path", {
-          class: "grip",
-          d: `M${-cw * 0.22},${ch * 0.2}H${cw * 0.22}M${-cw * 0.22},${ch * 0.3}H${cw * 0.22}`,
-        }),
-      );
+      const card = cardGroup(cw, ch, 10, 12);
       const shade = svg("rect", {
         class: "theirs",
         x: r.x,
@@ -179,7 +158,7 @@ export function mount(host: PartySceneHost): Scene {
   // read, or an arrowhead pointing the way the next should move.
   function tickPath(r: Reader, read: Read | undefined, ms: number): string {
     if (!read) return "";
-    const x = msX(r, ms);
+    const x = msX(r.x, r.width, model().fastest, slowest, ms);
     const y = r.top + r.bar / 2;
     if (read === "good") return `M${x - 5},${y}l3,4l7,-8`;
     const d = read === "fast" ? 1 : -1;

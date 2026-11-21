@@ -88,6 +88,7 @@ const REASONS: Record<string, string> = {
   level: "Its level",
   tier: "The creature's tier",
   practice: "Your practice",
+  party: "Worked as a party",
 };
 
 /** One line of a machine's why: what it is, and what it adds to the countdown. */

@@ -507,7 +507,11 @@ func (g *Gateway) intent(ctx context.Context, s *Seat, c *conn, msg api.ClientMe
 		g.dismiss(s)
 		return
 	}
-	if in.Kind == api.ActMachineArm && in.Machine != nil && partySource(in.Machine.Source) {
+	if in.Kind == api.ActMachineSolve && s.party != nil {
+		c.send(refusal(msg.Seq, in.ID, api.CodeForbidden, "a party machine is solved by its moves"))
+		return
+	}
+	if in.Kind == api.ActMachineArm && in.Machine != nil && api.PartySource(in.Machine.Source) {
 		seated, err := g.allSeated(ctx, s)
 		if err != nil {
 			g.log.Error("activity: reading a party's seats", "character", s.Char, "err", err.Error())
@@ -629,7 +633,7 @@ func (g *Gateway) show(ctx context.Context, s *Seat, force bool) {
 			move := *m.Pass
 			s.pass, s.armedAt = &move, m.ArmedAt
 		}
-		if m := st.Machine; m != nil && m.Armed && partySource(m.Source) {
+		if m := st.Machine; m != nil && m.Armed && api.PartySource(m.Source) {
 			s.party = &partySeat{key: contextKey(st.Context), armedAt: m.ArmedAt, seat: m.Seat, source: m.Source}
 			g.partyShown(ctx, s.Char, *s.party, m.Due)
 		}

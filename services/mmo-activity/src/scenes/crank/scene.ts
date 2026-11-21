@@ -25,6 +25,20 @@ export const DEAD = 14;
 const COAST = 0.0007;
 const PAST_BLOW = 1.1;
 
+/** Where a speed lies on a gauge from x for width, the gauge running a little past the blow mark. */
+export function speedX(x: number, width: number, blow: number, speed: number): number {
+  const max = Math.max(1, blow * PAST_BLOW);
+  return x + (width * Math.min(speed, max)) / max;
+}
+
+/** Three quarters of a circle round a hub with an arrowhead of the given size: the way to turn. */
+export function turnArrow(hub: Point, r: number, head: number): string {
+  return (
+    `M${hub.x},${hub.y - r}A${r},${r} 0 1 1 ${hub.x - r},${hub.y}` +
+    `m${-head},${head}l${head},${-head}l${head},${head}`
+  );
+}
+
 /** The shape whose crank is a pump lever: each full push down is one quarter turn. */
 export const PUMP_SHAPE = 1;
 
@@ -166,27 +180,20 @@ export function mount(host: SceneHost): Scene {
   /** The ms of each spike a hint has warned of. */
   const warned: number[] = [];
 
-  function speedX(m: CrankModel, speed: number): number {
-    const max = Math.max(1, m.blow * PAST_BLOW);
-    return geo.x + (geo.width * Math.min(speed, max)) / max;
+  function gaugeX(m: CrankModel, speed: number): number {
+    return speedX(geo.x, geo.width, m.blow, speed);
   }
 
-  // Three quarters of a circle round the hub with an arrowhead: the way to turn.
   function way(r: number): string {
-    const { hub } = geo;
-    const head = 9;
-    return (
-      `M${hub.x},${hub.y - r}A${r},${r} 0 1 1 ${hub.x - r},${hub.y}` +
-      `m${-head},${head}l${head},${-head}l${head},${head}`
-    );
+    return turnArrow(geo.hub, r, 9);
   }
 
   function build(): void {
     const m = model();
     const { hub, r, top, bar } = geo;
-    const lo = speedX(m, m.lo);
-    const hi = speedX(m, m.hi);
-    const blow = speedX(m, m.blow);
+    const lo = gaugeX(m, m.lo);
+    const hi = gaugeX(m, m.hi);
+    const blow = gaugeX(m, m.blow);
     const end = geo.x + geo.width;
     status = text("status", size.width / 2, 20);
     needle = svg("path", { class: "needle" });
@@ -313,7 +320,7 @@ export function mount(host: SceneHost): Scene {
         transform: `translate(${geo.hub.x} ${geo.hub.y}) rotate(${deg})`,
       });
     }
-    const x = speedX(m, m.speed);
+    const x = gaugeX(m, m.speed);
     const { top, bar } = geo;
     set(needle!, { d: `M${x - 7},${top - 12}h14l-7,10ZM${x},${top - 2}v${bar + 4}` });
     const still = m.speed === 0 && m.charge === 0;

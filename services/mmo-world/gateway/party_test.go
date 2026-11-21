@@ -626,3 +626,110 @@ func bannedFirstSeat(t *testing.T, users []string) {
 		t.Fatalf("the merged writes after arming again: %+v", merged)
 	}
 }
+
+// TestPartyMachineNotSolvedAlone refuses a seat's own machine-solve at an
+// armed party machine, which only its moves solve.
+func TestPartyMachineNotSolvedAlone(t *testing.T) {
+	w := newWorld(t)
+	users := []string{"u-one", "u-two"}
+	cs := w.party(users...)
+	sh := w.facing(cs, puzzle.Fuse, 3)
+	w.serve(nil)
+	vs, sts := w.seatAll("i-party", users...)
+	armedSts := armOver(t, vs, sts, 0)
+	before := len(w.written())
+	vs[1].seq++
+	vs[1].send(api.ClientMessage{T: "intent", Seq: vs[1].seq, Intent: &api.Intent{ID: "solve-alone", Version: armedSts[1].Character.Version,
+		Kind: api.ActMachineSolve, Machine: &api.MachineIntent{Source: api.MachineParty, Log: &api.PuzzleLog{Moves: []api.PuzzleMove{}}}}})
+	if rep := vs[1].reply(); rep.OK || rep.Refusal == nil || rep.Refusal.Code != api.CodeForbidden {
+		t.Fatalf("a seat's own solve was answered %+v", rep)
+	}
+	if len(w.written()) != before {
+		t.Fatal("a refused solve reached the world")
+	}
+	w.armed(sh)
+}
+
+// TestPartyRejudge writes the merged solve even when the Judge failed on
+// the move that completed the log.
+func TestPartyRejudge(t *testing.T) {
+	w := newWorld(t)
+	users := []string{"u-one", "u-two"}
+	cs := w.party(users...)
+	sh := w.facing(cs, puzzle.Fuse, 3)
+	gw := w.serve(nil)
+	vs, sts := w.seatAll("i-party", users...)
+	armOver(t, vs, sts, 0)
+	m := w.armed(sh)
+	log := w.solution(m)
+	last := log.Moves[len(log.Moves)-1]
+	w.playAt(t, vs, m.At, log.Moves[:len(log.Moves)-1])
+	w.do(func() { w.failJudge = true })
+	if d := time.UnixMilli(m.At + last.At).Sub(w.clock.Now()); d > 0 {
+		w.clock.Advance(d)
+	}
+	vs[last.Seat].send(api.ClientMessage{T: api.FrameMove, Move: &api.PuzzleMove{At: last.At, A: last.A, B: last.B, C: last.C}})
+	deadline := time.Now().Add(5 * time.Second)
+	for len(w.merges()) == 0 && time.Now().Before(deadline) {
+		gw.Settle()
+		w.clock.Advance(time.Second)
+		time.Sleep(10 * time.Millisecond)
+	}
+	gw.Settle()
+	if n := len(w.merges()); n != 1 {
+		t.Fatalf("%d merged solves after the Judge failed once", n)
+	}
+	var res *game.MachineDone
+	w.do(func() { res = cs[0].LastMachine })
+	if res == nil || !res.Result.Solved {
+		t.Fatalf("the machine ended %+v", res)
+	}
+}
+
+// TestPartyRejudgeOnce keeps one judging again pending however many moves
+// the Judge failed on.
+func TestPartyRejudgeOnce(t *testing.T) {
+	w := newWorld(t)
+	users := []string{"u-one", "u-two"}
+	cs := w.party(users...)
+	sh := w.facing(cs, puzzle.Fuse, 3)
+	gw := w.serve(nil)
+	vs, sts := w.seatAll("i-party", users...)
+	armOver(t, vs, sts, 0)
+	m := w.armed(sh)
+	log := w.solution(m)
+	if len(log.Moves) < 3 {
+		t.Skip("too short a solution to fail two moves")
+	}
+	pending := func() int {
+		w.clock.mu.Lock()
+		defer w.clock.mu.Unlock()
+		return len(w.clock.timers)
+	}
+	mv := log.Moves[:2]
+	var counts []int
+	for _, x := range mv {
+		w.do(func() { w.failJudge = true })
+		if d := time.UnixMilli(m.At + x.At).Sub(w.clock.Now()); d > 0 {
+			w.clock.Advance(d)
+		}
+		sendMove(t, vs, int(x.Seat), api.PuzzleMove{At: x.At, A: x.A, B: x.B, C: x.C})
+		gw.Settle()
+		var judged bool
+		w.do(func() { judged = !w.failJudge })
+		if !judged {
+			t.Fatal("the move was not judged")
+		}
+		counts = append(counts, pending())
+	}
+	if counts[1] != counts[0] {
+		t.Fatalf("pending timers %d after the first failed move, %d after the second", counts[0], counts[1])
+	}
+}
+
+// TestPartySourceMatchesGame keeps the api's party sources the game's.
+func TestPartySourceMatchesGame(t *testing.T) {
+	if game.SourceParty != api.MachineParty || game.SourceFork != api.MachineFork || game.SourceGuardian != api.MachineGuardian {
+		t.Fatal("the game's party sources and the api's differ")
+	}
+}

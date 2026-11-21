@@ -22,6 +22,56 @@ const MARKS = 8;
 /** The shape whose reader takes the card in from above: a pass is timed as it is pulled out. */
 export const INSERT_SHAPE = 1;
 
+/** The pass lamps' row: a lamp for each pass, from the label's end. */
+export function passLamps(n: number, x: number, y: number): SVGGElement[] {
+  return Array.from({ length: n }, (_, i) =>
+    svg(
+      "g",
+      { transform: `translate(${x + 66 + i * 22} ${y})` },
+      svg("circle", { r: 8 }),
+      svg("path", { class: "read", d: "M-4,0L-1,3L5,-4" }),
+    ),
+  );
+}
+
+/** The bad-swipe marks, laid leftward from the right edge. A bad swipe the reader still forgives is a ring; one spent is a cross. */
+export function strikeMarks(n: number, right: number, y: number): SVGGElement[] {
+  return Array.from({ length: n }, (_, i) =>
+    svg(
+      "g",
+      { transform: `translate(${right - 8 - i * 18} ${y})` },
+      svg("circle", { r: 5 }),
+      svg("path", { d: "M-5,-5L5,5M5,-5L-5,5" }),
+    ),
+  );
+}
+
+/** The card: its face, the stripe at stripeY down from the top, and the grip. */
+export function cardGroup(w: number, h: number, stripeY: number, stripeH: number): SVGGElement {
+  return svg(
+    "g",
+    { class: "card" },
+    svg("rect", { x: -w / 2, y: -h / 2, width: w, height: h, rx: 6 }),
+    svg("rect", { class: "stripe", x: -w / 2, y: -h / 2 + stripeY, width: w, height: stripeH }),
+    svg("path", {
+      class: "grip",
+      d: `M${-w * 0.22},${h * 0.2}H${w * 0.22}M${-w * 0.22},${h * 0.3}H${w * 0.22}`,
+    }),
+  );
+}
+
+/** Where a swipe of ms lies on a gauge from x for width, fastest to slowest. */
+export function msX(
+  x: number,
+  width: number,
+  fastest: number,
+  slowest: number,
+  ms: number,
+): number {
+  const share = (ms - fastest) / Math.max(1, slowest - fastest);
+  return x + width * Math.max(0, Math.min(1, share));
+}
+
 /** Where everything sits, in CSS px of the surface. */
 export interface Geometry {
   /** The reader's slot: its y, and the x of its two gates; on the insert reader its x, and the gates' y. */
@@ -176,17 +226,15 @@ export function mount(host: SceneHost): Scene {
   let said: Read | undefined;
   let dead = false;
 
-  function msX(ms: number): number {
-    const fastest = model().fastest;
-    const share = (ms - fastest) / Math.max(1, slowest - fastest);
-    return geo.x + geo.width * Math.max(0, Math.min(1, share));
+  function gaugeX(ms: number): number {
+    return msX(geo.x, geo.width, model().fastest, slowest, ms);
   }
 
   // A bracket over the stretch of the gauge a swipe may fall in.
   function bracket(move: PuzzleMove | undefined): string {
     if (!move) return "";
     const w = model().width;
-    const [a, b] = [msX(move.a - w), msX(move.a + w)];
+    const [a, b] = [gaugeX(move.a - w), gaugeX(move.a + w)];
     const y = geo.top - 4;
     return `M${a},${y + 8}V${y}H${b}V${y + 8}`;
   }
@@ -206,39 +254,15 @@ export function mount(host: SceneHost): Scene {
     const { width: cw, height: ch } = geo.card;
     const m = model();
     status = text("status", size.width / 2, 20);
-    lamps = Array.from({ length: passes }, (_, i) =>
-      svg(
-        "g",
-        { transform: `translate(${geo.x + 66 + i * 22} 40)` },
-        svg("circle", { r: 8 }),
-        svg("path", { class: "read", d: "M-4,0L-1,3L5,-4" }),
-      ),
-    );
+    lamps = passLamps(passes, geo.x, 40);
     const right = geo.x + geo.width;
-    // A bad swipe the reader still forgives is a ring; one spent is a cross.
-    strikes = Array.from({ length: m.strikes }, (_, i) =>
-      svg(
-        "g",
-        { transform: `translate(${right - 8 - i * 18} 40)` },
-        svg("circle", { r: 5 }),
-        svg("path", { d: "M-5,-5L5,5M5,-5L-5,5" }),
-      ),
-    );
+    strikes = strikeMarks(m.strikes, right, 40);
     ticks = Array.from({ length: MARKS }, () => svg("path", { class: "tick" }));
     pace = svg("path", { class: "pace" });
     guide = svg("path", { class: "guide" });
     lit = svg("path", { class: "hint" });
     const post = ch / 2 + 14;
-    card = svg(
-      "g",
-      { class: "card" },
-      svg("rect", { x: -cw / 2, y: -ch / 2, width: cw, height: ch, rx: 6 }),
-      svg("rect", { class: "stripe", x: -cw / 2, y: -ch / 2 + 12, width: cw, height: 14 }),
-      svg("path", {
-        class: "grip",
-        d: `M${-cw * 0.22},${ch * 0.2}H${cw * 0.22}M${-cw * 0.22},${ch * 0.3}H${cw * 0.22}`,
-      }),
-    );
+    card = cardGroup(cw, ch, 12, 14);
     root.append(
       status,
       text("label", geo.x, 44, "Passes"),
@@ -296,7 +320,7 @@ export function mount(host: SceneHost): Scene {
   // arrowhead pointing the way the next one should move.
   function tick(mark: Mark | undefined): string {
     if (!mark) return "";
-    const x = msX(mark.ms);
+    const x = gaugeX(mark.ms);
     const y = geo.top + geo.bar / 2;
     if (mark.read === "good") return `M${x - 6},${y}l4,5l8,-10`;
     const d = mark.read === "fast" ? 1 : -1;
@@ -343,7 +367,7 @@ export function mount(host: SceneHost): Scene {
       const mark = marks[i];
       set(t, { d: tick(mark), class: mark ? `tick ${mark.read}` : "tick" });
     }
-    const x = swipe ? msX(host.now() - swipe.t) : 0;
+    const x = swipe ? gaugeX(host.now() - swipe.t) : 0;
     set(pace!, { d: swipe ? `M${x - 7},${geo.top - 12}h14l-7,10Z` : "" });
     set(guide!, { d: m.k === 0 ? bracket(host.guide) : "" });
     const hint = host.hinted();

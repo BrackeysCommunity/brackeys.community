@@ -86,18 +86,13 @@ func (s *Script) Act(c *game.Char, cmd game.Command) (game.Result, bool) {
 // Err is the first error a command gave that was not a refusal.
 func (s *Script) Err() error { return s.err }
 
-// IsDown reports whether a character is down.
-func IsDown(c *game.Char) bool {
-	return slices.ContainsFunc(c.C.Conditions, func(x char.Condition) bool { return x.Tag == char.Down })
-}
-
 func wounded(c *game.Char) bool {
 	return slices.ContainsFunc(c.C.Conditions, func(x char.Condition) bool { return x.Tag == char.Wounded })
 }
 
-// Pick is the Battle run's best policy on a beat: the likeliest win,
-// unless holding is likelier and the beat is not the last. It never picks
-// a machine, which is worked, not picked.
+// Pick is a scripted member's pick on a beat: the likeliest win, unless
+// holding is likelier and the beat is not the last. It never picks a
+// machine, which is worked, not picked.
 func Pick(opts []fight.Option, last bool) string {
 	win, wc, hold, hc := "", fixed.F(-1), "", fixed.F(-1)
 	for _, o := range opts {
@@ -115,9 +110,8 @@ func Pick(opts []fight.Option, last bool) string {
 	return win
 }
 
-// Ready sets a character as a scene is set by hand: its gear at one
-// tier's expected level and its practice at another's, so its fights are
-// the ones the sheets aim at.
+// Ready is game.ReadyAt for a script: gear at one tier's expected level,
+// practice at another's.
 func Ready(r *game.Rules, c *game.Char, gear, practiced int64) {
 	game.ReadyAt(r, c, gear, practiced)
 }
@@ -154,7 +148,7 @@ func (s *Script) Machine(c *game.Char, src string) bool {
 func (s *Script) Delve() {
 	for _, c := range s.Party {
 		switch {
-		case IsDown(c):
+		case game.IsDown(c):
 			if c.Long == nil && c.Fight == nil {
 				s.Act(c, game.Command{Kind: game.Crawl})
 			}
@@ -165,7 +159,7 @@ func (s *Script) Delve() {
 		}
 	}
 	lead := s.Party[0]
-	if lead.C.Floor == 0 && lead.Fight == nil && lead.Long == nil && !IsDown(lead) && s.G.CanExplore(lead.C.At) && s.G.IsDungeon(lead.C.At) {
+	if lead.C.Floor == 0 && lead.Fight == nil && lead.Long == nil && !game.IsDown(lead) && s.G.CanExplore(lead.C.At) && s.G.IsDungeon(lead.C.At) {
 		s.Act(lead, game.Command{Kind: game.Explore})
 	}
 	if !s.named && s.Name != "" {
@@ -235,7 +229,7 @@ func (s *Script) Hunt() {
 		for _, c := range s.Hunters {
 			switch {
 			case x.H.Over || c.Long != nil || c.Fight != nil:
-			case IsDown(c):
+			case game.IsDown(c):
 				s.Act(c, game.Command{Kind: game.Crawl})
 			case wounded(c) && s.G.CanRest(c.C.At):
 				s.Act(c, game.Command{Kind: game.Rest})

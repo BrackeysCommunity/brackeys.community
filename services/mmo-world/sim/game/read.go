@@ -4,7 +4,6 @@ import (
 	"jams.team/mmo-world/sim/fight"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
-	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/world"
 )
 
@@ -109,8 +108,7 @@ func (g *Game) FloorCleared(h hex.Hex) bool { return g.FloorClearedAt(h, firstFl
 // FloorClearedAt reports whether a dungeon's floor is cleared and not yet
 // refilled; each floor refills on its own (GDD 4.9).
 func (g *Game) FloorClearedAt(h hex.Hex, floor int64) bool {
-	t := g.World.Tile(h)
-	return t != nil && t.Dungeon != nil && t.Dungeon.Cleared(floor, g.Tick(), g.r.wp("dungeon-refill-days")*sheets.TicksPerDay)
+	return g.floorRead(h, floor)
 }
 
 // IsDungeon reports whether a tile is a dungeon's entrance, a relay

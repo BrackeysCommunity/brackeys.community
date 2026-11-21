@@ -104,6 +104,8 @@ type world struct {
 	// hook sees each write once the world has taken it, before its writer
 	// hears back, with the world not held.
 	hook func(api.ActionRequest)
+	// failJudge makes the next Judge fail once.
+	failJudge bool
 
 	gw   *gateway.Gateway
 	srv  *httptest.Server
@@ -186,6 +188,10 @@ func (w *world) Window(ctx context.Context, shared string) (api.OpenWindow, bool
 func (w *world) Judge(ctx context.Context, id string, log api.PuzzleLog) (string, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if w.failJudge {
+		w.failJudge = false
+		return "", errors.New("judge failed")
+	}
 	return w.host.Judge(ctx, id, log)
 }
 

@@ -34,7 +34,7 @@ type Host interface {
 	View(ctx context.Context, characterID string, v api.Viewer, passed int64) (st api.ActivityState, ok bool, err error)
 	// Act applies a request as POST /v1/actions would, with the reply's
 	// facts as its character may read them. check is false only for the
-	// gateway's own expiry.
+	// gateway's own writes: an expiry or a party's merged solve.
 	Act(ctx context.Context, req api.ActionRequest, check bool) (api.ActionReply, *api.Refusal, error)
 	Armed(ctx context.Context) ([]api.ArmedMachine, error)
 	// Countdown is one character's countdown, with Due 0 when none is
@@ -52,7 +52,8 @@ type Host interface {
 	// JudgeBroke, or "" when none is armed.
 	Judge(ctx context.Context, characterID string, log api.PuzzleLog) (status string, err error)
 	// Seats is the context a character is bound to and who must hold a
-	// seat in it before its party's machine arms, in seat order.
+	// seat in it before its party's machine arms, in seat order. A
+	// character who is gone has no context.
 	Seats(ctx context.Context, characterID string) (context string, members []string, err error)
 }
 
@@ -487,7 +488,7 @@ func (g *Gateway) countdown(ctx context.Context, id string) (api.ArmedMachine, b
 // due is when the server ends a character's own machine in a state, or
 // 0. A party's machine is ended by its context's countdown instead.
 func due(m *api.MachineView) int64 {
-	if m == nil || !m.Armed || partySource(m.Source) {
+	if m == nil || !m.Armed || api.PartySource(m.Source) {
 		return 0
 	}
 	return m.Due

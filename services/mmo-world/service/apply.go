@@ -170,11 +170,18 @@ func applyCommand(ctx context.Context, g *game.Game, rec records, subs *listener
 	return applied{body: body, reply: rep, res: res}, nil
 }
 
+// partyLogOnly refuses a seat's own solve of a party machine, whose log
+// is the merged one the gateway writes.
+var partyLogOnly = &api.Refusal{Code: api.CodeForbidden, Message: "a party machine's log is written by the gateway"}
+
 // act checks a command's row version and runs it. A refusal comes back
 // with its HTTP status; nothing changed.
 func act(g *game.Game, cmd game.Command, version int64, checkVersion bool) (game.Result, *api.Refusal, int, error) {
 	if c := g.Char(cmd.Char); c != nil && checkVersion && cmd.Kind != game.Create && c.Version != version {
 		return game.Result{}, &api.Refusal{Code: api.CodeStale, Message: "the character has changed", Version: c.Version}, http.StatusConflict, nil
+	}
+	if c := g.Char(cmd.Char); c != nil && checkVersion && cmd.Kind == game.MachineSolve && armedShared(g, c) != nil {
+		return game.Result{}, partyLogOnly, http.StatusForbidden, nil
 	}
 	res, err := g.Act(cmd)
 	var ref *game.Refused

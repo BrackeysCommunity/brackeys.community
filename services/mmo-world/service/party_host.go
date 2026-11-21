@@ -37,9 +37,7 @@ func armedShared(g *game.Game, c *game.Char) *game.Shared {
 	return sh
 }
 
-// window is a shared encounter's or fork's open pick window, sent by its
-// first member present who may act; false when none is open or it waits
-// on a machine.
+// window is Window on a held game.
 func window(g *game.Game, sh *game.Shared) (api.OpenWindow, bool) {
 	if sh.Opened == 0 || sh.Machine.Armed() {
 		return api.OpenWindow{}, false
@@ -62,8 +60,7 @@ func windows(g *game.Game) []api.OpenWindow {
 	return out
 }
 
-// judge replays a merged log against a character's party machine, with no
-// countdown read and nothing written.
+// judge is Judge on a held game.
 func judge(g *game.Game, c *game.Char, log api.PuzzleLog) string {
 	sh := armedShared(g, c)
 	if sh == nil {
@@ -79,10 +76,7 @@ func judge(g *game.Game, c *game.Char, log api.PuzzleLog) string {
 	return judgeGoing
 }
 
-// seats is the context a character is bound to and who must hold a seat
-// bound to it before its party's machine arms: the machine's seats once
-// armed, else those present at it; none outside a shared encounter or
-// fork.
+// seats is Seats on a held game.
 func seats(g *game.Game, c *game.Char) (string, []string) {
 	key := contextKey(contextOf(g, c))
 	if sh := g.SharedOf(c); sh != nil {
@@ -92,76 +86,56 @@ func seats(g *game.Game, c *game.Char) (string, []string) {
 }
 
 func windowsIn(ctx context.Context, w held) ([]api.OpenWindow, error) {
-	g, _, release, err := w.holdGame(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer release()
-	return windows(g), nil
+	return inGame(ctx, w, windows)
 }
 
 func windowIn(ctx context.Context, w held, shared string) (api.OpenWindow, bool, error) {
-	g, _, release, err := w.holdGame(ctx)
-	if err != nil {
-		return api.OpenWindow{}, false, err
+	type found struct {
+		w  api.OpenWindow
+		ok bool
 	}
-	defer release()
-	sh := g.SharedByID(shared)
-	if sh == nil {
-		return api.OpenWindow{}, false, nil
-	}
-	out, ok := window(g, sh)
-	return out, ok, nil
+	f, err := inGame(ctx, w, func(g *game.Game) found {
+		if sh := g.SharedByID(shared); sh != nil {
+			out, ok := window(g, sh)
+			return found{out, ok}
+		}
+		return found{}
+	})
+	return f.w, f.ok, err
 }
 
 func judgeIn(ctx context.Context, w held, characterID string, log api.PuzzleLog) (string, error) {
-	g, _, release, err := w.holdGame(ctx)
-	if err != nil {
-		return "", err
-	}
-	defer release()
-	c := g.Char(characterID)
-	if c == nil {
-		return "", nil
-	}
-	return judge(g, c, log), nil
+	out, _, err := withChar(ctx, w, characterID, func(g *game.Game, c *game.Char) string { return judge(g, c, log) })
+	return out, err
+}
+
+type seated struct {
+	key string
+	ids []string
 }
 
 func seatsIn(ctx context.Context, w held, characterID string) (string, []string, error) {
-	g, _, release, err := w.holdGame(ctx)
-	if err != nil {
-		return "", nil, err
-	}
-	defer release()
-	c := g.Char(characterID)
-	if c == nil {
-		return "", nil, nil
-	}
-	key, ids := seats(g, c)
-	return key, ids, nil
+	out, _, err := withChar(ctx, w, characterID, func(g *game.Game, c *game.Char) seated {
+		key, ids := seats(g, c)
+		return seated{key, ids}
+	})
+	return out.key, out.ids, err
 }
 
-// Windows are the pick windows open and not waiting on a machine, oldest
-// first, each with the member who sends its party-window.
+// Windows is the gateway Host's Windows, under the world's lock.
 func (s *Server) Windows(ctx context.Context) ([]api.OpenWindow, error) { return windowsIn(ctx, s) }
 
-// Window is one shared encounter's or fork's open window; ok is false when
-// none is open or it waits on an armed machine.
+// Window is the gateway Host's Window, under the world's lock.
 func (s *Server) Window(ctx context.Context, shared string) (api.OpenWindow, bool, error) {
 	return windowIn(ctx, s, shared)
 }
 
-// Judge replays a merged log so far against the armed machine of a
-// character's party, writing nothing: "going", "done" or "broke", or ""
-// when none is armed.
+// Judge is the gateway Host's Judge, under the world's lock.
 func (s *Server) Judge(ctx context.Context, characterID string, log api.PuzzleLog) (string, error) {
 	return judgeIn(ctx, s, characterID, log)
 }
 
-// Seats is the context a character is bound to, as "<kind>:<id>", and who
-// must hold a seat bound to it before its party's machine arms, in seat
-// order: none outside a shared encounter or fork. A character who is gone
-// has no context.
+// Seats is the gateway Host's Seats, under the world's lock.
 func (s *Server) Seats(ctx context.Context, characterID string) (string, []string, error) {
 	return seatsIn(ctx, s, characterID)
 }

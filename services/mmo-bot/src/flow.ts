@@ -443,6 +443,12 @@ class Session {
     };
   }
 
+  /** The party machine's card: the beat's while a fight runs, else the fork's, unless kind names one. */
+  private async partyMachine(kind?: "beat" | "fork") {
+    const [{ o, here }, st] = await Promise.all([this.load(), this.world.party(this.character)]);
+    return this.done(partyMachineCard(o, here, st, this.lex, kind ?? (o.fight ? "beat" : "fork")));
+  }
+
   /** A live hunt: the one a card names, else the one in reach. */
   async hunt(id?: string, notice?: string): Promise<Answer> {
     const [{ o, here }, board, st, sheet] = await Promise.all([
@@ -613,13 +619,8 @@ class Session {
         return this.talk(l.npc ?? "");
       case "character":
         return this.character_();
-      case "party": {
-        const [{ o, here }, st] = await Promise.all([
-          this.load(),
-          this.world.party(this.character),
-        ]);
-        return this.done(partyMachineCard(o, here, st, this.lex, o.fight ? "beat" : "fork"));
-      }
+      case "party":
+        return this.partyMachine();
       case "hunt":
         return this.hunt();
       default:
@@ -1125,15 +1126,8 @@ class Session {
         );
       case "p-pick":
         return this.partyPick(id.target, v);
-      case "p-machine": {
-        const [{ o, here }, st] = await Promise.all([
-          this.load(),
-          this.world.party(this.character),
-        ]);
-        return this.done(
-          partyMachineCard(o, here, st, this.lex, id.target === "fork" ? "fork" : "beat"),
-        );
-      }
+      case "p-machine":
+        return this.partyMachine(id.target === "fork" ? "fork" : "beat");
       case "dungeon":
         return this.dungeon();
       case "push":

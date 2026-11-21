@@ -313,6 +313,7 @@ type ForkBoard struct {
 	Up      bool      `json:"up,omitempty"`
 	Floor   int64     `json:"floor"`
 	Ways    []WayView `json:"ways"`
+	Waiting bool      `json:"waiting,omitempty"` // the party's machine is armed, so the window waits
 }
 
 // HuntBoard is GET /v1/hunts: every live hunt, and those closed since the

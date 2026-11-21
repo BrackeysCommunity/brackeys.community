@@ -28,7 +28,7 @@ const (
 	wayRecorded = 1 // a floor record keeps the way taken down from it, +1
 )
 
-func (g *Game) fp(id string) int64 { return sheets.IntParam(g.r.Book.FightParams, id) }
+func (g *Game) fp(id string) int64 { return g.r.Fight.Param(id) }
 
 func (g *Game) tp(id string) int64 { return sheets.IntParam(g.r.Book.TileParams, id) }
 
@@ -124,12 +124,11 @@ func (g *Game) carriedFrom(c *Char, goods []item.Spoil) {
 	}
 }
 
-// floorClosed is what a floor encounter's end does to one of its members,
-// before the haul is paid: a solved fork machine's more is in it; the
-// floor is cleared and its fork opened, or the member lies down on it with
-// what it carried left there. Off a floor it only leaves a fled creature's
-// track.
-func (g *Game) floorClosed(c *Char, e *fight.Encounter) error {
+// floorClosed is what a floor encounter's end does to one member before the
+// haul is paid: the floor cleared and its fork opened, or the member down on
+// it with what it carried. with are the members whose fork bonus the close
+// spends. Off a floor it only leaves a fled creature's track.
+func (g *Game) floorClosed(c *Char, e *fight.Encounter, with []*Char) error {
 	if err := g.fled(c, e); err != nil {
 		return err
 	}
@@ -144,8 +143,8 @@ func (g *Game) floorClosed(c *Char, e *fight.Encounter) error {
 	// once, for the first member, and is gone for the rest.
 	if bonus := c.Delving.Bonus; bonus > 0 {
 		e.Haul = fight.GrowHaul(e.Haul, bonus)
-		for _, m := range g.CharsAt(h) {
-			if m.C.Floor == e.Floor && m.Delving != nil {
+		for _, m := range with {
+			if m.Delving != nil {
 				m.Delving.Bonus = 0
 			}
 		}
@@ -236,6 +235,10 @@ func (g *Game) outOfDungeon(c *Char, t int64) error {
 		c.Long = nil
 	}
 	if d := g.Char(c.Carrying); d != nil && d.C.Floor > 0 {
+		if sh := g.sharedOf(d); sh != nil && sh.Floor > 0 {
+			g.leaveShared(sh, d)
+			g.saw(sh.Members...)
+		}
 		d.C.Floor, d.Delving = 0, nil
 		g.touch(d)
 	}

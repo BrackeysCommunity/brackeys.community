@@ -22,8 +22,8 @@ func (g *Game) race(sh *Shared) {
 }
 
 // raced settles a race once one side's log lands: solved, it takes the
-// machine, and the rival's haywires in the same command; failed, the
-// rival races no more.
+// machine and the rival haywires, its fork worked with only the open way
+// left; failed, the rival races no more.
 func (g *Game) raced(sh *Shared, m *PartyMachine, res puzzle.Result, tick, now int64) error {
 	o := g.SharedByID(m.Rival)
 	if o == nil || !o.Machine.Armed() || o.Machine.Rival != sh.ID {
@@ -43,18 +43,31 @@ func (g *Game) raced(sh *Shared, m *PartyMachine, res puzzle.Result, tick, now i
 			fact.S("winner", sh.ID)); err != nil {
 			return err
 		}
-		s.LastMachine = &MachineDone{Source: om.Source, Family: om.Spec.Family, Level: om.Spec.Level, Tick: tick, Result: lost}
-		g.touchOnce(s)
 	}
 	if o.Fork != nil {
 		o.Fork.Worked = true
 		o.Fork.Open = []int64{gen.WayOpen}
 	}
-	if o.Opened > 0 && om.At > 0 && now > om.At {
-		o.Opened += now - om.At
-	}
-	o.Machine, o.LostRace = nil, sh.ID
+	g.endPartyMachine(o, om, lost, now, tick, nil)
+	o.LostRace = sh.ID
 	return nil
+}
+
+// endPartyMachine closes a party's machine: the window waits while it ran,
+// and every seat holds its result, those but the actor woken.
+func (g *Game) endPartyMachine(sh *Shared, m *PartyMachine, res puzzle.Result, now, tick int64, actor *Char) {
+	if sh.Machine == m {
+		sh.Machine = nil
+	}
+	if sh.Opened > 0 && m.At > 0 && now > m.At {
+		sh.Opened += now - m.At
+	}
+	for _, s := range g.seatChars(m) {
+		s.LastMachine = &MachineDone{Source: m.Source, Family: m.Spec.Family, Level: m.Spec.Level, Tick: tick, Result: res}
+		if s != actor {
+			g.touchOnce(s)
+		}
+	}
 }
 
 // RivalOf is the other context racing sh's armed fork machine, and when it
