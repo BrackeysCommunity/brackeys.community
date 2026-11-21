@@ -32,13 +32,19 @@ type applied struct {
 }
 
 // chatCommand is a request from chat as a command: playerCommand, less
-// the kinds only the Activity sends.
+// the kinds only the Activity sends and the pick clock's own.
 func chatCommand(req api.ActionRequest) (game.Command, *api.Refusal, int) {
 	if api.ActivityOnly(req.Kind) {
 		return game.Command{}, &api.Refusal{Code: api.CodeForbidden, Message: "machines are worked in the Activity"}, http.StatusForbidden
 	}
+	if req.Kind == api.ActPartyWindow {
+		return game.Command{}, clockOnly, http.StatusForbidden
+	}
 	return playerCommand(req)
 }
+
+// clockOnly refuses a pick window's close from anyone but its clock.
+var clockOnly = &api.Refusal{Code: api.CodeForbidden, Message: "a pick window is closed by its clock"}
 
 // playerCommand is a player's request as a command; operator kinds take
 // the operator path.
@@ -48,7 +54,7 @@ func playerCommand(req api.ActionRequest) (game.Command, *api.Refusal, int) {
 	}
 	cmd := game.Command{Key: req.InteractionID, Char: req.CharacterID, Kind: req.Kind, Dir: req.Dir, Material: req.Material,
 		Ticks: req.Ticks, Option: req.Option, Units: req.Units, Asset: req.Asset, Item: req.Item, Slot: req.Slot, NPC: req.NPC, Server: req.Server,
-		Price: req.Price, Target: req.Target, Note: req.Note, Admin: req.Admin}
+		Price: req.Price, Target: req.Target, Note: req.Note, Admin: req.Admin, Along: req.Along}
 	if req.Goal != nil {
 		s := simGoal(*req.Goal)
 		cmd.Goal = &s
@@ -82,12 +88,21 @@ func simMachine(m *api.MachineIntent) *game.MachineCmd {
 }
 
 // operatorCommand is an operator's request as a command; player kinds
-// take the player path.
+// take the player path. A world-level kind names no character, whatever
+// the request says, so it is recorded under none.
 func operatorCommand(req api.OperatorRequest) (game.Command, *api.Refusal, int) {
 	if !game.Operator(req.Kind) {
 		return game.Command{}, &api.Refusal{Code: api.CodeBadJSON, Message: "not an operator action"}, http.StatusBadRequest
 	}
-	return game.Command{Key: req.InteractionID, Char: req.CharacterID, Kind: req.Kind, Asset: req.Asset, Units: req.Units, Note: req.Note, Target: req.Target}, nil, 0
+	cmd := game.Command{Key: req.InteractionID, Char: req.CharacterID, Kind: req.Kind, Asset: req.Asset, Units: req.Units, Note: req.Note, Target: req.Target}
+	if req.To != nil {
+		h := simHex(*req.To)
+		cmd.To = &h
+	}
+	if game.WorldLevel(req.Kind) {
+		cmd.Char = ""
+	}
+	return cmd, nil, 0
 }
 
 func apiRefusal(r *game.Refused) *api.Refusal { return &api.Refusal{Code: r.Code, Message: r.Msg} }

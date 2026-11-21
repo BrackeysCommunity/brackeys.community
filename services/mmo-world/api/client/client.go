@@ -97,6 +97,29 @@ func (h *HTTP) Classes(ctx context.Context, id string) (api.Classes, error) {
 	return out, Refused("classes of "+id, ref, err)
 }
 
+// Party is a character's party, who is in reach to invite, the
+// invitations it holds, and its beat or fork in its own view.
+func (h *HTTP) Party(ctx context.Context, id string) (api.PartyState, error) {
+	var out api.PartyState
+	ref, err := h.Do(ctx, http.MethodGet, api.PathParty+"?characterId="+url.QueryEscape(id), nil, &out)
+	return out, Refused("party of "+id, ref, err)
+}
+
+// Parties is every open party, and those ended lately, for the bot's
+// threads.
+func (h *HTTP) Parties(ctx context.Context) (api.Parties, error) {
+	var out api.Parties
+	ref, err := h.Do(ctx, http.MethodGet, api.PathParties, nil, &out)
+	return out, Refused("parties", ref, err)
+}
+
+// Hunts is every hunt in the world, for the game channel's cards.
+func (h *HTTP) Hunts(ctx context.Context) (api.HuntBoard, error) {
+	var out api.HuntBoard
+	ref, err := h.Do(ctx, http.MethodGet, api.PathHunts, nil, &out)
+	return out, Refused("hunts", ref, err)
+}
+
 // Health is the service's health.
 func (h *HTTP) Health(ctx context.Context) (api.Health, error) {
 	var out api.Health

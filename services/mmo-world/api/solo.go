@@ -207,7 +207,7 @@ type Here struct {
 	People    []Person  `json:"people"`
 	Trails    []Trail   `json:"trails"`
 	Search    bool      `json:"search"`
-	Dungeon   string    `json:"dungeon,omitempty"` // open, cleared
+	Dungeon   string    `json:"dungeon,omitempty"` // open, cleared: the viewer's floor, else the first
 	Materials []Stock   `json:"materials"`
 	Forage    int64     `json:"forage"` // provisions a tick
 	Recent    []Fact    `json:"recent"`
@@ -217,6 +217,9 @@ type Here struct {
 	Downed []Downed `json:"downed"`
 	// Bench is set where a tinker's bench stands open (GDD 7.11).
 	Bench *BenchHere `json:"bench,omitempty"`
+	// Floor is the dungeon here as the viewer sees it: the floor it stands
+	// on, the deepest it has reached, and its fork.
+	Floor *FloorView `json:"floor,omitempty"`
 }
 
 // BenchHere is a tinker's bench as the place card states it: the
@@ -232,6 +235,9 @@ type Downed struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`
 	Called bool   `json:"called"`
+	// Floor is the dungeon floor it lies on; 0 is outside. Only someone
+	// on the same floor may carry it.
+	Floor int64 `json:"floor,omitempty"`
 }
 
 // Suggest is the nearest site to explore: where, how far, and the first

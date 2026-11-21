@@ -33,10 +33,15 @@ func (l *listeners) tell(ids []string) {
 	}
 }
 
-// told are the character a command acted for and the others it changed.
+// told are the character a command acted for (none for a world-level
+// command), the others it changed, and those whose view it changed while
+// their rows stayed.
 func told(res game.Result) []string {
-	out := []string{res.Char.C.ID}
-	for _, id := range res.Moved {
+	out := []string{}
+	if res.Char != nil {
+		out = append(out, res.Char.C.ID)
+	}
+	for _, id := range slices.Concat(res.Moved, res.Seen) {
 		if !slices.Contains(out, id) {
 			out = append(out, id)
 		}
@@ -49,20 +54,27 @@ func apiViewer(v api.Viewer) game.Viewer {
 }
 
 // due is a character's countdown as whoever must end it reads it; Due is 0
-// when none is running.
+// when none is running. A seat at a party machine reads its context's
+// countdown, which the first seat ends.
 func due(g *game.Game, c *game.Char) api.ArmedMachine {
 	out := api.ArmedMachine{CharacterID: c.C.ID}
 	if a := c.Armed; a != nil {
 		out.ArmedAt, out.Due = a.At, g.MachineDue(a)
+	} else if sh := armedShared(g, c); sh != nil {
+		out = partyDue(g, sh)
 	}
 	return out
 }
 
-// armed are the countdowns running in a game.
+// armed are the countdowns running in a game: each character's own, then
+// one for each party machine.
 func armed(g *game.Game) []api.ArmedMachine {
 	out := []api.ArmedMachine{}
 	for _, c := range g.ArmedAll() {
 		out = append(out, due(g, c))
+	}
+	for _, sh := range g.ArmedParties() {
+		out = append(out, partyDue(g, sh))
 	}
 	return out
 }
@@ -168,8 +180,12 @@ func actOn(ctx context.Context, d doer, req api.ActionRequest, check bool,
 }
 
 // hostAct is a write from the Activity, with the reply's facts as its
-// character may read them.
+// character may read them. A pick window is closed only by the gateway's
+// clock, which names no row version.
 func hostAct(ctx context.Context, d doer, req api.ActionRequest, check bool) (api.ActionReply, *api.Refusal, error) {
+	if check && req.Kind == api.ActPartyWindow {
+		return api.ActionReply{}, clockOnly, nil
+	}
 	rep, ref, err := actOn(ctx, d, req, check, playerCommand)
 	if err == nil && ref == nil {
 		rep.Facts = SeenFacts(rep.Character.ID, rep.Facts)

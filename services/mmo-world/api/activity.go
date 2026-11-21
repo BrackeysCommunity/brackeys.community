@@ -321,6 +321,9 @@ type MachineView struct {
 	Seat      int64         `json:"seat,omitempty"`
 	Seats     []SeatView    `json:"seats,omitempty"`
 	Movers    int64         `json:"movers,omitempty"`
+	// Glimpse is the next seat's dealt view of a split machine, for a seat
+	// whose practice gives it.
+	Glimpse *PuzzleLayout `json:"glimpse,omitempty"`
 }
 
 // PracticeLine is a family's practice: level, uses toward the next, and

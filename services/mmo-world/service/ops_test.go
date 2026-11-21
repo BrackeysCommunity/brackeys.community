@@ -19,6 +19,7 @@ import (
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/keys"
+	"jams.team/mmo-world/sim/puzzle"
 )
 
 func op(t *testing.T, r *running, req api.OperatorRequest) api.ActionReply {
@@ -157,10 +158,27 @@ func TestAPIMatchesRules(t *testing.T) {
 		{api.ActMachineArm, game.MachineArm}, {api.ActMachineSolve, game.MachineSolve}, {api.ActBenchSolve, game.BenchSolve}, {api.ActBenchLesson, game.BenchLesson},
 		{api.CodeNoMachine, game.NoMachine}, {api.CodeMachineArmed, game.MachineArmed}, {api.CodeLockedDown, game.LockedDown}, {api.CodeNoLesson, game.NoLesson},
 		{api.MachineBeat, game.SourceBeat}, {api.MachinePouch, game.SourcePouch}, {api.MachineBench, game.SourceBench},
+		{api.ActPartyInvite, game.PartyInvite}, {api.ActPartyJoin, game.PartyJoin}, {api.ActPartyLeave, game.PartyLeave},
+		{api.ActPartyPick, game.PartyPick}, {api.ActPartyWindow, game.PartyWindow}, {api.ActFollow, game.Follow}, {api.ActUnfollow, game.Unfollow},
+		{api.ActDungeonPush, game.DungeonPush}, {api.ActDungeonLeave, game.DungeonLeave}, {api.ActDungeonName, game.DungeonName},
+		{api.ActKeyMake, game.KeyMake}, {api.ActHuntPress, game.HuntPress}, {api.ActDeckSwap, game.DeckSwap}, {api.ActFollowTrack, game.FollowTrack},
+		{api.OpHuntStart, game.HuntStart}, {api.OpHideName, game.HideName},
+		{api.MachineParty, game.SourceParty}, {api.MachineFork, game.SourceFork}, {api.MachineGuardian, game.SourceGuardian},
+		{api.WayOpen, game.WayOption(0)}, {api.WayMachine, game.WayOption(1)}, {api.WayHidden, game.WayOption(2)},
+		{api.CodeNotInParty, game.NotInParty}, {api.CodeInParty, game.InParty}, {api.CodePartyFull, game.PartyFull},
+		{api.CodeOutOfReach, game.OutOfReach}, {api.CodeNoInvite, game.NoInvite}, {api.CodePicked, game.Picked}, {api.CodeNotDue, game.NotDue},
+		{api.CodeNoFork, game.NoFork}, {api.CodeNoWay, game.NoWay}, {api.CodeChose, game.Chose}, {api.CodeNamed, game.Named},
+		{api.CodeBadName, game.BadName}, {api.CodeNotLeader, game.NotLeader}, {api.CodeNoKeyMaker, game.NoKeyMaker}, {api.CodeShort, game.Short},
+		{api.CodeNoHunt, game.NoHunt}, {api.CodePressed, game.Pressed}, {api.CodeOpenHunt, game.OpenHunt}, {api.CodeNoSuchRow, game.NoSuchRow},
+		{api.CodeNoSlot, game.NoSlot}, {api.CodeSwapped, game.Swapped}, {api.CodeNoTrack, game.NoTrack}, {api.CodeRivalWon, game.RivalWon},
+		{api.CodeNoRoute, game.NoRoute}, {api.CodeUsed, game.Used},
 	} {
 		if pair[0] != pair[1] {
 			t.Errorf("the API says %q where the rules say %q", pair[0], pair[1])
 		}
+	}
+	if api.Unseen != puzzle.Unseen {
+		t.Errorf("the API's unseen element is %d where the rules' is %d", api.Unseen, puzzle.Unseen)
 	}
 }
 

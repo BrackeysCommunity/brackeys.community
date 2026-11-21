@@ -21,6 +21,7 @@ type Local struct {
 	mem    memory
 	broken error
 	subs   listeners
+	ended  endings
 }
 
 // NewLocal plays g in process.
@@ -62,6 +63,9 @@ func (l *Local) doCommand(ctx context.Context, cmd game.Command, discord string,
 	if err != nil {
 		l.broken = err
 	}
+	if out.ref == nil && !out.dup {
+		l.ended.note(out.res.Facts, l.G.Tick())
+	}
 	return out, err
 }
 
@@ -77,10 +81,12 @@ func (l *Local) Advance() error {
 	if err := l.check(); err != nil {
 		return err
 	}
-	if _, err := l.G.Advance(); err != nil {
+	facts, err := l.G.Advance()
+	if err != nil {
 		l.broken = err
 		return err
 	}
+	l.ended.note(facts, l.G.Tick())
 	l.subs.tell(nil)
 	return nil
 }

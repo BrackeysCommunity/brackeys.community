@@ -69,6 +69,10 @@ type Server struct {
 	audit   time.Time
 	media   media
 	subs    listeners
+	// pool reads who plays whom, for the party threads; ended keeps the
+	// parties that ended lately, under mu.
+	pool  *pgxpool.Pool
+	ended endings
 }
 
 // Open takes the world's lock (waiting while another service holds it),
@@ -86,7 +90,7 @@ func Open(ctx context.Context, pool *pgxpool.Pool, cfg Config) (*Server, error) 
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{cfg: cfg, st: store.New(pool, cfg.World), rules: rules}
+	s := &Server{cfg: cfg, st: store.New(pool, cfg.World), rules: rules, pool: pool}
 	waiting := false
 	for {
 		lock, ok, err := store.TryLock(ctx, pool, cfg.World)
@@ -174,6 +178,7 @@ func (s *Server) found(ctx context.Context, replace bool) error {
 		return err
 	}
 	s.restore(g)
+	s.ended = endings{}
 	return nil
 }
 
@@ -327,6 +332,7 @@ func (s *Server) step(ctx context.Context) error {
 		return s.reload(ctx, err)
 	}
 	t := s.g.Tick()
+	s.ended.note(facts, t)
 	s.tick.Store(t)
 	s.subs.tell(nil)
 	s.cfg.Log.Debug("tick", "world", s.cfg.World, "tick", t, "facts", len(facts), "ms", ms)

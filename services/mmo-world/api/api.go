@@ -230,6 +230,8 @@ type Character struct {
 	Titles  []string `json:"titles,omitempty"`
 	Pouches int64    `json:"pouches,omitempty"`
 	Armed   bool     `json:"armed,omitempty"`
+	// Floor is the dungeon floor it stands on; 0 is outside.
+	Floor int64 `json:"floor,omitempty"`
 }
 
 // Move is a step in one of six directions: open or not, and what it

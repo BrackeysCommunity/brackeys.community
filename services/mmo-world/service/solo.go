@@ -316,7 +316,7 @@ func (s *Server) apiHere(c *game.Char) api.Here {
 		People: []api.Person{}, Trails: []api.Trail{}, Search: g.CanSearch(c, h), Materials: []api.Stock{}, Forage: g.ForageYield(h), Recent: []api.Fact{},
 		Downed: []api.Downed{}}
 	for _, d := range g.DownedAt(c) {
-		out.Downed = append(out.Downed, api.Downed{ID: d.C.ID, Name: charName(g, d.C.ID), Called: g.Called(d)})
+		out.Downed = append(out.Downed, api.Downed{ID: d.C.ID, Name: charName(g, d.C.ID), Called: g.Called(d), Floor: d.C.Floor})
 	}
 	for _, st := range g.Stations(h) {
 		out.Stations = append(out.Stations, api.Station{Kind: st.Kind, Tier: st.Tier, Fee: g.StationFee(st)})
@@ -333,9 +333,10 @@ func (s *Server) apiHere(c *game.Char) api.Here {
 	}
 	if g.IsDungeon(h) {
 		out.Dungeon = "open"
-		if g.FloorCleared(h) {
+		if g.FloorClearedAt(h, max(c.C.Floor, 1)) {
 			out.Dungeon = "cleared"
 		}
+		out.Floor = floorView(g, c)
 	}
 	for _, m := range g.Materials(h) {
 		out.Materials = append(out.Materials, api.Stock{Material: m, Left: g.StockLeft(h, m), WorkedOut: g.WorkedOut(h, m)})

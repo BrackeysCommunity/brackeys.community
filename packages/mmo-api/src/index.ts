@@ -412,6 +412,11 @@ export interface MachineView {
   seat?: number /* int64 */;
   seats?: SeatView[];
   movers?: number /* int64 */;
+  /**
+   * Glimpse is the next seat's dealt view of a split machine, for a seat
+   * whose practice gives it.
+   */
+  glimpse?: PuzzleLayout;
 }
 /**
  * PracticeLine is a family's practice: level, uses toward the next, and
@@ -865,6 +870,10 @@ export interface Character {
   titles?: string[];
   pouches?: number /* int64 */;
   armed?: boolean;
+  /**
+   * Floor is the dungeon floor it stands on; 0 is outside.
+   */
+  floor?: number /* int64 */;
 }
 /**
  * Move is a step in one of six directions: open or not, and what it
@@ -2918,7 +2927,7 @@ export interface Here {
   people: Person[];
   trails: Trail[];
   search: boolean;
-  dungeon?: string; // open, cleared
+  dungeon?: string; // open, cleared: the viewer's floor, else the first
   materials: Stock[];
   forage: number /* int64 */; // provisions a tick
   recent: Fact[];
@@ -2932,6 +2941,11 @@ export interface Here {
    * Bench is set where a tinker's bench stands open (GDD 7.11).
    */
   bench?: BenchHere;
+  /**
+   * Floor is the dungeon here as the viewer sees it: the floor it stands
+   * on, the deepest it has reached, and its fork.
+   */
+  floor?: FloorView;
 }
 /**
  * BenchHere is a tinker's bench as the place card states it: the
@@ -2949,6 +2963,11 @@ export interface Downed {
   id: string;
   name: string;
   called: boolean;
+  /**
+   * Floor is the dungeon floor it lies on; 0 is outside. Only someone
+   * on the same floor may carry it.
+   */
+  floor?: number /* int64 */;
 }
 /**
  * Suggest is the nearest site to explore: where, how far, and the first

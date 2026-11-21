@@ -9,9 +9,6 @@ import (
 	"jams.team/mmo-world/sim/puzzle"
 )
 
-// structural: a solo context is one character's own.
-const contextSolo = "solo"
-
 // Sees reports whether a viewer may be shown a tile at all: the one it
 // stands on, and any tile somebody has found. Undiscovered tiles are
 // never returned, on any layer.
@@ -25,12 +22,14 @@ func found(g *game.Game, h hex.Hex) bool {
 
 // Filter is everything one character's owner may be shown: the one rule
 // for what a viewer sees, for the Activity and for the map. It names no
-// other character, and nothing a machine is generated from: no place, no
-// attempt, no key. passed is the armedAt of the machine whose move the
-// viewer already passed on.
+// other character but its party's members, a hunt's pressers and those
+// down on its floor, and nothing a machine is generated from: no place,
+// no attempt, no key, no other seat's part and no other member's pick.
+// passed is the armedAt of the machine whose move the viewer already
+// passed on.
 func Filter(g *game.Game, c *game.Char, v api.Viewer, passed int64, now time.Time) api.ActivityState {
 	h := c.C.At
-	st := api.ActivityState{Tick: g.Tick(), Context: api.Context{Kind: contextSolo, ID: c.C.ID}, Character: apiCharacter(g, c),
+	st := api.ActivityState{Tick: g.Tick(), Context: contextOf(g, c), Character: apiCharacter(g, c),
 		Place: api.ActivityHere{Tile: tileView(g, h), Name: g.PlaceName(h)}}
 	if !now.IsZero() {
 		st.Now = now.UnixMilli()
@@ -41,9 +40,15 @@ func Filter(g *game.Game, c *game.Char, v api.Viewer, passed int64, now time.Tim
 		}
 	}
 	st.Fight = apiFight(g, c, g.Choose(c).Fight)
-	if rig, ok := g.Rig(c, apiViewer(v)); ok {
-		st.Machine = machineView(g, c, rig, passed)
+	if sh := g.SharedOf(c); sh != nil {
+		st.Machine = partyMachineView(g, c, sh)
 	}
+	if st.Machine == nil && (c.Fight == nil || c.Fight.Shared == "") {
+		if rig, ok := g.Rig(c, apiViewer(v)); ok {
+			st.Machine = machineView(g, c, rig, passed)
+		}
+	}
+	seeParty(g, c, &st)
 	if b, ok := g.BenchFor(c); ok {
 		st.Bench = benchView(g, c, b)
 	}

@@ -104,7 +104,7 @@ func apiCharacter(g *game.Game, c *game.Char) api.Character {
 	if m := ch.In(char.Mount, 0); m != nil {
 		out.Mount = &api.Mount{ID: m.ID, Kind: m.Mount, Level: m.Level}
 	}
-	out.Titles, out.Pouches, out.Armed = g.Titles(c), int64(len(c.Pouches)), c.Armed != nil
+	out.Titles, out.Pouches, out.Armed, out.Floor = g.Titles(c), int64(len(c.Pouches)), c.Armed != nil, ch.Floor
 	return out
 }
 
@@ -170,7 +170,8 @@ func apiOptions(g *game.Game, c *game.Char) api.Options {
 }
 
 // apiFight is the beat a character faces, with the family of its machine
-// where it has one.
+// where it has one. A shared encounter lists its members and who has
+// picked, never what.
 func apiFight(g *game.Game, c *game.Char, f *game.FightView) *api.Fight {
 	if f == nil {
 		return nil
@@ -179,6 +180,17 @@ func apiFight(g *game.Game, c *game.Char, f *game.FightView) *api.Fight {
 		Default: f.Default, Due: f.Due, Options: []api.Option{}, Machine: g.MachineOn(c)}
 	for _, o := range f.Options {
 		v.Options = append(v.Options, apiOption(g, o))
+	}
+	if c.Fight == nil {
+		return v
+	}
+	e := c.Fight.E
+	v.Floor, v.Hidden = e.Floor, int64(e.At) < e.Hidden
+	if sh := g.SharedByID(f.Shared); sh != nil {
+		v.Shared, v.Party = true, fightParty(g, c, sh)
+		if family, _, ok := g.Rules().Fight.Machine(e); ok && v.Machine != "" {
+			v.Machine = family
+		}
 	}
 	return v
 }

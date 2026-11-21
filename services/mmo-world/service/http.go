@@ -52,6 +52,9 @@ func (s *Server) Handler() http.Handler {
 	player("GET "+api.PathBoard, s.board)
 	player("GET "+api.PathGuild, s.guild)
 	player("GET "+api.PathClasses, s.classes)
+	player("GET "+api.PathParty, s.party)
+	player("GET "+api.PathParties, s.parties)
+	player("GET "+api.PathHunts, s.hunts)
 	mux.HandleFunc("GET "+api.PathMedia+"{key}", s.mediaHandler)
 	op := func(path string, h http.HandlerFunc) {
 		mux.Handle(path, s.guard(s.cfg.OperatorToken, s.operatorOnly(h)))
@@ -220,15 +223,25 @@ func (s *Server) do(ctx context.Context, cmd game.Command, discord string, versi
 		return applied{}, err
 	}
 	if out.ref == nil && !out.dup {
-		s.capture("mmo_action", out.res.Char.C.ID, map[string]any{"kind": cmd.Kind, "tick": s.g.Tick(),
+		s.ended.note(out.res.Facts, s.g.Tick())
+		distinct := s.cfg.World
+		if out.res.Char != nil {
+			distinct = out.res.Char.C.ID
+		}
+		s.capture("mmo_action", distinct, map[string]any{"kind": cmd.Kind, "tick": s.g.Tick(),
 			"ms": time.Since(start).Milliseconds(), "facts": len(out.res.Facts)})
 	}
 	return out, nil
 }
 
+// actionReply is what a command did; a world-level command's names no
+// character.
 func actionReply(g *game.Game, res game.Result) api.ActionReply {
-	return api.ActionReply{Tick: g.Tick(), Character: apiCharacter(g, res.Char), Facts: apiFacts(res.Facts), Pressed: apiPressed(g, res.Pressed),
-		Machine: apiResult(res.Machine)}
+	out := api.ActionReply{Tick: g.Tick(), Facts: apiFacts(res.Facts), Pressed: apiPressed(g, res.Pressed), Machine: apiResult(res.Machine)}
+	if res.Char != nil {
+		out.Character = apiCharacter(g, res.Char)
+	}
+	return out
 }
 
 func uniqueViolation(err error) bool {
