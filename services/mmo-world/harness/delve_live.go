@@ -131,6 +131,17 @@ func (d *liveDelve) note(f string, a ...any) {
 	d.notes = append(d.notes, fmt.Sprintf(f, a...))
 }
 
+// ready has the operator raise a character to a tier's expected gear and
+// practice.
+func (d *liveDelve) ready(ctx context.Context, m *member, tier int64) error {
+	_, ref, err := d.w.op.Operate(ctx, api.OperatorRequest{InteractionID: d.id("ready"), CharacterID: m.char, Kind: api.OpReady, Units: tier,
+		Note: "the delve proof run"})
+	if err != nil {
+		return err
+	}
+	return client.Refused(api.OpReady, ref, nil)
+}
+
 // act sends one action for a character at its current version.
 func (d *liveDelve) act(ctx context.Context, m *member, req api.ActionRequest) (api.ActionReply, *api.Refusal, error) {
 	o, err := d.w.api.Options(ctx, m.char)
@@ -248,10 +259,7 @@ func (d *liveDelve) delve(ctx context.Context) error {
 	plan, _ := d.r.Gen.Dungeon(d.bunker)
 	ready := min(int64(len(d.r.Book.FightTiers)), plan.SeedTier+(plan.Floors-1)/2+1)
 	for _, m := range d.party {
-		if _, ref, err := d.w.op.Operate(ctx, api.OperatorRequest{InteractionID: d.id("ready"), CharacterID: m.char, Kind: api.OpReady, Units: ready,
-			Note: "the delve proof run"}); err != nil {
-			return err
-		} else if err := client.Refused(api.OpReady, ref, nil); err != nil {
+		if err := d.ready(ctx, m, ready); err != nil {
 			return err
 		}
 	}
@@ -545,6 +553,11 @@ func (d *liveDelve) hunt(ctx context.Context, b *sheets.Book) error {
 		if err != nil {
 			return err
 		}
+		if i >= huntGreen {
+			if err := d.ready(ctx, m, huntVeteran); err != nil {
+				return err
+			}
+		}
 		d.hunters = append(d.hunters, m)
 	}
 	at := apiHex(d.huntAt)
@@ -668,7 +681,8 @@ func (d *liveDelve) write(b *sheets.Book, base string, took time.Duration) *line
 	pr("")
 	c := d.card
 	paid, ok := agent.Sum(c)
-	pr("`%s` opened by the operator on %v. %d pressers; %s.", delveHunt, d.huntAt.Ref(), len(c.Pressers), either(c.Slain, "slain", "left unfinished"))
+	pr("`%s` opened by the operator on %v. %d new characters, the last %d readied to tier %d. %d pressers; %s.", delveHunt, d.huntAt.Ref(),
+		huntBand, huntBand-huntGreen, huntVeteran, len(c.Pressers), either(c.Slain, "slain", "left unfinished"))
 	pr("")
 	if c.Slain {
 		var row *sheets.Hunt
