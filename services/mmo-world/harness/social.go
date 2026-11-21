@@ -100,14 +100,9 @@ func SocialRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	p("")
 	p("| Measure | Value | Expected | Holds |")
 	p("| --- | --- | --- | --- |")
-	p("| Gossip of a neighbour, next-day meetings | in the dossier of %d of %d, shown in %d; %d name the player as \"you\" | some, and none from outside the settlement | %s |", aw.gossip, aw.gossipMeets, aw.gossipShown, aw.gossipOwn, holds(aw.gossip > 0 && aw.gossipFar == 0))
-	p("| Gossip heard by an NPC living outside the settlement | %d of %d meetings | none: one hop | %s |", aw.gossipFar, aw.farMeets, holds(aw.gossipFar == 0))
-	p("| Structures built in the region inside the window | %d, from the region's counters | %d or more is crowded | %s |", aw.built, aw.line, holds(aw.built >= aw.line))
-	p("| Crowding raised before the line, and at it | %d and %d of %d residents | none, then all | %s |", aw.crowdEarly, aw.crowding, aw.residents, holds(aw.crowdEarly == 0 && aw.crowding == aw.residents))
-	p("| Residents who moved home | %d of %d free to (%d the place cannot spare, none of whom moved: %s) | at least one | %s |", aw.moved, aw.free, aw.rooted, holds(aw.rootedMoved == 0), holds(aw.moved > 0 && aw.rootedMoved == 0))
-	p("| Former neighbours who bring up the one who left | %d of %d | all | %s |", aw.movedAway, aw.stayed, holds(aw.moved == 0 || aw.movedAway == aw.stayed))
-	p("| Routes relaid at the first meeting after a week | %d of %d; none before | all | %s |", aw.relaid, aw.relayMeets, holds(aw.relaid == aw.relayMeets && aw.relaidEarly == 0))
-	p("| Meetings a relay took the NPC out of | %d | none | %s |", aw.lost, holds(aw.lost == 0))
+	for _, c := range aw.checks() {
+		p("| %s | %s | %s | %s |", c.measure, c.value, c.expected, holds(c.ok))
+	}
 	p("")
 	p("Who moved: %s. The longest road measured at a relay was %d%% longer than when it was laid; the longer-road topic was in %d dossiers. Crowding was shown in %d of %d meetings at the line.", aw.went, aw.longest, aw.longer, aw.crowdShown, aw.crowdMeets)
 	p("")
@@ -304,9 +299,32 @@ type awareResult struct {
 	longer                                int
 }
 
+// awareCheck is one row of the awareness table.
+type awareCheck struct {
+	measure, value, expected string
+	ok                       bool
+}
+
+// checks are what the awareness run is held to, a row of its table each.
+func (a awareResult) checks() []awareCheck {
+	return []awareCheck{
+		{"Gossip of a neighbour, next-day meetings", fmt.Sprintf("in the dossier of %d of %d, shown in %d; %d name the player as \"you\"", a.gossip, a.gossipMeets, a.gossipShown, a.gossipOwn),
+			"some, and none from outside the settlement", a.gossip > 0 && a.gossipFar == 0},
+		{"Gossip heard by an NPC living outside the settlement", fmt.Sprintf("%d of %d meetings", a.gossipFar, a.farMeets), "none: one hop", a.gossipFar == 0},
+		{"Structures built in the region inside the window", fmt.Sprintf("%d, from the region's counters", a.built), fmt.Sprintf("%d or more is crowded", a.line), a.built >= a.line},
+		{"Crowding raised before the line, and at it", fmt.Sprintf("%d and %d of %d residents", a.crowdEarly, a.crowding, a.residents), "none, then all",
+			a.crowdEarly == 0 && a.crowding == a.residents},
+		{"Residents who moved home", fmt.Sprintf("%d of %d free to (%d the place cannot spare, none of whom moved: %s)", a.moved, a.free, a.rooted, holds(a.rootedMoved == 0)),
+			"at least one", a.moved > 0 && a.rootedMoved == 0},
+		{"Former neighbours who bring up the one who left", fmt.Sprintf("%d of %d", a.movedAway, a.stayed), "all", a.moved == 0 || a.movedAway == a.stayed},
+		{"Routes relaid at the first meeting after a week", fmt.Sprintf("%d of %d; none before", a.relaid, a.relayMeets), "all", a.relaid == a.relayMeets && a.relaidEarly == 0},
+		{"Meetings a relay took the NPC out of", fmt.Sprintf("%d", a.lost), "none", a.lost == 0},
+	}
+}
+
+// ok reports whether every row holds.
 func (a awareResult) ok() bool {
-	return a.gossip > 0 && a.gossipFar == 0 && a.built >= a.line && a.crowdEarly == 0 && a.crowding == a.residents &&
-		a.moved > 0 && a.rootedMoved == 0 && a.movedAway == a.stayed && a.relaid == a.relayMeets && a.relaidEarly == 0 && a.lost == 0
+	return !slices.ContainsFunc(a.checks(), func(c awareCheck) bool { return !c.ok })
 }
 
 func hasTopic(ts []game.TopicView, id string) bool {

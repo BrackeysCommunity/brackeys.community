@@ -352,15 +352,15 @@ class Session {
     }
   }
 
-  /** /goals: the notice board here, or one goal on it. */
-  async goals(goal?: string, notice?: string): Promise<Answer> {
+  /** /goals: the notice board here at a page of its goals, or one goal on it. */
+  async goals(goal?: string, notice?: string, page = 0): Promise<Answer> {
     const o = await this.world.options(this.character);
     const res = await this.world.goals(this.character);
     if (!res.ok) return this.where(capitalise(res.refusal.message));
     const x =
       goal && [...res.reply.board, ...res.reply.mine, ...res.reply.met].find((g) => g.id === goal);
     if (x) return this.done(goalCard(o, res.reply, x, this.lex, notice));
-    return this.done(boardCard(o, res.reply, this.lex, notice));
+    return this.done(boardCard(o, res.reply, this.lex, notice, page));
   }
 
   async goalForm(d: GoalDraft, notice?: string): Promise<Answer> {
@@ -710,8 +710,12 @@ class Session {
         );
       case "goals":
         return this.goals();
-      case "goal":
+      case "goal": {
+        const turn = fields(value, ":", 2);
+        if (turn?.[0] === "page")
+          return this.goals(undefined, undefined, integerTarget(turn[1]!) ?? 0);
         return this.goals(value || id.target);
+      }
       case "gld-member": {
         const turn = fields(value, ":", 2);
         if (turn?.[0] === "page")

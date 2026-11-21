@@ -70,8 +70,7 @@ func (g *Game) ClassLevel(c *Char, id string) int64 {
 	return class.Level(row, readerOf(c), g.r.Class)
 }
 
-// charTags are what the rules see of a character's classes and today's
-// mark.
+// charTags are the tags a character's active classes and their abilities give it.
 func (g *Game) charTags(c *Char) []tags.Tag {
 	return c.C.Classes.Tags(g.r.Book.Classes, g.r.Book.Abilities)
 }
@@ -142,6 +141,9 @@ func (g *Game) classAct(c *Char, cmd Command) error {
 		}
 		if !g.isCreatureTag(cmd.Option) {
 			return refuse(BadArgs, "%q names no kind of creature", cmd.Option)
+		}
+		if g.PreyToday(c) != "" {
+			return refuse(BadArgs, "%s has named its prey for today", c.C.ID)
 		}
 		c.C.Prey = char.Prey{Tag: cmd.Option, Day: g.World.Day}
 		_, err := g.fact(c, "prey.marked", g.Tick(), fact.S("tag", cmd.Option))

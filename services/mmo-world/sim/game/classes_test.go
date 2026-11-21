@@ -164,10 +164,10 @@ func TestMarkPreyOffersCreatureTags(t *testing.T) {
 	if len(tags) == 0 || len(g.PreyTags(other.c)) != 0 {
 		t.Fatalf("a Stalker is offered %v and anyone else %v", tags, g.PreyTags(other.c))
 	}
-	for _, tag := range tags {
-		stalker.must(game.Command{Kind: game.MarkPrey, Option: tag})
-	}
-	if g.PreyToday(stalker.c) != tags[len(tags)-1] {
+	stalker.must(game.Command{Kind: game.MarkPrey, Option: tags[0]})
+	// One mark a day: a second would be a band better against whatever turns up.
+	unchanged(t, stalker, "a second mark in a day", game.Command{Kind: game.MarkPrey, Option: tags[len(tags)-1]})
+	if g.PreyToday(stalker.c) != tags[0] {
 		t.Fatalf("today's mark is %q", g.PreyToday(stalker.c))
 	}
 	unchanged(t, stalker, "a mark every creature carries", game.Command{Kind: game.MarkPrey, Option: "creature"})
@@ -211,7 +211,7 @@ func TestFairHandLowersAProposalsFee(t *testing.T) {
 	g, ts := society(t, 2)
 	holding(ts[0], "reeve", "fair-hand")
 	x := proposal(t, g, ts, game.GoalSpec{Title: "To the far side", Issuer: goal.BySettlement, Mode: goal.First, Lifetime: goal.Standing,
-		Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Reach, Count: 1, At: "settlement:1"}})
+		Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Reach, Count: 1, At: away(ts[0])}})
 	if plain := g.Rules().Values.GoalFee(x.Reward + x.Fee); x.Fee >= plain {
 		t.Fatalf("a Reeve's proposal paid a %d coin fee, anyone's pays %d", x.Fee, plain)
 	}

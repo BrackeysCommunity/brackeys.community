@@ -4,7 +4,7 @@ import { authorLine, type Card, COLOUR } from "../card.ts";
 import { encodeId, target } from "../ids.ts";
 import { capitalise } from "../lexicon.ts";
 import { num, plural } from "../units.ts";
-import { back, btn, PRIVATE, SELECT_MOST } from "./common.ts";
+import { back, btn, buttonLabel, option, PRIVATE, ROW_MOST, SELECT_MOST } from "./common.ts";
 
 /**
  * Classes (GDD 5.8, 5.9): nobody picks one; each unlocks by what was
@@ -23,11 +23,7 @@ export function classesCard(o: api.Options, c: api.Classes, focus?: string, noti
         placeholder: shown ? `Showing: ${shown.name}` : "Pick a class",
         options: c.classes
           .filter((x) => x.id !== shown?.id)
-          .map((x) => ({
-            label: x.name,
-            value: x.id,
-            description: (x.earned ? `level ${x.level}` : "not yet earned").slice(0, 90),
-          })),
+          .map((x) => option(x.name, x.id, x.earned ? `level ${x.level}` : "not yet earned")),
       },
     },
   ];
@@ -41,26 +37,21 @@ export function classesCard(o: api.Options, c: api.Classes, focus?: string, noti
       if (t.open && !t.options.some((a) => a.taken))
         for (const a of t.options.filter((a) => !a.waits))
           acts.push(
-            btn(`Take: ${a.name}`.slice(0, 80), "cls-take", target(":", shown.id, a.id), v, {
+            btn(buttonLabel(`Take: ${a.name}`), "cls-take", target(":", shown.id, a.id), v, {
               style: "success",
             }),
           );
-  // Mark prey is an act, not a rule: its holder names today's creature tag.
-  if (c.prey)
+  // Mark prey is an act, not a rule: its holder names one creature tag a day.
+  if (c.prey && !c.prey.today)
     rows.push({
       select: {
         customId: encodeId("cls-mark", shown?.id ?? "", v),
-        placeholder: c.prey.today
-          ? `Marked today: ${c.prey.today}`
-          : "Mark prey: one kind of creature, for today",
-        options: c.prey.tags
-          .filter((t) => t !== c.prey?.today)
-          .slice(0, SELECT_MOST)
-          .map((t) => ({ label: capitalise(t), value: t })),
+        placeholder: "Mark prey: one kind of creature, for today",
+        options: c.prey.tags.slice(0, SELECT_MOST).map((t) => option(capitalise(t), t)),
       },
     });
   const nav = [btn("Character", "character", "", v), back(v)];
-  rows.push({ buttons: [...acts.slice(0, 5 - nav.length), ...nav] });
+  rows.push({ buttons: [...acts.slice(0, ROW_MOST - nav.length), ...nav] });
   const tree =
     shown?.tiers.map((t) => [
       `level ${t.level}`,
@@ -83,17 +74,28 @@ export function classesCard(o: api.Options, c: api.Classes, focus?: string, noti
     description: shown
       ? `${shown.leans}.${shown.first ? " You were the first in the world to earn it." : ""}`
       : undefined,
-    fields: shown
-      ? [
-          {
-            name: shown.earned ? "Earned by" : "Unlocks at",
-            value: shown.needs
-              .map((n) => `${n.what}: ${num(n.have)} of ${num(n.at)} done`)
-              .join("\n"),
-            inline: false,
-          },
-        ]
-      : undefined,
+    fields: [
+      ...(shown
+        ? [
+            {
+              name: shown.earned ? "Earned by" : "Unlocks at",
+              value: shown.needs
+                .map((n) => `${n.what}: ${num(n.have)} of ${num(n.at)} done`)
+                .join("\n"),
+              inline: false,
+            },
+          ]
+        : []),
+      ...(c.prey?.today
+        ? [
+            {
+              name: "Prey marked today",
+              value: `${capitalise(c.prey.today)}: named once a day, until the day turns.`,
+              inline: false,
+            },
+          ]
+        : []),
+    ],
     table: tree.length ? { header: ["Tier", "One or the other", "Opens"], rows: tree } : undefined,
     footer: `At most ${plural(c.most, "class", "classes")} are active, chosen at a settlement; abilities taken are kept.`,
     rows,

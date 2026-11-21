@@ -186,7 +186,7 @@ type Event struct {
 	// Gauge and Value are a Hold day's reading; its Units is the world day.
 	Gauge string `json:"gauge,omitempty"`
 	Value int64  `json:"value,omitempty"`
-	// Goal binds an event to one goal: a delivery, a haul, a carry.
+	// Goal binds an event to one goal: a delivery, a haul, a Hold's reading.
 	Goal string `json:"goal,omitempty"`
 }
 
@@ -471,11 +471,10 @@ func (g *Goal) Credit(e Event) []Claim {
 	return nil
 }
 
-// hold reads one day of a Hold: a day on the right side of the line adds
-// to the streak, a day on the wrong side clears it, and the streak at the
-// count meets the goal. Those who won fights in the region while it held
-// share the reward by kills; with none it pays nobody, and the escrow goes
-// back.
+// hold reads one day of a Hold: a day on the right side of the line adds to
+// the streak, any other clears it, and the streak at the count meets the
+// goal. Whoever won fights in the region while the goal was up shares the
+// reward; with nobody it pays none and the escrow goes back.
 func (g *Goal) hold(e Event) []Claim {
 	if e.Units <= g.Day {
 		return nil

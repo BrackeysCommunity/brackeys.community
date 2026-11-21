@@ -158,12 +158,12 @@ interface Posted {
   banner: string;
 }
 
-/** A goal's post once it has left the board; a hidden goal's says none of its words. */
+/** A goal's post once it has left the board, saying none of its words: a hide may come later. */
 function closedCard(p: Posted, hidden = false): Card {
   return {
     context: BOARD_CONTEXT,
     ...boardHead(p),
-    title: hidden ? "Off the board" : `Off the board: ${p.title}`,
+    title: "Off the board",
     description: hidden
       ? "This goal was taken down. /goals shows what is posted now."
       : "Met, expired or withdrawn. /goals shows what is posted now.",
@@ -212,8 +212,20 @@ export class BoardPoster {
         still.add(id);
       }
     }
+    // A goal hidden after it left the board still shows its words on its post.
+    for (const id of hidden) {
+      try {
+        if (await this.scrub(id)) changed++;
+      } catch (e) {
+        this.log(`[board] ${id}: ${String(e)}`);
+      }
+    }
     await this.store.set(openKey, JSON.stringify([...still].sort()));
     return changed;
+  }
+
+  private closedKey(id: string): string {
+    return `${this.prefix}closed:${id}`;
   }
 
   private async posted(id: string): Promise<Posted | null> {
@@ -271,10 +283,29 @@ export class BoardPoster {
     const card = was && closedCard(was, hidden);
     // A hidden goal's words come off its post and its thread's name before
     // anything is said under them.
-    if (was?.post && card && hidden)
-      await this.sink.edit(was.post, card, `${was.name} · off the board`.slice(0, 100));
+    if (was?.post && hidden) await this.hide(was);
     if (was?.post && card) await this.sink.reply(was.post, card);
+    // The post is remembered past its close, for an operator may hide the goal later.
+    if (was?.post && !hidden) await this.store.set(this.closedKey(id), JSON.stringify(was));
     await this.store.del(`${this.prefix}goal:${id}`);
+  }
+
+  /** Takes a goal's words off its post's first card and its thread's name. */
+  private hide(was: Posted): Promise<boolean> {
+    return this.sink.edit(
+      was.post,
+      closedCard(was, true),
+      `${was.name} · off the board`.slice(0, 100),
+    );
+  }
+
+  /** Takes the words off the post of a goal hidden after it closed; false when there is none left to scrub. */
+  private async scrub(id: string): Promise<boolean> {
+    const raw = await this.store.get(this.closedKey(id));
+    if (!raw) return false;
+    await this.hide(JSON.parse(raw) as Posted);
+    await this.store.del(this.closedKey(id));
+    return true;
   }
 
   start(): () => void {

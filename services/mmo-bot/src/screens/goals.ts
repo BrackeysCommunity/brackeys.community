@@ -10,7 +10,18 @@ import { authorLine, type Card, COLOUR } from "../card.ts";
 import { type Action, encodeId, fields, integerTarget, target } from "../ids.ts";
 import { capitalise, type Lexicon } from "../lexicon.ts";
 import { amount, hours, num, plural, TICKS_PER_HOUR } from "../units.ts";
-import { back, banner, btn, factLine, PRIVATE, SELECT_MOST } from "./common.ts";
+import {
+  back,
+  banner,
+  btn,
+  buttonLabel,
+  factLine,
+  option,
+  paged,
+  PRIVATE,
+  ROW_MOST,
+  SELECT_MOST,
+} from "./common.ts";
 
 /**
  * /goals (GDD 11, 17): the notice board of the settlement you stand in,
@@ -229,11 +240,20 @@ function lasting(ticks: number): string {
   return h % HOURS_PER_DAY ? plural(h, "hour") : plural(h / HOURS_PER_DAY, "day");
 }
 
+/**
+ * How a draft turns over: as picked for a season goal. The season's close
+ * turns no other, so an ephemeral one expires and a standing one carries.
+ */
+function turnOf(d: GoalDraft): Turn {
+  if (d.life === "s") return d.turn;
+  return d.life === "e" ? "x" : "c";
+}
+
 /** The spec a draft posts, at the board it is posted on. */
 export function specOf(d: GoalDraft, g: api.Goals, title: string, note: string): api.GoalSpec {
   const here = `settlement:${g.settlement}`;
   const mode = modeOf(d);
-  const life = { lifetime: LIVES[d.life], turnover: TURNS[d.turn] };
+  const life = { lifetime: LIVES[d.life], turnover: TURNS[turnOf(d)] };
   const ticks = d.life === "e" ? ticksOf(d, g) : undefined;
   if (d.verb === "vow")
     return {
@@ -314,13 +334,24 @@ function base(g: api.Goals, suffix: string, title: string): Omit<Card, "rows" | 
   return { context: PRIVATE, ...boardHead(g, suffix), title, colour: COLOUR.signal };
 }
 
-/** Goals as a select's options: the title, and what each asks. */
+/** A goal as a select's option: the title, and what it asks. */
+function goalOption(x: api.Goal) {
+  return option(x.title, x.id, capitalise(x.what));
+}
+
 function goalOptions(list: readonly api.Goal[]) {
-  return list.slice(0, SELECT_MOST).map((x) => ({
-    label: x.title.slice(0, 90),
-    value: x.id,
-    description: capitalise(x.what).slice(0, 90),
-  }));
+  return list.slice(0, SELECT_MOST).map(goalOption);
+}
+
+/** One page of the board's select: the goals the viewer can act on now first, then the newest. */
+function boardOptions(list: readonly api.Goal[], page: number) {
+  const idle = (x: api.Goal) => (x.takes.length || x.haul ? 0 : 1);
+  return paged(
+    [...list].sort((a, b) => idle(a) - idle(b)),
+    page,
+    goalOption,
+    "goals",
+  );
 }
 
 function liveField(g: api.Goals): EmbedField {
@@ -356,14 +387,14 @@ function outOfDays(n: number, of: number): string {
 
 const boardButton = (v: number) => btn("Board", "goals", "", v, { emoji: "↩" });
 
-/** Your own goals wherever they hang, so a busy board never hides one of them. */
+/** Your own goals wherever they hang, so a busy board never hides one, and the hauls you carry, handed in off the board they hang on. */
 function mineRow(g: api.Goals, v: number): Row[] {
   if (!g.mine.length) return [];
   return [
     {
       select: {
         customId: encodeId("goal", "mine", v),
-        placeholder: "Your goals, on any board",
+        placeholder: "Your goals and hauls, on any board",
         options: goalOptions(g.mine),
       },
     },
@@ -396,7 +427,7 @@ function awayCard(o: api.Options, g: api.Goals, lex: Lexicon, notice?: string): 
     title: notice ?? "The notice board stands in a settlement",
     picture: "form",
     description: g.mine.length
-      ? "Your goals hang on the boards you posted them at. Open one to watch it or take it down."
+      ? "Your goals hang on the boards you posted them at, and a haul you carry is handed in where it ends. Open one to watch it, hand it in or take it down."
       : "You have no goal up. Goals are read and posted at a settlement's notice board.",
     fields: [liveField(g), ...waitingField(g, lex)],
     footer:
@@ -406,7 +437,13 @@ function awayCard(o: api.Options, g: api.Goals, lex: Lexicon, notice?: string): 
 }
 
 /** The board: every live goal and proposal here, a select to open one, the drafts. */
-export function boardCard(o: api.Options, g: api.Goals, lex: Lexicon, notice?: string): Card {
+export function boardCard(
+  o: api.Options,
+  g: api.Goals,
+  lex: Lexicon,
+  notice?: string,
+  page = 0,
+): Card {
   const v = o.version;
   if (g.settlement < 0) return awayCard(o, g, lex, notice);
   const rows: Row[] = [];
@@ -415,7 +452,7 @@ export function boardCard(o: api.Options, g: api.Goals, lex: Lexicon, notice?: s
       select: {
         customId: encodeId("goal", "", v),
         placeholder: "Open a goal",
-        options: goalOptions(g.board),
+        options: boardOptions(g.board, page),
       },
     });
   if (g.drafts.length)
@@ -423,11 +460,7 @@ export function boardCard(o: api.Options, g: api.Goals, lex: Lexicon, notice?: s
       select: {
         customId: encodeId("g-drafts", "", v),
         placeholder: "Post a goal the board suggests",
-        options: g.drafts.map((d, i) => ({
-          label: d.spec.title.slice(0, 90),
-          value: String(i),
-          description: capitalise(d.why).slice(0, 90),
-        })),
+        options: g.drafts.map((d, i) => option(d.spec.title, String(i), capitalise(d.why))),
       },
     });
   if (g.met.length)
@@ -539,7 +572,7 @@ export function goalCard(
   // The ways out keep their places; what the goal offers fills the rest of the row.
   const out: Button[] = [boardButton(v)];
   if (x.canWithdraw) out.unshift(btn("Withdraw", "g-wd", x.id, v, { style: "danger" }));
-  const rows: Row[] = buttonRows([...acts.slice(0, 5 - out.length), ...out]);
+  const rows: Row[] = buttonRows([...acts.slice(0, ROW_MOST - out.length), ...out]);
   return {
     ...base(g, x.id, notice ?? x.title),
     description: [
@@ -573,7 +606,12 @@ export function goalFields(x: api.Goal, lex: Lexicon): EmbedField[] {
     { name: "Issued by", value: `${x.by} (${x.issuer})`, inline: true },
     { name: "Reward", value: rewardLine(x), inline: true },
     { name: "Progress", value: progressLine(x), inline: true },
-    { name: "Runs", value: `${x.mode}, ${x.lifetime}, then ${x.turnover}`, inline: true },
+    {
+      name: "Runs",
+      // Only a season goal turns over at the season's close.
+      value: `${x.mode}, ${x.lifetime}${x.lifetime === LIVES.s ? `, then ${x.turnover}` : ""}`,
+      inline: true,
+    },
     {
       name: "Time left",
       value: x.left ? amount(Number(hours(x.left)), "hours") : "until met or withdrawn",
@@ -593,7 +631,7 @@ export function goalFields(x: api.Goal, lex: Lexicon): EmbedField[] {
   ];
 }
 
-/** What a custom id holds besides a draft and the state version: the prefix, the longest form action and the separators. */
+/** The room a 100-character custom id leaves a draft and the state version, after the prefix, the longest form action and the separators. */
 const ID_ROOM = 100 - "mm|g-narrow||".length;
 
 const labelOf = (picks: readonly api.Pick[], value: string): string =>
@@ -651,8 +689,10 @@ export function goalForm(o: api.Options, g: api.Goals, d: GoalDraft): Card {
   type Choice = [label: string, over: Partial<GoalDraft>];
   const select = (action: Action, placeholder: string, choices: Choice[]): Row[] => {
     const options = choices
-      .map(([label, over]) => ({ label: label.slice(0, 90), value: set(over) }))
-      .filter((x): x is { label: string; value: string } => x.value !== null)
+      .flatMap(([label, over]) => {
+        const value = set(over);
+        return value === null ? [] : [option(label, value)];
+      })
       .slice(0, SELECT_MOST);
     return options.length
       ? [{ select: { customId: encodeId(action, id, v), placeholder, options } }]
@@ -678,28 +718,33 @@ export function goalForm(o: api.Options, g: api.Goals, d: GoalDraft): Card {
   // What a Hold reads and how long an ephemeral goal lasts cycle beside the
   // page buttons: both pages' rows are full of selects.
   const turns: Button[] = [];
-  const turn = (label: string, over: Partial<GoalDraft>) => {
-    const next = set(over);
-    if (next) turns.push(btn(label.slice(0, 80), "g-form", next, v));
+  /** A button named for the pick it shows, turning it to the next in its list; none when there is no other. */
+  const turnTo = <T>(
+    label: string,
+    list: readonly T[],
+    current: T,
+    over: (next: T) => Partial<GoalDraft>,
+  ) => {
+    const next = after(list, current);
+    const id = next === undefined || next === current ? null : set(over(next));
+    if (id) turns.push(btn(buttonLabel(label), "g-form", id, v));
   };
   if (d.page === "w" && d.verb === "hold") {
-    const gauge = after(
+    turnTo(
+      `Gauge: ${labelOf(g.gauges, gaugeOf(d, g))}`,
       g.gauges.map((x) => x.value),
       gaugeOf(d, g),
+      (narrow) => ({ narrow }),
     );
-    if (gauge && gauge !== gaugeOf(d, g))
-      turn(`Gauge: ${labelOf(g.gauges, gaugeOf(d, g))}`, { narrow: gauge });
-    const side = after(
+    turnTo(
+      `Side: ${labelOf(g.sides, sideOf(d))}`,
       g.sides.map((x) => x.value),
       sideOf(d),
+      (side) => ({ below: side === api.SideBelow }),
     );
-    if (side && side !== sideOf(d))
-      turn(`Side: ${labelOf(g.sides, sideOf(d))}`, { below: side === api.SideBelow });
   }
-  if (d.page === "t" && d.life === "e") {
-    const next = after(durations(g), ticksOf(d, g));
-    if (next && next !== ticksOf(d, g)) turn(`For: ${lasting(ticksOf(d, g))}`, { ticks: next });
-  }
+  if (d.page === "t" && d.life === "e")
+    turnTo(`For: ${lasting(ticksOf(d, g))}`, durations(g), ticksOf(d, g), (ticks) => ({ ticks }));
   const nav: Button[] = [
     ...turns,
     btn(
@@ -832,16 +877,17 @@ export function goalForm(o: api.Options, g: api.Goals, d: GoalDraft): Card {
         ]),
       );
     const next = nextIssuer(d.issuer, g);
+    const lasts = cycle(`Lasts: ${LIVES[d.life]}`, { life: cycleOf(LIVES, d.life) });
+    // Only a season goal turns over at the season's close.
+    const then =
+      d.life === "s" ? [cycle(`Then: ${TURNS[d.turn]}`, { turn: cycleOf(TURNS, d.turn) })] : [];
     rows.push({
       buttons: vow
-        ? [
-            cycle(`Lasts: ${LIVES[d.life]}`, { life: cycleOf(LIVES, d.life) }),
-            cycle(`Then: ${TURNS[d.turn]}`, { turn: cycleOf(TURNS, d.turn) }),
-          ]
+        ? [lasts, ...then]
         : [
             cycle(`Mode: ${MODES[mode]}`, { mode: cycleOf(MODES, d.mode) }, d.verb === "haul"),
-            cycle(`Lasts: ${LIVES[d.life]}`, { life: cycleOf(LIVES, d.life) }),
-            cycle(`Then: ${TURNS[d.turn]}`, { turn: cycleOf(TURNS, d.turn) }),
+            lasts,
+            ...then,
             cycle(`By: ${ISSUERS[d.issuer]}`, {
               issuer: next,
               members: next === "p" ? d.members : [],
@@ -919,8 +965,7 @@ function amountWord(d: GoalDraft): string {
 }
 
 function cycleOf<K extends string>(map: Record<K, string>, k: K): K {
-  const keys = Object.keys(map) as K[];
-  return keys[(keys.indexOf(k) + 1) % keys.length]!;
+  return after(Object.keys(map) as K[], k)!;
 }
 
 /** Who issues next: a party where someone stands to be named, a muster for an officer. */
@@ -931,7 +976,7 @@ function nextIssuer(i: Issuer, g: api.Goals): Issuer {
     "s",
     ...(g.officer ? ["a" as const] : []),
   ];
-  return order[(order.indexOf(i) + 1) % order.length]!;
+  return after(order, i)!;
 }
 
 /** The modal that names a goal: its title and an optional note. */

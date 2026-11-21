@@ -26,14 +26,14 @@ import (
 
 // structural: how much of each list a page shows.
 const (
-	topShown   = 3  // contributors on a goal
-	metShown   = 5  // met goals on a board
-	citedShown = 3  // facts spelt out per claim
-	nearShown  = 25 // characters offered to invite
+	topShown   = 3 // contributors on a goal
+	metShown   = 5 // met goals on a board
+	citedShown = 3 // facts spelt out per claim
 )
 
-// goals is /goals for a character: the board where it stands, the drafts
-// and its own goals; away from a settlement, its own goals alone.
+// goals is /goals for a character: the board where it stands, the drafts,
+// its own goals and the hauls it carries; away from a settlement, those
+// last two alone.
 func (s *Server) goals(w http.ResponseWriter, r *http.Request) {
 	var out api.Goals
 	var banner render.BannerInput
@@ -46,7 +46,7 @@ func (s *Server) goals(w http.ResponseWriter, r *http.Request) {
 			Targets: []api.Targets{}, At: apiHex(c.C.At), Traits: []api.Pick{}, Places: []api.Pick{}, Fields: []api.Pick{}, Vows: []api.Pick{},
 			Gauges: []api.HoldGauge{}, Sides: []api.Pick{},
 			Party: []api.Pick{}, PartyMost: gp("party-most"), Even: g.EvenShares(c), Waiting: []api.Waiting{}}
-		for _, x := range g.PostedBy(c) {
+		for _, x := range slices.Concat(g.PostedBy(c), g.Hauling(c)) {
 			out.Mine = append(out.Mine, apiGoal(g, x, c))
 		}
 		for _, w := range g.WaitingFor(c) {
@@ -58,9 +58,7 @@ func (s *Server) goals(w http.ResponseWriter, r *http.Request) {
 			return nil
 		}
 		out.Settlement = n
-		if gd, _ := g.RunsHere(c); gd != nil {
-			out.Officer = gd.G.IsOfficer(c.C.ID)
-		}
+		out.Officer = g.OfficerHere(c)
 		// A personal or party goal hangs on the board for its own alone.
 		for _, x := range g.Board(n) {
 			if x.May(c.C.ID) || x.Poster == c.C.ID {
@@ -93,8 +91,7 @@ func (s *Server) goals(w http.ResponseWriter, r *http.Request) {
 	reply(w, http.StatusOK, out)
 }
 
-// gaugeThreat is the gauge the bounty line the form starts a Hold on is
-// drawn on.
+// gaugeThreat is the gauge a Hold starts on in the form, at the bounty line.
 const gaugeThreat = "threat"
 
 // structural: a Hold's line is offered at each tenth of its gauge.
@@ -179,8 +176,9 @@ func apiGoal(g *game.Game, x *game.Goal, c *game.Char) api.Goal {
 		out.CanPledge, out.CanWithdraw = game.TakesPledges(x), g.CanWithdraw(x, c)
 		out.Yours = x.Progress.Get(c.C.ID)
 		if x.State == goal.Live {
-			for _, s := range c.C.Goods {
-				if n := min(s.Qty, x.Left(c.C.ID)); n > 0 && g.Takes(x, c, s.Material) {
+			carried := append([]api.Goods{{Material: ledger.Provisions, Units: c.C.Provisions}}, apiGoods(c.C.Goods)...)
+			for _, s := range carried {
+				if n := min(s.Units, x.Left(c.C.ID)); n > 0 && g.Takes(x, c, s.Material) {
 					out.Takes = append(out.Takes, api.Goods{Material: s.Material, Units: n})
 				}
 			}
@@ -222,28 +220,29 @@ func issuerName(g *game.Game, x *game.Goal) string {
 		return g.FactionName(fi)
 	case goal.BySettlement:
 		return g.PlaceName(g.SettlementHex(x.Board))
-	case goal.ByAdmin:
-		if gd := g.GuildOf(x.Issuer.ID); gd != nil {
-			return gd.G.Name
-		}
+	}
+	if gd := g.MusterGuild(x); gd != nil {
+		return gd.G.Name
 	}
 	return charName(g, x.Poster)
 }
 
-// condText says a condition in words: the verb, the amount and the
-// target.
+// condText says a condition in words: the verb, the amount with what it
+// counts, and the target.
 func condText(g *game.Game, c goal.Condition) string {
-	what := c.Kind
-	switch {
-	case c.Kind != "" && c.Verb == goal.Deliver, c.Kind != "" && c.Verb == goal.Haul:
-		what = g.MaterialName(c.Kind)
-	case c.Kind != "" && c.Verb == goal.Make:
-		what = g.KindName(c.Kind)
-	case c.Tag != "" && c.Kind == "":
-		what = "anything " + c.Tag
+	counted := func(unit string, what ...string) string {
+		text := fmt.Sprintf("%s %d %s", c.Verb, c.Count, unit)
+		if c.Count != 1 {
+			text += "s"
+		}
+		if what = slices.DeleteFunc(what, func(s string) bool { return s == "" }); len(what) > 0 {
+			text += ", " + strings.Join(what, " ")
+		}
+		return text
 	}
-	if c.Trait != "" {
-		what += " with " + c.Trait
+	tagged := ""
+	if c.Tag != "" {
+		tagged = "any " + c.Tag
 	}
 	switch c.Verb {
 	case goal.Hold:
@@ -254,23 +253,54 @@ func condText(g *game.Game, c goal.Condition) string {
 		if c.Below {
 			side = "below"
 		}
-		return fmt.Sprintf("hold %s %s %d for %d world days", c.Gauge, side, c.Line, c.Count)
-	case goal.Discover:
-		if c.Field != "" {
-			what = fmt.Sprintf("a tile with %s %d or more", c.Field, c.AtLeast)
-		}
-		if c.Within > 0 {
-			what += fmt.Sprintf(" within %d tiles", c.Within)
-		}
+		return fmt.Sprintf("hold %s %s %d pts for %d days", c.Gauge, side, c.Line, c.Count)
 	case goal.Carry:
 		return "carry " + charName(g, c.Who) + " home"
 	case goal.Reach:
 		return "reach " + placeRef(g, c.At)
+	case goal.Deliver, goal.Haul:
+		switch {
+		case c.Kind != "":
+			return fmt.Sprintf("%s %d %s", c.Verb, c.Count, cmp.Or(g.MaterialName(c.Kind), c.Kind))
+		case c.Tag != "":
+			return fmt.Sprintf("%s %d goods of %s", c.Verb, c.Count, c.Tag)
+		}
+		return fmt.Sprintf("%s %d goods", c.Verb, c.Count)
+	case goal.Make:
+		kind, trait := tagged, ""
+		if c.Kind != "" {
+			kind = g.KindName(c.Kind)
+		}
+		if c.Trait != "" {
+			trait = "with " + c.Trait
+		}
+		return counted("item", kind, trait)
+	case goal.Defeat:
+		if c.Kind != "" {
+			return counted("creature", cmp.Or(g.Rules().Name("creatures.archetypes:"+c.Kind), c.Kind))
+		}
+		return counted("creature", tagged)
+	case goal.Discover:
+		var with []string
+		if c.Kind != "" {
+			with = append(with, "a "+c.Kind)
+		}
+		if c.Tag != "" {
+			with = append(with, "a source of "+c.Tag)
+		}
+		if c.Field != "" {
+			with = append(with, fmt.Sprintf("%s of %d pts or more", c.Field, c.AtLeast))
+		}
+		text := counted("tile")
+		if len(with) > 0 {
+			text += " with " + strings.Join(with, " and ")
+		}
+		if c.Within > 0 {
+			text += fmt.Sprintf(" within %d tiles", c.Within)
+		}
+		return text
 	}
-	if what == "" {
-		what = "any"
-	}
-	return fmt.Sprintf("%s %d %s", c.Verb, c.Count, strings.TrimSpace(what))
+	return fmt.Sprintf("%s %d %s", c.Verb, c.Count, cmp.Or(c.Kind, tagged, "any"))
 }
 
 // placeRef names a settlement, region or tile ref.
@@ -356,9 +386,9 @@ func apiGuild(g *game.Game, c *game.Char) api.Guild {
 	out.Named, out.OfficersMax, out.Full, out.Officer = gg.Named(), gg.Officers(r.Guild), gg.Full(r.Guild), gg.IsOfficer(c.C.ID)
 	out.BankHere = g.BankHere(c)
 	if out.Officer {
-		out.Spend = max(0, r.Guild.OfficerSpend-gg.SpentToday(c.C.ID, g.World.Day))
+		out.Spend = gg.SpendRoom(c.C.ID, g.World.Day, r.Guild)
 		for _, o := range g.CharsAt(c.C.At) {
-			if gg.Member(o.C.ID) == nil && len(out.Near) < nearShown {
+			if gg.Member(o.C.ID) == nil && len(out.Near) < selectMost {
 				out.Near = append(out.Near, api.Pick{Value: o.C.ID, Label: charName(g, o.C.ID)})
 			}
 		}
@@ -399,19 +429,24 @@ func apiGuild(g *game.Game, c *game.Char) api.Guild {
 		out.Settlements = append(out.Settlements, v)
 	}
 	for _, row := range r.Book.GuildWorks {
-		w := api.GuildWork{ID: row.ID, Name: row.ID, Gives: row.Gives, By: row.By, Needs: row.Needs, Waits: row.Waits, Days: g.StockDays(gd, &row),
-			Spares: guild.SparesCoin(row.Gives), Uses: apiLines(row.Uses)}
+		var on *guild.Work
 		if runs == gd {
-			if on := gg.Work(row.ID, here.N); on != nil {
-				w.On, w.Ran, w.Used, w.Gave = true, on.Days, on.Used, on.Gave
-			}
+			on = gg.Work(row.ID, here.N)
+		}
+		w := api.GuildWork{ID: row.ID, Name: row.ID, Gives: row.Gives, By: row.By, Needs: row.Needs, Waits: row.Waits, Days: g.StockDays(gd, &row, on),
+			Spares: guild.SparesCoin(row.Gives), Uses: apiLines(g.WorkUses(&row, on))}
+		if on != nil {
+			w.On, w.Ran, w.Used, w.Gave = true, on.Days, on.Used, on.Gave
+		}
+		if runs == gd {
 			w.Can = out.Officer && (w.On || game.CanWork(here, &row))
 		}
 		out.Works = append(out.Works, w)
 	}
 	for _, a := range gg.Approvals {
+		material, _ := ledger.GoodsOf(a.Asset)
 		out.Approvals = append(out.Approvals, api.Approval{ID: a.ID, By: charName(g, a.By), To: charName(g, a.To),
-			What: fmt.Sprintf("%d %s", a.Units, a.Asset), Value: a.Value, Goods: a.Asset != ledger.Coin, Can: g.CanApprove(gd, c, a.ID)})
+			Material: material, Units: a.Units, Value: a.Value, Goods: a.Asset != ledger.Coin, Can: g.CanApprove(gd, c, a.ID)})
 	}
 	for _, v := range gg.Votes {
 		out.Votes = append(out.Votes, api.GuildVote{Target: charName(g, v.Target), Role: v.Role, For: int64(len(v.For)),
@@ -429,9 +464,9 @@ func apiSettlement(g *game.Game, p *game.Place, here bool) api.Settlement {
 		v := api.Structure{Kind: row.ID, Name: row.ID, MaxTier: settle.Cap(&row, r.Settle), Raising: g.Raising(p.N, row.ID)}
 		if st != nil {
 			v.Stands, v.Tier, v.Condition, v.Closed = true, st.Tier, st.Condition, st.Closed()
-			// A part first, the share a closed structure reopens at, then all of it.
+			// A part first, what reopening a closed structure buys, then all of it.
 			missing := r.Settle.ConditionMax - st.Condition
-			part := min(missing, r.Settle.ReopenShare/max(r.Settle.RepairShare, 1))
+			part := min(missing, settle.ReopenPoints(r.Settle))
 			for _, points := range slices.Compact([]int64{part, missing}) {
 				if points > 0 {
 					v.Repairs = append(v.Repairs, api.Repair{Points: points, Cost: apiLines(g.StructureRepair(p, row.ID, points))})
@@ -519,15 +554,14 @@ func apiCharter(c game.CharterView) api.Charter {
 // structural: a select holds at most this many options.
 const selectMost = 25
 
-// narrowings fills what the posting form may narrow a goal by, and whom a
-// party goal may name: the traits an item can carry, the regions a hold
-// could be posted on, a tile's generated fields, the slots a vow holds off
-// and the characters standing with the poster.
+// narrowings fills the picks the posting form narrows a goal by and whom a
+// party goal may name; api.Goals says what each is for.
 func narrowings(g *game.Game, c *game.Char, out *api.Goals) {
 	r := g.Rules()
 	for _, t := range r.Book.Traits[:min(len(r.Book.Traits), selectMost)] {
 		out.Traits = append(out.Traits, api.Pick{Value: t.ID, Label: cmp.Or(r.Name("items.traits:"+t.ID), t.ID)})
 	}
+	// A Defeat is narrowed to the regions a Hold may be posted on.
 	for _, t := range out.Targets {
 		if t.Verb == goal.Hold {
 			out.Places = slices.Clone(t.Options)
@@ -552,7 +586,8 @@ func narrowings(g *game.Game, c *game.Char, out *api.Goals) {
 // regions to hold.
 func goalTargets(g *game.Game, c *game.Char, n int) []api.Targets {
 	r := g.Rules()
-	var deliver, haul, find, defeat, reach, hold []api.Pick
+	var haul, find, defeat, reach, hold []api.Pick
+	deliver := []api.Pick{{Value: ledger.Provisions, Label: ledger.Provisions}}
 	tags := map[string]bool{}
 	for _, m := range r.Book.Materials {
 		deliver = append(deliver, api.Pick{Value: m.ID, Label: g.MaterialName(m.ID)})

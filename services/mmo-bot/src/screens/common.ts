@@ -1,7 +1,15 @@
-import type { Button, EmbedField } from "../../../../packages/discord-kit/src/index.ts";
+import {
+  type Button,
+  BUTTON_LABEL_MAX,
+  type EmbedField,
+  OPTIONS_MAX,
+  PER_ROW,
+  type Select,
+  SELECT_LABEL_MAX,
+} from "../../../../packages/discord-kit/src/index.ts";
 import type * as api from "../api.ts";
 import type { Picture } from "../card.ts";
-import { type Action, encodeId } from "../ids.ts";
+import { type Action, encodeId, target } from "../ids.ts";
 import { capitalise, type Lexicon } from "../lexicon.ts";
 import { amount, num, ticks } from "../units.ts";
 
@@ -51,8 +59,44 @@ export const DIRECTIONS = [
   { arrow: "↘", name: "SE" },
 ];
 
-/** A select holds this many options. */
-export const SELECT_MOST = 25;
+/** A select holds this many options, and a row this many buttons. */
+export const SELECT_MOST = OPTIONS_MAX;
+export const ROW_MOST = PER_ROW;
+
+/** A select's option, its label and description cut to what Discord takes. */
+export function option(label: string, value: string, description?: string): Select["options"][0] {
+  return {
+    label: label.slice(0, SELECT_LABEL_MAX),
+    value,
+    ...(description ? { description: description.slice(0, SELECT_LABEL_MAX) } : {}),
+  };
+}
+
+/**
+ * One page of a list too long for a select; its last option turns the page,
+ * with page:<n> as its value.
+ */
+export function paged<T>(
+  all: readonly T[],
+  page: number,
+  of: (x: T) => Select["options"][0],
+  what: string,
+): Select["options"] {
+  const per = SELECT_MOST - 1;
+  const from = page * per < all.length ? page * per : 0;
+  const out = all.slice(from, from + per).map(of);
+  if (all.length > per)
+    out.push({
+      label: from + per < all.length ? `More ${what}` : `Back to the first ${what}`,
+      value: target(":", "page", from + per < all.length ? from / per + 1 : 0),
+    });
+  return out;
+}
+
+/** A button's label cut to what Discord takes. */
+export function buttonLabel(label: string): string {
+  return label.slice(0, BUTTON_LABEL_MAX);
+}
 
 /** The default picture: the banner of a place; extra goes on the alt text. */
 export function banner(place: { banner: string; name: string }, extra = ""): Picture {

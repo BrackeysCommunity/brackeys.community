@@ -54,6 +54,12 @@ func here(g *game.Game, tr *trader) string {
 
 func lastGoal(g *game.Game) *game.Goal { return g.Goals[len(g.Goals)-1] }
 
+// away names a tile far from a character, where nobody in a test goes.
+func away(tr *trader) string {
+	at := tr.c.C.At
+	return goal.TileRef(hex.Hex{Q: at.Q + 40, R: at.R})
+}
+
 func post(tr *trader, s game.GoalSpec) *game.Goal {
 	tr.t.Helper()
 	tr.must(game.Command{Kind: game.PostGoal, Goal: &s})
@@ -339,11 +345,12 @@ func TestOldPale(t *testing.T) {
 	x := post(ts[0], game.GoalSpec{Title: "Old Pale", Issuer: goal.ByCharacter, Reward: 20, Mode: goal.First, Lifetime: goal.Standing,
 		Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Defeat, Kind: kinds[0], Count: 1}})
 	// The same creature asked for in its own region, and in another.
-	there := goal.RegionRef(world.RegionRef(g.World.RegionAt(site)))
+	home := g.World.RegionAt(site)
+	there, abroad := goal.RegionRef(world.RegionRef(home)), goal.RegionRef(world.RegionRef((home+1)%len(g.World.Regions)))
 	local := post(ts[0], game.GoalSpec{Title: "Old Pale, at home", Issuer: goal.ByCharacter, Mode: goal.First, Lifetime: goal.Standing,
 		Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Defeat, Kind: kinds[0], Count: 1, At: there}})
 	elsewhere := post(ts[0], game.GoalSpec{Title: "Old Pale, abroad", Issuer: goal.ByCharacter, Mode: goal.First, Lifetime: goal.Standing,
-		Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Defeat, Kind: kinds[0], Count: 1, At: there + "0"}})
+		Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Defeat, Kind: kinds[0], Count: 1, At: abroad}})
 	hunter.walk(site)
 	for range 40 {
 		if x.State == goal.Done {
@@ -405,6 +412,17 @@ func TestAVowKeptAndBroken(t *testing.T) {
 		t.Fatalf("keeper %s, breaker %s", keeper.Why, breaker.Why)
 	}
 	unchanged(t, ts[1], "a vow to hold off what is already in hand", game.Command{Kind: game.PostGoal, Goal: &vow})
+
+	// Withdrawing a vow already broken does not unsay it; one still kept is
+	// only withdrawn.
+	ts[1].c.C.Equipped = slices.DeleteFunc(ts[1].c.C.Equipped, func(e char.Equipped) bool { return e.Item == blade.ID })
+	second, plain := post(ts[1], vow), post(ts[0], vow)
+	ts[1].must(game.Command{Kind: game.Equip, Item: blade.ID, Slot: char.Hand})
+	ts[1].must(game.Command{Kind: game.WithdrawGoal, Target: second.ID})
+	ts[0].must(game.Command{Kind: game.WithdrawGoal, Target: plain.ID})
+	if second.Why != "broken" || ts[1].c.C.Goals.Get("vows-broken") != 2 || plain.Why != "withdrawn" || ts[0].c.C.Goals.Get("vows-broken") != 0 {
+		t.Fatalf("withdrawn: a broken vow ended %s (%d broken on its sheet), a kept one %s", second.Why, ts[1].c.C.Goals.Get("vows-broken"), plain.Why)
+	}
 }
 
 // TestScreenedWordsAndHide: a title from the word list is refused, and an

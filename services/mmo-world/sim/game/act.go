@@ -170,6 +170,7 @@ func (g *Game) Act(cmd Command) (Result, error) {
 			return Result{}, err
 		}
 	}
+	// A character this command made or moved into its server's guild is marked now.
 	g.admit(c, cmd)
 	if kinds := uses[cmd.Kind]; kinds != nil {
 		g.used(c.C.At, kinds...)

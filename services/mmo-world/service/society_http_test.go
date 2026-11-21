@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"fmt"
 	"io"
 	"net/url"
 	"slices"
@@ -191,5 +192,120 @@ func TestSocietyOverHTTP(t *testing.T) {
 	audit, err := r.op.Audit(ctx)
 	if err != nil || len(audit.Discrepancies) != 0 {
 		t.Fatalf("audit %+v: %v", audit, err)
+	}
+}
+
+// A haul hangs on the board where its stock starts and is handed in at its
+// end, away from that board: the page there still serves it to its hauler,
+// to deliver.
+func TestAHaulIsServedAtItsEnd(t *testing.T) {
+	ctx := t.Context()
+	r := start(t, io.Discard)
+	create := func(key, user string) api.Character {
+		rep, ref, err := r.cli.Act(ctx, api.ActionRequest{InteractionID: key, DiscordID: user, Kind: api.ActCreate, Option: api.StartHook, Server: "srv-1"})
+		if err != nil || ref != nil {
+			t.Fatal(ref, err)
+		}
+		return rep.Character
+	}
+	poster, hauler := create("c1", "poster"), create("c2", "hauler")
+	act := func(req api.ActionRequest) {
+		t.Helper()
+		o, err := r.cli.Options(ctx, req.CharacterID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Version = o.Version
+		if _, ref, err := r.cli.Act(ctx, req); err != nil || ref != nil {
+			t.Fatalf("%s: %+v %v", req.Kind, ref, err)
+		}
+	}
+	goals := func(c api.Character) api.Goals {
+		t.Helper()
+		return readSolo[api.Goals](t, r, api.PathGoals+"?characterId="+url.QueryEscape(c.ID), 200)
+	}
+	o, err := r.cli.Options(ctx, hauler.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(o.Moves, func(m api.Move) bool { return m.Open })
+	if i < 0 {
+		t.Fatal("no way out of the settlement")
+	}
+	out := o.Moves[i]
+	material := goals(poster).Targets[0].Options[1].Value
+	op(t, r, api.OperatorRequest{InteractionID: "stock", CharacterID: poster.ID, Kind: api.OpCorrect, Asset: "mat:" + material, Units: 20, Note: "test stock"})
+	for _, c := range []api.Character{poster, hauler} {
+		op(t, r, api.OperatorRequest{InteractionID: "purse-" + c.ID, CharacterID: c.ID, Kind: api.OpCorrect, Asset: "coin", Units: 5000, Note: "test purse"})
+	}
+	haul := api.GoalSpec{Title: "Stock up the road", Issuer: "character", Reward: 10, Mode: "first", Lifetime: "standing", Turnover: "carry",
+		Material: material, Units: 20, Cond: api.Condition{Verb: "haul", Count: 20, From: "settlement:0", At: fmt.Sprintf("tile:%d,%d", out.To.Q, out.To.R)}}
+	act(api.ActionRequest{InteractionID: "post", CharacterID: poster.ID, Kind: api.ActPostGoal, Goal: &haul})
+	id := goals(poster).Mine[0].ID
+	if gs := goals(hauler); len(gs.Mine) != 0 || len(gs.Board) != 1 || gs.Board[0].Haul != "take" {
+		t.Fatalf("a haul to take: %+v", gs)
+	}
+	act(api.ActionRequest{InteractionID: "take", CharacterID: hauler.ID, Kind: api.ActTakeHaul, Target: id})
+	act(api.ActionRequest{InteractionID: "walk", CharacterID: hauler.ID, Kind: api.ActStep, Dir: out.Dir})
+	if o, err = r.cli.Options(ctx, hauler.ID); err != nil {
+		t.Fatal(err)
+	}
+	advance(t, ctx, r, o.Tick+out.Ticks)
+	gs := goals(hauler)
+	if gs.Settlement >= 0 || len(gs.Mine) != 1 || gs.Mine[0].ID != id || gs.Mine[0].Haul != "deliver" || gs.Mine[0].Mine {
+		t.Fatalf("at a haul's end, off any board, its hauler is served %+v", gs.Mine)
+	}
+	act(api.ActionRequest{InteractionID: "hand-in", CharacterID: hauler.ID, Kind: api.ActDeliverGoal, Target: id})
+	if gs := goals(hauler); len(gs.Mine) != 0 {
+		t.Fatalf("a haul handed in is still served: %+v", gs.Mine)
+	}
+	audit, err := r.op.Audit(ctx)
+	if err != nil || len(audit.Discrepancies) != 0 {
+		t.Fatalf("audit %+v: %v", audit, err)
+	}
+}
+
+// What a goal asks is said with a unit on every number, as the cards that
+// print it must.
+func TestGoalsSayWhatTheirNumbersCount(t *testing.T) {
+	ctx := t.Context()
+	r := start(t, io.Discard)
+	rep, ref, err := r.cli.Act(ctx, api.ActionRequest{InteractionID: "c1", DiscordID: "poster", Kind: api.ActCreate, Option: api.StartHook, Server: "srv-1"})
+	if err != nil || ref != nil {
+		t.Fatal(ref, err)
+	}
+	c := rep.Character
+	gs := readSolo[api.Goals](t, r, api.PathGoals+"?characterId="+url.QueryEscape(c.ID), 200)
+	pick := func(verb string) api.Pick {
+		i := slices.IndexFunc(gs.Targets, func(x api.Targets) bool { return x.Verb == verb })
+		if i < 0 {
+			t.Fatalf("nothing to %s", verb)
+		}
+		return gs.Targets[i].Options[0]
+	}
+	slot, creature, field, trait := pick("make"), pick("defeat"), gs.Fields[0].Value, gs.Traits[0].Value
+	for i, tc := range []struct {
+		cond api.Condition
+		want string
+	}{
+		{api.Condition{Verb: "deliver", Tag: "stone", Count: 300, At: "settlement:0"}, "deliver 300 goods of stone"},
+		{api.Condition{Verb: "make", Tag: slot.Value, Trait: trait, Count: 3}, "make 3 items, any " + slot.Value + " with " + trait},
+		{api.Condition{Verb: "defeat", Kind: creature.Value, Count: 1}, "defeat 1 creature, " + creature.Label},
+		{api.Condition{Verb: "hold", Gauge: "scarcity", Line: 300, Count: 3, At: "region:r-0"}, "hold scarcity above 300 pts for 3 days"},
+		{api.Condition{Verb: "discover", Field: field, AtLeast: 70, Count: 1, Hex: &gs.At, Within: gs.Within},
+			fmt.Sprintf("discover 1 tile with %s of 70 pts or more within %d tiles", field, gs.Within)},
+	} {
+		o, err := r.cli.Options(ctx, c.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		spec := api.GoalSpec{Title: "Asked", Issuer: "character", Mode: "first", Lifetime: "standing", Turnover: "carry", Cond: tc.cond}
+		if _, ref, err := r.cli.Act(ctx, api.ActionRequest{InteractionID: fmt.Sprint("post-", i), CharacterID: c.ID, Version: o.Version, Kind: api.ActPostGoal, Goal: &spec}); err != nil || ref != nil {
+			t.Fatalf("%s: %+v %v", tc.want, ref, err)
+		}
+		mine := readSolo[api.Goals](t, r, api.PathGoals+"?characterId="+url.QueryEscape(c.ID), 200).Mine
+		if got := mine[len(mine)-1].What; got != tc.want {
+			t.Fatalf("a goal says %q, want %q", got, tc.want)
+		}
 	}
 }

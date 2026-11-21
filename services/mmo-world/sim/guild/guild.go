@@ -266,9 +266,17 @@ func (g *Guild) SpentToday(officer string, day int64) int64 {
 	return n
 }
 
+// SpendRoom is the value an officer may still move out today alone.
+func (g *Guild) SpendRoom(officer string, day int64, p Params) int64 {
+	if !g.IsOfficer(officer) {
+		return 0
+	}
+	return max(0, p.OfficerSpend-g.SpentToday(officer, day))
+}
+
 // MaySpend reports whether an officer may move value out today alone.
 func (g *Guild) MaySpend(officer string, day, value int64, p Params) bool {
-	return g.IsOfficer(officer) && g.SpentToday(officer, day)+value <= p.OfficerSpend
+	return g.IsOfficer(officer) && value <= g.SpendRoom(officer, day, p)
 }
 
 // Spent records a spend, dropping those older than a day.

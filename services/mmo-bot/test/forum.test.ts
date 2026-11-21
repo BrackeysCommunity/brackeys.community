@@ -178,7 +178,7 @@ test("the notice-board forum opens a post per goal, edits it as it moves and clo
   expect(calls).toEqual([
     "open Ashford · Iron for the wall",
     "edit post-1 15 of 40 done, 2 claims",
-    "reply post-1 Off the board: Iron for the wall",
+    "reply post-1 Off the board",
   ]);
 });
 
@@ -286,4 +286,42 @@ test("a goal an operator hid loses its words on its post and its thread", async 
   expect(said[0]).toStartWith("edit post-1 as Ashford · off the board");
   expect(said[1]).toStartWith("reply post-1");
   for (const line of said) expect(line).not.toContain("Iron for the wall");
+});
+
+test("a goal hidden after it left the board loses its words on its post then", async () => {
+  let board: api.Board = {
+    tick: 0,
+    every: 0,
+    posts: [{ settlement: 0, name: "Ashford", banner: "b", goal: goal() }],
+  };
+  const said: string[] = [];
+  const store = memoryStore();
+  const poster = new BoardPoster({ board: async () => board }, lex, store, {
+    open: async () => "post-1",
+    reply: async (post, card) => {
+      said.push(`reply ${post}: ${card.title} / ${card.description}`);
+      return true;
+    },
+    edit: async (post, card, title) => {
+      said.push(`edit ${post} as ${title}: ${card.title} / ${card.description}`);
+      return true;
+    },
+  });
+  await poster.poll();
+  // Withdrawn: the thread keeps its name and first card, and the reply says none of its words.
+  board = { tick: 1, every: 0, posts: [] };
+  expect(await poster.poll()).toBe(1);
+  expect(said).toHaveLength(1);
+  expect(said[0]).toStartWith("reply post-1");
+  expect(said[0]).not.toContain("Iron for the wall");
+  expect(await poster.poll()).toBe(0);
+  // Hidden a day later: the post is found again and scrubbed, once.
+  board = { tick: 2, every: 0, posts: [], hidden: ["q-1"] };
+  expect(await poster.poll()).toBe(1);
+  expect(said).toHaveLength(2);
+  expect(said[1]).toStartWith("edit post-1 as Ashford · off the board");
+  expect(said[1]).not.toContain("Iron for the wall");
+  expect(await poster.poll()).toBe(0);
+  expect(said).toHaveLength(2);
+  expect(await store.get("mmo-bot:board:closed:q-1")).toBeNull();
 });

@@ -149,6 +149,35 @@ func TestSocietySurvivesAReload(t *testing.T) {
 	}
 }
 
+// TestACommandSavesWhomItChanged pays a member out of the treasury and
+// audits before any tick is saved: the payee's stored purse is level with
+// the stored ledger.
+func TestACommandSavesWhomItChanged(t *testing.T) {
+	ctx := context.Background()
+	pool := pgtest.Pool(t)
+	st, g, _ := testkit.Founded(t, ctx, pool, rules(t), store.Meta{ID: "w-test", KeyVersion: 1, KeyCheck: "x", SheetsDigest: "s", TickSeconds: 600})
+	act := func(cmd game.Command) *game.Char {
+		t.Helper()
+		discord := ""
+		if cmd.Kind == game.Create {
+			discord = "user-" + cmd.Key
+		}
+		return testkit.Act(t, ctx, st, g, cmd, discord).Char
+	}
+	officer := act(game.Command{Key: "p-1", Kind: game.Create, Option: "hook", Server: "srv", Note: "The Reedwardens", Admin: true})
+	member := act(game.Command{Key: "p-2", Kind: game.Create, Option: "hook", Server: "srv"})
+	act(game.Command{Key: "p-3", Char: officer.C.ID, Kind: game.Correct, Asset: ledger.Coin, Units: 50, Note: "test purse"})
+	act(game.Command{Key: "p-4", Char: officer.C.ID, Kind: game.Deposit, Asset: ledger.Coin, Units: 50, Server: "srv", Admin: true})
+	before := member.C.Coin
+	act(game.Command{Key: "p-5", Char: officer.C.ID, Kind: game.Pay, Target: member.C.ID, Asset: ledger.Coin, Units: 20, Server: "srv", Admin: true})
+	if member.C.Coin != before+20 {
+		t.Fatalf("the member holds %d coin after a payment of 20 on %d", member.C.Coin, before)
+	}
+	if bad, err := st.Audit(ctx); err != nil || len(bad) > 0 {
+		t.Fatal(bad, err)
+	}
+}
+
 // founded is a fresh disposable world with one character in it.
 func founded(t *testing.T, ctx context.Context, pool *pgxpool.Pool, r *game.Rules) (*store.Store, *game.Game, *game.Char) {
 	t.Helper()

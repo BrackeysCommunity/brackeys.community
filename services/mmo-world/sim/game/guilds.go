@@ -133,10 +133,8 @@ func (g *Game) joinServer(c *Char, server, name string) error {
 
 // admit keeps a server guild's admins in step with Discord (GDD 4.8): a
 // command sent from the guild's own server marks its character an admin
-// there, an officer no vote removes, or unmarks one whose permission is
-// gone. A command from anywhere else says nothing about that server. The
-// mark governs the command that carries it, so it is set first; undo puts
-// it back if that command is refused.
+// there, or unmarks one whose permission is gone. The mark governs the
+// command that carries it; undo puts it back if that command is refused.
 func (g *Game) admit(c *Char, cmd Command) (undo func()) {
 	undo = func() {}
 	gd := g.GuildOf(c.C.Guild)
@@ -179,6 +177,28 @@ func (g *Game) officerOf(c *Char) (*Guild, error) {
 	return gd, nil
 }
 
+// officerHere is the guild a character is an officer of and the settlement
+// it stands in, which that guild must run; does says what is refused
+// anywhere else.
+func (g *Game) officerHere(c *Char, does string) (*Guild, *Place, error) {
+	gd, err := g.officerOf(c)
+	if err != nil {
+		return nil, nil, err
+	}
+	runs, p := g.RunsHere(c)
+	if runs != gd {
+		return nil, nil, refuse(NotHere, "%s %s at a settlement it runs", gd.G.Name, does)
+	}
+	return gd, p, nil
+}
+
+// OfficerHere reports whether a character is an officer of the guild
+// running the settlement it stands in.
+func (g *Game) OfficerHere(c *Char) bool {
+	gd, _ := g.RunsHere(c)
+	return gd != nil && gd.G.IsOfficer(c.C.ID)
+}
+
 // leaveGuild takes a character out of its guild; a server guild's members
 // leave too when they join another. A founded guild its last member
 // leaves is over.
@@ -198,11 +218,18 @@ func (g *Game) leaveGuild(c *Char, key string) error {
 	return g.disband(gd, key)
 }
 
-// disband ends a guild nobody is in: its settlements go back to their
-// keepers, its works stop, and what it holds goes to the treasury of the
-// first settlement it ran, or to fees if it ran none, so no pool nobody
-// can reach holds coin.
+// disband ends a guild nobody is in: its musters and raises end, its
+// settlements go back to their keepers, its works stop, and what it holds
+// goes to the treasury of the first settlement it ran, or to fees if it
+// ran none, so no pool nobody can reach holds coin.
 func (g *Game) disband(gd *Guild, key string) error {
+	for _, x := range g.Goals {
+		if x.Open() && g.MusterGuild(x) == gd {
+			if err := g.endGoal(x, "disbanded", key); err != nil {
+				return err
+			}
+		}
+	}
 	gd.G.Disband()
 	gd.Invited = nil
 	to := ""
@@ -448,8 +475,12 @@ func (g *Game) CanPayGoods(gd *Guild, c *Char, to string) bool {
 // BankHere reports whether a character stands where its guild's bank
 // takes and gives goods.
 func (g *Game) BankHere(c *Char) bool {
-	runs, _ := g.RunsHere(c)
-	return runs != nil && runs.G.ID == c.C.Guild
+	gd := g.GuildOf(c.C.Guild)
+	if gd == nil {
+		return false
+	}
+	_, err := g.bankAt(gd, c)
+	return err == nil
 }
 
 // deposit gives coin or goods to the guild: coin to the treasury, goods to
@@ -606,14 +637,14 @@ func (g *Game) draw(c *Char, cmd Command) error {
 	if _, err := g.bankAt(gd, c); err != nil {
 		return err
 	}
-	if g.Ledger.Of(gd.Pool(), asset) < cmd.Units {
-		return refuse(BadArgs, "the bank holds less than %d %s", cmd.Units, cmd.Asset)
-	}
+	held, share, paid := g.drawBounds(gd, c, asset)
 	value := g.worth(asset, cmd.Units)
-	if !gd.G.MayDraw(c.C.ID, value, g.r.Guild) {
+	switch {
+	case cmd.Units > held:
+		return refuse(BadArgs, "the bank holds less than %d %s", cmd.Units, cmd.Asset)
+	case cmd.Units > share:
 		return refuse(BadArgs, "%s may draw up to %d%% of what it has put in", c.C.ID, g.r.Guild.DrawShare)
-	}
-	if c.C.Coin < value {
+	case cmd.Units > paid:
 		return refuse(BadArgs, "drawing at cost takes %d coin", value)
 	}
 	t := ledger.Txn{Key: cmd.Key, Kind: "guild-draw", Tick: g.Tick(), Legs: append(ledger.Pair(gd.Pool(), ledger.Char(c.C.ID), asset, cmd.Units),
@@ -626,6 +657,27 @@ func (g *Game) draw(c *Char, cmd Command) error {
 	return err
 }
 
+// drawBounds are the most units of a bank's stock a member's draw is held
+// to, one for each refusal: what the bank holds, what its share still
+// allows at cost, and what its coin pays for. A bound that does not bind
+// is what the bank holds.
+func (g *Game) drawBounds(gd *Guild, c *Char, asset string) (held, share, paid int64) {
+	held = max(g.Ledger.Of(gd.Pool(), asset), 0)
+	share, paid = held, held
+	each := g.worth(asset, 1)
+	room, capped := gd.G.DrawRoom(c.C.ID, g.r.Guild)
+	switch {
+	case capped && room < 0:
+		share = 0
+	case capped && each > 0:
+		share = room / each
+	}
+	if each > 0 {
+		paid = c.C.Coin / each
+	}
+	return held, share, paid
+}
+
 // DrawMost is the most of a bank's stock a character may draw now: none
 // away from the bank, else what the bank holds, its coin pays for at cost
 // and its share allows.
@@ -633,17 +685,7 @@ func (g *Game) DrawMost(gd *Guild, c *Char, asset string) int64 {
 	if _, err := g.bankAt(gd, c); err != nil {
 		return 0
 	}
-	most, each := g.Ledger.Of(gd.Pool(), asset), g.worth(asset, 1)
-	room, capped := gd.G.DrawRoom(c.C.ID, g.r.Guild)
-	switch {
-	case capped && room < 0:
-		return 0
-	case each <= 0:
-		return max(most, 0)
-	case capped:
-		most = min(most, room/each)
-	}
-	return max(min(most, c.C.Coin/each), 0)
+	return max(min(g.drawBounds(gd, c, asset)), 0)
 }
 
 // CostEach is what a unit of a bank's stock is worth at cost: what drawing
@@ -655,16 +697,12 @@ func (g *Game) CostEach(asset string) int64 { return g.worth(asset, 1) }
 // stands in, which its guild must run. Switching off asks nothing of the
 // work's structure.
 func (g *Game) work(c *Char, cmd Command) error {
-	gd, err := g.officerOf(c)
+	gd, p, err := g.officerHere(c, "runs works")
 	if err != nil {
 		return err
 	}
-	runs, p := g.RunsHere(c)
 	row := g.r.works[cmd.Option]
-	switch {
-	case runs != gd:
-		return refuse(NotHere, "a work runs at a settlement %s runs", gd.G.Name)
-	case row == nil:
+	if row == nil {
 		return refuse(BadArgs, "no work %q", cmd.Option)
 	}
 	kind := "guild.work-off"
@@ -851,18 +889,27 @@ func (g *Game) guildHex(gd *Guild) hex.Hex {
 	return g.SettlementHex(0)
 }
 
-// stock feeds each work from the bank for the day, a Quartermaster's
-// works using less; a work the bank cannot feed, or whose structure has
-// shut, lapses, which is a fact.
+// WorkUses is what a work burns a day: its sheet's lines, less a
+// Quartermaster's share for a work that officer switched on. w is nil for
+// a work that is off.
+func (g *Game) WorkUses(row *sheets.GuildWork, w *guild.Work) []sheets.CostLine {
+	if w == nil {
+		return row.Uses
+	}
+	pct := int64(fixed.Hundredths)
+	if by := g.Char(w.By); by != nil {
+		pct = g.charScale(by, "works-stock", fixed.Hundredths)
+	}
+	return settle.Scaled(row.Uses, pct)
+}
+
+// stock feeds each work from the bank for the day; a work the bank cannot
+// feed, or whose structure has shut, lapses, which is a fact.
 func (g *Game) stock(gd *Guild, t int64) error {
 	var kept []guild.Work
 	for _, w := range gd.G.Works {
 		row := g.r.works[w.ID]
-		pct := int64(fixed.Hundredths)
-		if by := g.Char(w.By); by != nil {
-			pct = g.charScale(by, "works-stock", fixed.Hundredths)
-		}
-		lines := settle.Scaled(row.Uses, pct)
+		lines := g.WorkUses(row, &w)
 		legs, short, _ := g.takeLines(g.Ledger.Held(gd.Pool()), lines)
 		key := ledger.SubKey("work", gd.G.ID, w.ID, strconv.Itoa(w.Settlement), strconv.FormatInt(t/sheets.TicksPerDay, decimal))
 		if short != nil || !CanWork(g.Places[w.Settlement], row) {
@@ -944,10 +991,10 @@ func (g *Game) tagValue(tag string) int64 {
 }
 
 // StockDays is how many world days the guild's bank feeds a work, at its
-// daily use.
-func (g *Game) StockDays(gd *Guild, row *sheets.GuildWork) int64 {
+// daily use; w is nil for a work that is off.
+func (g *Game) StockDays(gd *Guild, row *sheets.GuildWork, w *guild.Work) int64 {
 	days := int64(-1)
-	for _, l := range row.Uses {
+	for _, l := range g.WorkUses(row, w) {
 		have := g.heldOfTag(g.Ledger.Held(gd.Pool()), l.Tag)
 		n := have / max(l.Quantity, 1)
 		if days < 0 || n < days {

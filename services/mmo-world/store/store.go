@@ -694,7 +694,9 @@ func (s *Store) snapshot(ctx context.Context, q *db.Queries, g *game.Game, diges
 // SaveAction writes one accepted command in one transaction: its record
 // (unique on the interaction id), the characters it changed, the world
 // row, and its facts and ledger. discord names the Discord user of a
-// created character.
+// created character. A command changes others than its own character,
+// whoever it paid, handed goods or carried: each is written with it, so no
+// stored character lags the stored ledger.
 func (s *Store) SaveAction(ctx context.Context, g *game.Game, cmd game.Command, c *game.Char, discord string, reply []byte, now time.Time) error {
 	facts, txns := g.Flush()
 	cmdJSON, err := json.Marshal(cmd)
@@ -710,6 +712,14 @@ func (s *Store) SaveAction(ctx context.Context, g *game.Game, cmd game.Command, 
 		}
 		if err := s.char(ctx, q, c, discord); err != nil {
 			return err
+		}
+		for _, o := range g.Chars {
+			if was, ok := s.vers[o.C.ID]; o == c || !ok || was == o.Version {
+				continue
+			}
+			if err := s.char(ctx, q, o, ""); err != nil {
+				return err
+			}
 		}
 		var err error
 		if d, err = s.world(ctx, q, g); err != nil {

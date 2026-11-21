@@ -42,6 +42,9 @@ const GOALS_SINCE = {
   ],
 };
 
+/** The recorded goal, with the fields served since it was recorded. */
+const GOAL: api.Goal = { ...samples.board.posts[0]!.goal, canPledge: false, canWithdraw: false };
+
 /** The recorded guild as an officer's at its bank, with a treasury, a stock to draw and a structure to raise. */
 const GUILD_SINCE = {
   bankHere: true,
@@ -58,7 +61,14 @@ const GUILD_SINCE = {
 };
 const RAISED = samples.guild.settlements[0]!.structures[0]!.kind;
 /** Writes the scripted run never recorded: each answers as any plain write does. */
-const UNRECORDED = new Set<string>([api.ActMarkPrey, api.ActDraw, api.ActPay, api.ActRaise]);
+const UNRECORDED = new Set<string>([
+  api.ActMarkPrey,
+  api.ActDraw,
+  api.ActPay,
+  api.ActRaise,
+  api.ActDeliverGoal,
+  api.ActJoin,
+]);
 
 function setup({
   player = "c-1",
@@ -66,6 +76,8 @@ function setup({
   offline = false,
   facts = [] as api.Fact[],
   purse = {} as Partial<api.Purse>,
+  goals = {} as Partial<api.Goals>,
+  guild = {} as Partial<api.Guild>,
 } = {}) {
   const writes: api.ActionRequest[] = [];
   const reads: string[] = [];
@@ -79,8 +91,8 @@ function setup({
     [api.PathRecap, samples.recap],
     [api.PathRecipes, samples.recipes],
     // The recorded pages predate a few served fields.
-    [api.PathGoals, { ...samples.goals, ...GOALS_SINCE }],
-    [api.PathGuild, { ...samples.guild, ...GUILD_SINCE }],
+    [api.PathGoals, { ...samples.goals, ...GOALS_SINCE, ...goals }],
+    [api.PathGuild, { ...samples.guild, ...GUILD_SINCE, ...guild }],
     [api.PathClasses, samples.classes],
   ]);
   const fetcher = Object.assign(
@@ -372,6 +384,75 @@ test("goal and guild presses send what their targets say, and malformed ones not
       server: "guild",
       asset: "coin",
       units: 10,
+    },
+  ]);
+});
+
+test("a haul is opened where it ends, off the board it hangs on, and handed in there", async () => {
+  const haul: api.Goal = {
+    ...GOAL,
+    id: "q-7",
+    title: "Wire up the road",
+    verb: "haul",
+    what: "haul 20 Copper wire",
+    from: "Gantry Market",
+    where: "the tile at 3,-2",
+    hauler: "c-1",
+    haul: "deliver",
+    reward: 10,
+    vow: false,
+  };
+  const { press, writes } = setup({ goals: { settlement: -1, board: [], mine: [haul] } });
+  const away = await press({ action: "goals", target: "", version: 4 });
+  expect(offered(away.card, "goal")).toEqual(["q-7"]);
+  const opened = await press({ action: "goal", target: "mine", version: 4 }, ["q-7"]);
+  const handIn = opened.card.rows
+    .flatMap((r) => ("buttons" in r ? r.buttons : []))
+    .find((b) => b.label === "Deliver the haul");
+  const id = handIn?.kind === "page" ? decodeId(handIn.customId) : null;
+  expect(id).toMatchObject({ action: "g-deliver", target: "q-7:haul:1" });
+  await press(id!);
+  expect(writes).toEqual([
+    {
+      interactionId: "event",
+      characterId: "c-1",
+      version: samples.options.version,
+      kind: api.ActDeliverGoal,
+      server: "guild",
+      target: "q-7",
+      units: 1,
+    },
+  ]);
+});
+
+test("the board's select turns its page without a write", async () => {
+  const board = Array.from({ length: 30 }, (_, i) => ({ ...GOAL, id: `q-${i + 1}` }));
+  const { press, writes } = setup({ goals: { board } });
+  const turned = await press({ action: "goal", target: "", version: 2 }, ["page:1"]);
+  expect(turned.card.author).toStartWith("Notice board");
+  expect(offered(turned.card, "goal")).toEqual([...board.slice(24).map((x) => x.id), "page:0"]);
+  expect(writes).toEqual([]);
+});
+
+test("a server guild's member accepts an invitation from its own guild's page", async () => {
+  const { press, writes } = setup({
+    guild: { server: true, invites: [{ value: "g-2", label: "The Free Company" }] },
+  });
+  const page = await press({ action: "guild", target: "members", version: 5 });
+  const join = page.card.rows
+    .flatMap((r) => ("buttons" in r ? r.buttons : []))
+    .find((b) => b.label === "Join The Free Company");
+  const id = join?.kind === "page" ? decodeId(join.customId) : null;
+  expect(id).toMatchObject({ action: "gld-join", target: "g-2" });
+  await press(id!);
+  expect(writes).toEqual([
+    {
+      interactionId: "event",
+      characterId: "c-1",
+      version: samples.options.version,
+      kind: api.ActJoin,
+      server: "guild",
+      target: "g-2",
     },
   ]);
 });

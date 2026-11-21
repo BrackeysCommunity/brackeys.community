@@ -55,6 +55,7 @@ func (g *Game) event(f fact.Fact) (goal.Event, bool) {
 		e.Tags = g.materialTags(e.Kind)
 	case "goal.hauled":
 		e.Verb, e.Goal, e.Kind, e.Units, e.From = goal.Haul, str("goal"), str("material"), num("units"), str("from")
+		e.Tags = g.materialTags(e.Kind)
 	case "goal.held":
 		e.Verb, e.Goal, e.Gauge, e.Value, e.Units = goal.Hold, str("goal"), str("gauge"), num("value"), num("day")
 	case "rescue.carried":
@@ -140,8 +141,11 @@ func (g *Game) itemOf(who, id string) *item.Instance {
 // 4.16). An officer of the running guild posts it, with an optional
 // reward per goal from the treasury.
 func (g *Game) raise(c *Char, cmd Command) error {
-	plan, err := g.planRaise(c, cmd.Slot, cmd.Price)
+	plan, err := g.planRaise(c, cmd.Slot)
 	if err != nil {
+		return err
+	}
+	if err := g.rewardRaise(c, plan, cmd.Price); err != nil {
 		return err
 	}
 	// The project is named for its first goal, so no two raises share one.
@@ -166,18 +170,15 @@ type raisePlan struct {
 	drafts     []*Goal
 }
 
-// planRaise drafts every line of a raise with a reward on each, or
-// refuses. It changes nothing, so a refusal posts none.
-func (g *Game) planRaise(c *Char, slot string, reward int64) (*raisePlan, error) {
-	gd, err := g.officerOf(c)
+// planRaise drafts every line of a raise, with no reward yet, or refuses.
+// It changes nothing, so a refusal posts none.
+func (g *Game) planRaise(c *Char, slot string) (*raisePlan, error) {
+	_, p, err := g.officerHere(c, "raises structures")
 	if err != nil {
 		return nil, err
 	}
-	runs, p := g.RunsHere(c)
 	row := g.r.structures[slot]
 	switch {
-	case runs != gd:
-		return nil, refuse(NotHere, "%s raises structures at a settlement it runs", gd.G.Name)
 	case row == nil:
 		return nil, refuse(BadArgs, "no structure %q", slot)
 	case g.raising(p.N, row.ID):
@@ -198,43 +199,55 @@ func (g *Game) planRaise(c *Char, slot string, reward int64) (*raisePlan, error)
 		name = row.ID
 	}
 	plan := &raisePlan{settlement: p.N, structure: row.ID, tier: tier}
-	var need int64
 	for _, l := range lines {
-		x, err := g.draft(c, GoalSpec{Title: name + ": " + l.Tag, Issuer: goal.ByAdmin, Reward: reward, Mode: goal.Pooled,
+		x, err := g.draft(c, GoalSpec{Title: name + ": " + l.Tag, Issuer: goal.ByAdmin, Mode: goal.Pooled,
 			Lifetime: goal.Season, Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Deliver, Tag: l.Tag, Count: l.Quantity, At: goal.SettlementRef(p.N)}})
 		if err != nil {
 			return nil, err
 		}
 		plan.drafts = append(plan.drafts, x)
+	}
+	return plan, nil
+}
+
+// rewardRaise puts a reward on each line of a planned raise, or refuses
+// one a line may not carry or the treasury and the officer's day do not
+// cover across them all. Only the plan's drafts change.
+func (g *Game) rewardRaise(c *Char, plan *raisePlan, reward int64) error {
+	var need int64
+	for _, x := range plan.drafts {
+		x.Reward = reward
+		if err := goal.Valid(x, g.Tick(), g.GoalLimits()); err != nil {
+			return refuse(BadArgs, "%v", err)
+		}
+		if err := g.quote(c, x); err != nil {
+			return err
+		}
 		need += x.Cost()
 	}
 	// Each line was quoted alone; together they must still be covered.
-	if g.Ledger.Of(TreasuryPool(p.N), ledger.Coin) < need {
-		return nil, refuse(BadArgs, "raising the %s takes %d coin from the treasury", row.ID, need)
+	if g.Ledger.Of(TreasuryPool(plan.settlement), ledger.Coin) < need {
+		return refuse(BadArgs, "raising the %s takes %d coin from the treasury", plan.structure, need)
 	}
-	if err := g.mayMuster(c, plan.drafts[0], need); err != nil {
-		return nil, err
-	}
-	return plan, nil
+	return g.mayMuster(c, plan.drafts[0], need)
 }
 
 // RaiseMost is the most coin an officer could put on each line of a
 // structure's raise now, the treasury and its day covering every line and
 // its listing fee; 0 when no reward fits.
 func (g *Game) RaiseMost(c *Char, slot string) int64 {
-	fits := func(reward int64) bool {
-		_, err := g.planRaise(c, slot, reward)
-		return err == nil
+	plan, err := g.planRaise(c, slot)
+	if err != nil {
+		return 0
 	}
+	fits := func(reward int64) bool { return g.rewardRaise(c, plan, reward) == nil }
 	least := g.gp("reward-least")
 	if !fits(least) {
 		return 0
 	}
-	// What fits is covered by the treasury where the officer stands; a
-	// reward costs no less as it grows, so the first that does not fit ends
-	// the search.
-	_, p := g.RunsHere(c)
-	room := g.Ledger.Of(TreasuryPool(p.N), ledger.Coin) - least
+	// A reward costs no less as it grows, so the first that does not fit
+	// ends the search.
+	room := g.Ledger.Of(TreasuryPool(plan.settlement), ledger.Coin) - least
 	return least + int64(sort.Search(int(room), func(over int) bool { return !fits(least + int64(over) + 1) }))
 }
 

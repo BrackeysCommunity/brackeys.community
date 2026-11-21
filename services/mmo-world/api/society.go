@@ -153,9 +153,9 @@ type Draft struct {
 }
 
 // Goals is /goals for a character: the board of the settlement it stands
-// in, drafts, its own goals wherever they hang and the rules a post is
-// checked against. Away from a settlement Settlement is -1 and only Mine
-// is filled.
+// in, drafts, its own goals and the hauls it carries wherever they hang,
+// and the rules a post is checked against. Away from a settlement
+// Settlement is -1 and only Mine is filled.
 type Goals struct {
 	Settlement  int      `json:"settlement"`
 	Name        string   `json:"name"`
@@ -366,11 +366,13 @@ type GuildWork struct {
 
 // Approval is a payment waiting for a second officer.
 type Approval struct {
-	ID    string `json:"id"`
-	By    string `json:"by"`
-	To    string `json:"to"`
-	What  string `json:"what"`
-	Value int64  `json:"value"`
+	ID string `json:"id"`
+	By string `json:"by"`
+	To string `json:"to"`
+	// Material and Units are what is paid; no Material is coin.
+	Material string `json:"material,omitempty"`
+	Units    int64  `json:"units"`
+	Value    int64  `json:"value"`
 	// Goods marks a payment out of the bank, approved where the bank is.
 	Goods bool `json:"goods"`
 	// Can: the viewer may approve it where it stands.

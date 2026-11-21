@@ -9,7 +9,17 @@ import { authorLine, type Card, COLOUR } from "../card.ts";
 import { encodeId, target } from "../ids.ts";
 import { capitalise, type Lexicon } from "../lexicon.ts";
 import { amount, num, plural } from "../units.ts";
-import { back, banner, btn, PRIVATE, SELECT_MOST } from "./common.ts";
+import {
+  back,
+  banner,
+  btn,
+  buttonLabel,
+  option,
+  paged,
+  PRIVATE,
+  ROW_MOST,
+  SELECT_MOST,
+} from "./common.ts";
 import { REWARDS } from "./goals.ts";
 
 /**
@@ -33,11 +43,69 @@ function unitOf(asset: string, lex: Lexicon): string {
   return asset === COIN ? COIN : lex.material(asset);
 }
 
-/** The amounts a bank select offers under the most, then the most itself. */
+/** The amounts a give, draw or pay select steps through. */
 const STEPS = [1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000];
 
+/** The steps under the most, then the most itself; none when there is nothing to move. */
 function ladder(most: number): number[] {
   return most > 0 ? [...STEPS.filter((n) => n < most), most] : [];
+}
+
+/** Something a give, draw or pay may move, and a line about how much of it there is. */
+interface Movable {
+  asset: string;
+  description: string;
+}
+
+/** The first pick of a move: what. */
+function whatSelect(
+  customId: string,
+  placeholder: string,
+  items: readonly Movable[],
+  lex: Lexicon,
+): Row {
+  return {
+    select: {
+      customId,
+      placeholder,
+      options: items
+        .slice(0, SELECT_MOST)
+        .map((x) => option(capitalise(unitOf(x.asset, lex)), x.asset, x.description)),
+    },
+  };
+}
+
+/** The second pick of a move: how much, up to the most, which mostLabel marks. */
+function amountSelect(
+  customId: string,
+  placeholder: string,
+  unit: string,
+  most: number,
+  mostLabel: string,
+  valueOf: (n: number) => string,
+  describe?: (n: number) => string,
+): Row {
+  return {
+    select: {
+      customId,
+      placeholder,
+      options: ladder(most).map((n) =>
+        option(`${n === most ? mostLabel : ""}${amount(n, unit)}`, valueOf(n), describe?.(n)),
+      ),
+    },
+  };
+}
+
+/** A waiting payment: how much of what, and to whom. */
+function payment(a: api.Approval, lex: Lexicon): string {
+  return `${amount(a.units, unitOf(a.material ?? COIN, lex))} to ${a.to}`;
+}
+
+/** The guilds that invited the viewer, a button each. */
+function joinButtons(g: api.Guild, v: number, most: number): Button[] {
+  return g.invites
+    .slice(0, most)
+    .map((p) => btn(buttonLabel(`Join ${p.label}`), "gld-join", p.value, v, { style: "success" }));
 }
 
 function base(g: api.Guild, suffix: string, title: string): Omit<Card, "rows" | "footer"> {
@@ -125,11 +193,17 @@ export function guildCard(
         { style: "success" },
       ),
     );
+  // A server's guild is left by joining or founding another: the world does both at once.
+  if (g.server)
+    acts.push(
+      ...joinButtons(g, v, 2),
+      btn("Found a guild", "gld-name", "", v, { style: "primary" }),
+    );
   acts.push(btn("Leave", "gld-leave", "", v, { style: "danger" }));
-  rows.push(...buttonRows(acts.slice(0, 5)));
+  rows.push(...buttonRows(acts.slice(0, ROW_MOST)));
   for (const a of g.approvals.filter((x) => x.can).slice(0, 1))
     rows.push({
-      buttons: [btn(`Approve: ${a.what} to ${a.to}`.slice(0, 80), "gld-appr", a.id, v)],
+      buttons: [btn(buttonLabel(`Approve: ${payment(a, lex)}`), "gld-appr", a.id, v)],
     });
   rows.push({
     select: {
@@ -143,9 +217,7 @@ export function guildCard(
       select: {
         customId: encodeId("gld-invite", "", v),
         placeholder: "Invite someone standing here",
-        options: g.near
-          .slice(0, SELECT_MOST)
-          .map((p) => ({ label: p.label.slice(0, 90), value: p.value })),
+        options: g.near.slice(0, SELECT_MOST).map((p) => option(p.label, p.value)),
       },
     });
   rows.push({ buttons: [...tabs(g, "members", v), back(v)] });
@@ -179,6 +251,21 @@ export function guildCard(
       },
       ...(g.officer
         ? [{ name: "You may pay today", value: amount(g.spend, "coin"), inline: true }]
+        : []),
+      ...(g.approvals.length
+        ? [
+            {
+              name: "Waiting for a second officer",
+              value: g.approvals
+                .slice(0, 5)
+                .map(
+                  (a) =>
+                    `${payment(a, lex)}, asked by ${a.by}${a.goods ? `: worth ${amount(a.value, "coin")}, approved at the bank` : ""}`,
+                )
+                .join("\n"),
+              inline: false,
+            },
+          ]
         : []),
       ...(g.votes.length
         ? [
@@ -227,67 +314,60 @@ export function bankCard(
           ...o.purse.goods.map((x) => ({ asset: x.material, units: x.units })),
         ]
       : []),
-  ].filter((x) => x.units > 0);
+  ]
+    .filter((x) => x.units > 0)
+    .map((x) => ({ ...x, description: `You carry ${amount(x.units, unitOf(x.asset, lex))}` }));
   const drawable = g.bankHere ? g.bank.filter((b) => b.draw > 0) : [];
   const giving = pick?.act === "give" ? carried.find((x) => x.asset === pick.asset) : undefined;
   const drawing =
     pick?.act === "draw" ? drawable.find((b) => b.material === pick.asset) : undefined;
   const rows: Row[] = [];
   if (carried.length)
-    rows.push({
-      select: {
-        customId: encodeId("gld-give", "", v),
-        placeholder: giving
-          ? `Giving: ${unitOf(giving.asset, lex)}`
-          : "Give to the guild: pick what",
-        options: carried.slice(0, SELECT_MOST).map((x) => ({
-          label: capitalise(unitOf(x.asset, lex)).slice(0, 90),
-          value: x.asset,
-          description: `You carry ${amount(x.units, unitOf(x.asset, lex))}`.slice(0, 90),
-        })),
-      },
-    });
+    rows.push(
+      whatSelect(
+        encodeId("gld-give", "", v),
+        giving ? `Giving: ${unitOf(giving.asset, lex)}` : "Give to the guild: pick what",
+        carried,
+        lex,
+      ),
+    );
   if (drawable.length)
-    rows.push({
-      select: {
-        customId: encodeId("gld-take", "", v),
-        placeholder: drawing
+    rows.push(
+      whatSelect(
+        encodeId("gld-take", "", v),
+        drawing
           ? `Drawing: ${lex.material(drawing.material)}`
           : "Draw from the bank at cost: pick what",
-        options: drawable.slice(0, SELECT_MOST).map((b) => ({
-          label: capitalise(lex.material(b.material)).slice(0, 90),
-          value: b.material,
-          description:
-            `Up to ${amount(b.draw, lex.material(b.material))}, at ${amount(b.value, "coin")} each`.slice(
-              0,
-              90,
-            ),
+        drawable.map((b) => ({
+          asset: b.material,
+          description: `Up to ${amount(b.draw, lex.material(b.material))}, at ${amount(b.value, "coin")} each`,
         })),
-      },
-    });
+        lex,
+      ),
+    );
   if (giving)
-    rows.push({
-      select: {
-        customId: encodeId("gld-dep", "", v),
-        placeholder: `How much ${unitOf(giving.asset, lex)} to give`,
-        options: ladder(giving.units).map((n) => ({
-          label: `${n === giving.units ? "All: " : ""}${amount(n, unitOf(giving.asset, lex))}`,
-          value: target(":", giving.asset, n),
-        })),
-      },
-    });
+    rows.push(
+      amountSelect(
+        encodeId("gld-dep", "", v),
+        `How much ${unitOf(giving.asset, lex)} to give`,
+        unitOf(giving.asset, lex),
+        giving.units,
+        "All: ",
+        (n) => target(":", giving.asset, n),
+      ),
+    );
   if (drawing)
-    rows.push({
-      select: {
-        customId: encodeId("gld-draw", "", v),
-        placeholder: `How much ${lex.material(drawing.material)} to draw`,
-        options: ladder(drawing.draw).map((n) => ({
-          label: `${n === drawing.draw ? "The most you may: " : ""}${amount(n, lex.material(drawing.material))}`,
-          value: target(":", drawing.material, n),
-          description: `Costs ${amount(n * drawing.value, "coin")}`,
-        })),
-      },
-    });
+    rows.push(
+      amountSelect(
+        encodeId("gld-draw", "", v),
+        `How much ${lex.material(drawing.material)} to draw`,
+        lex.material(drawing.material),
+        drawing.draw,
+        "The most you may: ",
+        (n) => target(":", drawing.material, n),
+        (n) => `Costs ${amount(n * drawing.value, "coin")}`,
+      ),
+    );
   rows.push({ buttons: [...tabs(g, "bank", v), back(v)] });
   return {
     ...base(g, "Bank", notice ?? `The bank of ${g.name}`),
@@ -329,22 +409,15 @@ function role(m: api.GuildMember): string {
   return m.leader ? "leader" : m.admin ? "admin" : m.officer ? "officer" : "member";
 }
 
-/** The members a page of the select offers, its last option turning the page: those a vote can stand against first, then by rank. */
-function memberOptions(g: api.Guild, page: number): { label: string; value: string }[] {
+/** One page of the member select: office holders first, then by rank; its last option turns the page. */
+function memberOptions(g: api.Guild, page: number) {
   const held = (m: api.GuildMember) => (m.leader || m.officer || m.admin ? 0 : 1);
-  const all = [...g.members].sort((a, b) => held(a) - held(b));
-  const per = SELECT_MOST - 1;
-  const from = page * per < all.length ? page * per : 0;
-  const out = all.slice(from, from + per).map((m) => ({
-    label: `${m.name} (${role(m)})`.slice(0, 90),
-    value: m.id,
-  }));
-  if (all.length > per)
-    out.push({
-      label: from + per < all.length ? "More members" : "Back to the first members",
-      value: target(":", "page", from + per < all.length ? from / per + 1 : 0),
-    });
-  return out;
+  return paged(
+    [...g.members].sort((a, b) => held(a) - held(b)),
+    page,
+    (m) => option(`${m.name} (${role(m)})`, m.id),
+    "members",
+  );
 }
 
 /** One member: what the viewer may do about them. An officer sets the bank's rule, names and pays; anyone votes. */
@@ -360,7 +433,7 @@ export function memberCard(
   const m = g.members.find((x) => x.id === id);
   const acts: Button[] = [];
   const act = (label: string, ...parts: (string | number)[]) =>
-    acts.push(btn(label.slice(0, 80), "gld-act", target(":", ...parts), v));
+    acts.push(btn(buttonLabel(label), "gld-act", target(":", ...parts), v));
   if (m && g.officer) {
     if (!m.officer && !m.leader && !m.admin)
       act(
@@ -376,43 +449,48 @@ export function memberCard(
   const payable =
     m && g.officer
       ? [
-          { asset: COIN, units: g.treasury, value: 1 },
-          ...(m.payGoods ? g.bank.map((b) => ({ ...b, asset: b.material })) : []),
+          {
+            asset: COIN,
+            units: g.treasury,
+            value: 1,
+            description: `The treasury holds ${amount(g.treasury, "coin")}`,
+          },
+          ...(m.payGoods
+            ? g.bank.map((b) => ({
+                asset: b.material,
+                units: b.units,
+                value: b.value,
+                description: `The bank holds ${amount(b.units, lex.material(b.material))}, worth ${amount(b.value, "coin")} each`,
+              }))
+            : []),
         ].filter((x) => x.units > 0)
       : [];
   const paying = payable.find((x) => x.asset === pay);
   const rows: Row[] = [];
   if (m && payable.length)
-    rows.push({
-      select: {
-        customId: encodeId("gld-pay", m.id, v),
-        placeholder: paying
-          ? `Paying: ${unitOf(paying.asset, lex)}`
-          : "Pay from the guild: pick what",
-        options: payable.slice(0, SELECT_MOST).map((x) => ({
-          label: capitalise(unitOf(x.asset, lex)).slice(0, 90),
-          value: x.asset,
-          description: (x.asset === COIN
-            ? `The treasury holds ${amount(x.units, "coin")}`
-            : `The bank holds ${amount(x.units, lex.material(x.asset))}, worth ${amount(x.value, "coin")} each`
-          ).slice(0, 90),
-        })),
-      },
-    });
+    rows.push(
+      whatSelect(
+        encodeId("gld-pay", m.id, v),
+        paying ? `Paying: ${unitOf(paying.asset, lex)}` : "Pay from the guild: pick what",
+        payable,
+        lex,
+      ),
+    );
   if (m && paying)
-    rows.push({
-      select: {
-        customId: encodeId("gld-act", target(":", "pay", m.id, paying.asset), v),
-        placeholder: `How much ${unitOf(paying.asset, lex)} to pay ${m.name}`.slice(0, 100),
-        options: ladder(paying.units).map((n) => ({
-          label: `${n === paying.units ? "All: " : ""}${amount(n, unitOf(paying.asset, lex))}`,
-          value: String(n),
-          description: `${paying.asset === COIN ? "" : `Worth ${amount(n * paying.value, "coin")}. `}${
+    rows.push(
+      amountSelect(
+        encodeId("gld-act", target(":", "pay", m.id, paying.asset), v),
+        `How much ${unitOf(paying.asset, lex)} to pay ${m.name}`.slice(0, 100),
+        unitOf(paying.asset, lex),
+        paying.units,
+        "All: ",
+        String,
+        (n) =>
+          `${paying.asset === COIN ? "" : `Worth ${amount(n * paying.value, "coin")}. `}${
             n * paying.value > g.spend ? "Waits for a second officer" : "Paid at once"
           }`,
-        })),
-      },
-    });
+      ),
+    );
   rows.push(...buttonRows([...acts, btn("Guild", "guild", "members", v, { emoji: "↩" })]));
   return {
     ...base(g, "A member", notice ?? m?.name ?? "No such member"),
@@ -470,10 +548,11 @@ export function leaveCard(o: api.Options, g: api.Guild): Card {
 
 function noGuildCard(o: api.Options, g: api.Guild, notice?: string): Card {
   const v = o.version;
-  const buttons: Button[] = [btn("Found a guild", "gld-name", "", v, { style: "primary" })];
-  for (const p of g.invites.slice(0, 3))
-    buttons.push(btn(`Join ${p.label}`.slice(0, 80), "gld-join", p.value, v, { style: "success" }));
-  buttons.push(back(v));
+  const buttons: Button[] = [
+    btn("Found a guild", "gld-name", "", v, { style: "primary" }),
+    ...joinButtons(g, v, 3),
+    back(v),
+  ];
   return {
     context: PRIVATE,
     author: authorLine("Guild", "No guild"),
@@ -513,11 +592,7 @@ export function placesCard(
             ? `Raising: ${rise(raising)}`
             : "Raise a structure: pick which"
           ).slice(0, 100),
-          options: raisable.slice(0, SELECT_MOST).map((s) => ({
-            label: rise(s).slice(0, 90),
-            value: s.kind,
-            description: cost(s.next).slice(0, 90),
-          })),
+          options: raisable.slice(0, SELECT_MOST).map((s) => option(rise(s), s.kind, cost(s.next))),
         },
       });
     if (raising) {
@@ -545,15 +620,15 @@ export function placesCard(
         select: {
           customId: encodeId("gld-mend", "", v),
           placeholder: "Repair a structure with what you carry",
-          options: steps.slice(0, SELECT_MOST).map(({ s, r }) => ({
-            label:
-              `${lex.name("settlements.structures", s.kind)}: ${s.closed ? "reopen at" : "up to"} ${num(Math.min(here.conditionMax, s.condition + r.points))} pts`.slice(
-                0,
-                90,
+          options: steps
+            .slice(0, SELECT_MOST)
+            .map(({ s, r }) =>
+              option(
+                `${lex.name("settlements.structures", s.kind)}: ${s.closed ? "reopen at" : "up to"} ${num(Math.min(here.conditionMax, s.condition + r.points))} pts`,
+                target(":", s.kind, r.points),
+                `Takes ${cost(r.cost)}`,
               ),
-            value: target(":", s.kind, r.points),
-            description: `Takes ${cost(r.cost)}`.slice(0, 90),
-          })),
+            ),
         },
       });
   }
@@ -622,7 +697,7 @@ function worksCard(o: api.Options, g: api.Guild, lex: Lexicon, notice?: string):
     .filter((w) => w.can)
     .map((w) =>
       btn(
-        `${w.on ? "Stop" : "Start"}: ${lex.name("settlements.guild-works", w.id)}`.slice(0, 80),
+        buttonLabel(`${w.on ? "Stop" : "Start"}: ${lex.name("settlements.guild-works", w.id)}`),
         "gld-work",
         target(":", w.id, w.on ? 0 : 1),
         v,
@@ -657,7 +732,10 @@ function worksCard(o: api.Options, g: api.Guild, lex: Lexicon, notice?: string):
       ]),
     },
     footer: "Officers switch works on at a settlement the guild runs.",
-    rows: [...buttonRows(toggles.slice(0, 5)), { buttons: [...tabs(g, "works", v), back(v)] }],
+    rows: [
+      ...buttonRows(toggles.slice(0, ROW_MOST)),
+      { buttons: [...tabs(g, "works", v), back(v)] },
+    ],
   };
 }
 

@@ -164,7 +164,7 @@ func (g *Game) charterOf(c *Char) (charterPlan, error) {
 	}
 	h := c.C.At
 	if p := g.PlaceAt(h); p != nil {
-		if p.Lattice < 0 || p.Guild != "" {
+		if p.Guild != "" {
 			return plan, refuse(NotHere, "a guild already runs this settlement")
 		}
 		plan.take = p
@@ -388,7 +388,13 @@ func (g *Game) mend(c *Char, cmd Command) error {
 	if st == nil || row == nil {
 		return refuse(BadArgs, "no %q stands here", cmd.Slot)
 	}
-	points := min(g.r.Settle.ConditionMax-st.Condition, max(cmd.Units, 1))
+	missing := g.r.Settle.ConditionMax - st.Condition
+	points := min(missing, max(cmd.Units, 1))
+	if st.Closed() {
+		// A closed structure is charged its reopening whatever is asked, so
+		// it gets what that buys.
+		points = min(missing, max(points, settle.ReopenPoints(g.r.Settle)))
+	}
 	if points <= 0 {
 		return refuse(BadArgs, "the %s needs no repair", cmd.Slot)
 	}

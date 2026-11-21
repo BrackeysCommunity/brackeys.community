@@ -170,6 +170,10 @@ func Repair(row *sheets.Structure, st Structure, points int64, p Params) []sheet
 	return Scaled(Worth(row, st.Tier), share)
 }
 
+// ReopenPoints is the condition the least repair of a closed structure
+// restores: what ReopenShare buys at RepairShare a point.
+func ReopenPoints(p Params) int64 { return p.ReopenShare / max(p.RepairShare, 1) }
+
 // Mend restores a structure's condition by points, to its maximum.
 func (s *Settlement) Mend(kind string, points int64, p Params) {
 	if st := s.Get(kind); st != nil {

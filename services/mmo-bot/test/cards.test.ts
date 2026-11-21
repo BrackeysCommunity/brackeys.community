@@ -173,6 +173,19 @@ const raisable = (rewardMost: number): api.Guild => ({
 });
 /** The recorded goal as each kind of goal the card words differently. */
 const goalAs = (over: Partial<api.Goal>): api.Goal => ({ ...posted.goal, ...over });
+/** Goals as the world words them when they count something, a unit on every number. */
+const counted = [
+  goalAs({ id: "q-11", verb: "deliver", what: "deliver 300 goods of stone", count: 300 }),
+  goalAs({ id: "q-12", verb: "make", what: "make 3 items, any blade with keen", count: 3 }),
+  goalAs({ id: "q-13", verb: "defeat", what: "defeat 5 creatures, any pack", count: 5 }),
+  goalAs({ id: "q-14", verb: "hold", what: "hold scarcity above 300 pts for 3 days", count: 3 }),
+  goalAs({
+    id: "q-15",
+    verb: "discover",
+    what: "discover 1 tile with ore of 70 pts or more within 12 tiles",
+    count: 1,
+  }),
+];
 const down: api.Options = { ...((w["options:down"] ?? o) as api.Options) };
 
 const cards: [string, () => Card][] = [
@@ -395,6 +408,36 @@ const cards: [string, () => Card][] = [
             },
           ],
         },
+        lex,
+      ),
+  ],
+  ["notice board, goals that count", () => boardCard(o, { ...goals, board: counted }, lex)],
+  ...counted.map((x): [string, () => Card] => [
+    `goal, ${x.what}`,
+    () => goalCard(o, goals, x, lex),
+  ]),
+  [
+    "notice board, more goals than a select holds",
+    () =>
+      boardCard(
+        o,
+        { ...goals, board: Array.from({ length: 30 }, (_, i) => goalAs({ id: `q-${i + 20}` })) },
+        lex,
+        undefined,
+        1,
+      ),
+  ],
+  [
+    "goal, taking provisions",
+    () =>
+      goalCard(
+        o,
+        goals,
+        goalAs({
+          what: "deliver 30 provisions",
+          count: 30,
+          takes: [{ material: "provisions", units: 5 }],
+        }),
         lex,
       ),
   ],
@@ -628,11 +671,30 @@ const cards: [string, () => Card][] = [
           treasury: 900,
           near: [{ value: "c-9", label: "c-9" }],
           approvals: [
-            { id: "a-1", by: "c-2", to: "c-3", what: "coin", value: 400, goods: false, can: true },
+            { id: "a-1", by: "c-2", to: "c-3", units: 400, value: 400, goods: false, can: true },
+            {
+              id: "a-2",
+              by: "c-1",
+              to: "c-3",
+              material: "cinder-ore",
+              units: 30,
+              value: 660,
+              goods: true,
+              can: false,
+            },
           ],
           votes: [{ target: "c-2", role: "officer", for: 2, need: 3 }],
           charter: { ...guild.charter, can: true, take: true },
         },
+        lex,
+      ),
+  ],
+  [
+    "guild members, a server guild's member invited elsewhere",
+    () =>
+      guildCard(
+        o,
+        { ...guild, server: true, invites: [{ value: "g-2", label: "The Free Company" }] },
         lex,
       ),
   ],
@@ -1144,7 +1206,8 @@ test("goods go into and out of the bank only where it stands; coin from anywhere
         id: "a-1",
         by: "c-2",
         to: "c-3",
-        what: "30 mat:cinder-ore",
+        material: "cinder-ore",
+        units: 30,
         value: 600,
         goods: true,
         can: bankHere,
@@ -1341,9 +1404,17 @@ test("a Stalker with Mark prey is offered the creature tags, and nobody else is"
         : [],
     );
   expect(select(classes)).toEqual([]);
-  expect(select({ ...classes, prey: { tags: ["pack", "wired"], today: "pack" } })).toEqual([
-    ["wired"],
+  expect(select({ ...classes, prey: { tags: ["pack", "wired"], today: "" } })).toEqual([
+    ["pack", "wired"],
   ]);
+  // One mark a day: once named, nothing more is offered and the card says what stands.
+  const marked: api.Classes = { ...classes, prey: { tags: ["pack", "wired"], today: "pack" } };
+  expect(select(marked)).toEqual([]);
+  expect(
+    classesCard(o, marked)
+      .fields?.map((f) => f.value)
+      .join(" "),
+  ).toContain("Pack");
 });
 
 test("the appraisal tells a Master's eye whether the kind is registered, and nobody else", () => {
@@ -1557,6 +1628,55 @@ test("leaving is asked twice, and the last member of a founded guild is told it 
   // A server's own guild outlives its last member.
   const server = leaveCard(o, { ...guild, server: true, members: guild.members.slice(0, 1) });
   expect(server.description).not.toContain("ends when you go");
+});
+
+test("the board's select pages past what a select holds, goals to act on now first", () => {
+  const board = Array.from({ length: 30 }, (_, i) =>
+    goalAs({ id: `q-${i + 1}`, takes: i === 28 ? [{ material: "cinder-ore", units: 2 }] : [] }),
+  );
+  const offered = (page: number) =>
+    boardCard(o, { ...goals, board }, lex, undefined, page)
+      .rows.flatMap((r) =>
+        "select" in r && decodeId(r.select.customId)?.action === "goal" ? [r.select.options] : [],
+      )[0]!
+      .map((x) => x.value);
+  const first = offered(0);
+  expect(first).toHaveLength(25);
+  expect(first.slice(0, 2)).toEqual(["q-29", "q-1"]);
+  expect(first.at(-1)).toBe("page:1");
+  const second = offered(1);
+  expect(second).toHaveLength(7);
+  expect(second.at(-1)).toBe("page:0");
+  expect(new Set([...first, ...second]).size).toBe(32);
+});
+
+test("a server guild's member is offered its invitations and founding; a founded guild's is not", () => {
+  const labels = (g: api.Guild) =>
+    guildCard(o, g, lex)
+      .rows.flatMap((r) => ("buttons" in r ? r.buttons : []))
+      .map((b) => b.label);
+  const invited: api.Guild = { ...guild, invites: [{ value: "g-2", label: "The Free Company" }] };
+  expect(labels({ ...invited, server: true })).toEqual(
+    expect.arrayContaining(["Join The Free Company", "Found a guild", "Leave"]),
+  );
+  const founded = labels({ ...invited, server: false });
+  expect(founded).not.toContain("Join The Free Company");
+  expect(founded).not.toContain("Found a guild");
+});
+
+test("only a season goal says how it turns over, and the form sends a turnover the world performs", () => {
+  const runs = (x: api.Goal) =>
+    goalCard(o, goals, x, lex).fields?.find((f) => f.name === "Runs")?.value;
+  expect(runs(goalAs({ lifetime: "season", turnover: "evolve" }))).toContain("then evolve");
+  expect(runs(goalAs({ lifetime: "standing", turnover: "expire" }))).not.toContain("then");
+  const turnover = (life: GoalDraft["life"]) =>
+    specOf({ ...BLANK, target: "cinder-ore", life, turn: "v" }, goals, "T", "").turnover;
+  expect([turnover("e"), turnover("s"), turnover("n")]).toEqual(["expire", "evolve", "carry"]);
+  const then = (life: GoalDraft["life"]) =>
+    goalForm(o, goals, { ...BLANK, page: "t", life })
+      .rows.flatMap((r) => ("buttons" in r ? r.buttons : []))
+      .some((b) => b.label.startsWith("Then:"));
+  expect([then("e"), then("s"), then("n")]).toEqual([false, true, false]);
 });
 
 test("a goal offers a pledge and a withdrawal only when the world does", () => {

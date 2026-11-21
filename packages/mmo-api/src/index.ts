@@ -1191,9 +1191,9 @@ export interface Draft {
 }
 /**
  * Goals is /goals for a character: the board of the settlement it stands
- * in, drafts, its own goals wherever they hang and the rules a post is
- * checked against. Away from a settlement Settlement is -1 and only Mine
- * is filled.
+ * in, drafts, its own goals and the hauls it carries wherever they hang,
+ * and the rules a post is checked against. Away from a settlement
+ * Settlement is -1 and only Mine is filled.
  */
 export interface Goals {
   settlement: number /* int */;
@@ -1460,7 +1460,11 @@ export interface Approval {
   id: string;
   by: string;
   to: string;
-  what: string;
+  /**
+   * Material and Units are what is paid; no Material is coin.
+   */
+  material?: string;
+  units: number /* int64 */;
   value: number /* int64 */;
   /**
    * Goods marks a payment out of the bank, approved where the bank is.

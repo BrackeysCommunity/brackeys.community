@@ -9,6 +9,7 @@ import (
 	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/ledger"
+	"jams.team/mmo-world/sim/settle"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/world"
 )
@@ -36,7 +37,7 @@ func TestRefusedPostsChangeNothing(t *testing.T) {
 			Turnover: goal.Keep, Cond: goal.Condition{Verb: verb, Tag: "timber", Count: 60, At: here(g, member)}}
 		if verb == goal.Haul {
 			s.Material, s.Units = timber, 60
-			s.Cond = goal.Condition{Verb: goal.Haul, From: here(g, member), At: "settlement:1", Count: 60}
+			s.Cond = goal.Condition{Verb: goal.Haul, From: here(g, member), At: away(member), Count: 60}
 		}
 		return &s
 	}
@@ -58,6 +59,17 @@ func TestRefusedPostsChangeNothing(t *testing.T) {
 	unchanged(t, member, "a Hold of a gauge the world lacks", game.Command{Kind: game.PostGoal, Goal: hold("no-such-gauge", region)})
 	unchanged(t, member, "a Hold on a settlement", game.Command{Kind: game.PostGoal, Goal: hold("threat", here(g, member))})
 	unchanged(t, member, "a Hold on a region the world lacks", game.Command{Kind: game.PostGoal, Goal: hold("threat", "region:nowhere")})
+	// A place spelt as no event is ever placed could never be matched.
+	unchanged(t, member, "a Hold on a region misspelt", game.Command{Kind: game.PostGoal, Goal: hold("threat", region+"x")})
+	for _, at := range []string{"settlement:99", "settlement:00", "tile:1,2,3", "nowhere"} {
+		reach := spec(0, goal.Deliver)
+		reach.Cond = goal.Condition{Verb: goal.Reach, Count: 1, At: at}
+		unchanged(t, member, "a Reach of "+at, game.Command{Kind: game.PostGoal, Goal: reach})
+	}
+	member.grant(ledger.Coin, 500)
+	mistagged := spec(10, goal.Haul)
+	mistagged.Cond.Tag = "stone"
+	unchanged(t, member, "a haul of timber asked for as stone", game.Command{Kind: game.PostGoal, Goal: mistagged})
 	post(member, *hold("threat", region))
 	advanceDays(t, g, 1)
 	if g.Ledger.Of(ledger.Char(member.c.C.ID), ledger.Material(timber)) != 60 {
@@ -172,6 +184,11 @@ func TestACallOutlastsTheCarry(t *testing.T) {
 	advanceDays(t, g, 1)
 	if x.State != goal.Live || !g.Called(downed.c) {
 		t.Fatalf("the call of a carried character is %s", x.State)
+	}
+	// The reward is not taken back on the way home.
+	unchanged(t, downed, "withdrawing a call while carried on it", game.Command{Kind: game.WithdrawGoal, Target: x.ID})
+	if g.CanWithdraw(x, downed.c) {
+		t.Fatal("a carried character is offered to withdraw its call")
 	}
 	downed.must(game.Command{Kind: game.Crawl})
 	if x.Expires != downed.c.Long.Due {
@@ -496,7 +513,7 @@ func TestMustersCountAgainstTheOfficersDay(t *testing.T) {
 	spend := sheets.IntParam(g.Rules().Book.SettlementParams, "officer-spend")
 	muster := func(reward int64) *game.GoalSpec {
 		return &game.GoalSpec{Title: "Find the next seam", Issuer: goal.ByAdmin, Reward: reward, Mode: goal.First, Lifetime: goal.Standing,
-			Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Reach, Count: 1, At: "settlement:1"}}
+			Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Reach, Count: 1, At: away(officer)}}
 	}
 	x := post(officer, *muster(10))
 	if got := gd.G.SpentToday(officer.c.C.ID, g.World.Day); got != 10+x.Fee {
@@ -573,13 +590,18 @@ func TestAWithdrawnLineEndsItsRaise(t *testing.T) {
 	}
 	before = len(g.Goals)
 	officer.must(game.Command{Kind: game.Raise, Slot: kind})
-	for _, x := range g.Goals[before:] {
+	second := g.Goals[before:]
+	for i, x := range second {
 		if x.Build.Project == first[0].Build.Project {
 			t.Fatal("a second raise shares the first one's project")
 		}
 		m := materialWith(t, g, x.Cond.Tag)
 		member.grant(ledger.Material(m), x.Cond.Count)
 		member.must(game.Command{Kind: game.DeliverGoal, Target: x.ID, Material: m, Units: x.Cond.Count})
+		// A met line's goods are built in: the rest can no longer be withdrawn from under them.
+		if i == 0 {
+			unchanged(t, officer, "withdrawing a raise with a line built in", game.Command{Kind: game.WithdrawGoal, Target: second[len(second)-1].ID})
+		}
 	}
 	if st := p.Get(kind); st == nil || st.Tier != tier+1 {
 		t.Fatalf("the %s did not rise from tier %d: %+v", kind, tier, st)
@@ -643,7 +665,7 @@ func TestAHaulIsForOneOfItsOwn(t *testing.T) {
 	poster.grant(ledger.Coin, 500)
 	haul := game.GoalSpec{Title: "Timber east", Issuer: goal.ByParty, Members: []string{friend.c.C.ID}, Reward: 10, Mode: goal.Each, Cap: 3,
 		Lifetime: goal.Standing, Turnover: goal.Keep, Material: timber, Units: 20,
-		Cond: goal.Condition{Verb: goal.Haul, From: here(g, poster), At: "settlement:1", Count: 20}}
+		Cond: goal.Condition{Verb: goal.Haul, From: here(g, poster), At: away(poster), Count: 20}}
 	unchanged(t, poster, "an Each haul", game.Command{Kind: game.PostGoal, Goal: &haul})
 	haul.Mode, haul.Cap = goal.First, 0
 	x := post(poster, haul)
@@ -665,7 +687,7 @@ func TestGoalsEndWhenTheirTimeRunsOut(t *testing.T) {
 	least := sheets.IntParam(g.Rules().Book.GoalParams, "ephemeral-least")
 	poster.grant(ledger.Coin, 50)
 	x := post(poster, game.GoalSpec{Title: "Quick", Issuer: goal.ByCharacter, Reward: 10, Mode: goal.First, Lifetime: goal.Ephemeral, Turnover: goal.Expire,
-		Ticks: least, Cond: goal.Condition{Verb: goal.Reach, Count: 1, At: "settlement:1"}})
+		Ticks: least, Cond: goal.Condition{Verb: goal.Reach, Count: 1, At: away(poster)}})
 	held := poster.c.C.Coin
 	for range least {
 		if _, err := g.Advance(); err != nil {
@@ -747,11 +769,25 @@ func TestAGuildNobodyIsInIsOver(t *testing.T) {
 	founder.c.C.At = freeTile(t, g, founder.c.C.At)
 	founder.must(game.Command{Kind: game.Found, Note: "Reedhold"})
 	p := g.PlaceAt(founder.c.C.At)
+	muster := post(founder, game.GoalSpec{Title: "Stone for the yard", Issuer: goal.ByAdmin, Mode: goal.Pooled, Lifetime: goal.Standing, Turnover: goal.Keep,
+		Cond: goal.Condition{Verb: goal.Deliver, Tag: "stone", Count: 50, At: here(g, founder)}})
 	for _, tr := range ts {
 		tr.must(game.Command{Kind: game.Leave})
 	}
 	if p.Guild != "" || g.Ledger.Of(gd.Pool(), ledger.Coin) != 0 || g.Ledger.Of(game.TreasuryPool(p.N), ledger.Coin) != sp("charter-coin")+70 {
 		t.Fatalf("an empty guild still runs %q with %d coin; the treasury holds %d", p.Guild, g.Ledger.Of(gd.Pool(), ledger.Coin), g.Ledger.Of(game.TreasuryPool(p.N), ledger.Coin))
+	}
+	if muster.State != goal.Ended || muster.Why != "disbanded" {
+		t.Fatalf("a guild that is over still has a muster up: %s (%s)", muster.State, muster.Why)
+	}
+	// The settlement it founded can be run again, by charter.
+	founder.must(game.Command{Kind: game.FoundGuild, Note: "The Second Company"})
+	for _, tr := range ts[1:] {
+		founder.must(game.Command{Kind: game.Invite, Target: tr.c.C.ID})
+		tr.must(game.Command{Kind: game.Join, Target: founder.c.C.Guild})
+	}
+	if view := g.CharterAt(founder.c); !view.Take || view.Why == "a guild already runs this settlement" {
+		t.Fatalf("a settlement nobody runs is not offered by charter: %+v", view)
 	}
 	stranger := ts[1]
 	stranger.c.C.At = p.Hex
@@ -957,7 +993,7 @@ func TestDeliveredGoodsWaitForThePoster(t *testing.T) {
 	// waits at the board it was posted on.
 	poster.grant(ledger.Material(timber), 40)
 	haul := game.GoalSpec{Title: "Timber out", Issuer: goal.ByCharacter, Reward: 10, Mode: goal.First, Lifetime: goal.Standing, Turnover: goal.Keep,
-		Material: timber, Units: 20, Cond: goal.Condition{Verb: goal.Haul, From: here(g, poster), At: goal.TileRef(far), Count: 20}}
+		Material: timber, Units: 20, Cond: goal.Condition{Verb: goal.Haul, Tag: "timber", From: here(g, poster), At: goal.TileRef(far), Count: 20}}
 	y := post(poster, haul)
 	runner.must(game.Command{Kind: game.TakeHaul, Target: y.ID})
 	runner.c.C.At = far
@@ -1276,6 +1312,87 @@ func TestAWorkStopsWithItsStructure(t *testing.T) {
 	officer.must(game.Command{Kind: game.Work, Option: work.ID})
 	if len(gd.G.Works) != 0 {
 		t.Fatal("a work whose structure is shut could not be switched off")
+	}
+	audit(t, g)
+}
+
+// A pledge to a faction's bounty pays the listing fee its own coin adds:
+// what the faction minted into it was never listed, and no pledger pays
+// for that.
+func TestAPledgeToABountyPaysItsOwnFee(t *testing.T) {
+	g, ts := society(t, 1)
+	pledger := ts[0]
+	threat, _ := g.World.GaugeOf("threat")
+	var bounty *game.Goal
+	for range 5 {
+		for i := range g.World.Regions {
+			g.World.Regions[i].Gauge[threat] = sheets.IntParam(g.Rules().Book.GoalParams, "bounty-threat")
+		}
+		advanceDays(t, g, 1)
+		if x := lastGoal0(g); x != nil && x.Issuer.Kind == goal.ByFaction {
+			bounty = x
+			break
+		}
+	}
+	if bounty == nil || bounty.Fee != 0 {
+		t.Fatalf("no bounty was posted free of a fee: %+v", bounty)
+	}
+	fee := g.Rules().Values.GoalFee(bounty.Reward+10) - g.Rules().Values.GoalFee(bounty.Reward)
+	pledger.grant(ledger.Coin, 1000)
+	coin := coinOf(pledger)
+	pledger.must(game.Command{Kind: game.Pledge, Target: bounty.ID, Units: 10})
+	if paid := coin - coinOf(pledger); paid != 10+fee || fee >= g.Rules().Values.GoalFee(bounty.Reward) {
+		t.Fatalf("a pledge of 10 coin to a bounty of %d cost %d coin; its own fee is %d", bounty.Reward-10, paid, fee)
+	}
+	audit(t, g)
+}
+
+// lastGoal0 is the newest goal, or nil before any.
+func lastGoal0(g *game.Game) *game.Goal {
+	if len(g.Goals) == 0 {
+		return nil
+	}
+	return lastGoal(g)
+}
+
+// A settlement goal that went live on pledges and ends unmet gives each
+// pledger back its share of what is left, the fee borne by all of them as
+// they pledged.
+func TestAnUnmetSettlementGoalRefundsByShare(t *testing.T) {
+	g, ts := society(t, 3)
+	x := post(ts[0], game.GoalSpec{Title: "To the far side", Issuer: goal.BySettlement, Mode: goal.First, Lifetime: goal.Standing,
+		Turnover: goal.Keep, Cond: goal.Condition{Verb: goal.Reach, Count: 1, At: away(ts[0])}})
+	big, small := x.Need, x.Need/4
+	ts[2].grant(ledger.Coin, small)
+	ts[2].must(game.Command{Kind: game.Pledge, Target: x.ID, Units: small})
+	ts[1].grant(ledger.Coin, big)
+	ts[1].must(game.Command{Kind: game.Pledge, Target: x.ID, Units: big})
+	if x.State != goal.Live || x.Fee <= 0 {
+		t.Fatalf("pledged past its need the goal is %s with a %d coin fee", x.State, x.Fee)
+	}
+	ts[0].must(game.Command{Kind: game.WithdrawGoal, Target: x.ID})
+	lostBig, lostSmall := big-coinOf(ts[1]), small-coinOf(ts[2])
+	if lostBig+lostSmall != x.Fee || lostSmall <= 0 && x.Fee >= 5 || lostBig < lostSmall*3 {
+		t.Fatalf("of a %d coin fee the pledger of %d bore %d and the pledger of %d bore %d", x.Fee, big, lostBig, small, lostSmall)
+	}
+	if ts[1].c.C.Deeds.Get(game.DeedPledged) != lostBig || ts[2].c.C.Deeds.Get(game.DeedPledged) != lostSmall {
+		t.Fatal("what a pledger did not get back is not what counts as pledged")
+	}
+	audit(t, g)
+}
+
+// Reopening a closed structure restores what its least repair pays for,
+// however few points were asked.
+func TestReopeningBuysWhatItCosts(t *testing.T) {
+	g, ts := society(t, 1)
+	st := g.Places[0].Get("market")
+	st.Condition = 0
+	for _, m := range g.Rules().Book.Materials {
+		ts[0].grant(ledger.Material(m.ID), 500)
+	}
+	ts[0].must(game.Command{Kind: game.Mend, Slot: "market", Units: 1})
+	if want := settle.ReopenPoints(g.Rules().Settle); want <= 1 || st.Condition != want {
+		t.Fatalf("a closed market mended by 1 point stands at %d; its reopening pays for %d", st.Condition, want)
 	}
 	audit(t, g)
 }
