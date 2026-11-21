@@ -7,8 +7,10 @@ import (
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/fight"
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/gen"
+	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
@@ -28,6 +30,12 @@ const (
 	TrigTrail     = "follow-the-trail"
 	TrigCache     = "the-cache"
 	TrigWorkedOut = "worked-out"
+	// A party of two who rescued one another, and a key at a fork (GDD 8.6).
+	TrigOldFriends = "old-friends"
+	TrigTheKey     = "the-key"
+	// TrigFloorFind names a find from a dungeon floor's pool; it is drawn
+	// at tiles.params floor-find-chance, not from a trigger row.
+	TrigFloorFind = "floor-find"
 )
 
 // Commands the triggers open.
@@ -45,11 +53,13 @@ func (g *Game) trigger(id string) sheets.Trigger {
 	return sheets.Trigger{}
 }
 
-// Dropped is haul a character lost on a tile, which only they can find
-// again through what-fell-here, while the pool still holds it.
+// Dropped is haul a character lost on a tile, or on one of a dungeon's
+// floors, which only they can find again through what-fell-here, while the
+// pool still holds it.
 type Dropped struct {
-	Hex  hex.Hex      `json:"hex"`
-	Lost []item.Spoil `json:"lost"`
+	Hex   hex.Hex      `json:"hex"`
+	Floor int64        `json:"floor,omitempty"`
+	Lost  []item.Spoil `json:"lost"`
 }
 
 // Left is an item a character cached on a tile.
@@ -125,7 +135,7 @@ func (g *Game) arrived(c *Char, h hex.Hex, key string, t int64) error {
 // fell gives back the character's own haul lost on this tile, as much
 // as the pool still holds (GDD 8.6, What fell here).
 func (g *Game) fell(c *Char, h hex.Hex, key string, t int64) error {
-	i := slices.IndexFunc(c.Dropped, func(d Dropped) bool { return d.Hex == h })
+	i := slices.IndexFunc(c.Dropped, func(d Dropped) bool { return d.Hex == h && d.Floor == 0 })
 	if i < 0 {
 		return nil
 	}
@@ -227,10 +237,15 @@ func (g *Game) tierAt(h hex.Hex) int64 {
 // found moves a find out of the tile's pool to the character, as a fact
 // naming its trigger, rarity and chance. Nothing is minted.
 func (g *Game) found(c *Char, h hex.Hex, key string, f Find, t int64) error {
+	return g.foundIn(c, h, poolOf(h), key, f, t)
+}
+
+// foundIn is found from a given pool on the tile: its own, or a floor's.
+func (g *Game) foundIn(c *Char, h hex.Hex, pool, key string, f Find, t int64) error {
 	acc := ledger.Char(c.C.ID)
 	var legs []ledger.Leg
 	for _, s := range f.Goods {
-		legs = append(legs, ledger.Pair(poolOf(h), acc, ledger.Material(s.Material), s.Qty)...)
+		legs = append(legs, ledger.Pair(pool, acc, ledger.Material(s.Material), s.Qty)...)
 	}
 	if f.Item != "" {
 		i := slices.IndexFunc(g.Left, func(l *Left) bool { return l.Item.ID == f.Item })
@@ -241,6 +256,9 @@ func (g *Game) found(c *Char, h hex.Hex, key string, f Find, t int64) error {
 	}
 	data := append([]fact.Datum{fact.S("trigger", f.Trigger), fact.S("rarity", f.Rarity), fact.N("chance", f.Chance.Of(fixed.Hundredths)),
 		fact.N("goods", item.Total(f.Goods))}, fact.At(h)...)
+	if _, n, ok := ledger.FloorOf(pool); ok {
+		data = append(data, fact.N("floor", n))
+	}
 	if f.Item != "" {
 		data = append(data, fact.S("item", f.Item))
 	}
@@ -264,28 +282,26 @@ func itemLegs(in *item.Instance, from, to string) []ledger.Leg {
 	return legs
 }
 
-// drop leaves a lost encounter's dropped haul in the tile's pool and
-// remembers it was this character's (GDD 5.6, 8.6).
+// drop leaves a lost encounter's dropped haul in the tile's pool, or the
+// floor's on a dungeon's floor, and remembers it was this character's
+// (GDD 4.9, 5.6, 8.6).
 func (g *Game) drop(c *Char, key string, lost []item.Spoil, t int64) error {
 	if len(lost) == 0 {
 		return nil
 	}
-	h := c.C.At
+	h, n := c.C.At, c.C.Floor
+	pool := poolOf(h)
+	if n > 0 {
+		pool = ledger.FloorPool(h.Ref(), n)
+	}
 	var legs []ledger.Leg
 	for _, s := range lost {
-		legs = append(legs, ledger.Pair(ledger.FromHaul, poolOf(h), ledger.Material(s.Material), s.Qty)...)
+		legs = append(legs, ledger.Pair(ledger.FromHaul, pool, ledger.Material(s.Material), s.Qty)...)
 	}
 	if err := g.post(ledger.Txn{Key: ledger.SubKey(key, "dropped"), Kind: "dropped", Tick: t, Legs: legs}); err != nil {
 		return err
 	}
-	i := slices.IndexFunc(c.Dropped, func(d Dropped) bool { return d.Hex == h })
-	if i < 0 {
-		c.Dropped = append(c.Dropped, Dropped{Hex: h})
-		i = len(c.Dropped) - 1
-	}
-	for _, s := range lost {
-		c.Dropped[i].Lost = item.AddSpoil(c.Dropped[i].Lost, s.Material, s.Qty)
-	}
+	g.remember(c, h, n, lost)
 	return nil
 }
 
@@ -350,11 +366,11 @@ func (g *Game) Trails(c *Char, h hex.Hex) []Trail {
 	if tl == nil {
 		return nil
 	}
-	tr := g.trigger(TrigTrail)
+	w := g.trackWindow(c)
 	var out []Trail
 	for i := len(tl.Tracks) - 1; i >= 0; i-- {
 		k := tl.Tracks[i]
-		if k.Who.ID == c.C.ID || g.Tick()-k.Tick > tr.Window {
+		if k.Who.Kind != char.Ref(c.C.ID).Kind || k.Who.ID == c.C.ID || g.Tick()-k.Tick > w {
 			continue
 		}
 		if o := g.Char(k.Who.ID); o != nil && o.C.At != h && !slices.ContainsFunc(out, func(x Trail) bool { return x.Who == k.Who.ID }) {
@@ -376,6 +392,56 @@ func (g *Game) lowWater(to hex.Hex, cost int64) (int64, bool) {
 		return cost, false
 	}
 	return tr.Magnitude, true
+}
+
+// oldFriends reports whether an encounter's members are a party of two
+// either of whom once rescued the other (GDD 8.6, Old friends): from the
+// Company ring, or from a call for help one carried the other home on,
+// which a later meeting cannot push out.
+func (g *Game) oldFriends(members []*Char) bool {
+	if len(members) != oldFriendsSize {
+		return false
+	}
+	a, b := members[0], members[1]
+	return rescued(a, b) || rescued(b, a) || g.carriedHome(a, b) || g.carriedHome(b, a)
+}
+
+// structural: old friends are a party of exactly two.
+const oldFriendsSize = 2
+
+func rescued(a, b *Char) bool {
+	return slices.ContainsFunc(a.C.Company, func(m char.Met) bool {
+		return m.Who == b.C.ID && (m.How == char.MetRescued || m.How == char.MetRescuedBy)
+	})
+}
+
+// carriedHome reports whether a carried b home on b's call for help.
+func (g *Game) carriedHome(a, b *Char) bool {
+	return slices.ContainsFunc(g.Goals, func(x *Goal) bool {
+		return x.Cond.Verb == goal.Carry && x.Cond.Who == b.C.ID && x.State == goal.Done &&
+			slices.ContainsFunc(x.Claims, func(cl goal.Claim) bool { return cl.Who == a.C.ID })
+	})
+}
+
+// partyTrigger runs the triggers of a party encounter's start (on: party):
+// old friends put their tag on the site. It is safe to run twice for one
+// site.
+func (g *Game) partyTrigger(c *Char, members []*Char, site *fight.Site) error {
+	tag := g.oldFriendsTag()
+	if !g.oldFriends(members) || slices.Contains(site.Tags, tag[0]) {
+		return nil
+	}
+	site.Tags = append(site.Tags, tag...)
+	_, err := g.fact(c, "trigger.fired", g.Tick(), fact.S("trigger", TrigOldFriends))
+	return err
+}
+
+// oldFriendsTag is the site tag old-friends sets, for a rule to read.
+func (g *Game) oldFriendsTag() []tags.Tag {
+	if t := g.trigger(TrigOldFriends).Tag; t != "" {
+		return []tags.Tag{tags.Tag(t)}
+	}
+	return []tags.Tag{tags.Tag(TrigOldFriends)}
 }
 
 // encounterTags are what the explore triggers add: the nemesis on the

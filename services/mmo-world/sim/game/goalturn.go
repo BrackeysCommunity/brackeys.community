@@ -27,6 +27,9 @@ func (g *Game) see(f fact.Fact) []goal.Event {
 	if !ok {
 		return nil
 	}
+	if f.Kind == "hunt.slain" {
+		return g.hunted(e, f)
+	}
 	if f.Kind == "travel.entered" {
 		if d, _ := f.Get("first"); d.N > 0 {
 			return []goal.Event{e, g.discovered(e, e.Hex)}
@@ -62,6 +65,19 @@ func (g *Game) event(f fact.Fact) (goal.Event, bool) {
 		e.Verb, e.Kind = goal.Carry, str("who")
 	case "travel.entered":
 		e.Verb = goal.Reach
+	case "dungeon.reached":
+		e.Verb, e.Floor = goal.Reach, num("floor")
+		if at {
+			e.Dungeon = h.Ref()
+		}
+	case "hunt.slain":
+		e.Verb, e.Kind = goal.Defeat, str("archetype")
+		if e.Kind == "" {
+			e.Kind = str("creature")
+		}
+		if t := str("tags"); t != "" {
+			e.Tags = strings.Split(t, ",")
+		}
 	case "craft.made":
 		k, ok := g.Kinds.Kind(subjectID(f, "kind"))
 		if !ok {
@@ -85,6 +101,20 @@ func (g *Game) event(f fact.Fact) (goal.Event, bool) {
 		return e, false
 	}
 	return e, e.Verb != ""
+}
+
+// hunted is a hunt's kill read as a Defeat for every character who
+// pressed it: each counts the kill once.
+func (g *Game) hunted(e goal.Event, f fact.Fact) []goal.Event {
+	var out []goal.Event
+	for _, s := range f.Subjects {
+		if s.Kind == "character" {
+			x := e
+			x.Who = s.ID
+			out = append(out, x)
+		}
+	}
+	return out
 }
 
 // equipped is an event read as a character having an item equipped.
@@ -519,6 +549,9 @@ func (g *Game) Drafts(c *Char) []Draft {
 			Spec: GoalSpec{Title: "Keep " + g.RegionName(r) + " quiet", Issuer: goal.BySettlement, Mode: goal.Pooled,
 				Lifetime: goal.Season, Turnover: goal.Evolve, Cond: goal.Condition{Verb: goal.Hold, Gauge: "threat", Line: g.gp("bounty-threat"), Below: true,
 					Count: g.gp("hold-days"), At: goal.RegionRef(world.RegionRef(r))}}})
+	}
+	if d, ok := g.huntDraft(n); ok {
+		out = append(out, d)
 	}
 	if m, ok := g.lacking(n); ok {
 		out = append(out, Draft{Why: "nobody is selling " + g.MaterialName(m) + " here and a faction wants it",

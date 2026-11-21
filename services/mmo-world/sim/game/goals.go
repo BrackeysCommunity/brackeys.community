@@ -46,9 +46,11 @@ type GoalSpec struct {
 	// Ticks is how long an ephemeral goal lasts.
 	Ticks int64 `json:"ticks,omitempty"`
 	Even  bool  `json:"even,omitempty"`
-	// Material and Units: a Haul's stock, escrowed from the poster.
+	// Material and Units: a Haul's stock, escrowed from the poster. Route
+	// hands its hauler the way the poster walked to the start.
 	Material string `json:"material,omitempty"`
 	Units    int64  `json:"units,omitempty"`
+	Route    bool   `json:"route,omitempty"`
 }
 
 // Goal is a goal as the game holds it.
@@ -235,12 +237,36 @@ func (g *Game) target(c *Char, cond goal.Condition) error {
 	if _, ok := g.r.Gen.Baseline(c.C.At).Fields()[cond.Field]; cond.Field != "" && !ok {
 		return refuse(BadArgs, "no field %q", cond.Field)
 	}
+	if err := g.reachable(cond); err != nil {
+		return err
+	}
 	if cond.Abstains() {
 		for _, e := range c.C.Equipped {
 			if in := c.C.Item(e.Item); in != nil && cond.Matches(g.equipped(goal.Event{Who: c.C.ID, Hex: c.C.At, Places: g.placesOf(c.C.At)}, in)) {
 				return refuse(BadArgs, "%s has that equipped: take it off before vowing to hold it off", c.C.ID)
 			}
 		}
+	}
+	return nil
+}
+
+// reachable refuses a Reach of a dungeon's floor the dungeon does not hold:
+// no dungeon at the tile named, or a floor past its count (GDD 11.2: a goal
+// must be meetable).
+func (g *Game) reachable(cond goal.Condition) error {
+	if cond.Verb != goal.Reach || cond.Dungeon == "" {
+		return nil
+	}
+	var h hex.Hex
+	if _, err := fmt.Sscanf(cond.Dungeon, "%d,%d", &h.Q, &h.R); err != nil || h.Ref() != cond.Dungeon {
+		return refuse(BadArgs, "no dungeon %q", cond.Dungeon)
+	}
+	plan, ok := g.r.Gen.Dungeon(h)
+	switch {
+	case !ok:
+		return refuse(BadArgs, "no dungeon at %s", cond.Dungeon)
+	case cond.Floor > plan.Floors:
+		return refuse(BadArgs, "that dungeon does not go %d floors deep", cond.Floor)
 	}
 	return nil
 }
@@ -323,6 +349,9 @@ func (g *Game) cargo(c *Char, x *Goal, s GoalSpec) error {
 	}
 	x.Cond.Count, x.Cond.Kind = s.Units, s.Material
 	x.Cargo = &goal.Cargo{Material: s.Material, Units: s.Units}
+	if s.Route {
+		x.Cargo.Route = g.routeOf(c)
+	}
 	return g.afford(c, ledger.Goods(s.Material), s.Material, s.Units)
 }
 
@@ -930,8 +959,13 @@ func (g *Game) callHelp(c *Char, cmd Command) error {
 		return refuse(BadArgs, "%s has already called for help", c.C.ID)
 	}
 	home := g.HomeOf(c)
-	x := &Goal{Title: "Carry " + c.C.ID + " home", Poster: c.C.ID, Board: home, Issuer: goal.Ref{Kind: goal.ByCharacter, ID: c.C.ID},
-		Scope: goal.World, Cond: goal.Condition{Verb: goal.Carry, Who: c.C.ID, Count: 1, At: goal.SettlementRef(home)},
+	title := "Carry " + c.C.ID + " home"
+	floor := carriedFloor(c)
+	if floor > 0 {
+		title += " from floor " + strconv.FormatInt(floor, decimal) + " of " + g.DungeonName(c.C.At)
+	}
+	x := &Goal{Title: title, Poster: c.C.ID, Board: home, Issuer: goal.Ref{Kind: goal.ByCharacter, ID: c.C.ID},
+		Scope: goal.World, Cond: goal.Condition{Verb: goal.Carry, Who: c.C.ID, Count: 1, At: goal.SettlementRef(home), Floor: floor},
 		Mode: goal.First, Lifetime: goal.Ephemeral, Turnover: goal.Expire, Posted: g.Tick(), State: goal.Live}
 	if c.Long == nil || c.Long.Kind != Crawl {
 		if err := g.crawl(c, cmd); err != nil {
@@ -973,10 +1007,11 @@ func (g *Game) HomeOf(c *Char) int {
 }
 
 // carry picks up a downed character who has called for help on the
-// rescuer's tile; the rescuer's journeys take it along to its home
-// settlement (GDD 11.6).
+// rescuer's tile and floor; the rescuer's journeys take it along to its
+// home settlement, and from a dungeon's floor it is first carried up
+// (GDD 4.9, 11.6).
 func (g *Game) carry(c *Char, cmd Command) error {
-	if err := free(c); err != nil {
+	if err := ready(c); err != nil {
 		return err
 	}
 	d := g.Char(cmd.Target)
@@ -985,7 +1020,7 @@ func (g *Game) carry(c *Char, cmd Command) error {
 		return refuse(BadArgs, "%q is not down", cmd.Target)
 	case !g.Called(d):
 		return refuse(BadArgs, "%s has not called for help", d.C.ID)
-	case d.C.At != c.C.At:
+	case d.C.At != c.C.At || d.C.Floor != c.C.Floor:
 		return refuse(NotHere, "%s lies elsewhere", d.C.ID)
 	case d.CarriedBy != "" || c.Carrying != "":
 		return refuse(Busy, "someone is already carried")
@@ -998,8 +1033,17 @@ func (g *Game) carry(c *Char, cmd Command) error {
 	g.touch(d)
 	c.C.Meet(char.Met{Who: d.C.ID, How: "rescued", Tick: g.Tick()}, g.r.limits)
 	d.C.Meet(char.Met{Who: c.C.ID, How: "rescued-by", Tick: g.Tick()}, g.r.limits)
-	_, err := g.factWith(c, []fact.Ref{char.Ref(d.C.ID)}, "rescue.lifted", g.Tick(), fact.At(c.C.At)...)
-	return err
+	data := fact.At(c.C.At)
+	if c.C.Floor > 0 {
+		data = append(data, fact.N("floor", c.C.Floor))
+	}
+	if _, err := g.factWith(c, []fact.Ref{char.Ref(d.C.ID)}, "rescue.lifted", g.Tick(), data...); err != nil {
+		return err
+	}
+	if c.C.Floor > 0 {
+		return g.carryUp(c, cmd.Key)
+	}
+	return nil
 }
 
 // carried moves a carried character with its rescuer and sets it down,

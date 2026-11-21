@@ -336,7 +336,7 @@ func (g *Game) upkeep(c *Char, t int64) (bool, error) {
 	if m == nil {
 		return false, nil
 	}
-	owe := g.charScale(c, "mount-upkeep", g.r.Mounts.Upkeep(1, c.Rode))
+	owe := g.mountUpkeep(c, g.r.Mounts.Upkeep(1, c.Rode))
 	if row, w := g.workHere(c, guild.GivesMountUpkeep, true); w != nil && owe > 0 {
 		each := g.r.Values.Param("provisions-value")
 		saved := spared(row, w, owe*each) / each
@@ -727,7 +727,9 @@ func (g *Game) forage(c *Char, cmd Command) error {
 }
 
 // crawl starts crawling out of a lost fight: a long action that ends
-// down and leaves the character wounded (GDD 5.5).
+// down and leaves the character wounded (GDD 5.5). Down on a dungeon's
+// floor it takes crawl-per-floor more a floor, and ends at the entrance
+// (GDD 4.9).
 func (g *Game) crawl(c *Char, cmd Command) error {
 	if !c.C.Has(char.Down, g.Tick()) {
 		return refuse(BadArgs, "%s is not down", c.C.ID)
@@ -738,17 +740,27 @@ func (g *Game) crawl(c *Char, cmd Command) error {
 	if c.CarriedBy != "" {
 		g.setDown(g.Char(c.CarriedBy), c)
 	}
-	n := g.r.wp("crawl-ticks")
+	n := g.CrawlTicks(c)
 	g.startLong(c, Crawl, cmd.Key, n, n)
 	g.syncCall(c)
 	return nil
+}
+
+// CrawlTicks is how long a downed character takes to crawl out.
+func (g *Game) CrawlTicks(c *Char) int64 {
+	return g.r.wp("crawl-ticks") + g.fp("crawl-per-floor")*c.C.Floor
 }
 
 func (g *Game) crawled(c *Char, t int64) error {
 	c.Long = nil
 	c.C.Clear(char.Down)
 	c.C.Set(char.Wounded, t+g.r.wp("wound-days")*sheets.TicksPerDay)
-	_, err := g.fact(c, "character.crawled", t)
+	var data []fact.Datum
+	if c.C.Floor > 0 {
+		data = append(data, fact.N("floor", c.C.Floor))
+		c.C.Floor, c.Delving = 0, nil
+	}
+	_, err := g.fact(c, "character.crawled", t, data...)
 	return err
 }
 

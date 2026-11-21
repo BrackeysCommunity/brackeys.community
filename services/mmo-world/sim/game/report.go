@@ -216,6 +216,12 @@ func (g *Game) dayTurn(t int64) error {
 	if err := g.goalsTurn(t); err != nil {
 		return err
 	}
+	if err := g.delveDay(day); err != nil {
+		return err
+	}
+	if err := g.huntsDay(day); err != nil {
+		return err
+	}
 	return g.postFactionOrders(t)
 }
 

@@ -58,6 +58,9 @@ type Condition struct {
 	Below   bool   `json:"below,omitempty"`
 	Who     string `json:"who,omitempty"`
 	Side    string `json:"side,omitempty"`
+	// Dungeon ("q,r", its entrance) and Floor: Reach that floor or deeper.
+	Dungeon string `json:"dungeon,omitempty"`
+	Floor   int64  `json:"floor,omitempty"`
 }
 
 // GoalSpec is a goal as its poster specifies it.

@@ -29,6 +29,10 @@ type FightView struct {
 	Ambush   bool           `json:"ambush"`
 	Default  string         `json:"default,omitempty"` // what an ambush takes when its owner stays away
 	Due      int64          `json:"due,omitempty"`
+	// Shared names a shared encounter; Mine is the viewer's own held pick
+	// on it, never another's.
+	Shared string `json:"shared,omitempty"`
+	Mine   string `json:"mine,omitempty"`
 }
 
 // Choices is everything a character can do now.
@@ -56,6 +60,12 @@ func (g *Game) Choose(c *Char) Choices {
 			Options: opts, Ambush: c.Fight.Ambush, Due: c.Fight.Due}
 		if c.Fight.Ambush {
 			v.Default = wayOut
+		}
+		if sh := g.SharedByID(c.Fight.Shared); sh != nil {
+			v.Shared, v.Mine = sh.ID, sh.pickOf(c.C.ID)
+			if !c.Fight.Ambush {
+				v.Default = g.r.Fight.Cautious()
+			}
 		}
 		out.Fight = v
 	}
@@ -94,17 +104,23 @@ func (g *Game) CanExplore(h hex.Hex) bool {
 
 // FloorCleared reports whether a dungeon's first floor is cleared and not
 // yet refilled (GDD 4.9).
-func (g *Game) FloorCleared(h hex.Hex) bool {
+func (g *Game) FloorCleared(h hex.Hex) bool { return g.FloorClearedAt(h, firstFloor) }
+
+// FloorClearedAt reports whether a dungeon's floor is cleared and not yet
+// refilled; each floor refills on its own (GDD 4.9).
+func (g *Game) FloorClearedAt(h hex.Hex, floor int64) bool {
 	t := g.World.Tile(h)
-	return t != nil && t.Dungeon != nil && t.Dungeon.FloorsCleared >= firstFloor &&
-		g.Tick()-t.Dungeon.ClearedAt < g.r.wp("dungeon-refill-days")*sheets.TicksPerDay
+	return t != nil && t.Dungeon != nil && t.Dungeon.Cleared(floor, g.Tick(), g.r.wp("dungeon-refill-days")*sheets.TicksPerDay)
 }
 
-// IsDungeon reports whether a tile is a dungeon's entrance.
-func (g *Game) IsDungeon(h hex.Hex) bool { return g.r.Gen.Baseline(h).Site == gen.PlaceDungeon }
+// IsDungeon reports whether a tile is a dungeon's entrance, a relay
+// tower's among them.
+func (g *Game) IsDungeon(h hex.Hex) bool {
+	_, ok := g.r.Gen.Dungeon(h)
+	return ok
+}
 
-// structural: the one floor the solo loop reaches; deeper floors are
-// party play.
+// structural: a dungeon's entrance floor.
 const firstFloor = 1
 
 // BandName is the odds band an option's band rank names.

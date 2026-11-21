@@ -180,6 +180,13 @@ type Char struct {
 	Bench     Daily `json:"bench,omitzero"`
 	Taught    Daily `json:"taught,omitzero"`
 	Learned   Daily `json:"learned,omitzero"`
+	// Delving is where it is inside a dungeon; Party the party it is in;
+	// Keys the dungeons it holds a key to; Swapped the beat it last swapped
+	// a deck on, +1 (GDD 4.9, 7.5, 8.6).
+	Delving *Delving `json:"delving,omitempty"`
+	Party   string   `json:"party,omitempty"`
+	Keys    []string `json:"keys,omitempty"`
+	Swapped int64    `json:"swapped,omitempty"`
 }
 
 // Fight is an encounter and the measures it was assembled under. An
@@ -190,6 +197,8 @@ type Fight struct {
 	Measures []tags.Measure   `json:"measures"`
 	Ambush   bool             `json:"ambush,omitempty"`
 	Due      int64            `json:"due,omitempty"`
+	// Shared names the shared encounter this is, when others are in it.
+	Shared string `json:"shared,omitempty"`
 }
 
 // Game is the whole of a world's state. Its JSON is a snapshot; Attach
@@ -206,11 +215,13 @@ type Game struct {
 	News     []News         `json:"news"`
 	Market   *Market        `json:"market,omitempty"`
 	Society
+	Delve
 	Log *fact.Tail `json:"log"`
 	r   *Rules
 	// touched are the characters the command or tick in hand has changed,
-	// its own actor aside.
+	// its own actor aside; seen those whose view it changed with no row.
 	touched []string
+	seen    []string
 }
 
 // touch moves a character's row on behalf of someone else's command or a
@@ -273,6 +284,7 @@ func (g *Game) Attach(r *Rules) {
 			c.Fight.E.Measures = c.Fight.Measures
 		}
 	}
+	g.attachDelve()
 }
 
 func (g *Game) Rules() *Rules { return g.r }

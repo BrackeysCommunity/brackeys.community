@@ -327,7 +327,8 @@ func simGoal(s api.GoalSpec) game.GoalSpec {
 	out := game.GoalSpec{Title: s.Title, Note: s.Note, Issuer: s.Issuer, Members: s.Members, Reward: s.Reward, Mode: s.Mode, Cap: s.Cap,
 		Lifetime: s.Lifetime, Turnover: s.Turnover, Ticks: s.Ticks, Even: s.Even, Material: s.Material, Units: s.Units,
 		Cond: goal.Condition{Verb: c.Verb, Kind: c.Kind, Tag: c.Tag, Trait: c.Trait, Count: c.Count, At: c.At, Within: c.Within, From: c.From,
-			Field: c.Field, AtLeast: c.AtLeast, Gauge: c.Gauge, Line: c.Line, Below: c.Below, Who: c.Who, Side: c.Side}}
+			Field: c.Field, AtLeast: c.AtLeast, Gauge: c.Gauge, Line: c.Line, Below: c.Below, Who: c.Who, Side: c.Side,
+			Dungeon: c.Dungeon, Floor: c.Floor}}
 	if c.Hex != nil {
 		h := simHex(*c.Hex)
 		out.Cond.Hex = &h
@@ -340,7 +341,8 @@ func apiSpec(s game.GoalSpec) api.GoalSpec {
 	out := api.GoalSpec{Title: s.Title, Note: s.Note, Issuer: s.Issuer, Members: s.Members, Reward: s.Reward, Mode: s.Mode, Cap: s.Cap,
 		Lifetime: s.Lifetime, Turnover: s.Turnover, Ticks: s.Ticks, Even: s.Even, Material: s.Material, Units: s.Units,
 		Cond: api.Condition{Verb: c.Verb, Kind: c.Kind, Tag: c.Tag, Trait: c.Trait, Count: c.Count, At: c.At, Within: c.Within, From: c.From,
-			Field: c.Field, AtLeast: c.AtLeast, Gauge: c.Gauge, Line: c.Line, Below: c.Below, Who: c.Who, Side: c.Side}}
+			Field: c.Field, AtLeast: c.AtLeast, Gauge: c.Gauge, Line: c.Line, Below: c.Below, Who: c.Who, Side: c.Side,
+			Dungeon: c.Dungeon, Floor: c.Floor}}
 	if c.Hex != nil {
 		h := apiHex(*c.Hex)
 		out.Cond.Hex = &h

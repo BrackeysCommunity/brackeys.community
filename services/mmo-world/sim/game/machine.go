@@ -81,7 +81,18 @@ func (m *MachineCmd) log() puzzle.Log {
 }
 
 // Timed reports whether the service stamps a kind with its clock.
-func Timed(kind string) bool { return kind == MachineArm || kind == MachineSolve }
+func Timed(kind string) bool {
+	switch kind {
+	case MachineArm, MachineSolve, PartyPick, PartyWindow, DungeonPush, DungeonLeave:
+		return true
+	}
+	return false
+}
+
+// partySource reports whether a machine source is a party's.
+func partySource(source string) bool {
+	return source == SourceParty || source == SourceFork || source == SourceGuardian
+}
 
 // Armed is a machine whose countdown is running (GDD 7.11).
 type Armed struct {
@@ -226,8 +237,13 @@ func (g *Game) beatSpec(c *Char, compact bool) (spec puzzle.Spec, intro, ok bool
 		family, level = g.Puzzles().IntroMachine()
 		intro = true
 	}
-	return puzzle.Spec{Family: family, Level: level, Tier: e.Creature.Tier, Place: machinePlace(c.C.At, e.Floor), Beat: int64(e.At),
-		Attempt: e.Press, Compact: compact}, intro, true
+	spec = puzzle.Spec{Family: family, Level: level, Tier: e.Creature.Tier, Place: machinePlace(c.C.At, e.Floor), Beat: int64(e.At),
+		Attempt: e.Press, Compact: compact}
+	// The opening machine keeps its first shape.
+	if !intro {
+		spec.Shape = g.Puzzles().Shape(family, level, spec.Where())
+	}
+	return spec, intro, true
 }
 
 // MachineOn is the family of the machine a character faces on its current
@@ -377,11 +393,17 @@ func (g *Game) machineArm(c *Char, cmd Command) error {
 	if m == nil {
 		return refuse(BadArgs, "arming names a machine: a beat's or a pouch's")
 	}
+	if partySource(m.Source) {
+		return g.partyArm(c, cmd)
+	}
 	var missing error
 	switch m.Source {
 	case SourceBeat:
 		if err := notDown(c); err != nil {
 			return err
+		}
+		if c.Fight != nil && c.Fight.Shared != "" {
+			return refuse(NoMachine, "a shared encounter's machine is the party's: arm it as %s", SourceParty)
 		}
 		missing = refuse(NoMachine, "%s faces no machine it can reach", c.C.ID)
 	case SourcePouch:
@@ -419,6 +441,9 @@ func (g *Game) machineArm(c *Char, cmd Command) error {
 // is read on the service's clock: the arming's against this command's.
 func (g *Game) machineSolve(c *Char, cmd Command) ([]fight.Pressed, *puzzle.Result, error) {
 	a := c.Armed
+	if a == nil && (cmd.Machine != nil && partySource(cmd.Machine.Source) || g.sharedOf(c) != nil) {
+		return g.partySolve(c, cmd)
+	}
 	if a == nil {
 		return nil, nil, refuse(NoMachine, "%s has no machine armed", c.C.ID)
 	}

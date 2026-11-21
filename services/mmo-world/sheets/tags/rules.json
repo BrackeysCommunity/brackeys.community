@@ -571,6 +571,22 @@
       ]
     },
     {
+      "id": "old-friends-holds",
+      "subject": [
+        "option",
+        "hold"
+      ],
+      "place": [
+        "old-friends"
+      ],
+      "then": [
+        {
+          "kind": "band",
+          "steps": 1
+        }
+      ]
+    },
+    {
       "id": "nemesis-known",
       "subject": [
         "item"

@@ -11,7 +11,7 @@
       "rules": [
         "ability-shield-the-line"
       ],
-      "waits": "MM8 (parties in the Activity)"
+      "reads": "fight: a party member's failed beat, taken on the Warden's body armour, party-failures-taken an encounter"
     },
     {
       "id": "hold-fast",
@@ -33,7 +33,7 @@
       "rules": [
         "ability-stand-over"
       ],
-      "waits": "MM8 (parties in the Activity)"
+      "reads": "fight: those down at the end while the Warden stands (kept); the party's split and a floor's fall read it"
     },
     {
       "id": "braced-kit",
@@ -55,7 +55,7 @@
       "rules": [
         "ability-rally"
       ],
-      "waits": "MM8 (parties in the Activity)"
+      "reads": "fight: after the party's first failure, every member's next press is party-rally bands better, once an encounter"
     },
     {
       "id": "wall-captain",
@@ -77,7 +77,7 @@
       "rules": [
         "ability-unmoved"
       ],
-      "waits": "MM8 (parties in the Activity)"
+      "reads": "fight: the failures that down a Warden in a party encounter; the second is a wound"
     },
     {
       "id": "bulwark-wall",
@@ -110,7 +110,7 @@
       "rules": [
         "ability-read-the-ground"
       ],
-      "waits": "MM8 (following tracks)"
+      "reads": "tracks: how far back a trail can be followed (track-ticks on follow-the-trail's window)"
     },
     {
       "id": "turn-the-ambush",
@@ -165,7 +165,7 @@
       "rules": [
         "ability-the-long-hunt"
       ],
-      "waits": "MM8 (following tracks)"
+      "reads": "the follow-track command"
     },
     {
       "id": "cull",
@@ -319,7 +319,7 @@
       "rules": [
         "ability-convoy"
       ],
-      "waits": "MM8 (parties in the Activity)"
+      "reads": "travel: the band a party following you is ambushed at"
     },
     {
       "id": "bonded",
@@ -352,7 +352,7 @@
       "rules": [
         "ability-caravan-master"
       ],
-      "reads": "mounts: your own mount's upkeep (a party's waits for MM8)"
+      "reads": "mounts: the upkeep of your mount and every party member's"
     },
     {
       "id": "light-fingers",
@@ -385,7 +385,7 @@
       "rules": [
         "ability-mapper"
       ],
-      "waits": "MM8 (dungeon forks)"
+      "reads": "dungeons: each way's next beat on the fork card"
     },
     {
       "id": "pack-light",
@@ -396,7 +396,7 @@
       "rules": [
         "ability-pack-light"
       ],
-      "waits": "MM8 (dungeon floors)"
+      "reads": "dungeons: the climb out after leaving"
     },
     {
       "id": "deep-breath",
@@ -407,7 +407,7 @@
       "rules": [
         "ability-deep-breath"
       ],
-      "waits": "MM8 (dungeon floors)"
+      "reads": "fight: the failures that down a delver from deep-breath-floor down; the second is a wound"
     },
     {
       "id": "key-maker",
@@ -418,7 +418,7 @@
       "rules": [
         "ability-key-maker"
       ],
-      "waits": "MM8 (dungeon floors)"
+      "reads": "the key-make command"
     },
     {
       "id": "the-way-back",
@@ -429,7 +429,7 @@
       "rules": [
         "ability-the-way-back"
       ],
-      "waits": "MM8 (dungeon floors)"
+      "reads": "dungeons: the carry-up encounter"
     },
     {
       "id": "hoard-sense",
@@ -440,7 +440,7 @@
       "rules": [
         "ability-hoard-sense"
       ],
-      "waits": "MM8 (dungeon floors)"
+      "reads": "dungeons: a floor's pool on the floor card"
     },
     {
       "id": "lingering-exploits",
@@ -473,7 +473,7 @@
       "rules": [
         "ability-second-slot"
       ],
-      "waits": "MM8 (decks in the Activity)"
+      "reads": "the deck-swap command"
     },
     {
       "id": "wide-cast",
@@ -484,7 +484,7 @@
       "rules": [
         "ability-wide-cast"
       ],
-      "waits": "MM8 (more than one creature an encounter)"
+      "reads": "fight: a cast state lands on a joined creature too"
     },
     {
       "id": "counter",
@@ -495,7 +495,7 @@
       "rules": [
         "ability-counter"
       ],
-      "waits": "MM8 (parties in the Activity)"
+      "reads": "fight: the first state an encounter lays on a party member, counters an encounter"
     },
     {
       "id": "storm-reader",
@@ -528,7 +528,7 @@
       "rules": [
         "ability-chain"
       ],
-      "waits": "MM8 (more than one creature an encounter)"
+      "reads": "fight: a cast state's rules fire again"
     },
     {
       "id": "fair-hand",

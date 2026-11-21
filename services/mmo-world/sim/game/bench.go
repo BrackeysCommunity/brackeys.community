@@ -108,8 +108,10 @@ func (g *Game) benchTop(c *Char, family string) int64 {
 }
 
 func (g *Game) benchSpec(c *Char, settlement int, family string, level int64, compact bool) puzzle.Spec {
-	return puzzle.Spec{Family: family, Level: level, Tier: g.r.firstTier(), Place: "bench:" + strconv.Itoa(settlement),
+	spec := puzzle.Spec{Family: family, Level: level, Tier: g.r.firstTier(), Place: "bench:" + strconv.Itoa(settlement),
 		Attempt: c.BenchRuns, Compact: compact}
+	spec.Shape = g.Puzzles().Shape(family, level, spec.Where())
+	return spec
 }
 
 // atBench is the bench a free character stands at and the family a bench

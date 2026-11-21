@@ -79,6 +79,8 @@ type Command struct {
 	// Now is the service's clock, unix ms, on a command whose rule
 	// measures real time. The sim never reads a clock of its own.
 	Now int64 `json:"now,omitempty"`
+	// Along is the Haul goal whose shared route a journey follows.
+	Along string `json:"along,omitempty"`
 }
 
 // Stop is when a journey halts on its own: before a region at or above a
@@ -92,8 +94,13 @@ type Stop struct {
 
 // Operator reports whether a command kind is for operators only.
 func Operator(kind string) bool {
-	return kind == Correct || kind == Grant || kind == Ban || kind == Unban || kind == HideGoal || kind == SetMachine
+	return kind == Correct || kind == Grant || kind == Ban || kind == Unban || kind == HideGoal || kind == SetMachine ||
+		kind == HuntStart || kind == HideName
 }
+
+// passive reports whether a kind is sent for a character rather than by
+// it: it neither counts as the character acting nor collects for it.
+func passive(kind string) bool { return Operator(kind) || kind == PartyWindow }
 
 // Refused is a command the rules turn down. Nothing changed.
 type Refused struct {
@@ -126,8 +133,10 @@ type Result struct {
 	Pressed []fight.Pressed `json:"pressed,omitempty"`
 	// Machine is the one fact a machine's move log became.
 	Machine *puzzle.Result `json:"machine,omitempty"`
-	// Moved are the other characters whose rows the command changed.
+	// Moved are the other characters whose rows the command changed; Seen
+	// those whose view it changed while their rows stayed.
 	Moved []string `json:"-"`
+	Seen  []string `json:"-"`
 }
 
 // Act applies a command at the current tick. A refused command changes
@@ -137,7 +146,10 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	if err := ValidKey(cmd.Key); err != nil {
 		return Result{}, err
 	}
-	g.touched = g.touched[:0]
+	g.touched, g.seen = g.touched[:0], g.seen[:0]
+	if WorldLevel(cmd.Kind) {
+		return g.actWorld(cmd)
+	}
 	if cmd.Kind == HideGoal && cmd.Char == "" {
 		x := g.GoalOf(cmd.Target)
 		if x != nil && x.Poster == "" {
@@ -174,6 +186,9 @@ func (g *Game) Act(cmd Command) (Result, error) {
 		if c.Armed != nil && cmd.Kind != MachineSolve && !Operator(cmd.Kind) {
 			return Result{}, refuse(MachineArmed, "%s has a machine armed and its countdown is running", c.C.ID)
 		}
+		if sh := g.sharedOf(c); sh != nil && sh.Machine.Armed() && waitsOnMachine(cmd.Kind) {
+			return Result{}, refuse(MachineArmed, "the party's machine is armed and its countdown is running")
+		}
 		undo := g.admit(c, cmd)
 		if pressed, machine, err = g.dispatch(c, cmd); err != nil {
 			undo()
@@ -182,7 +197,7 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	if !Operator(cmd.Kind) {
+	if !passive(cmd.Kind) {
 		if err := g.collect(c, cmd.Key); err != nil {
 			return Result{}, err
 		}
@@ -200,7 +215,7 @@ func (g *Game) Act(cmd Command) (Result, error) {
 		return Result{}, err
 	}
 	c.Version++
-	if !Operator(cmd.Kind) {
+	if !passive(cmd.Kind) {
 		c.Acted = g.Tick()
 		c.markDay(g.Tick() / sheets.TicksPerDay)
 		g.visited(c, c.C.At, g.Tick())
@@ -210,7 +225,34 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	}
 	facts := g.Log.Since(first)
 	g.keepNews(facts)
-	return Result{Char: c, Facts: facts, Pressed: pressed, Machine: machine, Moved: slices.Clone(g.touched)}, nil
+	return Result{Char: c, Facts: facts, Pressed: pressed, Machine: machine, Moved: slices.Clone(g.touched), Seen: g.seenNow()}, nil
+}
+
+// actWorld applies a command that acts on the world itself: there is no
+// character to look up, collect for or mark as having acted.
+func (g *Game) actWorld(cmd Command) (Result, error) {
+	first := fact.ID(g.Log.Len())
+	if err := g.huntStart(cmd); err != nil {
+		return Result{}, err
+	}
+	if err := g.creditGoals(first, cmd.Key); err != nil {
+		return Result{}, err
+	}
+	facts := g.Log.Since(first)
+	g.keepNews(facts)
+	return Result{Facts: facts, Moved: slices.Clone(g.touched), Seen: g.seenNow()}, nil
+}
+
+// seenNow are the characters the command showed something new to, less
+// those whose rows moved anyway.
+func (g *Game) seenNow() []string {
+	var out []string
+	for _, id := range g.seen {
+		if !slices.Contains(g.touched, id) {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // dispatch runs a command; a machine command also hands back the result
@@ -315,6 +357,34 @@ func (g *Game) act(c *Char, cmd Command) ([]fight.Pressed, error) {
 		return nil, g.mend(c, cmd)
 	case ChooseClass, TakeAbility, MarkPrey:
 		return nil, g.classAct(c, cmd)
+	case PartyInvite:
+		return nil, g.partyInvite(c, cmd)
+	case PartyJoin:
+		return nil, g.partyJoin(c, cmd)
+	case PartyLeave:
+		return nil, g.partyLeave(c)
+	case PartyPick:
+		return g.partyPick(c, cmd)
+	case PartyWindow:
+		return g.partyWindow(c, cmd)
+	case Follow, Unfollow:
+		return nil, g.follow(c, cmd.Kind == Follow)
+	case DungeonPush:
+		return nil, g.dungeonPush(c, cmd)
+	case DungeonLeave:
+		return nil, g.dungeonLeave(c, cmd)
+	case DungeonName:
+		return nil, g.dungeonName(c, cmd)
+	case KeyMake:
+		return nil, g.keyMake(c, cmd)
+	case HuntPress:
+		return g.huntPress(c, cmd)
+	case DeckSwap:
+		return nil, g.deckSwap(c, cmd)
+	case FollowTrack:
+		return nil, g.followTrack(c, cmd)
+	case HideName:
+		return nil, g.hideName(c, cmd)
 	}
 	return nil, refuse(BadArgs, "unknown command %q", cmd.Kind)
 }
@@ -366,8 +436,21 @@ func idle(c *Char) error {
 }
 
 // free reports why a character cannot start something new: a long action
-// running, an encounter open, or down.
+// running, an encounter open, down, or standing on a dungeon's floor,
+// where it pushes on, leaves, crawls or is carried.
 func free(c *Char) error {
+	if err := ready(c); err != nil {
+		return err
+	}
+	if c.C.Floor > 0 {
+		return refuse(Busy, "%s is on floor %d of a dungeon", c.C.ID, c.C.Floor)
+	}
+	return nil
+}
+
+// ready is free short of the floor: up, with no long action and no
+// encounter.
+func ready(c *Char) error {
 	if err := notDown(c); err != nil {
 		return err
 	}
@@ -402,33 +485,61 @@ func (g *Game) explore(c *Char) error {
 	return g.begin(c, false, 0)
 }
 
+// beginning is an encounter being assembled: who is in it, in seat
+// order with the character who began it among them, and the creature it
+// is against, which a dungeon floor may change before it is spawned.
+type beginning struct {
+	ambush  bool
+	due     int64
+	members []*Char
+	arch    string
+	extra   []tags.Tag
+}
+
 // begin assembles an encounter on the character's tile against one of
-// the creatures its biome holds, picked by a keyed draw.
+// the creatures its biome holds, picked by a keyed draw. Party members on
+// the tile and floor who are free are in it too, as one shared encounter.
 func (g *Game) begin(c *Char, ambush bool, due int64) error {
 	h := c.C.At
 	kinds := g.r.Gen.Creatures(h)
 	if len(kinds) == 0 {
 		return refuse(NotHere, "nothing lives on this tile")
 	}
-	c.Encounters++
-	id := "e-" + c.C.ID + "-" + strconv.FormatInt(c.Encounters, decimal)
+	members := g.joining(c)
+	id := "e-" + c.C.ID + "-" + strconv.FormatInt(c.Encounters+1, decimal)
 	arch := kinds[g.r.draw.Below(uint64(len(kinds)), "game.creature", draw.Str(id))]
 	extra, high := g.encounterTags(c, h, arch)
 	place := append(g.World.Place(h).Tags(), high...)
 	ms := g.measures(h)
-	cr := g.r.Fight.Spawn(arch, extra, place, ms)
-	site := fight.Site{ID: id, Place: machinePlace(h, 0), Tags: place, Measures: ms, Party: 1}
-	if !ambush && g.IsDungeon(h) {
-		site.Floor, site.Place = firstFloor, machinePlace(h, firstFloor)
+	if len(members) > 1 {
+		ms = append(ms, tags.Measure{ID: measurePartySize, Value: int64(len(members))})
 	}
+	b := &beginning{ambush: ambush, due: due, members: members, arch: arch, extra: extra}
+	site := fight.Site{ID: id, Place: machinePlace(h, 0), Tags: place, Measures: ms, Party: int64(len(members))}
+	if !ambush && g.IsDungeon(h) {
+		if err := g.enterFloor(c, b, &site); err != nil {
+			return err
+		}
+	}
+	c.Encounters++
+	cr := g.r.Fight.Spawn(b.arch, b.extra, site.Tags, site.Measures)
 	e := g.r.Fight.Assemble(site, cr)
-	c.Fight = &Fight{E: e, Measures: ms, Ambush: ambush, Due: due}
-	if site.Floor > 0 {
-		_, err := g.fact(c, "dungeon.entered", g.Tick(), append([]fact.Datum{fact.N("floor", site.Floor)}, fact.At(h)...)...)
-		return err
+	if len(b.members) <= 1 {
+		c.Fight = &Fight{E: e, Measures: site.Measures, Ambush: ambush, Due: due}
+		return nil
+	}
+	sh := g.newShared(g.partyOf(c), h, site.Floor, b.members)
+	for _, m := range b.members {
+		m.Fight = &Fight{E: e, Measures: site.Measures, Ambush: ambush, Due: due, Shared: sh.ID}
+		if m != c {
+			g.touchOnce(m)
+		}
 	}
 	return nil
 }
+
+// structural: the measure a creature's behaviour reads a party's size by.
+const measurePartySize = "party-size"
 
 // machinePlace is where an encounter's machines stand: the tile, or a
 // dungeon's floor.
@@ -444,6 +555,9 @@ func machinePlace(h hex.Hex, floor int64) string {
 func (g *Game) press(c *Char, cmd Command) ([]fight.Pressed, error) {
 	if c.Fight == nil {
 		return nil, refuse(NoFight, "%s is in no encounter", c.C.ID)
+	}
+	if c.Fight.Shared != "" {
+		return g.partyPick(c, cmd)
 	}
 	return g.pressOption(c, cmd.Key, cmd.Option, g.Tick(), nil)
 }
@@ -466,8 +580,12 @@ func (g *Game) pressOption(c *Char, key, pick string, tick int64, w *worked) ([]
 		m.Puzzle = &w.res
 	}
 	pack := slices.Clone(c.C.Pack)
+	g.attachPool(c.C.At, e, tick)
 	pressed, facts, err := f.Press(e, []*fight.Member{m}, tick)
 	if err != nil {
+		return nil, err
+	}
+	if err := g.guardianPressed(c.C.At, e, nil, tick); err != nil {
 		return nil, err
 	}
 	for _, x := range facts {
@@ -504,12 +622,17 @@ func (g *Game) pressOption(c *Char, key, pick string, tick int64, w *worked) ([]
 func (g *Game) close(c *Char, key string, tick int64) error {
 	e := c.Fight.E
 	c.Fight = nil
+	c.Swapped = 0
+	if err := g.floorClosed(c, e); err != nil {
+		return err
+	}
 	acc := ledger.Char(c.C.ID)
 	for i, s := range e.Haul {
 		if err := g.receive(c, ledger.Move(ledger.SubKey(key, "haul", strconv.Itoa(i)), "haul", tick, ledger.FromHaul, acc, ledger.Material(s.Material), s.Qty)); err != nil {
 			return err
 		}
 	}
+	g.carriedFrom(c, e.Haul)
 	for _, sv := range e.Salvage {
 		for i, s := range sv.Spoil {
 			if err := g.receive(c, ledger.Move(ledger.SubKey(key, "salvage", strconv.Itoa(i)), "salvage", tick, ledger.FromSalvage, acc, ledger.Material(s.Material), s.Qty)); err != nil {
@@ -523,21 +646,20 @@ func (g *Game) close(c *Char, key string, tick int64) error {
 	switch e.Result {
 	case fight.Won:
 		g.Pending = append(g.Pending, world.Action{Kind: world.ActSlay, Hex: c.C.At, By: char.Ref(c.C.ID), Species: e.Creature.Archetype})
-		if e.Floor > 0 {
-			g.Pending = append(g.Pending, world.Action{Kind: world.ActClearFloor, Hex: c.C.At, By: char.Ref(c.C.ID), Units: e.Floor})
-			c.C.Deepest.Bump(c.C.At.Ref(), max(0, e.Floor-c.C.Deepest.Get(c.C.At.Ref())))
-			c.C.Deeds.Bump(DeedFloors, 1)
-			if _, err := g.fact(c, "dungeon.floor-cleared", tick, append([]fact.Datum{fact.N("floor", e.Floor)}, fact.At(c.C.At)...)...); err != nil {
-				return err
-			}
-		}
 		if err := g.fought(c, c.C.At, e.Creature.Archetype, tick); err != nil {
 			return err
 		}
 	case fight.Lost:
-		g.Pending = append(g.Pending, world.Action{Kind: world.ActFall, Hex: c.C.At, By: char.Ref(c.C.ID)})
+		g.fellOnTile(c, e)
 	}
 	return nil
+}
+
+// fellOnTile marks a loss on the tile; a floor's is the floor's own record.
+func (g *Game) fellOnTile(c *Char, e *fight.Encounter) {
+	if e.Floor == 0 {
+		g.Pending = append(g.Pending, world.Action{Kind: world.ActFall, Hex: c.C.At, By: char.Ref(c.C.ID)})
+	}
 }
 
 // receive posts a movement into a character's account and adds the goods
@@ -660,8 +782,12 @@ func (g *Game) ban(c *Char, on bool, note string) error {
 		data = append(data, fact.S("encounter", c.Fight.E.ID))
 	}
 	endJourney(c)
+	g.unshare(c)
 	c.Fight = nil
 	c.Armed = nil
+	if err := g.quitParty(c, g.Tick()); err != nil {
+		return err
+	}
 	_, err := g.fact(c, "character.banned", g.Tick(), data...)
 	return err
 }

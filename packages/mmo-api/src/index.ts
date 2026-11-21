@@ -2072,6 +2072,11 @@ export interface Condition {
   below?: boolean;
   who?: string;
   side?: string;
+  /**
+   * Dungeon ("q,r", its entrance) and Floor: Reach that floor or deeper.
+   */
+  dungeon?: string;
+  floor?: number /* int64 */;
 }
 /**
  * GoalSpec is a goal as its poster specifies it.

@@ -3,6 +3,8 @@ package game
 import (
 	"fmt"
 	"maps"
+
+	"jams.team/mmo-world/sim/item"
 )
 
 // OpenIndexFault says how the kept count of open orders is wrong: out of
@@ -25,3 +27,11 @@ func (g *Game) OpenIndexFault() string {
 	}
 	return ""
 }
+
+// SplitFor is the parts a shared encounter's close would pay its members.
+func (g *Game) SplitFor(sh *Shared) map[string][]item.Spoil {
+	return g.split(sh, g.encounterOf(sh), g.in(sh))
+}
+
+// OpenFork opens the fork below floor n for a delver who has won it.
+func (g *Game) OpenFork(c *Char, n int64) { g.openFork(c, n) }

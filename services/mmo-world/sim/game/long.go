@@ -155,19 +155,35 @@ func (g *Game) travel(c *Char, cmd Command) error {
 		}
 		total = cost
 	} else {
-		if cmd.To == nil {
-			return refuse(BadArgs, "travel needs a destination")
-		}
-		var ok bool
-		if route, total, ok = g.Route(c, *cmd.To); !ok {
-			return refuse(NotHere, "no known way to %s", cmd.To.Ref())
+		var err error
+		if route, total, err = g.journey(c, cmd); err != nil {
+			return err
 		}
 	}
 	first, _, _ := g.EnterCost(c, c.C.At, route[0], t)
+	// The party moves at its slowest: the first step waits for the
+	// followers standing with it.
+	first = g.slowest(c, c.C.At, route[0], first, t)
 	slow := g.woundedTicks(c, t)
 	l := g.startLong(c, Travel, cmd.Key, first+slow, total+slow)
 	l.Route, l.StepTicks, l.Stop = route, first+slow, cmd.Stop
 	return nil
+}
+
+// journey is a travel command's route: along a Haul goal's shared route,
+// or the quickest known way.
+func (g *Game) journey(c *Char, cmd Command) ([]hex.Hex, int64, error) {
+	if cmd.Along != "" {
+		return g.routeAlong(c, cmd)
+	}
+	if cmd.To == nil {
+		return nil, 0, refuse(BadArgs, "travel needs a destination")
+	}
+	route, total, ok := g.Route(c, *cmd.To)
+	if !ok {
+		return nil, 0, refuse(NotHere, "no known way to %s", cmd.To.Ref())
+	}
+	return route, total, nil
 }
 
 func (g *Game) gather(c *Char, cmd Command) error {
@@ -255,14 +271,19 @@ func endJourney(c *Char) {
 // facts written.
 func (g *Game) Advance() ([]fact.Fact, error) {
 	t := g.Tick() + 1
-	g.touched = g.touched[:0]
+	g.touched, g.seen = g.touched[:0], g.seen[:0]
 	first := fact.ID(g.Log.Len())
 	acts := g.Pending
 	g.Pending = []world.Action{}
 	var gathered map[gatherNode]int64
 	for _, c := range g.Chars {
+		if c.Fight != nil && c.Fight.Shared != "" {
+			if err := g.sharedDue(c, t); err != nil {
+				return nil, err
+			}
+		}
 		// An ambush's default waits for an armed machine's own end.
-		if c.Fight != nil && c.Fight.Ambush && c.Fight.Due < t && c.Armed == nil {
+		if c.Fight != nil && c.Fight.Shared == "" && c.Fight.Ambush && c.Fight.Due < t && c.Armed == nil {
 			if err := g.defaulted(c, t); err != nil {
 				return nil, err
 			}
@@ -290,6 +311,15 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 		if err != nil {
 			return nil, err
 		}
+	}
+	if err := g.partyTurn(t); err != nil {
+		return nil, err
+	}
+	if err := g.delveTurn(t); err != nil {
+		return nil, err
+	}
+	if err := g.huntsTurn(t); err != nil {
+		return nil, err
 	}
 	if err := g.crowdTurn(t); err != nil {
 		return nil, err
@@ -348,6 +378,7 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 	l := c.Long
 	from, to := c.C.At, l.Route[0]
 	dir := from.DirectionTo(to)
+	followers := g.followersOn(c, from)
 	c.C.Walk(to, g.r.limits)
 	c.C.Facing = dir
 	g.visited(c, to, t)
@@ -361,7 +392,12 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 	c.C.Practise("travel", 1, g.r.Growth.Params())
 	l.Spent += l.StepTicks
 	l.Steps++
+	owed := l.Owed
 	if err := g.provision(c, t); err != nil {
+		return acts, err
+	}
+	acts, err := g.followed(c, followers, to, l.Owed-owed, t, acts)
+	if err != nil {
 		return acts, err
 	}
 	data := append(fact.At(to), fact.N("ticks", l.StepTicks))
@@ -399,6 +435,7 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 		_, err := g.fact(c, "travel.stopped", t)
 		return acts, err
 	}
+	cost = g.slowest(c, to, l.Route[0], cost, t)
 	if why := g.stopFor(c, l, l.Route[0], cost); why != "" {
 		endJourney(c)
 		_, err := g.fact(c, "travel.stopped", t, fact.S("why", why))
@@ -439,9 +476,9 @@ func (g *Game) provision(c *Char, t int64) error {
 }
 
 // ambushed draws whether entering a tile springs an ambush, at its
-// route-risk band's chance (GDD 10.7).
+// route-risk band's chance (GDD 10.7): a leader's, the party's band.
 func (g *Game) ambushed(c *Char, h hex.Hex, t int64) bool {
-	b, _, ok := g.riskBand(c, h)
+	b, _, ok := g.routeBand(c, h)
 	if !ok || b.Chance == 0 {
 		return false
 	}

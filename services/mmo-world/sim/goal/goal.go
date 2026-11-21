@@ -154,6 +154,11 @@ type Condition struct {
 	Who string `json:"who,omitempty"`
 	// Side is a Back's arc stage side.
 	Side string `json:"side,omitempty"`
+	// Dungeon and Floor: Reach that floor of the dungeon whose entrance
+	// tile is Dungeon ("q,r"), or deeper. A Carry's Floor is where its
+	// downed character lies, and is not matched.
+	Dungeon string `json:"dungeon,omitempty"`
+	Floor   int64  `json:"floor,omitempty"`
 }
 
 // Scales reports whether a condition's amount grows with how many play:
@@ -188,6 +193,9 @@ type Event struct {
 	Value int64  `json:"value,omitempty"`
 	// Goal binds an event to one goal: a delivery, a haul, a Hold's reading.
 	Goal string `json:"goal,omitempty"`
+	// Dungeon and Floor are a dungeon floor reached.
+	Dungeon string `json:"dungeon,omitempty"`
+	Floor   int64  `json:"floor,omitempty"`
 }
 
 // Matches reports whether an event counts toward a condition. A Hold's
@@ -213,6 +221,10 @@ func (c Condition) Matches(e Event) bool {
 	case c.Field != "" && e.Fields[c.Field] < c.AtLeast:
 		return false
 	case c.Hold() && e.Gauge != c.Gauge:
+		return false
+	case c.Dungeon != "" && e.Dungeon != c.Dungeon:
+		return false
+	case c.Verb == Reach && c.Floor > 0 && e.Floor < c.Floor:
 		return false
 	}
 	return c.in(e)
@@ -274,6 +286,10 @@ type Cargo struct {
 	Collateral int64  `json:"collateral"` // coin the hauler puts up
 	Hauler     string `json:"hauler,omitempty"`
 	Taken      int64  `json:"taken,omitempty"`
+	// Route is the poster's trail to the end, which the hauler may travel
+	// along once, across tiles it has never seen; Used marks that done.
+	Route []hex.Hex `json:"route,omitempty"`
+	Used  bool      `json:"used,omitempty"`
 }
 
 // Out reports whether a hauler has taken the stock.
@@ -635,6 +651,8 @@ func (c Condition) unread() string {
 		{c.Gauge != "" || c.Line != 0 || c.Below, "gauge", []string{Hold}},
 		{c.Who != "", "character", []string{Carry}},
 		{c.Side != "", "side", []string{Back}},
+		{c.Dungeon != "", "dungeon", []string{Reach}},
+		{c.Floor != 0, "floor", []string{Reach, Carry}},
 	} {
 		if f.set && !slices.Contains(f.verbs, c.Verb) {
 			return f.name
@@ -663,6 +681,8 @@ func Valid(g *Goal, now int64, l Limits) error {
 		return fmt.Errorf("a %s needs a place to bring it to", c.Verb)
 	case c.Verb == Carry && c.Who == "":
 		return fmt.Errorf("a Carry names who is carried")
+	case c.Floor < 0 || c.Verb == Reach && c.Floor > 0 && c.Dungeon == "":
+		return fmt.Errorf("a floor to reach is a floor of a named dungeon")
 	case c.Abstains() && g.Reward != 0:
 		return fmt.Errorf("a vow to hold off a thing pays nothing")
 	case g.Reward != 0 && g.Reward < l.RewardLeast:
