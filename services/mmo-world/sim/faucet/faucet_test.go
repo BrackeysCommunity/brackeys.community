@@ -99,3 +99,47 @@ func TestPassesRestOnlyWhenNotClimbing(t *testing.T) {
 		t.Fatalf("climbing with a raised rate: %s, want it held at %s", stuck.Rate, most)
 	}
 }
+
+// A world whose purses keep filling at rest finds a lower rate inside the
+// band instead of swinging across it.
+func TestLeansAgainstDriftInsideTheBand(t *testing.T) {
+	q := Params{Rate: 60, Floor: 5, Low: 350, High: 450, Step: 12, Return: 4, Days: 2, Most: 150}
+	rest := fixed.FromInt(q.Rate)
+	s := New(q)
+	for _, coin := range []int64{380, 390, 400} {
+		if _, move := s.Step(coin, q); move != Held || s.Rate != rest {
+			t.Fatalf("climbing below the middle at rest: %s at %s", move, s.Rate)
+		}
+	}
+	// Climbing above the middle it leans down, harder toward the edge.
+	var last fixed.F
+	for _, coin := range []int64{420, 430, 440} {
+		was := s.Rate
+		if _, move := s.Step(coin, q); move != Leaned || s.Rate.Cmp(was) >= 0 {
+			t.Fatalf("climbing above the middle: %s, %s from %s", move, s.Rate, was)
+		}
+		cut := was.Sub(s.Rate)
+		if cut.Cmp(last) <= 0 {
+			t.Fatalf("the lean did not grow toward the edge: %s after %s", cut, last)
+		}
+		last = cut
+	}
+	// Coming back toward the middle it returns toward rest.
+	low := s.Rate
+	for _, coin := range []int64{430, 420} {
+		if _, move := s.Step(coin, q); move != Eased {
+			t.Fatalf("falling toward the middle: %s", move)
+		}
+	}
+	if s.Rate.Cmp(low) <= 0 || s.Rate.Cmp(rest) > 0 {
+		t.Fatalf("falling toward the middle: %s from %s", s.Rate, low)
+	}
+	// Falling away below the middle it leans up, never past Most.
+	s = New(q)
+	for coin := int64(399); coin >= 351; coin -= 1 {
+		s.Step(coin, q)
+	}
+	if most := rest.Mul(fixed.Percent(q.Most)); s.Rate.Cmp(rest) <= 0 || s.Rate.Cmp(most) > 0 {
+		t.Fatalf("falling below the middle: %s, want above rest and at most %s", s.Rate, most)
+	}
+}
