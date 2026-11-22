@@ -12,7 +12,7 @@ import {
   type Axial,
 } from "../shell/hex.ts";
 import { plural } from "../units.ts";
-import { goodsLine, name, sentence } from "../words.ts";
+import { goodsLine, name, placedLine, sentence } from "../words.ts";
 import { windowNode } from "./party.ts";
 
 export interface FloorActions {
@@ -177,6 +177,7 @@ export function floorView(st: ActivityState, act: FloorActions): HTMLElement {
           ? `The deepest you have reached here: ${floorName(f, f.deepest)}.`
           : "You have not been down yet.",
         f.haunted ? "Too many have fallen here lately: it is haunted." : "",
+        f.placed ? `${placedLine(f.placed)}.` : "",
         "Explore from chat to go in.",
       ),
     );
@@ -191,6 +192,7 @@ export function floorView(st: ActivityState, act: FloorActions): HTMLElement {
         : "",
       f.downed?.length ? `Down on this floor: ${f.downed.join(", ")}.` : "",
       f.pool?.length ? `Your hoard sense finds what fell here: ${goodsLine(f.pool)}.` : "",
+      f.placed ? `${placedLine(f.placed)}.` : "",
     ),
     floorMap(st),
   );

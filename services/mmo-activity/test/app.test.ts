@@ -34,7 +34,7 @@ afterEach(() => {
 
 // The whole page on the mock gateway: what ?mock=<name> runs. With a fake
 // clock the world's time is the test's to move.
-async function boot(name: string, clock?: FakeClock) {
+async function boot(name: string, clock?: FakeClock, edit?: (s: ActivityState) => void) {
   const compact = true;
   const real = (ms: number, f: () => void) => {
     const t = setTimeout(f, ms);
@@ -42,7 +42,9 @@ async function boot(name: string, clock?: FakeClock) {
   };
   const after = clock ? clock.after : real;
   const now = clock ? () => clock.now : Date.now;
-  const gateway = new MockGateway({ state: fixture(name), rigs, level: 3, now, after });
+  const state = fixture(name);
+  edit?.(state);
+  const gateway = new MockGateway({ state, rigs, level: 3, now, after });
   let ids = 0;
   const session = new Session({
     signIn: async () => ({ dev: "mock" }),
@@ -320,4 +322,18 @@ test("pouches say what they hold and when a shut one can be tried again", async 
   const { root } = await boot("pouch");
   expect(root.textContent).toContain("Holds 3 copper wire, 2 scrap iron.");
   expect(root.textContent).toContain("96 ticks (960 min)");
+});
+
+test("a staged place says who placed it, in the bar and on the floor", async () => {
+  const idle = await boot("idle", undefined, (s) => {
+    s.place.tile.placed = { by: "admins", label: "Rustport" };
+  });
+  expect(idle.root.querySelector(".bar, header")?.textContent ?? "").toContain(
+    "Placed by the admins of Rustport",
+  );
+  document.body.replaceChildren();
+  const floor = await boot("floor", undefined, (s) => {
+    s.floor!.placed = { by: "staff", label: "Rustport", points: 60 };
+  });
+  expect(texts(floor.root)).toContain("Placed by staff of Rustport · 60 event points.");
 });

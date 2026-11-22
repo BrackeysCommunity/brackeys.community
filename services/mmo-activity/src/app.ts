@@ -30,7 +30,7 @@ import { idleView } from "./views/idle.ts";
 import { partyResult, partyResultLines, partyView, windowLine } from "./views/party.ts";
 import { pouchesView } from "./views/pouches.ts";
 import { machineWhy, optionWhy } from "./views/why.ts";
-import { name, refusalLine } from "./words.ts";
+import { name, placedLine, refusalLine } from "./words.ts";
 
 export type Screen = "machine" | "beat" | "floor" | "hunt" | "party" | "pouches" | "bench" | "idle";
 
@@ -326,8 +326,13 @@ export class App {
     const place = state
       ? state.place.name || name("map.terrain", state.place.tile.terrain)
       : "The wasteland";
-    const here =
-      state && state.place.busy > 1 ? `${plural(state.place.busy, "character")} here` : "";
+    const placed = state?.place.tile.placed;
+    const here = [
+      state && state.place.busy > 1 ? `${plural(state.place.busy, "character")} here` : "",
+      placed ? placedLine(placed) : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
     const line =
       link.phase === "retrying"
         ? `Connection lost. Trying again in ${seconds(link.inMs)}.`

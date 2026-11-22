@@ -24,6 +24,7 @@ import {
 } from "./units.ts";
 
 export { riskLine } from "../../../packages/mmo-words/src/risk.ts";
+export { placedLine } from "../../../packages/mmo-words/src/placed.ts";
 
 /** What the pack calls a row; an id it does not name is shown as written. */
 export function name(sheet: string, id: string): string {

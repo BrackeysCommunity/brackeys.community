@@ -13,15 +13,11 @@ import { type Action, encodeId, type LaunchCard, launchTarget, target } from "..
 import { capitalise, type Lexicon } from "../lexicon.ts";
 import { amount, num, outOf, plural, seconds, signed, ticks } from "../units.ts";
 
+export { placedLine } from "../../../../packages/mmo-words/src/index.ts";
+
 /** A unix time as Discord draws it live: "in 2 minutes". */
 export function relative(ms: number): string {
   return `<t:${Math.floor(ms / 1000)}:R>`;
-}
-
-/** Who staged a place, and for staff what it cost (GDD 14.5). */
-export function placedLine(p: api.Placed): string {
-  if (p.by !== "staff") return `Placed by the admins of ${p.label}`;
-  return `Placed by staff of ${p.label}${p.points ? ` · ${amount(p.points, "event points")}` : ""}`;
 }
 
 /** Goods as a comma list of amounts, empty when there are none. */
