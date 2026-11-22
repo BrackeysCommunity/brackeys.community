@@ -4,6 +4,7 @@ export const UNITS = new Set([
   "coins",
   "goods",
   "pts",
+  "event",
   "durability",
   "xp",
   "level",

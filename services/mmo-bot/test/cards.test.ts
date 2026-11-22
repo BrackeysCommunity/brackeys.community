@@ -1797,7 +1797,7 @@ test("a site shows its kind, and a staged place who staged it and what staff spe
   expect(field(admins, "Site")).toBe("Battlefield ruin");
   expect(field(admins, "Placed")).toBe("Placed by the admins of Rustwater Crew");
   expect(field(whereCard(o, mm8a.staffSite, lex), "Placed")).toBe(
-    "Placed by staff of Rustwater Crew · 60 pts (event points)",
+    "Placed by staff of Rustwater Crew · 60 event points",
   );
   const native = whereCard(o, mm8a.nativeSite, lex);
   expect(field(native, "Site")).toBe("Scrap seam");
@@ -1806,7 +1806,7 @@ test("a site shows its kind, and a staged place who staged it and what staff spe
   expect(field(settlement, "Site")).toBeUndefined();
   expect(field(settlement, "Placed")).toBeUndefined();
   expect(field(entranceCard(o, mm8a.placedEntrance, lex, "c-1"), "Placed")).toBe(
-    "Placed by staff of Rustwater Crew · 60 pts (event points)",
+    "Placed by staff of Rustwater Crew · 60 event points",
   );
   expect(field(entranceCard(o, mm8.atEntrance, lex, "c-1"), "Placed")).toBeUndefined();
   const select = travelCard(o, mm8a.siteMap, here, lex, NUMBERS.ambushLine).rows.find(
