@@ -296,6 +296,13 @@ func (g *Game) backMaterial(cmd Command) (string, bool) {
 	return m, m == ledger.Provisions || m != "" && g.isMaterial(ledger.Material(m))
 }
 
+// BackTakes reports whether a goods side's Back goal takes a material,
+// wherever the character stands; the goods count only at the side's place.
+func (g *Game) BackTakes(x *Goal, material string) bool {
+	s, ok := g.sideOf(x)
+	return ok && s.wants == arc.WantGoods && g.sideTakes(s.tag, material)
+}
+
 // sideTakes reports whether goods of a material serve a side's tag: any
 // goods with none, provisions alone for provisions, else a material
 // carrying the tag.

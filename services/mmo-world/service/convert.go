@@ -370,7 +370,7 @@ func apiPatternPoint(g *game.Game, h hex.Hex) *api.PatternPoint {
 		return nil
 	}
 	v := api.PatternPoint{Board: pt.Board, Kind: pt.Kind, Place: pt.Place, Family: pt.Family, Point: pt.Point, Points: pt.Points,
-		Values: pt.Values, Held: pt.Held, Solved: pt.Solved}
+		Values: pt.Values, LapseDays: pt.LapseDays, Held: pt.Held, Solved: pt.Solved}
 	for _, id := range pt.Clues {
 		if f := storyFact(g, id); f != nil {
 			v.Clues = append(v.Clues, *f)

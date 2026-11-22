@@ -199,6 +199,8 @@ type PatternPoint struct {
 	Held   *int64 `json:"held,omitempty"`
 	Solved bool   `json:"solved"`
 	Clues  []Fact `json:"clues,omitempty"`
+	// LapseDays is how long a set value holds before it lapses unsolved.
+	LapseDays int64 `json:"lapseDays"`
 }
 
 // ChronicleLine is one line of a day's chronicle: the fact, whether it

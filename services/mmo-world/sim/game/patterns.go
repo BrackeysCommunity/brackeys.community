@@ -86,6 +86,7 @@ type PatternArm struct {
 type PatternPoint struct {
 	Board, Kind, Place, Family string
 	Point, Points, Values      int64
+	LapseDays                  int64
 	Held                       *int64
 	Solved                     bool
 	Clues                      []fact.ID
@@ -780,7 +781,7 @@ func (g *Game) PatternAt(_ *Char, h hex.Hex) *PatternPoint {
 		return nil
 	}
 	out := &PatternPoint{Board: b.ID, Kind: row.Kind, Place: b.Places[i], Family: familyOf(row, b.Places[i]), Point: int64(i),
-		Points: int64(len(b.Points)), Values: max(row.Values, 1), Solved: b.P.Done, Clues: slices.Clone(b.Told)}
+		Points: int64(len(b.Points)), Values: max(row.Values, 1), LapseDays: row.LapseDays, Solved: b.P.Done, Clues: slices.Clone(b.Told)}
 	if m, ok := b.P.Held(i); ok {
 		v := m.Value
 		out.Held = &v

@@ -2382,8 +2382,8 @@ export interface Goal {
    */
   evolved?: boolean;
   /**
-   * Takes are the goods the viewer carries that a Deliver still takes
-   * from it; Haul is whether the viewer may take its stock here, or
+   * Takes are the goods the viewer carries that a Deliver, or a goods
+   * side's Back, still takes from it; Haul is whether the viewer may take its stock here, or
    * deliver it here.
    */
   takes: Goods[];
@@ -3665,6 +3665,10 @@ export interface PatternPoint {
   held?: number /* int64 */;
   solved: boolean;
   clues?: Fact[];
+  /**
+   * LapseDays is how long a set value holds before it lapses unsolved.
+   */
+  lapseDays: number /* int64 */;
 }
 /**
  * ChronicleLine is one line of a day's chronicle: the fact, whether it

@@ -119,8 +119,8 @@ type Goal struct {
 	// Evolved marks the world day its target evolved, when its issuer may
 	// withdraw it whatever has been claimed.
 	Evolved bool `json:"evolved,omitempty"`
-	// Takes are the goods the viewer carries that a Deliver still takes
-	// from it; Haul is whether the viewer may take its stock here, or
+	// Takes are the goods the viewer carries that a Deliver, or a goods
+	// side's Back, still takes from it; Haul is whether the viewer may take its stock here, or
 	// deliver it here.
 	Takes []Goods `json:"takes"`
 	Haul  string  `json:"haul,omitempty"` // take, deliver

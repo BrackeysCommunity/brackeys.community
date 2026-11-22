@@ -178,7 +178,7 @@ func apiGoal(g *game.Game, x *game.Goal, c *game.Char) api.Goal {
 		if x.State == goal.Live {
 			carried := append([]api.Goods{{Material: ledger.Provisions, Units: c.C.Provisions}}, apiGoods(c.C.Goods)...)
 			for _, s := range carried {
-				if n := min(s.Units, x.Left(c.C.ID)); n > 0 && g.Takes(x, c, s.Material) {
+				if n := min(s.Units, x.Left(c.C.ID)); n > 0 && (g.Takes(x, c, s.Material) || g.BackTakes(x, s.Material)) {
 					out.Takes = append(out.Takes, api.Goods{Material: s.Material, Units: n})
 				}
 			}
