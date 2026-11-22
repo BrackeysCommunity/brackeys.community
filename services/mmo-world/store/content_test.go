@@ -24,8 +24,9 @@ import (
 	"jams.team/mmo-world/store/pgtest"
 )
 
-// preRead is the part of a pre-MM8a tile read that a stored world must
-// keep: what stands there, what lives there, its dungeon and its stock.
+// preRead is the part of a tile read from before content came from
+// history that a stored world must keep: what stands there, what lives
+// there, its dungeon and its stock.
 type preRead struct {
 	At        hex.Hex          `json:"at"`
 	Site      string           `json:"site"`

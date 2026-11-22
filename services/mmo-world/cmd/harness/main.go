@@ -9,7 +9,7 @@
 //	harness economy -out DIR the Economy run: scripted players, their guild and its works, a founding (-n for one size)
 //	harness puzzles -out DIR the Puzzles run: every family's move logs at a bench and every party version's merged logs, replayed to the same facts
 //	harness activity -out DIR the Activity run: every family through a live world's Activity listener (MMO_URL, MMO_ACTIVITY_URL)
-//	harness delve -out DIR   the delve run: a party of four through a seven-floor bunker and ten at a hunt, on a live disposable world
+//	harness delve -out DIR   the delve run: a party of four down the nearest first-tier dungeon and ten at a hunt, on a live disposable world
 //	                         (MMO_URL, MMO_ACTIVITY_URL, MMO_OPERATOR_TOKEN; the world's keys from MMO_MASTER_SECRET or the local world's)
 //	harness content -out DIR the content run: four histories, content from history, pins, the pin sweep and the busy world (-n seeds per history)
 //	harness spike-a|b|e -out DIR

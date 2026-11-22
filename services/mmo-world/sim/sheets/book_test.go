@@ -147,6 +147,9 @@ func TestContentProblems(t *testing.T) {
 		{params, `"id": "pins-per-cell",
       "value": 8,`, `"id": "pins-per-cell",
       "value": 7,`, "pins-per-cell: under pins-in-reach-max", false},
+		{params, `"id": "pin-path-tiles",
+      "value": 48,`, `"id": "pin-path-tiles",
+      "value": 0,`, "pin-path-tiles: a pin's walk to known ground is bounded", false},
 		{params, `"id": "history-weight",`, `"id": "history-floor",`, "map.params: no history-weight", false},
 	} {
 		mutated := slices.Clone(files)

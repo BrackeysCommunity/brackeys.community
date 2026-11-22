@@ -42,6 +42,15 @@ func (g *Game) pinCommand(cmd Command) error {
 	if err != nil {
 		return err
 	}
+	if cmd.Kind != PinWithdraw {
+		// A starting settlement's tile is the world's own to refuse.
+		if pl := g.PlaceAt(p.At); pl != nil && pl.Lattice < 0 {
+			return refuse(world.CodePinGround, "%s holds a settlement", p.At.Ref())
+		}
+		if cmd.Kind == PinEdit && (p.Fix.Dungeon != "" || p.Fix.Floors != 0) && g.delvedAt(p.At) {
+			return refuse(world.CodePinEntered, "the dungeon on %s has been entered", p.At.Ref())
+		}
+	}
 	switch cmd.Kind {
 	case PinReserve:
 		_, err = g.World.Reserve(g.Log, p.At, p.Reach, p.Fix, by)
@@ -56,6 +65,17 @@ func (g *Game) pinCommand(cmd Command) error {
 		err = refuse(BadArgs, "no pin command %q", cmd.Kind)
 	}
 	return refusedFrom(err)
+}
+
+// delvedAt reports whether anyone is on a floor of the dungeon at h or has
+// reached one: a frozen native dungeon stores no floors for the world to see.
+func (g *Game) delvedAt(h hex.Hex) bool {
+	for _, c := range g.Chars {
+		if c.C.At == h && c.C.Floor > 0 || DeepestFloor(c, h) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // pinBy is who a pin command speaks for. A designer is the operator,

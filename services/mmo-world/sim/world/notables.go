@@ -29,9 +29,8 @@ const (
 )
 
 // notable generates a notable on demand for a faction seated at seat:
-// names, traits and loyalty are keyed draws on its id. A world drawing
-// content from history also keys them on the seat's neighbourhood, and
-// weights the traits by it (GDD 4.17).
+// names, traits and loyalty are keyed draws on its id, and on the seat's
+// digest once the world draws content from history (GDD 4.17).
 func (s *State) notable(role string, seat int) Notable {
 	id := s.NextNotable
 	s.NextNotable++
@@ -85,31 +84,8 @@ func (s *State) drawnNotable(id int, role string, seat int) Notable {
 	}
 	weights := s.g.Weights(gen.TableTrait, ids, base, dg, "")
 	st := s.d.Stream("content.notable.traits", who...)
-	for int64(len(n.Traits)) < s.p("notable-traits") {
-		w := slices.Clone(weights)
-		total := int64(0)
-		for i, t := range s.b.NPCTraits {
-			if slices.Contains(n.Traits, t.ID) || slices.Contains(n.Traits, t.Opposes) || slices.ContainsFunc(n.Traits, func(c string) bool { return s.opposes(c) == t.ID }) {
-				w[i] = 0
-			}
-			total += w[i]
-		}
-		if total == 0 {
-			break
-		}
-		n.Traits = append(n.Traits, s.b.NPCTraits[st.Pick(w)].ID)
-	}
+	n.Traits = sheets.PickTraits(s.b.NPCTraits, weights, s.p("notable-traits"), st.Pick)
 	return n
-}
-
-// opposes is the trait a trait opposes, if any.
-func (s *State) opposes(trait string) string {
-	for _, t := range s.b.NPCTraits {
-		if t.ID == trait {
-			return t.Opposes
-		}
-	}
-	return ""
 }
 
 func (f *Faction) living() int {

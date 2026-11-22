@@ -1230,6 +1230,10 @@ export const CodePinGone = "pin-gone";
  */
 export const CodeAlreadyFrozen = "already-frozen";
 /**
+ * Refusal codes of pins and the freeze.
+ */
+export const CodeContentNative = "content-native";
+/**
  * PathOperatorPins lists the live pins, to operators only.
  */
 export const PathOperatorPins = "/v1/operator/pins";

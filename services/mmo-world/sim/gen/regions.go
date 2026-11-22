@@ -401,12 +401,16 @@ func (g *Gen) landmarkOf(id LatticeID) landmark {
 // terrain, by tier, then id; the region's own creature leads when it
 // lives there (GDD 4.10).
 func (g *Gen) Creatures(h Hex) []string {
-	t := g.Baseline(h)
-	rows := g.archetypes(t.Terrain)
+	return g.CreaturesLed(h, g.Region(g.Baseline(h).Region).Creature)
+}
+
+// CreaturesLed are h's archetypes with lead first when it lives there,
+// the rest by tier, then id.
+func (g *Gen) CreaturesLed(h Hex, lead string) []string {
+	rows := g.archetypes(g.Baseline(h).Terrain)
 	out := make([]string, 0, len(rows))
-	own := g.Region(t.Region).Creature
 	for _, c := range rows {
-		if c.ID == own {
+		if c.ID == lead {
 			out = append([]string{c.ID}, out...)
 			continue
 		}

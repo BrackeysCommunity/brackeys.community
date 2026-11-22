@@ -32,10 +32,9 @@ import (
 // The delve run (GDD 4.9, 7.5, 7.6, 7.11): on a live, disposable world, a
 // scripted party of four walks to the nearest dungeon entrance in a
 // first-tier region and goes down it floor by floor through the action
-// endpoint, working its machines
-// together through the Activity socket, every seat streaming its own
-// moves; and ten scripted hunters press a hunt the operator opens beside
-// the first settlement until it falls.
+// endpoint, working its machines together through the Activity socket,
+// every seat streaming its own moves; and ten scripted hunters press a
+// hunt the operator opens beside the first settlement until it falls.
 
 func init() { Runs["delve"] = DelveRun }
 

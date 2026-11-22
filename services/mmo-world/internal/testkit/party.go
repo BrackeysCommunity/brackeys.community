@@ -42,8 +42,7 @@ func Party(t testing.TB, g *game.Game, n int) []*game.Char {
 
 // Delving stands characters on a floor of the nearest dungeon to the
 // first settlement with that many floors, each delving it, and returns
-// its entrance. Every floor down to it is reached first, by the way the
-// characters are put there with.
+// its entrance. Floors 1 to floor are reached first, as a first descent would.
 func Delving(t testing.TB, g *game.Game, cs []*game.Char, floor int64) hex.Hex {
 	t.Helper()
 	h, ok := Dungeon(g, floor)
@@ -91,11 +90,11 @@ func Dungeon(g *game.Game, floors int64) (hex.Hex, bool) {
 	return hex.Hex{}, false
 }
 
-// dungeonSearch is how far Dungeon looks, in tiles; noWay is the way in
-// of a floor reached from the entrance.
 const (
+	// dungeonSearch is how far Dungeon looks, in tiles.
 	dungeonSearch = 60
-	noWay         = -1
+	// noWay is the way in of a floor reached straight from the entrance.
+	noWay = -1
 )
 
 // PartyMachineBeat is game.FacePartyMachine for characters who count as

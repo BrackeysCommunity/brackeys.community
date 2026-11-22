@@ -10,8 +10,7 @@ import (
 // (GDD 4.17, 14.4, 14.5).
 
 // ContentWeight shifts one row of a content table by one condition of the
-// history digest. A row's weight is its base times 100 plus the sum of its
-// shifts, each times its count, floored at 0.
+// history digest; gen.Weights applies it.
 type ContentWeight struct {
 	ID        string `json:"id" unit:"id"`
 	Table     string `json:"table" unit:"enum" enum:"site|dungeon|lead|stock|trait|role"`
@@ -96,7 +95,19 @@ func (b *Book) contentProblems() []string {
 	if radius, ok := cell("history-radius"); ok && radius <= 0 {
 		p = append(p, "map.params history-radius: a digest reads at least one tile")
 	}
+	if kept, ok := cell("history-cell-kept"); ok && kept < 1 {
+		p = append(p, "map.params history-cell-kept: a history cell keeps at least one fact")
+	}
+	if days, ok := cell("pin-days"); ok && days < 1 {
+		p = append(p, "map.params pin-days: a pin counts for at least a day")
+	}
+	if walk, ok := cell("pin-path-tiles"); ok && walk < 1 {
+		p = append(p, "map.params pin-path-tiles: a pin's walk to known ground is bounded")
+	}
 	perCell, okCell := cell("pins-per-cell")
+	if okCell && perCell < 1 {
+		p = append(p, "map.params pins-per-cell: a pin cell holds at least one pin")
+	}
 	inReach, okReach := cell("pins-in-reach-max")
 	if okCell && okReach && perCell < inReach {
 		p = append(p, "map.params pins-per-cell: under pins-in-reach-max")

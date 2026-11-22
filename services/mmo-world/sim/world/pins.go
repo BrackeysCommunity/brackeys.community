@@ -37,6 +37,7 @@ const (
 	CodePinEntered    = "pin-entered"
 	CodePinGone       = "pin-gone"
 	CodeAlreadyFrozen = "already-frozen"
+	CodeContentNative = "content-native"
 )
 
 // The pin facts. Only a landing is heavy enough for a player's feed.
@@ -195,7 +196,7 @@ func (s *State) PinsAt(h hex.Hex, t int64) []string {
 		}
 	}
 	slices.Sort(ids)
-	if most := int(s.mp("pins-in-reach-max")); len(ids) > most {
+	if most := int(s.bounds().PinsMost); len(ids) > most {
 		ids = ids[:most]
 	}
 	return ids
@@ -264,7 +265,7 @@ func (s *State) placeTile(h hex.Hex) bool {
 
 // dungeonPlace reports whether a slot stands a dungeon.
 func (s *State) dungeonPlace(site string) bool {
-	return site != "" && slices.ContainsFunc(s.b.Dungeons, func(k sheets.DungeonKind) bool { return k.Place == site && k.Share > 0 })
+	return site != "" && len(s.g.KindsAt(site)) > 0
 }
 
 // fields are the map.pin-limits fields a fix sets. A dungeon slot is a
@@ -288,6 +289,9 @@ func fields(f tile.Fix) []string {
 
 // CheckPin runs every pin validator, changing nothing.
 func (s *State) CheckPin(at hex.Hex, reach int64, fix tile.Fix, by PinBy, edit bool) error {
+	if !s.Drawn() {
+		return refuse(CodeContentNative, "this world does not draw content from history yet")
+	}
 	limit := s.pinLimit(by.Role)
 	if limit == nil {
 		return refuse(CodePinAnchor, "no one pins as %q", by.Role)
@@ -343,14 +347,13 @@ func (s *State) checkAnchor(at hex.Hex, by PinBy) error {
 // holds one already.
 func (s *State) checkGround(at hex.Hex, fix tile.Fix) error {
 	b := s.g.Baseline(at)
+	occupied := s.slotOf(at) != "" || s.landmarkOn(at) != ""
 	switch {
 	case !s.g.Passable(b.Terrain):
 		return refuse(CodePinGround, "%s is impassable", at.Ref())
 	case s.placeTile(at):
 		return refuse(CodePinGround, "%s holds a settlement or a pattern", at.Ref())
-	case fix.Site != "" && (s.slotOf(at) != "" || s.landmarkOn(at) != ""):
-		return refuse(CodePinGround, "%s holds a slot already", at.Ref())
-	case fix.Landmark != "" && (s.slotOf(at) != "" || s.landmarkOn(at) != ""):
+	case (fix.Site != "" || fix.Landmark != "") && occupied:
 		return refuse(CodePinGround, "%s holds a slot or a landmark already", at.Ref())
 	}
 	return nil
@@ -402,12 +405,11 @@ func (s *State) checkFix(at hex.Hex, fix tile.Fix, limit *sheets.PinLimit, edit 
 	}
 	kind := fix.Dungeon
 	if kind != "" {
-		k, ok := sheets.Lookup(s.b.Dungeons)[kind]
-		if !ok {
+		if _, ok := sheets.Lookup(s.b.Dungeons)[kind]; !ok {
 			return refuse(CodePinFix, "no dungeon kind %q", kind)
 		}
-		if k.Place != site {
-			return refuse(CodePinFix, "a %s stands on a %q slot, not %q", kind, k.Place, site)
+		if !slices.ContainsFunc(s.g.KindsAt(site), func(k *sheets.DungeonKind) bool { return k.ID == kind }) {
+			return refuse(CodePinFix, "a %s does not stand on a %q slot", kind, site)
 		}
 	} else if c := s.Content(at); edit && c != nil && c.Dungeon != nil && fix.Site == "" {
 		kind = c.Dungeon.Kind
@@ -430,8 +432,8 @@ func (s *State) checkFix(at hex.Hex, fix tile.Fix, limit *sheets.PinLimit, edit 
 // floors; with no kind fixed, every kind the slot could draw must allow it.
 func (s *State) floorsFit(site, kind string, n int64) bool {
 	fits := false
-	for _, k := range s.b.Dungeons {
-		if k.Place != site || k.Share <= 0 || (kind != "" && k.ID != kind) {
+	for _, k := range s.g.KindsAt(site) {
+		if kind != "" && k.ID != kind {
 			continue
 		}
 		if n < k.FloorsMin || n > k.FloorsMax {
@@ -553,8 +555,11 @@ func (s *State) EditPin(log fact.Log, at hex.Hex, reach int64, fix tile.Fix, by 
 	c := cloneContent(s.Content(at))
 	if fix.Site != "" {
 		d, key := digestOf(c)
-		dr := s.g.Content(at, fix.Site, d, key)
-		c.SiteKind, c.Dungeon = dr.SiteKind, storedPlan(dr.Dungeon)
+		c.SiteKind = s.g.SiteKind(at, fix.Site, d, key)
+		c.Dungeon = nil
+		if plan, ok := s.g.DrawPlan(at, fix.Site, "", d, key); ok {
+			c.Dungeon = storedPlan(&plan)
+		}
 	}
 	p, err := s.addPin(log, factPinEdited, Pin{At: at, Reach: reach, Fix: fix, By: by, Edit: true})
 	if err != nil {
@@ -572,7 +577,7 @@ func (s *State) addPin(log fact.Log, kind string, p Pin) (*Pin, error) {
 	if l := s.pinLimit(p.By.Role); l != nil {
 		p.By.Points = l.Points
 	}
-	id, err := s.pinFact(log, kind, "", &p, nil)
+	id, err := s.pinFact(log, s.Tick, kind, "", &p, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -593,7 +598,7 @@ func (s *State) Withdraw(log fact.Log, id string) (*Pin, error) {
 	if i < 0 || s.expired(&s.Pins[i], s.Tick+1) {
 		return nil, refuse(CodePinGone, "no live pin %q", id)
 	}
-	if _, err := s.pinFact(log, factPinWithdrawn, "", &s.Pins[i], nil); err != nil {
+	if _, err := s.pinFact(log, s.Tick, factPinWithdrawn, "", &s.Pins[i], nil); err != nil {
 		return nil, err
 	}
 	// Tick 0 is the founding; 0 would read as never withdrawn.
@@ -605,7 +610,7 @@ func (s *State) Withdraw(log fact.Log, id string) (*Pin, error) {
 // ApplyFix lands a reserve on content being drawn: the fix overrides the
 // draw for every field it sets.
 func (s *State) ApplyFix(c *tile.Content, h hex.Hex, p *Pin, t int64, log fact.Log) error {
-	if _, err := s.pinFact(log, factPinLanded, s.refAt(h), p, fact.At(h)); err != nil {
+	if _, err := s.pinFact(log, t, factPinLanded, s.refAt(h), p, fact.At(h)); err != nil {
 		return err
 	}
 	s.fix(c, h, p)
@@ -642,9 +647,8 @@ func (s *State) fix(c *tile.Content, h hex.Hex, p *Pin) {
 		c.Lead = f.Lead
 	}
 	if units, ok := s.g.StockUnits(f.Stock); ok {
-		c.Stock = map[string]int64{}
-		for _, m := range s.g.Region(b.Region).Materials {
-			c.Stock[m] = units
+		if c.Stock = s.g.UniformStock(h, units); c.Stock == nil {
+			c.Stock = map[string]int64{}
 		}
 	}
 	c.Pin = p.ID
@@ -660,7 +664,7 @@ func (s *State) fix(c *tile.Content, h hex.Hex, p *Pin) {
 // pinFact writes a pin's fact. Only a landing names a region or a tile;
 // the rest name nothing a player's read could place. A server's pin
 // carries who staged it.
-func (s *State) pinFact(log fact.Log, kind, region string, p *Pin, at []fact.Datum) (fact.ID, error) {
+func (s *State) pinFact(log fact.Log, tick int64, kind, region string, p *Pin, at []fact.Datum) (fact.ID, error) {
 	if log == nil {
 		return 0, nil
 	}
@@ -669,7 +673,7 @@ func (s *State) pinFact(log fact.Log, kind, region string, p *Pin, at []fact.Dat
 	if p.Fact != 0 {
 		causes = []fact.ID{p.Fact}
 	}
-	f, err := s.weights.New(s.Tick, kind, region, nil, causes, data...)
+	f, err := s.weights.New(tick, kind, region, nil, causes, data...)
 	if err != nil {
 		return 0, err
 	}

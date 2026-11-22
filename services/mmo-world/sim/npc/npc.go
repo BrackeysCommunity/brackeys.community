@@ -229,50 +229,15 @@ func (r *Rules) stub(id, kind, role string, home hex.Hex, d Draw) Stub {
 }
 
 // drawnStub is a stub under the content labels: traits are a weighted
-// pick without replacement that never takes an opposed pair. Should the
-// weights leave nothing to take, the rest are taken evenly, so a stub
-// always carries traitsPer.
+// pick without replacement that never takes an opposed pair, with even
+// weights when the digest's leave none.
 func (r *Rules) drawnStub(id, kind, role string, home hex.Hex, d Draw) Stub {
 	who := []draw.Part{draw.Str(id), draw.Str(d.Key)}
 	s := Stub{ID: id, Kind: kind, Role: role, Home: home, Traits: []string{},
 		Name: r.given[r.gen.Below(uint64(len(r.given)), "content.npc.given", who...)] + " " + r.family[r.gen.Below(uint64(len(r.family)), "content.npc.family", who...)]}
 	st := r.gen.Stream("content.npc.traits", who...)
-	clashes := func(t sheets.NPCTrait) bool {
-		return slices.Contains(s.Traits, t.ID) || slices.Contains(s.Traits, t.Opposes) ||
-			slices.ContainsFunc(s.Traits, func(c string) bool { return r.opposes(c) == t.ID })
-	}
-	for int64(len(s.Traits)) < r.traitsN {
-		weighted, even := make([]int64, len(r.traits)), make([]int64, len(r.traits))
-		var total, open int64
-		for i, t := range r.traits {
-			if clashes(t) {
-				continue
-			}
-			even[i], weighted[i], open = 1, 1, open+1
-			if len(d.Traits) == len(r.traits) {
-				weighted[i] = d.Traits[i]
-			}
-			total += weighted[i]
-		}
-		if open == 0 {
-			break
-		}
-		if total == 0 {
-			weighted = even
-		}
-		s.Traits = append(s.Traits, r.traits[st.Pick(weighted)].ID)
-	}
+	s.Traits = append(s.Traits, sheets.PickTraits(r.traits, d.Traits, r.traitsN, st.Pick)...)
 	return s
-}
-
-// opposes is the trait a trait opposes, if any.
-func (r *Rules) opposes(trait string) string {
-	for _, t := range r.traits {
-		if t.ID == trait {
-			return t.Opposes
-		}
-	}
-	return ""
 }
 
 // Residents are the role slots a place fills, as stubs: a keyed draw

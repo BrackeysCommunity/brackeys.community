@@ -564,8 +564,7 @@ func (s *Store) tiles(ctx context.Context, q *db.Queries, g *game.Game) error {
 }
 
 // commandTiles writes the tiles a command's save must carry: new ones,
-// those holding a dungeon record, those whose content the command changed
-// and those holding drawn floors, which a descent stores in place. The tick
+// those holding a dungeon record and those whose content changed. The tick
 // save writes the rest and does the removal pass.
 func (s *Store) commandTiles(ctx context.Context, q *db.Queries, g *game.Game) error {
 	edited := make(map[hex.Hex]bool)
@@ -573,7 +572,7 @@ func (s *Store) commandTiles(ctx context.Context, q *db.Queries, g *game.Game) e
 		edited[h] = true
 	}
 	for _, t := range g.World.Tiles {
-		if _, ok := s.seq[t.Hex]; ok && t.Dungeon == nil && !edited[t.Hex] && !drawnFloors(t.Content) {
+		if _, ok := s.seq[t.Hex]; ok && t.Dungeon == nil && !edited[t.Hex] {
 			continue
 		}
 		if err := s.writeTile(ctx, q, t); err != nil {
@@ -581,10 +580,6 @@ func (s *Store) commandTiles(ctx context.Context, q *db.Queries, g *game.Game) e
 		}
 	}
 	return nil
-}
-
-func drawnFloors(c *tile.Content) bool {
-	return c != nil && c.Dungeon != nil && (len(c.Dungeon.Drawn) > 0 || len(c.Dungeon.Ways) > 0)
 }
 
 // char writes a character whose body changed. A new one needs the Discord

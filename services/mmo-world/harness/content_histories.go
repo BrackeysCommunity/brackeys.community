@@ -2,7 +2,6 @@ package harness
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 
@@ -216,10 +215,9 @@ func (h *historyRun) pin() {
 	reach := h.d.Between(pinReachLeast, most, "harness.pin", day, draw.Str("reach"))
 	p, err := h.s.Reserve(h.log, at, reach, fix, world.PinBy{Role: world.PinDesigner})
 	if err != nil {
-		code := err.Error()
-		var r *world.Refusal
-		if errors.As(err, &r) {
-			code = r.Code
+		code, ok := refusalCode(err)
+		if !ok {
+			code = err.Error()
 		}
 		h.codes[code]++
 		return

@@ -73,8 +73,7 @@ type State struct {
 	// first; Opening counts those asked for, which open at the next day.
 	Opened  int `json:"opened"`
 	Opening int `json:"opening"`
-	// ContentVersion is 0 for a world from before content was drawn from
-	// history, 1 once it is (GDD 4.17).
+	// ContentVersion is ContentNative or ContentDrawn (GDD 4.17).
 	ContentVersion int64         `json:"contentVersion,omitempty"`
 	History        []HistoryCell `json:"history,omitempty"`
 	Pins           []Pin         `json:"pins,omitempty"`
@@ -93,9 +92,9 @@ type State struct {
 	region    map[gen.LatticeID]int
 	tileAt    map[hex.Hex]int
 	gauge     map[string]int
-	// Rebuilt, never saved: the tiles whose content a command changed, and
-	// the pin and find indexes, rebuilt whenever len(Pins) or len(Finds)
-	// has moved.
+	// Never saved: edited is the tiles whose content changed since the last
+	// Advance; pinCells and findsIn are indexes rebuilt on demand after Pins
+	// or Finds change.
 	edited    map[hex.Hex]bool
 	pinCells  map[pinCell][]int
 	findsIn   map[gen.LatticeID][]int

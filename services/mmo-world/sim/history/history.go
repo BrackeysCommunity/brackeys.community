@@ -52,7 +52,7 @@ type Digest struct {
 }
 
 // Bounds are the map.params cells a digest is read under.
-type Bounds struct{ Weight, Radius, Ticks, CellKept, KindMost, HoldersMost, PinsMost int64 }
+type Bounds struct{ Weight, Radius, Ticks, CellKept, KindMost, HoldersMost, PinsMost, PinsPerCell int64 }
 
 // BoundsOf reads the bounds from map.params.
 func BoundsOf(mapParams []sheets.Param) Bounds {
@@ -65,7 +65,20 @@ func BoundsOf(mapParams []sheets.Param) Bounds {
 		KindMost:    p("history-kind-most"),
 		HoldersMost: p("history-holders-most"),
 		PinsMost:    p("pins-in-reach-max"),
+		PinsPerCell: p("pins-per-cell"),
 	}
+}
+
+// structural: the kinds of find a digest counts (world Find.Kind).
+const FindKinds = 6
+
+// structural: a digest reads the 3 × 3 index cells round its own.
+const cellsRead = 9
+
+// CostBound is the most a digest may visit: the disc, and per cell read its
+// kept facts, its pins and the find kinds of one region.
+func (b Bounds) CostBound() int64 {
+	return hex.DiscSize(b.Radius) + cellsRead*(b.CellKept+b.PinsPerCell+FindKinds)
 }
 
 // Indexed reports whether a fact of this kind and weight belongs in the
@@ -80,9 +93,9 @@ func (b Bounds) CellOf(h hex.Hex) (i, j int64) {
 	return hex.FloorDiv(h.Q, b.Radius), hex.FloorDiv(h.R, b.Radius)
 }
 
-// Facts counts entries within b.Radius of at with now−b.Ticks ≤ Tick < now,
-// by kind, capped at b.KindMost; kinds under "pin." never count. An entry
-// passed twice counts once, so overlapping cells cannot inflate a count.
+// Facts counts the indexed entries within b.Radius of at with
+// now−b.Ticks ≤ Tick < now, by kind, capped at b.KindMost. An entry passed
+// twice counts once, so overlapping cells cannot inflate a count.
 func Facts(at hex.Hex, now int64, b Bounds, cells ...[]Heavy) []Count {
 	seen := map[int64]bool{}
 	n := map[string]int64{}

@@ -640,3 +640,46 @@ func TestPinCells(t *testing.T) {
 		t.Errorf("the cell indexes %d pins, want %d", n, most)
 	}
 }
+
+func TestPinRefusesNativeWorld(t *testing.T) {
+	s, log := pinWorld(t, "pin-native")
+	s.ContentVersion = ContentNative
+	at := pinFind(t, s, 3, 30, s.open)
+	next, pins := s.NextPin, len(s.Pins)
+	_, err := s.Reserve(log, at, 2, tile.Fix{Stock: "rich"}, designer)
+	if got := codeOf(err); got != CodeContentNative {
+		t.Fatalf("a v0 world took a pin: %q", got)
+	}
+	if s.NextPin != next || len(s.Pins) != pins {
+		t.Fatal("the refusal changed the pins")
+	}
+}
+
+func TestPinRefusesShareZeroKind(t *testing.T) {
+	b, err := sheetfs.LoadBook(sheetfs.ModuleRoot())
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.Dungeons = slices.Clone(b.Dungeons)
+	i := slices.IndexFunc(b.Dungeons, func(k sheets.DungeonKind) bool { return k.Place == gen.PlaceDungeon && k.Share > 0 })
+	if i < 0 {
+		t.Fatal("no dungeon kind stands on a dungeon slot")
+	}
+	kind := b.Dungeons[i].ID
+	b.Dungeons[i].Share = 0
+	k := keys.Throwaway("pin-share-zero")
+	g, err := gen.New(b, k.Generation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := New(b, g, k.Roll)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.ContentVersion = ContentDrawn
+	dungeon := pinFind(t, s, 1, 60, s.slot(gen.PlaceDungeon))
+	_, err = s.Reserve(&fact.Mem{}, dungeon, 2, tile.Fix{Dungeon: kind}, designer)
+	if got := codeOf(err); got != CodePinFix {
+		t.Fatalf("a share-0 kind was taken: %q", got)
+	}
+}

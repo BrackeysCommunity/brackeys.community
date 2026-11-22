@@ -73,8 +73,19 @@ const (
 
 // WorldLevel reports whether a command acts on the world rather than on
 // a character: it names none, and its result carries none.
-func WorldLevel(kind string) bool {
-	return kind == HuntStart || kind == PinReserve || kind == PinEdit || kind == PinWithdraw || kind == ContentFreeze
+func WorldLevel(kind string) bool { return worldCommand(kind) != nil }
+
+// worldCommand is the handler of a world-level kind, nil for any other.
+func worldCommand(kind string) func(*Game, Command) error {
+	switch kind {
+	case HuntStart:
+		return (*Game).huntStart
+	case PinReserve, PinEdit, PinWithdraw:
+		return (*Game).pinCommand
+	case ContentFreeze:
+		return (*Game).freezeCommand
+	}
+	return nil
 }
 
 // Delve is what parties, shared encounters and live hunts make of the

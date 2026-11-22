@@ -39,7 +39,6 @@ const (
 	dungeonFloorsMost  = 7
 	waysTagsMost       = 3
 	badShown           = 10 // failures listed per row, at most
-	findKinds          = 6  // the kinds of find a region can hold
 )
 
 // historyResult is what one history and seed showed.
@@ -100,6 +99,18 @@ func drawnDiffer(a, b *tile.Content) bool {
 	return a.Dungeon != nil && (a.Dungeon.Kind != b.Dungeon.Kind || a.Dungeon.Floors != b.Dungeon.Floors)
 }
 
+// playWhole plays a history from day 0 to the end of its length.
+func playWhole(b *sheets.Book, name string, seed int, pins bool) (*historyRun, error) {
+	h, err := newHistory(b, name, seed, pins)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.days(historyLength, nil); err != nil {
+		return nil, err
+	}
+	return h, nil
+}
+
 func playHistory(b *sheets.Book, name string, seed int) (historyResult, error) {
 	out := historyResult{name: name, seed: seed, codes: map[string]int{},
 		siteKinds: map[string]int{}, dungeonKinds: map[string]int{}, bands: map[string]int{}}
@@ -125,11 +136,8 @@ func playHistory(b *sheets.Book, name string, seed int) (historyResult, error) {
 		return out, err
 	}
 
-	again, err := newHistory(b, name, seed, name == historyPinned)
+	again, err := playWhole(b, name, seed, name == historyPinned)
 	if err != nil {
-		return out, err
-	}
-	if err := again.days(historyLength, nil); err != nil {
 		return out, err
 	}
 	if err := replays(a, again, &out); err != nil {
@@ -137,11 +145,8 @@ func playHistory(b *sheets.Book, name string, seed int) (historyResult, error) {
 	}
 
 	if name == historyPinned {
-		bare, err := newHistory(b, name, seed, false)
+		bare, err := playWhole(b, name, seed, false)
 		if err != nil {
-			return out, err
-		}
-		if err := bare.days(historyLength, nil); err != nil {
 			return out, err
 		}
 		if err := staysInReach(a, bare, &out); err != nil {
@@ -259,7 +264,7 @@ func staysInReach(p, bare *historyRun, out *historyResult) error {
 	where := func(h hex.Hex, why string) {
 		out.pinBad = append(out.pinBad, fmt.Sprintf("pinned seed %d %s: %s", p.seed, h.Ref(), why))
 	}
-	for _, h := range slices.SortedFunc(maps.Keys(cp), hexOrder) {
+	for _, h := range slices.SortedFunc(maps.Keys(cp), hex.Compare) {
 		c := p.s.Content(h)
 		covered, exempt := false, false
 		for _, pin := range p.pinsP {
@@ -343,8 +348,6 @@ func mustDigest(v any) string {
 	return d.String()
 }
 
-func hexOrder(a, b hex.Hex) int { return cmp.Or(cmp.Compare(a.Q, b.Q), cmp.Compare(a.R, b.R)) }
-
 // fixHeld says how a landed pin's tile breaks its fix, or "".
 func fixHeld(h *historyRun, pin world.Pin, c *tile.Content) string {
 	f, b := pin.Fix, h.g.Baseline(pin.At)
@@ -403,43 +406,32 @@ func historyReach(h *historyRun, out *historyResult) {
 	}
 }
 
+// refusalCode is a world refusal's code.
+func refusalCode(err error) (string, bool) {
+	var r *world.Refusal
+	if errors.As(err, &r) {
+		return r.Code, true
+	}
+	return "", false
+}
+
 // walkTo walks from a tile over passable baseline ground, at most most
-// steps, and reports which targets it met; it stops once it has met all.
+// steps, and reports which targets it met.
 func walkTo(g *gen.Gen, from hex.Hex, targets []hex.Hex, most int64) map[hex.Hex]bool {
-	want := map[hex.Hex]bool{}
-	for _, t := range targets {
-		want[t] = true
-	}
+	step := func(_, n hex.Hex) (int64, bool) { return 1, g.Passable(g.Baseline(n).Terrain) }
+	reached := hex.Reach([]hex.Hex{from}, step, most)
 	found := map[hex.Hex]bool{}
-	if want[from] {
-		found[from] = true
-	}
-	seen := map[hex.Hex]bool{from: true}
-	frontier := []hex.Hex{from}
-	for step := int64(0); step < most && len(found) < len(want) && len(frontier) > 0; step++ {
-		var next []hex.Hex
-		for _, at := range frontier {
-			for _, n := range at.Neighbours() {
-				if seen[n] {
-					continue
-				}
-				seen[n] = true
-				if !g.Passable(g.Baseline(n).Terrain) {
-					continue
-				}
-				if want[n] {
-					found[n] = true
-				}
-				next = append(next, n)
-			}
+	for _, t := range targets {
+		if _, ok := reached[t]; ok {
+			found[t] = true
 		}
-		frontier = next
 	}
 	return found
 }
 
-// historyDungeons holds every plan drawn from history to MM8's rules, and
-// draws each floor's ways as a delve at the end of the history would.
+// historyDungeons holds every plan drawn from history to the native
+// dungeon rules, and draws each floor's ways as a delve at the end of the
+// history would.
 func historyDungeons(h *historyRun, out *historyResult) {
 	kinds, forks := sheets.Lookup(h.b.Dungeons), sheets.Lookup(h.b.Forks)
 	for _, t := range h.reached() {
@@ -579,11 +571,11 @@ func sweepSeed(b *sheets.Book, seed int) (sweepResult, error) {
 		reach := d.Between(1, sweepReachMost, "harness.pin", append(at, draw.Str("reach"))...)
 		p, err := s.Reserve(log, h, reach, fix, world.PinBy{Role: world.PinDesigner})
 		if err != nil {
-			var r *world.Refusal
-			if !errors.As(err, &r) {
+			code, ok := refusalCode(err)
+			if !ok {
 				return out, err
 			}
-			out.codes[r.Code]++
+			out.codes[code]++
 			continue
 		}
 		out.accepted++
@@ -639,8 +631,8 @@ type busyResult struct {
 
 // busyCost plays the warring history with busyFacts located heavy facts
 // noted a day, to day busyDays, and times a tile's digest and draw on
-// unreached tiles against the same tiles on day 1. The two days are timed in turn, tile by tile, so the machine's
-// load falls on both alike.
+// unreached tiles against the same tiles on day 1, alternating tile by
+// tile so machine load falls on both alike.
 func busyCost(b *sheets.Book) (busyResult, error) {
 	var out busyResult
 	h, err := newHistory(warringBook(b), "busy", 0, false)
@@ -687,9 +679,7 @@ func busyCost(b *sheets.Book) (busyResult, error) {
 	tail.Flush()
 	out.cells = len(h.s.History)
 	out.reachedN = len(h.reached())
-	hb := history.BoundsOf(b.MapParams)
-	cells := int64(9) // a digest reads the 3 × 3 cells round its own
-	out.bound = hex.DiscSize(hb.Radius) + cells*(hb.CellKept+sheets.IntParam(b.MapParams, "pins-per-cell")+findKinds)
+	out.bound = history.BoundsOf(b.MapParams).CostBound()
 	states := []*world.State{first, h.s}
 	var times1, times300 []time.Duration
 	for _, t := range sample {
@@ -880,6 +870,22 @@ func differsRow(p func(string, ...any), rs []historyResult) Measured {
 		sample > 0 && len(bad) == 0 && differ*100 >= differsTarget*sample}
 }
 
+// sumCodes adds src's counts to dst.
+func sumCodes(dst, src map[string]int) {
+	for k, v := range src {
+		dst[k] += v
+	}
+}
+
+// total is the sum of a code count.
+func total(codes map[string]int) int {
+	n := 0
+	for _, v := range codes {
+		n += v
+	}
+	return n
+}
+
 func pinRow(p func(string, ...any), rs []historyResult) Measured {
 	var pins, landed, holding, compared, before, outside, exempt int
 	codes := map[string]int{}
@@ -890,9 +896,7 @@ func pinRow(p func(string, ...any), rs []historyResult) Measured {
 		}
 		pins, landed, holding = pins+r.pins, landed+r.landed, holding+r.holding
 		compared, before, outside, exempt = compared+r.compared, before+r.before, outside+r.outside, exempt+r.exempt
-		for k, v := range r.codes {
-			codes[k] += v
-		}
+		sumCodes(codes, r.codes)
 		bad = append(bad, r.pinBad...)
 	}
 	p("")
@@ -902,10 +906,7 @@ func pinRow(p func(string, ...any), rs []historyResult) Measured {
 	p("")
 	p("| Pins reserved | Refused | Landed | Holding their fix | Tiles compared | Of them reached before a covering pin | Outside every pin | In a pin's reach after it (exempt) |")
 	p("| --- | --- | --- | --- | --- | --- | --- | --- |")
-	refused := 0
-	for _, v := range codes {
-		refused += v
-	}
+	refused := total(codes)
 	p("| %d | %d (%s) | %d | %d | %s | %s | %s | %s |", pins, refused, either(len(codes) > 0, mapList(codes), "none"), landed, holding,
 		comma(int64(compared)), comma(int64(before)), comma(int64(outside)), comma(int64(exempt)))
 	listBad(p, bad)
@@ -919,9 +920,7 @@ func reachRow(p func(string, ...any), rs []historyResult, sw []sweepResult) Meas
 	var sweepBad []string
 	for _, s := range sw {
 		regions, accepted, noRoom = regions+s.regions, accepted+s.accepted, noRoom+s.noRoom
-		for k, v := range s.codes {
-			codes[k] += v
-		}
+		sumCodes(codes, s.codes)
 		sweepBad = append(sweepBad, s.bad...)
 	}
 	var targets int
@@ -938,10 +937,7 @@ func reachRow(p func(string, ...any), rs []historyResult, sw []sweepResult) Meas
 	p("")
 	p("| Regions | Accepted | Refused | No free tile | Failing |")
 	p("| --- | --- | --- | --- | --- |")
-	refused := 0
-	for _, v := range codes {
-		refused += v
-	}
+	refused := total(codes)
 	p("| %s | %s | %s (%s) | %d | %d |", comma(int64(regions)), comma(int64(accepted)), comma(int64(refused)), either(len(codes) > 0, mapList(codes), "none"), noRoom, len(sweepBad))
 	listBad(p, sweepBad)
 	p("")
@@ -982,7 +978,7 @@ func busyRow(p func(string, ...any), r busyResult) Measured {
 	p("| 1 | %s | %d | %d |", micros(r.day1), med1, most1)
 	p("| %d | %s | %d | %d |", busyDays, micros(r.day300), med300, most300)
 	p("")
-	p("Visits are what `DigestCost` counts: index entries, disc tiles, pins and finds. The bound is %d: 9 cells of history-cell-kept, the history-radius disc, 9 cells of pins-per-cell and 9 regions of %d find kinds.", r.bound, findKinds)
+	p("Visits are what `DigestCost` counts: index entries, disc tiles, pins and finds. The bound is %d: 9 cells of history-cell-kept, the history-radius disc, 9 cells of pins-per-cell and 9 regions of %d find kinds.", r.bound, history.FindKinds)
 	return Measured{"content-cost-flat", fmt.Sprintf("day %d median %s, day 1 %s (%.0f%%, at most %d%%); visits at most %d on day 1 and %d on day %d, bound %d", busyDays, micros(r.day300), micros(r.day1), ratio, costFlat, most1, most300, busyDays, r.bound), ok}
 }
 

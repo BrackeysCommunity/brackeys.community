@@ -51,7 +51,7 @@ func (g *Game) keepNews(fs []fact.Fact) {
 		if f.Weight < line {
 			continue
 		}
-		at, ok := g.factAt(f)
+		at, ok := g.World.FactAt(f)
 		n := News{ID: f.ID, Tick: f.Tick, Kind: f.Kind, Region: f.Region, At: at, Weight: f.Weight, Placeless: !ok}
 		g.News = append(g.News, n)
 	}

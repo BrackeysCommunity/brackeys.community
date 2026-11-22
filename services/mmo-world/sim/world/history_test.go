@@ -236,7 +236,7 @@ func TestDigestBounded(t *testing.T) {
 		}
 		return m
 	}
-	bound := 9*b.CellKept + hex.DiscSize(b.Radius) + 9*sheets.IntParam(s.b.MapParams, "pins-per-cell") + 9*6
+	bound := b.CostBound()
 
 	next := 0
 	var day1, full int64

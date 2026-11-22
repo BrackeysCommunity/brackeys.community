@@ -79,6 +79,12 @@ func (g *Gen) plan(h Hex, site string, homeDist int64) (Plan, bool) {
 	return g.planOf(h, kinds[g.d.Pick(weights, "dungeon.kind", at)], homeDist, "dungeon.floors", at), true
 }
 
+// KindsAt are the dungeon kinds a slot can stand.
+func (g *Gen) KindsAt(site string) []*sheets.DungeonKind {
+	kinds, _ := g.kindsAt(site)
+	return kinds
+}
+
 // kindsAt are the dungeon kinds a place stands, with their shares.
 func (g *Gen) kindsAt(site string) ([]*sheets.DungeonKind, []int64) {
 	var kinds []*sheets.DungeonKind

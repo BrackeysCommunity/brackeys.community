@@ -198,8 +198,7 @@ const (
 
 // freeGround reports whether a tile is passable and holds no site.
 func (g *Game) freeGround(h hex.Hex) bool {
-	b := g.r.Gen.Baseline(h)
-	return b.Site == "" && g.r.Gen.Passable(b.Terrain)
+	return g.slot(h) == "" && g.r.Gen.Passable(g.r.Gen.Baseline(h).Terrain)
 }
 
 // foundSettlement charters a settlement on the character's tile for its

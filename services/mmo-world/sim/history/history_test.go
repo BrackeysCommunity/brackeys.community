@@ -9,7 +9,7 @@ import (
 	"jams.team/mmo-world/sim/sheets"
 )
 
-var bounds = Bounds{Weight: 40, Radius: 6, Ticks: 28 * sheets.TicksPerDay, CellKept: 32, KindMost: 8, HoldersMost: 3, PinsMost: 8}
+var bounds = Bounds{Weight: 40, Radius: 6, Ticks: 28 * sheets.TicksPerDay, CellKept: 32, KindMost: 8, HoldersMost: 3, PinsMost: 8, PinsPerCell: 8}
 
 const now = 100 * sheets.TicksPerDay
 
@@ -168,9 +168,19 @@ func TestBoundsOf(t *testing.T) {
 		cell("history-weight", 40), cell("history-radius", 6), cell("history-days", 28),
 		cell("history-cell-kept", 32), cell("history-kind-most", 8), cell("history-holders-most", 3),
 		cell("pins-in-reach-max", 8),
+		cell("pins-per-cell", 8),
 	})
 	if got != bounds {
 		t.Fatalf("got %+v, want %+v", got, bounds)
+	}
+}
+
+// The cost bound is the disc and, per cell read, its kept facts, its pins
+// and the find kinds.
+func TestCostBound(t *testing.T) {
+	want := hex.DiscSize(bounds.Radius) + 9*(bounds.CellKept+bounds.PinsPerCell+FindKinds)
+	if got := bounds.CostBound(); got != want {
+		t.Fatalf("cost bound %d, want %d", got, want)
 	}
 }
 

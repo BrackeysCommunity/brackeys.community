@@ -29,6 +29,7 @@ const (
 	CodePinEntered    = "pin-entered"
 	CodePinGone       = "pin-gone"
 	CodeAlreadyFrozen = "already-frozen"
+	CodeContentNative = "content-native"
 )
 
 // PathOperatorPins lists the live pins, to operators only.

@@ -10,6 +10,7 @@ import (
 	"jams.team/mmo-world/harness"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/gen"
+	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/world"
 )
@@ -64,7 +65,7 @@ func TestFreeze(t *testing.T) {
 	if discovered == 0 {
 		t.Fatal("the fixture discovered nothing")
 	}
-	n, err := s.Freeze(log)
+	n, err := s.Freeze(log, nil)
 	if err != nil || n != discovered {
 		t.Fatalf("froze %d of %d tiles: %v", n, discovered, err)
 	}
@@ -100,7 +101,7 @@ func TestFreeze(t *testing.T) {
 		t.Fatalf("the freeze wrote %+v", last)
 	}
 	before := digest(t, s, log)
-	_, err = s.Freeze(log)
+	_, err = s.Freeze(log, nil)
 	var r *world.Refusal
 	if !errors.As(err, &r) || r.Code != world.CodeAlreadyFrozen {
 		t.Fatalf("a second freeze gave %v", err)
@@ -116,4 +117,29 @@ func TestFreeze(t *testing.T) {
 		t.Fatalf("a tile first reached after the freeze holds %+v", c)
 	}
 	t.Logf("froze %d tiles, %d of them dungeon entrances", n, dungeons)
+}
+
+// A tile passed as extra, which nobody has discovered, freezes to the
+// seed's own content too.
+func TestFreezeExtraTile(t *testing.T) {
+	s, log, _ := v0(t, "replay-explorer")
+	h := unreached(t, s, 9)
+	if s.Tile(h) != nil && s.Tile(h).Discovered != nil {
+		t.Fatalf("tile %v is discovered", h)
+	}
+	discovered := 0
+	for _, tl := range s.Tiles {
+		if tl.Discovered != nil {
+			discovered++
+		}
+	}
+	n, err := s.Freeze(log, []hex.Hex{h, h})
+	if err != nil || n != discovered+1 {
+		t.Fatalf("froze %d tiles, want %d: %v", n, discovered+1, err)
+	}
+	want := s.Gen().Native(h)
+	c := s.Content(h)
+	if c == nil || !c.Native || c.Lead != want.Lead || sum(t, c.Stock) != sum(t, want.Stock) {
+		t.Fatalf("extra tile froze to %+v, native %+v", c, want)
+	}
 }

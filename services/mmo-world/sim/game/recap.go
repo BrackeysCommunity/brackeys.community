@@ -7,7 +7,6 @@ import (
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
-	"jams.team/mmo-world/sim/world"
 )
 
 // Look marks that a character's owner opened the hub: the next recap
@@ -84,7 +83,7 @@ func (g *Game) Recap(c *Char, own, heavy []fact.Fact) Recap {
 		if f.Tick <= since || f.Weight < g.NewsWeight() {
 			continue
 		}
-		if at, ok := g.factAt(f); ok && hex.Distance(at, c.C.At) <= near {
+		if at, ok := g.World.FactAt(f); ok && hex.Distance(at, c.C.At) <= near {
 			close = append(close, f)
 		} else {
 			rest = append(rest, f)
@@ -101,17 +100,6 @@ func (g *Game) Recap(c *Char, own, heavy []fact.Fact) Recap {
 		out.Lines, out.More = lines[:most], len(lines)-most
 	}
 	return out
-}
-
-// factAt is the tile a fact names, or its region's centre.
-func (g *Game) factAt(f fact.Fact) (hex.Hex, bool) {
-	if h, ok := fact.HexOf(f); ok {
-		return h, true
-	}
-	if i, ok := world.ParseRegionRef(f.Region); ok && i < len(g.World.Regions) {
-		return g.r.Gen.Region(g.World.Regions[i].Lattice).Centre, true
-	}
-	return hex.Hex{}, false
 }
 
 // RecapWindow is how far back a recap reads facts, at most.

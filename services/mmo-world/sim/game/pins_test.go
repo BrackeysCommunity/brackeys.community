@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"jams.team/mmo-world/internal/testkit"
@@ -468,5 +469,96 @@ func TestPinCommandsReplay(t *testing.T) {
 		if at != len(cmds) || got != want || string(again) != string(facts) {
 			t.Fatalf("replay %d reaches %s after %d of %d ticks of commands, the run %s", run+1, got, at, len(cmds), want)
 		}
+	}
+}
+
+// A slot a pin stores is not free ground: nobody founds a settlement on it.
+func TestAPinnedSlotIsNotFreeGround(t *testing.T) {
+	g, ts := society(t, 5)
+	officer := ts[0]
+	designer := world.PinBy{Role: world.PinDesigner}
+	fix := tile.Fix{Site: gen.PlaceDungeon}
+	site := freeTile(t, g, officer.c.C.At)
+	far := sheets.IntParam(g.Rules().Book.SettlementParams, "found-distance")
+	for _, h := range hex.DiscAt(officer.c.C.At, far*2) {
+		b := g.Rules().Gen.Baseline(h)
+		if b.Site != "" || !g.Rules().Gen.Passable(b.Terrain) || g.IsSettlement(h) || g.World.CheckPin(h, 1, fix, designer, false) != nil {
+			continue
+		}
+		clear := true
+		for _, o := range hex.DiscAt(h, far-1) {
+			clear = clear && !g.IsSettlement(o)
+		}
+		if clear {
+			site = h
+			break
+		}
+	}
+	officer.c.C.At = site
+	const taken = "free, passable tile"
+	if why := g.CharterAt(officer.c).Why; strings.Contains(why, taken) {
+		t.Fatalf("the tile was refused before any pin: %s", why)
+	}
+	p := &pinGame{t: t, g: g}
+	if err := g.World.CheckPin(site, 1, fix, designer, false); err != nil {
+		t.Fatalf("no free tile takes a pin: %v", err)
+	}
+	p.pin(game.PinReserve, game.PinCmd{At: site, Reach: 1, Fix: fix})
+	if err := g.World.Reach(g.Log, site, g.Tick()+1); err != nil {
+		t.Fatal(err)
+	}
+	if c, ok := g.Content(site); !ok || c.Site == "" {
+		t.Fatal("the pin did not land on the reached tile")
+	}
+	if why := g.CharterAt(officer.c).Why; !strings.Contains(why, taken) {
+		t.Fatalf("a charter on a pinned slot: %q", why)
+	}
+	unchanged(t, officer, "founding on a pinned slot", game.Command{Kind: game.Found, Note: "Reedhold"})
+}
+
+// A tile a guild founded on holds no pin: its content would stand beside the
+// settlement.
+func TestAFoundedSettlementTakesNoPin(t *testing.T) {
+	p := newPinGame(t)
+	h := p.tiles(1, world.PinBy{Role: world.PinDesigner}, p.leadFix, nil)[0]
+	p.g.Places = append(p.g.Places, &game.Place{N: len(p.g.Places), Hex: h, Lattice: -1, Name: "Reedhold"})
+	for _, kind := range []string{game.PinReserve, game.PinEdit} {
+		p.refused(world.CodePinGround, kind, &game.PinCmd{At: h, Reach: 1, Fix: p.leadFix(h)})
+	}
+}
+
+// A party on the first floor of a dungeon that stores no floors has entered
+// it: its depth is no longer the designer's to change.
+func TestPinEditRefusedUnderADelvingParty(t *testing.T) {
+	p := newPinGame(t)
+	designer := world.PinBy{Role: world.PinDesigner}
+	var at hex.Hex
+	var floors int64
+	for r := int64(1); r <= pinSearch && floors == 0; r++ {
+		for _, h := range hex.Ring(p.home(), r) {
+			if _, ok := p.g.Rules().Gen.Dungeon(h); !ok {
+				continue
+			}
+			if err := p.g.World.Reach(p.g.Log, h, p.g.Tick()+1); err != nil {
+				t.Fatal(err)
+			}
+			if plan, ok := p.g.Plan(h); ok && p.g.World.CheckPin(h, 1, tile.Fix{Floors: plan.Floors}, designer, true) == nil {
+				at, floors = h, plan.Floors
+				break
+			}
+		}
+	}
+	if floors == 0 {
+		t.Fatal("no dungeon near the first settlement a designer may edit")
+	}
+	c := p.create(pinServerA, false)
+	if err := p.g.Teleport(c, at); err != nil {
+		t.Fatal(err)
+	}
+	c.C.Floor = 1
+	before := len(p.g.World.Pins)
+	p.refused(world.CodePinEntered, game.PinEdit, &game.PinCmd{At: at, Fix: tile.Fix{Floors: floors}})
+	if len(p.g.World.Pins) != before {
+		t.Fatal("a refused edit kept a pin")
 	}
 }

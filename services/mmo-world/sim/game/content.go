@@ -29,13 +29,7 @@ func (g *Game) Creatures(h hex.Hex) []string {
 	if !ok || c.Lead == "" {
 		return g.r.Gen.Creatures(h)
 	}
-	out := []string{c.Lead}
-	for _, a := range g.r.Gen.Archetypes(h) {
-		if a != c.Lead {
-			out = append(out, a)
-		}
-	}
-	return out
+	return g.r.Gen.CreaturesLed(h, c.Lead)
 }
 
 // Plan is the plan of the dungeon whose entrance is h; false where none
@@ -124,6 +118,7 @@ func (g *Game) reachFloor(h hex.Hex, n, way, tier, t int64) gen.FloorPlan {
 			}
 		}
 		tp.SetFloor(tileDraw(g.r.Gen.DrawFloor(p, key, at, n, way)))
+		g.World.MarkEdited(h)
 	}
 	return g.FloorAt(h, n, way, tier)
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -186,5 +187,48 @@ func TestPreMM8aFrozen(t *testing.T) {
 	}
 	if frozen[0] != frozen[1] {
 		t.Fatalf("two freezes of one snapshot digest %s and %s", frozen[0], frozen[1])
+	}
+}
+
+// A character who arrived on a tile whose discovery is still pending
+// when the freeze runs keeps the native content it stood on.
+func TestFreezePendingArrival(t *testing.T) {
+	r := testkit.Rules(t, testkit.Book(t), keys.Throwaway("freeze-pending"))
+	g, err := game.New(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.World.ContentVersion = world.ContentNative
+	res, err := g.Act(game.Command{Key: "a", Kind: game.Create})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := res.Char
+	h := c.C.At
+	if tl := g.World.Tile(h); tl != nil && tl.Discovered != nil {
+		t.Fatalf("%s is already discovered", h.Ref())
+	}
+	if !slices.ContainsFunc(g.Pending, func(a world.Action) bool { return a.Kind == world.ActDiscover && a.Hex == h }) {
+		t.Fatalf("no discovery pending for %s: %+v", h.Ref(), g.Pending)
+	}
+	people := func() []game.Person { return g.PeopleHere(c, h) }
+	before := people()
+	if _, err := g.Act(game.Command{Key: game.ContentFreeze, Kind: game.ContentFreeze}); err != nil {
+		t.Fatal(err)
+	}
+	native := g.World.Content(h)
+	if native == nil || !native.Native {
+		t.Fatalf("the tile the character stands on froze to %+v", native)
+	}
+	lead, stock := native.Lead, len(native.Stock)
+	if _, err := g.Advance(); err != nil {
+		t.Fatal(err)
+	}
+	after := g.World.Content(h)
+	if after == nil || !after.Native || after.Key != "" || after.SiteKind != "" || after.Lead != lead || len(after.Stock) != stock {
+		t.Fatalf("the tile read %+v after the tick, froze as %+v", after, native)
+	}
+	if !reflect.DeepEqual(before, people()) {
+		t.Fatalf("the residents read %+v before the freeze, %+v after", before, people())
 	}
 }

@@ -178,9 +178,8 @@ func (s *Server) restamp(ctx context.Context, m *store.Meta) error {
 // world, so it is applied once.
 const freezeKey = "content-freeze"
 
-// freeze stores the seed's content on every discovered tile of a world
-// from before content was drawn from history, then draws from history
-// (GDD 4.17). It is a recorded command, so the world replays through it.
+// freeze sends the recorded content freeze to a world that does not yet
+// draw content from history, so the world replays through it.
 func (s *Server) freeze(ctx context.Context) error {
 	if s.g.World.Drawn() {
 		return nil

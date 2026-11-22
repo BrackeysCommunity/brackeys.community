@@ -26,10 +26,8 @@ type FloorDraw struct {
 	Pick          int64
 }
 
-// structural: a floor creature's pick is a raw draw below this, the least
-// common multiple of 1 to 36, so it splits evenly into any pool of up to
-// 36 and a pick taken through the native label chooses as the native
-// floor does at every tier. It stays under 2^53 so JSON readers keep it.
+// structural: lcm(1..36), so a floor creature's raw pick splits evenly
+// over any pool of up to 36; under 2^53 so JSON readers keep it.
 const pickRange = 144403552893600
 
 // The map.content-weights tables.
@@ -55,7 +53,7 @@ func (g *Gen) Content(h Hex, site string, d history.Digest, key string) Drawn {
 		return append([]draw.Part{draw.Str(h.Ref()), draw.Str(key)}, more...)
 	}
 	var out Drawn
-	out.SiteKind = g.siteKind(site, d, at())
+	out.SiteKind = g.SiteKind(h, site, d, key)
 	region := g.Region(g.Baseline(h).Region)
 	if rows := g.Archetypes(h); len(rows) > 0 {
 		base := make([]int64, len(rows))
@@ -81,6 +79,24 @@ func (g *Gen) Content(h Hex, site string, d history.Digest, key string) Drawn {
 	}
 	if p, ok := g.DrawPlan(h, site, "", d, key); ok {
 		out.Dungeon = &p
+	}
+	return out
+}
+
+// SiteKind is the kind Content draws for the slot.
+func (g *Gen) SiteKind(h Hex, site string, d history.Digest, key string) string {
+	return g.siteKind(site, d, []draw.Part{draw.Str(h.Ref()), draw.Str(key)})
+}
+
+// UniformStock gives every material of h's region the same units; nil when
+// the region has none.
+func (g *Gen) UniformStock(h Hex, units int64) map[string]int64 {
+	var out map[string]int64
+	for _, m := range g.Region(g.Baseline(h).Region).Materials {
+		if out == nil {
+			out = map[string]int64{}
+		}
+		out[m] = units
 	}
 	return out
 }
@@ -147,13 +163,7 @@ func (g *Gen) Native(h Hex) Drawn {
 	if c := g.Creatures(h); len(c) > 0 {
 		out.Lead = c[0]
 	}
-	node := g.nodeStock()
-	for _, m := range g.Region(g.Baseline(h).Region).Materials {
-		if out.Stock == nil {
-			out.Stock = map[string]int64{}
-		}
-		out.Stock[m] = node
-	}
+	out.Stock = g.UniformStock(h, g.nodeStock())
 	if p, ok := g.Dungeon(h); ok {
 		out.Dungeon = &p
 	}
@@ -177,7 +187,7 @@ func (g *Gen) Archetypes(h Hex) []string {
 // base back, so a draw always has something to pick.
 func (g *Gen) Weights(table string, rows []string, base []int64, d history.Digest, regionCreature string) []int64 {
 	out := make([]int64, len(base))
-	most := g.mp("history-kind-most")
+	most := history.BoundsOf(g.b.MapParams).KindMost
 	some := false
 	applies := func(w sheets.ContentWeight, row string) bool {
 		if w.Table != table {

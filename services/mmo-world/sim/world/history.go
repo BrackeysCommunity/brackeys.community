@@ -36,7 +36,7 @@ func (s *State) Note(fs ...fact.Fact) {
 		if !b.Indexed(f.Kind, f.Weight) {
 			continue
 		}
-		at, ok := s.factAt(f)
+		at, ok := s.FactAt(f)
 		if !ok {
 			continue
 		}
@@ -58,9 +58,9 @@ func olderFirst(a, b history.Heavy) int {
 	return cmp.Or(cmp.Compare(a.Tick, b.Tick), cmp.Compare(a.ID, b.ID))
 }
 
-// factAt is where a fact happened: the tile its data names, or else its
+// FactAt is where a fact happened: the tile its data names, or else its
 // region's centre. Season facts and reports have no place.
-func (s *State) factAt(f fact.Fact) (hex.Hex, bool) {
+func (s *State) FactAt(f fact.Fact) (hex.Hex, bool) {
 	if h, ok := fact.HexOf(f); ok {
 		return h, true
 	}

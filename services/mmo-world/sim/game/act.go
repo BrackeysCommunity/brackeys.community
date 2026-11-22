@@ -96,8 +96,7 @@ type Stop struct {
 // Operator reports whether a command kind is for operators only.
 func Operator(kind string) bool {
 	return kind == Correct || kind == Grant || kind == Ban || kind == Unban || kind == HideGoal || kind == SetMachine ||
-		kind == HuntStart || kind == HideName || kind == SetReady ||
-		kind == PinReserve || kind == PinEdit || kind == PinWithdraw || kind == ContentFreeze
+		kind == HideName || kind == SetReady || WorldLevel(kind)
 }
 
 // passive reports whether a kind is sent for a character rather than by
@@ -246,16 +245,11 @@ func (g *Game) Act(cmd Command) (Result, error) {
 // character to look up, collect for or mark as having acted.
 func (g *Game) actWorld(cmd Command) (Result, error) {
 	first := fact.ID(g.Log.Len())
-	var err error
-	switch cmd.Kind {
-	case HuntStart:
-		err = g.huntStart(cmd)
-	case PinReserve, PinEdit, PinWithdraw:
-		err = g.pinCommand(cmd)
-	case ContentFreeze:
-		err = g.freezeCommand(cmd)
+	run := worldCommand(cmd.Kind)
+	if run == nil {
+		return Result{}, refuse(BadArgs, "%s is not a world command", cmd.Kind)
 	}
-	if err != nil {
+	if err := run(g, cmd); err != nil {
 		return Result{}, err
 	}
 	if err := g.creditGoals(first, cmd.Key); err != nil {

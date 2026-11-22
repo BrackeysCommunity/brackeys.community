@@ -15,9 +15,8 @@ type Measured struct {
 	Holds  bool
 }
 
-// spikeETargets are the scaffold targets spike E reads, in its own report rather
-// than as readings: generation is checked there, seed by seed, and every
-// pin and content draw leaves it untouched.
+// spikeETargets are the scaffold targets spike E checks seed by seed in
+// its own report; pins and content draws leave them untouched.
 var spikeETargets = map[string]bool{
 	"structures-reachable": true,
 	"chunk-order":          true,

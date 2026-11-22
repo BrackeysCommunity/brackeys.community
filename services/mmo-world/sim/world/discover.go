@@ -54,6 +54,12 @@ func (s *State) Content(h hex.Hex) *tile.Content {
 // setContent stores a tile's content and lists the tile as edited.
 func (s *State) setContent(h hex.Hex, c *tile.Content) {
 	s.touch(h).Content = c
+	s.MarkEdited(h)
+}
+
+// MarkEdited lists h among the tiles a command's save writes,
+// for content changed in place.
+func (s *State) MarkEdited(h hex.Hex) {
 	if s.edited == nil {
 		s.edited = map[hex.Hex]bool{}
 	}
