@@ -25,9 +25,9 @@ var updateMM8a = flag.Bool("update-mm8a", false, "record testdata/replay-mm8a ag
 
 // mm8aFixture is a recorded game on a world that draws content from
 // history: a snapshot with three walkers part way from the first
-// settlement to a site nobody has reached, a designer's reserve on that
-// site given first after it, every command after by tick, and the digest
-// the game reaches a tick after the last.
+// settlement to a site nobody has reached; the designer's reserve on that
+// site as the first command after the snapshot; every later command by
+// tick; and the digest the game reaches a tick after the last.
 type mm8aFixture struct {
 	Label  string   `json:"label"`
 	Target hex.Hex  `json:"target"`

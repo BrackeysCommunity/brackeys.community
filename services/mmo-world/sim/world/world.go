@@ -94,7 +94,7 @@ type State struct {
 	gauge     map[string]int
 	// Never saved: edited is the tiles whose content changed since the last
 	// Advance; pinCells and findsIn are indexes rebuilt on demand after Pins
-	// or Finds change; arriving is what the tick has added.
+	// or Finds change; arriving is the running tick's arrivals, nil outside Advance.
 	edited    map[hex.Hex]bool
 	pinCells  map[pinCell][]int
 	findsIn   map[gen.LatticeID][]int

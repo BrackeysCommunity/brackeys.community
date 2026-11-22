@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/sim/game"
-	"jams.team/mmo-world/sim/history"
 )
 
 // records is what applying a command needs of where it is kept: the
@@ -206,15 +204,4 @@ func act(g *game.Game, cmd game.Command, version int64, checkVersion bool) (game
 		return res, out, status, nil
 	}
 	return res, nil, 0, err
-}
-
-// playerFacts drops the pin facts: no player read names a pin (GDD 14.5).
-func playerFacts(fs []api.Fact) []api.Fact {
-	out := make([]api.Fact, 0, len(fs))
-	for _, f := range fs {
-		if !strings.HasPrefix(f.Kind, history.PinKinds) {
-			out = append(out, f)
-		}
-	}
-	return out
 }

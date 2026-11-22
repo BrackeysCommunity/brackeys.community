@@ -38,12 +38,14 @@ func (s *State) notable(role string, seat int) Notable {
 	givenP, familyP, loyaltyP := draw.Purpose("notable.given"), draw.Purpose("notable.family"), draw.Purpose("notable.loyalty")
 	who := []draw.Part{draw.Int(int64(id))}
 	var dg history.Digest
+	traits := s.nativeNotableTraits
 	if s.Drawn() {
 		dg = s.DigestAt(s.centre(seat), s.Tick)
 		// A notable is not a tile's content, so no pin reaches it.
 		dg.Pins = nil
 		givenP, familyP, loyaltyP = "content.notable.given", "content.notable.family", "content.notable.loyalty"
 		who = append(who, draw.Str(dg.Key()))
+		traits = func(who []draw.Part) []string { return s.drawnNotableTraits(dg, who) }
 	}
 	given, family := s.parts("notable-given"), s.parts("notable-family")
 	lo, hi := s.p("loyalty-min"), s.p("loyalty-max")
@@ -54,28 +56,34 @@ func (s *State) notable(role string, seat int) Notable {
 		Role:    role,
 		Loyalty: s.d.Between(lo, hi, loyaltyP, who...),
 	}
-	if s.Drawn() {
-		ids := make([]string, len(s.b.NPCTraits))
-		base := make([]int64, len(s.b.NPCTraits))
-		for i, t := range s.b.NPCTraits {
-			ids[i], base[i] = t.ID, sheets.IntParam(s.b.MapParams, "content-trait-weight")
-		}
-		weights := s.g.Weights(gen.TableTrait, ids, base, dg, "")
-		st := s.d.Stream("content.notable.traits", who...)
-		n.Traits = sheets.PickTraits(s.b.NPCTraits, weights, s.p("notable-traits"), st.Pick)
-		return n
-	}
+	n.Traits = traits(who)
+	return n
+}
+
+func (s *State) nativeNotableTraits(who []draw.Part) []string {
+	var out []string
 	for _, k := range s.d.Shuffle(len(s.b.NPCTraits), "notable.traits", who...) {
-		if int64(len(n.Traits)) == s.p("notable-traits") {
+		if int64(len(out)) == s.p("notable-traits") {
 			break
 		}
 		t := s.b.NPCTraits[k]
-		if slices.Contains(n.Traits, t.Opposes) {
+		if slices.Contains(out, t.Opposes) {
 			continue
 		}
-		n.Traits = append(n.Traits, t.ID)
+		out = append(out, t.ID)
 	}
-	return n
+	return out
+}
+
+func (s *State) drawnNotableTraits(dg history.Digest, who []draw.Part) []string {
+	ids := make([]string, len(s.b.NPCTraits))
+	base := make([]int64, len(s.b.NPCTraits))
+	for i, t := range s.b.NPCTraits {
+		ids[i], base[i] = t.ID, sheets.IntParam(s.b.MapParams, "content-trait-weight")
+	}
+	weights := s.g.Weights(gen.TableTrait, ids, base, dg, "")
+	st := s.d.Stream("content.notable.traits", who...)
+	return sheets.PickTraits(s.b.NPCTraits, weights, s.p("notable-traits"), st.Pick)
 }
 
 func (f *Faction) living() int {

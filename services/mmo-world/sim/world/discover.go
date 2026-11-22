@@ -15,9 +15,9 @@ const (
 
 // Reach draws and stores a tile's content at its first reach, in tick t.
 // It does nothing on a world from before content was drawn from history,
-// or on a tile that holds content already. The digest reads only state
-// from before t and nothing of who arrives, so two arrivals in one tick
-// store the same content whichever comes first.
+// or on a tile that holds content already. Its digest reads no arrival of
+// the same tick (see arrivals), so arrivals in one tick store the same
+// content whichever comes first.
 func (s *State) Reach(log fact.Log, h hex.Hex, t int64) error {
 	if !s.Drawn() || s.Content(h) != nil {
 		return nil

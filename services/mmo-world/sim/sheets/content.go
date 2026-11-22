@@ -144,9 +144,9 @@ func (b *Book) contentProblems() []string {
 			p = append(p, at+": "+w.Row+" is not a row of the "+w.Table+" table")
 		}
 		if f, ok := facts[w.Fact]; ok {
-			if strings.HasPrefix(f.Kind, PinKinds) {
+			if PinFact(f.Kind) {
 				p = append(p, at+": "+f.Kind+" is never indexed")
-			} else if hasFloor && !Indexed(f.Kind, f.Weight, floor) {
+			} else if hasFloor && f.Weight < floor {
 				p = append(p, at+": "+f.Kind+" weighs under history-weight, so it is never indexed")
 			}
 		}
@@ -216,10 +216,13 @@ func holds[T any](rows []T) func(string) bool {
 // PinKinds is the prefix of the pin facts, which the history index never holds.
 const PinKinds = "pin."
 
+// PinFact reports whether a fact kind is a pin's: no history index or player read holds one.
+func PinFact(kind string) bool { return strings.HasPrefix(kind, PinKinds) }
+
 // Indexed reports whether a fact of this kind and weight enters the history
 // index: heavy enough, and not a pin's.
 func Indexed(kind string, weight, floor int64) bool {
-	return weight >= floor && !strings.HasPrefix(kind, PinKinds)
+	return weight >= floor && !PinFact(kind)
 }
 
 // FindKindIDs are the find kinds a content weight may count (world

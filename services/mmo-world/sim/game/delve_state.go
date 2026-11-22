@@ -80,8 +80,12 @@ func worldCommand(kind string) func(*Game, Command) error {
 	switch kind {
 	case HuntStart:
 		return (*Game).huntStart
-	case PinReserve, PinEdit, PinWithdraw:
-		return (*Game).pinCommand
+	case PinReserve:
+		return (*Game).pinReserve
+	case PinEdit:
+		return (*Game).pinEdit
+	case PinWithdraw:
+		return (*Game).pinWithdraw
 	case ContentFreeze:
 		return (*Game).freezeCommand
 	}

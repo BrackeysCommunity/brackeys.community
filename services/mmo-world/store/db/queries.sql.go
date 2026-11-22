@@ -850,18 +850,25 @@ func (q *Queries) ListTiles(ctx context.Context, worldID string) ([]MmoTile, err
 }
 
 const recentFactsIn = `-- name: RecentFactsIn :many
-SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND region = $2 AND kind NOT LIKE 'pin.%'
-ORDER BY id DESC LIMIT $3
+SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND region = $2 AND kind NOT LIKE ($3::text || '%')
+ORDER BY id DESC LIMIT $4
 `
 
 type RecentFactsInParams struct {
 	WorldID string
 	Region  pgtype.Text
+	Hidden  string
 	Lim     int32
 }
 
+// Pin facts reach no player read (GDD 14.5): hidden is sheets.PinKinds.
 func (q *Queries) RecentFactsIn(ctx context.Context, arg RecentFactsInParams) ([]MmoFact, error) {
-	rows, err := q.db.Query(ctx, recentFactsIn, arg.WorldID, arg.Region, arg.Lim)
+	rows, err := q.db.Query(ctx, recentFactsIn,
+		arg.WorldID,
+		arg.Region,
+		arg.Hidden,
+		arg.Lim,
+	)
 	if err != nil {
 		return nil, err
 	}

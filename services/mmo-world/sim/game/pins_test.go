@@ -13,6 +13,7 @@ import (
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/gen"
+	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/sheets"
@@ -561,4 +562,39 @@ func TestPinEditRefusedUnderADelvingParty(t *testing.T) {
 	if len(p.g.World.Pins) != before {
 		t.Fatal("a refused edit kept a pin")
 	}
+}
+
+// An open Reach goal checked its floor against the plan an edit would change.
+func TestPinEditRefusedUnderAReachGoal(t *testing.T) {
+	p := newPinGame(t)
+	designer := world.PinBy{Role: world.PinDesigner}
+	var at hex.Hex
+	var floors int64
+	for r := int64(1); r <= pinSearch && floors == 0; r++ {
+		for _, h := range hex.Ring(p.home(), r) {
+			if _, ok := p.g.Rules().Gen.Dungeon(h); !ok {
+				continue
+			}
+			if err := p.g.World.Reach(p.g.Log, h, p.g.Tick()+1); err != nil {
+				t.Fatal(err)
+			}
+			if plan, ok := p.g.Plan(h); ok && p.g.World.CheckPin(h, 1, tile.Fix{Floors: plan.Floors}, designer, true) == nil {
+				at, floors = h, plan.Floors
+				break
+			}
+		}
+	}
+	if floors == 0 {
+		t.Fatal("no dungeon near the first settlement a designer may edit")
+	}
+	x := &game.Goal{ID: "g-reach-pin", State: goal.Live, Cond: goal.Condition{Verb: goal.Reach, Dungeon: at.Ref(), Floor: 1, Count: 1}}
+	i, _ := slices.BinarySearchFunc(p.g.Goals, x.ID, func(e *game.Goal, id string) int { return strings.Compare(e.ID, id) })
+	p.g.Goals = slices.Insert(p.g.Goals, i, x)
+	before := len(p.g.World.Pins)
+	p.refused(world.CodePinEntered, game.PinEdit, &game.PinCmd{At: at, Fix: tile.Fix{Floors: floors}})
+	if len(p.g.World.Pins) != before {
+		t.Fatal("a refused edit kept a pin")
+	}
+	x.State = goal.Ended
+	p.pin(game.PinEdit, game.PinCmd{At: at, Fix: tile.Fix{Floors: floors}})
 }

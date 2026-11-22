@@ -13,6 +13,7 @@ import (
 	"jams.team/mmo-world/internal/testkit"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/gen"
+	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/world"
@@ -230,5 +231,68 @@ func TestFreezePendingArrival(t *testing.T) {
 	}
 	if !reflect.DeepEqual(before, people()) {
 		t.Fatalf("the residents read %+v before the freeze, %+v after", before, people())
+	}
+}
+
+// An open Reach goal's entrance keeps the native plan its floor was checked against.
+func TestFreezeReachGoal(t *testing.T) {
+	r := testkit.Rules(t, testkit.Book(t), keys.Throwaway("freeze-reach"))
+	g, err := game.New(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.World.ContentVersion = world.ContentNative
+	res, err := g.Act(game.Command{Key: "a", Kind: game.Create})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := res.Char
+	busy := func(h hex.Hex) bool {
+		if tl := g.World.Tile(h); tl != nil && tl.Discovered != nil {
+			return true
+		}
+		if g.World.Content(h) != nil {
+			return true
+		}
+		for _, a := range g.Pending {
+			if (a.Kind == world.ActDiscover || a.Kind == world.ActVisit) && a.Hex == h {
+				return true
+			}
+		}
+		for _, o := range g.Chars {
+			if o.C.At == h {
+				return true
+			}
+		}
+		return false
+	}
+	var h hex.Hex
+	var native gen.Plan
+	found := false
+	for radius := int64(1); radius <= 40 && !found; radius++ {
+		for _, x := range hex.Ring(c.C.At, radius) {
+			if busy(x) {
+				continue
+			}
+			if p, ok := g.Rules().Gen.Dungeon(x); ok {
+				h, native, found = x, p, true
+				break
+			}
+		}
+	}
+	if !found {
+		t.Skip("no undiscovered dungeon entrance near the start")
+	}
+	g.Goals = append(g.Goals, &game.Goal{ID: "g-freeze-reach", State: goal.Live, Cond: goal.Condition{Verb: goal.Reach, Dungeon: h.Ref(), Floor: native.Floors, Count: 1}})
+	slices.SortFunc(g.Goals, func(a, b *game.Goal) int { return strings.Compare(a.ID, b.ID) })
+	if _, err := g.Act(game.Command{Key: game.ContentFreeze, Kind: game.ContentFreeze}); err != nil {
+		t.Fatal(err)
+	}
+	if ct := g.World.Content(h); ct == nil || !ct.Native {
+		t.Fatalf("the goal's entrance froze to %+v", ct)
+	}
+	plan, ok := g.Plan(h)
+	if !ok || !reflect.DeepEqual(plan, native) {
+		t.Fatalf("the entrance reads %+v (%v) after the freeze, was %+v", plan, ok, native)
 	}
 }

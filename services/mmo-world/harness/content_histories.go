@@ -167,7 +167,7 @@ func newHistory(b *sheets.Book, name string, seed int, pins bool) (*historyRun, 
 }
 
 // days plays n world days: unattended until historyStillDays, then the
-// explorer's walk, with a pin before every pinEvery-th explorer day.
+// explorer's walk, with a pin before every pinEvery-th explorer day in the pinned history.
 func (h *historyRun) days(n int, before func(*historyRun) error) error {
 	for range n {
 		if before != nil {

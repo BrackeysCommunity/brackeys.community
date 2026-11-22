@@ -480,9 +480,8 @@ func checkArrivalOrder(t *testing.T, s *State, label string, by fact.Ref, a, b h
 	}
 }
 
-// arrivalPair finds two undiscovered tiles where discovering a wakes a
-// region in b's horizon and b's digest would differ were it read after the
-// arrival.
+// arrivalPair finds two unreached tiles where discovering a wakes c's
+// region, so c's digest would differ were it read after that arrival.
 func arrivalPair(t *testing.T, b *sheets.Book, label string, by fact.Ref) (a, c hex.Hex, s *State, ok bool) {
 	t.Helper()
 	k := keys.Throwaway(label)
@@ -495,23 +494,12 @@ func arrivalPair(t *testing.T, b *sheets.Book, label string, by fact.Ref) (a, c 
 		t.Fatal(err)
 	}
 	s.ContentVersion = ContentDrawn
-	hops := int(s.wp("horizon-hops"))
 	woken := func(id gen.LatticeID) map[gen.LatticeID]bool {
-		seen := map[gen.LatticeID]bool{id: true}
-		ring := []gen.LatticeID{id}
-		for range hops {
-			var next []gen.LatticeID
-			for _, r := range ring {
-				for _, n := range s.g.RegionNeighbours(r) {
-					if !seen[n] {
-						seen[n] = true
-						next = append(next, n)
-					}
-				}
-			}
-			ring = append(ring, next...)
+		m := map[gen.LatticeID]bool{}
+		for _, r := range s.horizon(id) {
+			m[r] = true
 		}
-		return seen
+		return m
 	}
 	free := func(h hex.Hex) bool {
 		return s.g.Passable(s.g.Baseline(h).Terrain) && !s.reached(h)

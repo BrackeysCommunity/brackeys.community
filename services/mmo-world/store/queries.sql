@@ -84,8 +84,9 @@ ORDER BY id DESC LIMIT @lim;
 SELECT * FROM mmo.fact WHERE world_id = @world_id AND tick > @since AND weight >= @weight
 ORDER BY id DESC LIMIT @lim;
 
+-- Pin facts reach no player read (GDD 14.5): hidden is sheets.PinKinds.
 -- name: RecentFactsIn :many
-SELECT * FROM mmo.fact WHERE world_id = @world_id AND region = @region AND kind NOT LIKE 'pin.%'
+SELECT * FROM mmo.fact WHERE world_id = @world_id AND region = @region AND kind NOT LIKE (@hidden::text || '%')
 ORDER BY id DESC LIMIT @lim;
 
 -- name: InsertFacts :copyfrom

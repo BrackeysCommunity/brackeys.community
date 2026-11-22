@@ -90,6 +90,9 @@ type Fix struct {
 // Empty reports whether the fix sets nothing.
 func (f Fix) Empty() bool { return f == Fix{} }
 
+// Replans reports whether a fix changes a dungeon's plan.
+func (f Fix) Replans() bool { return f.Dungeon != "" || f.Floors != 0 }
+
 func floorOrder(a FloorDraw, n, way int64) int {
 	return cmp.Or(cmp.Compare(a.N, n), cmp.Compare(a.Way, way))
 }

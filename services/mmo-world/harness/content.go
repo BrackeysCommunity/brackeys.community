@@ -28,7 +28,7 @@ const (
 	contentSeeds       = 40  // seeds per history
 	sweepPerSeed       = 25  // pin-sweep seeds per history seed: 1,000 at the default
 	differsTarget      = 60  // per cent of S (see differs) whose drawn fields differ, pooled
-	costFlat           = 150 // per cent of day 1's median a day-300 draw may cost
+	costFlat           = 150 // per cent of day 1's median a draw on day busyDays may cost
 	reachWalk          = 200 // tiles a walk from the first settlement may take
 	sweepReachMost     = 12  // the sweep's pins reach 1 to this
 	busyDays           = 300
@@ -842,7 +842,7 @@ func differsRow(p func(string, ...any), rs []historyResult) Measured {
 	p("| History | Tiles in S | Of the candidates | Key differs | Drawn fields differ | Share |")
 	p("| --- | --- | --- | --- | --- | --- |")
 	var sample, differ int
-	var bad []string
+	var bad, per []string
 	for _, name := range historyNames {
 		var s, c, k, d int
 		for _, r := range byHistory(rs, name) {
@@ -851,17 +851,10 @@ func differsRow(p func(string, ...any), rs []historyResult) Measured {
 		}
 		sample, differ = sample+s, differ+d
 		p("| %s | %s | %s | %s | %s | %.1f%% |", name, comma(int64(s)), comma(int64(c)), comma(int64(k)), comma(int64(d)), pct(d, s))
+		per = append(per, fmt.Sprintf("%s %.1f%%", name, pct(d, s)))
 	}
 	listBad(p, "Failing", bad)
 	share := pct(differ, sample)
-	var per []string
-	for _, name := range historyNames {
-		var s, d int
-		for _, r := range byHistory(rs, name) {
-			s, d = s+r.sample, d+r.differ
-		}
-		per = append(per, fmt.Sprintf("%s %.1f%%", name, pct(d, s)))
-	}
 	return Measured{"content-differs", fmt.Sprintf("%.1f%% of %s sampled tiles pooled (%s)", share, comma(int64(sample)), strings.Join(per, ", ")),
 		sample > 0 && len(bad) == 0 && differ*100 >= differsTarget*sample}
 }

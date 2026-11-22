@@ -98,8 +98,8 @@ func (g *Gen) UniformStock(h Hex, units int64) map[string]int64 {
 	return out
 }
 
-// siteKind draws what a site or edge-site slot holds; any other slot
-// holds no kind.
+// siteKind draws what the slot holds among the site kinds that list it; a
+// slot none lists holds no kind.
 func (g *Gen) siteKind(site string, d history.Digest, at []draw.Part) string {
 	var ids []string
 	var base []int64
@@ -132,7 +132,7 @@ func (g *Gen) DrawPlan(h Hex, site, kind string, d history.Digest, key string) (
 	if len(kinds) == 0 {
 		return Plan{}, false
 	}
-	at := []draw.Part{draw.Str(h.Ref()), draw.Str(key)}
+	at := contentParts(h, key)
 	var k *sheets.DungeonKind
 	if kind == "" {
 		ids := make([]string, len(kinds))

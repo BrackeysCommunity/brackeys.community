@@ -7,6 +7,7 @@ import (
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/puzzle"
+	"jams.team/mmo-world/sim/sheets"
 )
 
 // Sees reports whether a viewer may be shown a tile at all: the one it
@@ -74,6 +75,17 @@ func SeenFacts(viewer string, facts []api.Fact) []api.Fact {
 			if s.Kind != "character" || s.ID == viewer {
 				out[i].Subjects = append(out[i].Subjects, s)
 			}
+		}
+	}
+	return out
+}
+
+// playerFacts drops the pin facts: no player read names a pin (GDD 14.5).
+func playerFacts(fs []api.Fact) []api.Fact {
+	out := make([]api.Fact, 0, len(fs))
+	for _, f := range fs {
+		if !sheets.PinFact(f.Kind) {
+			out = append(out, f)
 		}
 	}
 	return out

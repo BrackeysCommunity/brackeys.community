@@ -849,7 +849,7 @@ func (s *Store) RecapFacts(ctx context.Context, character string, since, weight 
 
 // RecentIn are a region's latest facts, newest first.
 func (s *Store) RecentIn(ctx context.Context, region string, n int32) ([]fact.Fact, error) {
-	return factsOf(s.q.RecentFactsIn(ctx, db.RecentFactsInParams{WorldID: s.World, Region: pgtype.Text{String: region, Valid: true}, Lim: n}))
+	return factsOf(s.q.RecentFactsIn(ctx, db.RecentFactsInParams{WorldID: s.World, Region: pgtype.Text{String: region, Valid: true}, Hidden: sheets.PinKinds, Lim: n}))
 }
 
 // LedgerOf is an account's last n ledger lines, newest first.

@@ -283,8 +283,9 @@ func (s *State) fields(f tile.Fix) []string {
 	return out
 }
 
-// CheckPin runs every pin validator, changing nothing; tools and tests use
-// it as a dry run.
+// CheckPin runs the world's pin validators, changing nothing; tests use it
+// as a dry run. The game refuses founded ground before it, and a replan of a
+// dungeon someone delved or an open goal reaches into.
 func (s *State) CheckPin(at hex.Hex, reach int64, fix tile.Fix, by PinBy, edit bool) error {
 	if !s.Drawn() {
 		return refuse(CodeContentNative, "this world does not draw content from history yet")
@@ -314,7 +315,7 @@ func (s *State) CheckPin(at hex.Hex, reach int64, fix tile.Fix, by PinBy, edit b
 	if err := s.checkFix(at, fix, limit, edit); err != nil {
 		return err
 	}
-	if edit && (fix.Dungeon != "" || fix.Floors != 0) && s.entered(at) {
+	if edit && fix.Replans() && s.entered(at) {
 		return refuse(CodePinEntered, "the dungeon on %s has been entered", at.Ref())
 	}
 	walk := s.mp("pin-path-tiles")
@@ -656,9 +657,8 @@ func (s *State) fix(c *tile.Content, h hex.Hex, p *Pin) {
 	}
 }
 
-// pinFact writes a pin's fact. Only a landing names a region or a tile;
-// the rest name nothing a player's read could place. A server's pin
-// carries who staged it.
+// pinFact writes a pin's fact; only a landing names a region or a tile. A
+// server's pin carries who staged it.
 func (s *State) pinFact(log fact.Log, tick int64, kind, region string, p *Pin, at []fact.Datum) (fact.ID, error) {
 	if log == nil {
 		return 0, nil

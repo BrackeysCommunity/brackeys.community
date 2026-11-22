@@ -70,21 +70,7 @@ func (s *State) discoverRegion(log fact.Log, id gen.LatticeID) error {
 	if i := s.RegionIndex(id); i >= 0 && s.Regions[i].Discovered {
 		return nil
 	}
-	ring := []gen.LatticeID{id}
-	seen := map[gen.LatticeID]bool{id: true}
-	for range s.wp("horizon-hops") {
-		var next []gen.LatticeID
-		for _, r := range ring {
-			for _, n := range s.g.RegionNeighbours(r) {
-				if !seen[n] {
-					seen[n] = true
-					next = append(next, n)
-				}
-			}
-		}
-		ring = append(ring, next...)
-	}
-	for _, r := range ring {
+	for _, r := range s.horizon(id) {
 		s.wake(r)
 	}
 	i := s.RegionIndex(id)
@@ -297,4 +283,23 @@ func (s *State) centre(r int) hex.Hex { return s.g.Region(s.Regions[r].Lattice).
 func (s *State) Describe(r int) string {
 	id := s.Regions[r].Lattice
 	return fmt.Sprintf("%s (%s)", RegionRef(r), latticeRef(id))
+}
+
+// horizon is a region and those within the horizon's hops of it, nearest first.
+func (s *State) horizon(id gen.LatticeID) []gen.LatticeID {
+	ring := []gen.LatticeID{id}
+	seen := map[gen.LatticeID]bool{id: true}
+	for range s.wp("horizon-hops") {
+		var next []gen.LatticeID
+		for _, r := range ring {
+			for _, n := range s.g.RegionNeighbours(r) {
+				if !seen[n] {
+					seen[n] = true
+					next = append(next, n)
+				}
+			}
+		}
+		ring = append(ring, next...)
+	}
+	return ring
 }

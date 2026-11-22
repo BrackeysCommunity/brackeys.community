@@ -435,10 +435,9 @@ func (g *Game) create(server, guildName string) (*Char, error) {
 		c.C.At = g.SettlementHex(n)
 		c.C.Home = goal.SettlementRef(n)
 	}
-	if err := g.Reach(c.C.At); err != nil {
+	if err := g.Teleport(c, c.C.At); err != nil {
 		return nil, err
 	}
-	g.Pending = append(g.Pending, world.Action{Kind: world.ActDiscover, Hex: c.C.At, By: char.Ref(id)})
 	_, err := g.fact(c, "character.arrived", g.Tick())
 	return c, err
 }

@@ -13,10 +13,6 @@ import (
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// PinKinds is the prefix of the pin facts, which no digest counts: a pin
-// reaches later tiles only through its own reach.
-const PinKinds = sheets.PinKinds
-
 // Heavy is one indexed fact.
 type Heavy struct {
 	ID     int64   `json:"id"`

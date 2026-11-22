@@ -4,6 +4,7 @@ import (
 	"errors"
 	"slices"
 
+	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/tile"
 	"jams.team/mmo-world/sim/world"
@@ -30,41 +31,66 @@ type PinCmd struct {
 	Pin   string   `json:"pin,omitempty"` // withdraw
 }
 
-// pinCommand stages, edits or withdraws a pin. The world runs every
-// validator before it changes anything, so a refusal leaves the game as
-// it was.
-func (g *Game) pinCommand(cmd Command) error {
+// pinReserve, pinEdit and pinWithdraw stage, edit or withdraw a pin. The
+// game's checks and the world's all run before anything changes, so a
+// refusal leaves the game as it was.
+func (g *Game) pinReserve(cmd Command) error {
+	p, by, err := g.pinTarget(cmd)
+	if err != nil {
+		return err
+	}
+	_, err = g.World.Reserve(g.Log, p.At, p.Reach, p.Fix, by)
+	return refusedFrom(err)
+}
+
+func (g *Game) pinEdit(cmd Command) error {
+	p, by, err := g.pinTarget(cmd)
+	if err != nil {
+		return err
+	}
+	if p.Fix.Replans() && g.delvedAt(p.At) {
+		return refuse(world.CodePinEntered, "the dungeon on %s has been entered", p.At.Ref())
+	}
+	if p.Fix.Replans() && g.reachGoalAt(p.At) {
+		return refuse(world.CodePinEntered, "an open goal reaches into the dungeon on %s", p.At.Ref())
+	}
+	// An edit sent with no reach reaches as little as any pin may.
+	_, err = g.World.EditPin(g.Log, p.At, max(p.Reach, 1), p.Fix, by)
+	return refusedFrom(err)
+}
+
+func (g *Game) pinWithdraw(cmd Command) error {
 	p := cmd.Pin
 	if p == nil {
 		return refuse(BadArgs, "%s carries a pin", cmd.Kind)
 	}
-	by, err := g.pinBy(p, cmd.Kind == PinWithdraw)
+	by, err := g.pinBy(p, true)
 	if err != nil {
 		return err
 	}
-	if cmd.Kind != PinWithdraw {
-		// A guild-founded settlement; the world's placeTile refuses a starting one.
-		if pl := g.PlaceAt(p.At); pl != nil && pl.Lattice < 0 {
-			return refuse(world.CodePinGround, "%s holds a settlement", p.At.Ref())
-		}
-		if cmd.Kind == PinEdit && (p.Fix.Dungeon != "" || p.Fix.Floors != 0) && g.delvedAt(p.At) {
-			return refuse(world.CodePinEntered, "the dungeon on %s has been entered", p.At.Ref())
-		}
+	if err := g.mayWithdraw(p.Pin, by); err != nil {
+		return err
 	}
-	switch cmd.Kind {
-	case PinReserve:
-		_, err = g.World.Reserve(g.Log, p.At, p.Reach, p.Fix, by)
-	case PinEdit:
-		// An edit sent with no reach reaches as little as any pin may.
-		_, err = g.World.EditPin(g.Log, p.At, max(p.Reach, 1), p.Fix, by)
-	case PinWithdraw:
-		if err = g.mayWithdraw(p.Pin, by); err == nil {
-			_, err = g.World.Withdraw(g.Log, p.Pin)
-		}
-	default:
-		err = refuse(BadArgs, "no pin command %q", cmd.Kind)
-	}
+	_, err = g.World.Withdraw(g.Log, p.Pin)
 	return refusedFrom(err)
+}
+
+// pinTarget is the pin a staging command carries and who it speaks for,
+// once the ground it names may take a pin.
+func (g *Game) pinTarget(cmd Command) (*PinCmd, world.PinBy, error) {
+	p := cmd.Pin
+	if p == nil {
+		return nil, world.PinBy{}, refuse(BadArgs, "%s carries a pin", cmd.Kind)
+	}
+	by, err := g.pinBy(p, false)
+	if err != nil {
+		return nil, by, err
+	}
+	// A guild-founded settlement; the world's placeTile refuses a starting one.
+	if pl := g.PlaceAt(p.At); pl != nil && pl.Lattice < 0 {
+		return nil, by, refuse(world.CodePinGround, "%s holds a settlement", p.At.Ref())
+	}
+	return p, by, nil
 }
 
 // delvedAt reports whether anyone is on a floor of the dungeon at h or has
@@ -72,6 +98,20 @@ func (g *Game) pinCommand(cmd Command) error {
 func (g *Game) delvedAt(h hex.Hex) bool {
 	for _, c := range g.Chars {
 		if c.C.At == h && c.C.Floor > 0 || DeepestFloor(c, h) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// reachGoalAt reports whether an open Reach goal names the dungeon at h: its
+// floor was checked against the plan an edit would change (GDD 11.2).
+func (g *Game) reachGoalAt(h hex.Hex) bool {
+	for _, x := range g.Goals {
+		if !x.Open() || x.Cond.Verb != goal.Reach || x.Cond.Dungeon == "" {
+			continue
+		}
+		if d, ok := hex.ParseRef(x.Cond.Dungeon); ok && d == h {
 			return true
 		}
 	}

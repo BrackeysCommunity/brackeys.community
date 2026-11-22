@@ -218,20 +218,26 @@ func (r *Rules) stub(id, kind, role string, home hex.Hex, d Draw) Stub {
 	}
 	s := Stub{ID: id, Kind: kind, Role: role, Home: home, Traits: []string{},
 		Name: r.given[r.gen.Below(uint64(len(r.given)), givenP, who...)] + " " + r.family[r.gen.Below(uint64(len(r.family)), familyP, who...)]}
+	s.Traits = append(s.Traits, r.traitsFor(d, who)...)
+	return s
+}
+
+// traitsFor draws a stub's traits: weighted by the digest on a tile with drawn content, else an even shuffle.
+func (r *Rules) traitsFor(d Draw, who []draw.Part) []string {
 	if d.Key != "" {
 		st := r.gen.Stream("content.npc.traits", who...)
-		s.Traits = append(s.Traits, sheets.PickTraits(r.traits, d.Traits, r.traitsN, st.Pick)...)
-		return s
+		return sheets.PickTraits(r.traits, d.Traits, r.traitsN, st.Pick)
 	}
+	var out []string
 	for _, k := range r.gen.Shuffle(len(r.traits), "npc.traits", who...) {
-		if int64(len(s.Traits)) == r.traitsN {
+		if int64(len(out)) == r.traitsN {
 			break
 		}
-		if t := r.traits[k]; !slices.Contains(s.Traits, t.Opposes) {
-			s.Traits = append(s.Traits, t.ID)
+		if t := r.traits[k]; !slices.Contains(out, t.Opposes) {
+			out = append(out, t.ID)
 		}
 	}
-	return s
+	return out
 }
 
 // Residents are the role slots a place fills, as stubs: a keyed draw
