@@ -331,6 +331,42 @@
       "text": "party-help and every party version's rate are what the versions' own solvers measure, not a guess",
       "runs": "battle",
       "holdsFrom": "MM8"
+    },
+    {
+      "id": "content-replays",
+      "text": "The same history gives the same content twice",
+      "runs": "content",
+      "holdsFrom": "MM8a"
+    },
+    {
+      "id": "content-differs",
+      "text": "Two histories differing in a tile's neighbourhood give different content in 60% or more of tiles",
+      "runs": "content",
+      "holdsFrom": "MM8a"
+    },
+    {
+      "id": "pin-stays-in-reach",
+      "text": "A pin changes no tile outside its radius, and none discovered before it",
+      "runs": "content",
+      "holdsFrom": "MM8a"
+    },
+    {
+      "id": "content-reachable",
+      "text": "Every pinned slot and drawn dungeon entrance is reachable from the first settlement, on every history and with pins on 1,000 seeds",
+      "runs": "content",
+      "holdsFrom": "MM8a"
+    },
+    {
+      "id": "content-cost-flat",
+      "text": "A tile's draw costs the same on day 1 and day 300 of a busy world",
+      "runs": "content",
+      "holdsFrom": "MM8a"
+    },
+    {
+      "id": "content-dungeons",
+      "text": "Dungeons drawn from history keep their kind's floors, a guardian and distinct ways",
+      "runs": "content",
+      "holdsFrom": "MM8a"
     }
   ]
 }

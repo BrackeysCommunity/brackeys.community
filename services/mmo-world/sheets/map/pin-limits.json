@@ -1,0 +1,49 @@
+{
+  "$schema": "../schema/map.pin-limits.schema.json",
+  "sheet": "map.pin-limits",
+  "rows": [
+    {
+      "id": "designer",
+      "role": "designer",
+      "reachMax": 12,
+      "perDay": 0,
+      "fields": [
+        "site",
+        "landmark",
+        "site-kind",
+        "dungeon",
+        "floors",
+        "lead",
+        "stock"
+      ],
+      "note": "Designers stage the world itself: any field, anywhere, without a cap."
+    },
+    {
+      "id": "admin",
+      "role": "admin",
+      "reachMax": 12,
+      "perDay": 1,
+      "fields": [
+        "site",
+        "site-kind",
+        "landmark",
+        "lead"
+      ],
+      "note": "A server's admins stage places, never goods: one a day per server (GDD 14.5)."
+    },
+    {
+      "id": "staff",
+      "role": "staff",
+      "reachMax": 12,
+      "perDay": 2,
+      "fields": [
+        "site",
+        "site-kind",
+        "landmark",
+        "lead"
+      ],
+      "points": 60,
+      "note": "Staff stage from the event-point pool; the cost is recorded until the pool exists."
+    }
+  ]
+}

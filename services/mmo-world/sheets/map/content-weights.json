@@ -1,0 +1,249 @@
+{
+  "$schema": "../schema/map.content-weights.schema.json",
+  "sheet": "map.content-weights",
+  "rows": [
+    {
+      "id": "battlefield-ruin-raided",
+      "table": "site",
+      "row": "battlefield-ruin",
+      "fact": "faction-raided",
+      "shift": 40,
+      "note": "Raids leave their wrecks where they were fought."
+    },
+    {
+      "id": "battlefield-ruin-fell",
+      "table": "site",
+      "row": "battlefield-ruin",
+      "fact": "holding-fell",
+      "shift": 80,
+      "most": 2,
+      "note": "A holding that fell was fought for to the end; its ground is a battlefield."
+    },
+    {
+      "id": "scavenger-camp-raided",
+      "table": "site",
+      "row": "scavenger-camp",
+      "fact": "faction-raided",
+      "shift": 25,
+      "note": "Scavengers follow raiders to strip what they leave."
+    },
+    {
+      "id": "scavenger-camp-war",
+      "table": "site",
+      "row": "scavenger-camp",
+      "faction": "war",
+      "shift": 50,
+      "note": "A long war fills the roads with people living off its leavings."
+    },
+    {
+      "id": "scavenger-camp-scarce",
+      "table": "site",
+      "row": "scavenger-camp",
+      "gauge": "scarcity",
+      "band": 1,
+      "shift": 60,
+      "note": "When the nodes run thin, people camp on whatever scrap is left."
+    },
+    {
+      "id": "scavenger-camp-pins",
+      "table": "site",
+      "row": "scavenger-camp",
+      "pins": true,
+      "shift": 20,
+      "note": "Staged places draw crowds, and crowds draw camps."
+    },
+    {
+      "id": "den-threat",
+      "table": "site",
+      "row": "den",
+      "gauge": "threat",
+      "band": 2,
+      "shift": 80,
+      "note": "Where the threat runs high, creatures have dug in."
+    },
+    {
+      "id": "ruin-overrun",
+      "table": "site",
+      "row": "ruin",
+      "fact": "region-overrun",
+      "shift": 50,
+      "note": "An overrun leaves empty shells behind it."
+    },
+    {
+      "id": "cable-run-prosperous",
+      "table": "site",
+      "row": "cable-run",
+      "gauge": "prosperity",
+      "band": 1,
+      "shift": 60,
+      "note": "A prosperous region keeps its cable runs strung and worth finding."
+    },
+    {
+      "id": "scrap-seam-scarce",
+      "table": "site",
+      "row": "scrap-seam",
+      "gauge": "scarcity",
+      "band": 1,
+      "shift": -50,
+      "note": "A scarce region's seams have been picked bare."
+    },
+    {
+      "id": "scrap-seam-far",
+      "table": "site",
+      "row": "scrap-seam",
+      "find": "far-material",
+      "shift": 30,
+      "most": 2,
+      "note": "Far materials surface where old seams run deep."
+    },
+    {
+      "id": "bunker-overrun",
+      "table": "dungeon",
+      "row": "bunker",
+      "fact": "region-overrun",
+      "shift": 50,
+      "note": "People overrun on the surface go to ground in bunkers."
+    },
+    {
+      "id": "server-vault-prosperous",
+      "table": "dungeon",
+      "row": "server-vault",
+      "gauge": "prosperity",
+      "band": 1,
+      "shift": 60,
+      "note": "Wealth keeps its vaults sealed and guarded."
+    },
+    {
+      "id": "sunk-data-centre-haunted",
+      "table": "dungeon",
+      "row": "sunk-data-centre",
+      "fact": "dungeon-haunted",
+      "shift": 60,
+      "note": "A haunted dungeon nearby says the drowned halls are stirring."
+    },
+    {
+      "id": "region-threat",
+      "table": "lead",
+      "row": "region",
+      "gauge": "threat",
+      "band": 3,
+      "shift": 100,
+      "note": "At the highest threat the region's own creature crowds out the rest."
+    },
+    {
+      "id": "region-hunt",
+      "table": "lead",
+      "row": "region",
+      "fact": "hunt-opened",
+      "shift": 50,
+      "note": "An open hunt means the region's creature is out in numbers."
+    },
+    {
+      "id": "lean-scarce",
+      "table": "stock",
+      "row": "lean",
+      "gauge": "scarcity",
+      "band": 1,
+      "shift": 100,
+      "note": "Scarcity shows first in thin nodes."
+    },
+    {
+      "id": "lean-worked-out",
+      "table": "stock",
+      "row": "lean",
+      "fact": "node-worked-out",
+      "shift": 30,
+      "note": "Nodes worked out nearby leave the rest of the ground tired."
+    },
+    {
+      "id": "lean-starving",
+      "table": "stock",
+      "row": "lean",
+      "faction": "starving",
+      "shift": 50,
+      "note": "A starving faction nearby has already stripped what it could reach."
+    },
+    {
+      "id": "rich-prosperous",
+      "table": "stock",
+      "row": "rich",
+      "gauge": "prosperity",
+      "band": 1,
+      "shift": 60,
+      "note": "Prosperity comes from ground that gives."
+    },
+    {
+      "id": "wary-down",
+      "table": "trait",
+      "row": "wary",
+      "fact": "character-down",
+      "shift": 25,
+      "note": "People who have seen others carried in keep their distance."
+    },
+    {
+      "id": "weary-overrun",
+      "table": "trait",
+      "row": "weary",
+      "fact": "region-overrun",
+      "shift": 50,
+      "note": "An overrun wears down those who lived through it."
+    },
+    {
+      "id": "bold-slain",
+      "table": "trait",
+      "row": "bold",
+      "fact": "hunt-slain",
+      "shift": 40,
+      "note": "A great beast slain nearby makes people braver."
+    },
+    {
+      "id": "devout-haunted",
+      "table": "trait",
+      "row": "devout",
+      "fact": "dungeon-haunted",
+      "shift": 50,
+      "note": "A haunted dungeon nearby turns people to their rites."
+    },
+    {
+      "id": "greedy-prosperous",
+      "table": "trait",
+      "row": "greedy",
+      "gauge": "prosperity",
+      "band": 1,
+      "shift": 50,
+      "note": "Money about makes people want more of it."
+    },
+    {
+      "id": "road-scrapper-raided",
+      "table": "role",
+      "row": "road-scrapper",
+      "fact": "faction-raided",
+      "shift": 30,
+      "note": "Raids leave scrap on the road for traders to buy and sell."
+    },
+    {
+      "id": "road-scrapper-guild",
+      "table": "role",
+      "row": "road-scrapper",
+      "archetype": "guild",
+      "shift": 30,
+      "note": "A trading guild holding nearby keeps scrap traders on its roads."
+    },
+    {
+      "id": "road-pilgrim-haunted",
+      "table": "role",
+      "row": "road-pilgrim",
+      "fact": "dungeon-haunted",
+      "shift": 50,
+      "note": "A haunted dungeon draws pilgrims to see it."
+    },
+    {
+      "id": "road-pilgrim-order",
+      "table": "role",
+      "row": "road-pilgrim",
+      "archetype": "order",
+      "shift": 40,
+      "note": "An order holding nearby sends its faithful along the roads."
+    }
+  ]
+}

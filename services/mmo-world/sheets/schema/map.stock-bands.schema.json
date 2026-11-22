@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "map.stock-bands",
+  "title": "map.stock-bands",
+  "description": "How much of node-stock a tile's material starts with (GDD 4.17).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "map.stock-bands"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "percent",
+          "weight",
+          "note"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "percent": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "percent",
+            "description": "Of node-stock."
+          },
+          "weight": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "weight",
+            "description": "Its base weight, drawn per material under content.stock."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

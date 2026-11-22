@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "map.content-weights",
+  "title": "map.content-weights",
+  "description": "How a tile's history shifts the weights its content is drawn with (GDD 4.17).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "map.content-weights"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "table",
+          "row",
+          "shift",
+          "note"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "table": {
+            "type": "string",
+            "enum": [
+              "site",
+              "dungeon",
+              "lead",
+              "stock",
+              "trait",
+              "role"
+            ],
+            "x-unit": "enum"
+          },
+          "row": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id",
+            "description": "A row of the table's sheet: map.site-kinds, map.dungeons, creatures.archetypes (or region: the region's own creature), map.stock-bands, npcs.traits, npcs.roles (road)."
+          },
+          "fact": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "story.fact-weights",
+            "description": "Counts heavy facts of this kind within reach."
+          },
+          "gauge": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "world.gauges"
+          },
+          "band": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "With gauge: applies once when the tile's region is at or above this band."
+          },
+          "faction": {
+            "type": "string",
+            "enum": [
+              "war",
+              "starving"
+            ],
+            "x-unit": "enum"
+          },
+          "archetype": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "factions.archetypes"
+          },
+          "find": {
+            "type": "string",
+            "enum": [
+              "far-material",
+              "edge-material",
+              "variant",
+              "edge-creature",
+              "biome-variant",
+              "pattern"
+            ],
+            "x-unit": "enum"
+          },
+          "pins": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "Counts the live pins in reach."
+          },
+          "shift": {
+            "type": "integer",
+            "x-unit": "percent",
+            "description": "Percent of the row's base weight added per count, or once for a band, flag or archetype."
+          },
+          "most": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "Counts past this add nothing; 0 means history-kind-most."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "Why the shift."
+          }
+        }
+      }
+    }
+  }
+}

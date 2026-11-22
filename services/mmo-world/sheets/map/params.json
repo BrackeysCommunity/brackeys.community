@@ -353,6 +353,90 @@
       "value": 25,
       "unit": "percent",
       "doc": "Haul a floor reached through a solved fork machine adds."
+    },
+    {
+      "id": "history-weight",
+      "value": 40,
+      "unit": "weight",
+      "doc": "A fact counts toward a tile's history from this weight; lighter ones are the daily churn."
+    },
+    {
+      "id": "history-radius",
+      "value": 6,
+      "unit": "tiles",
+      "doc": "How far a tile's history reaches, so a draw costs the same however big the world is."
+    },
+    {
+      "id": "history-days",
+      "value": 28,
+      "unit": "days",
+      "doc": "How long a fact counts toward a tile's history: a month of the world's recent past."
+    },
+    {
+      "id": "history-cell-kept",
+      "value": 32,
+      "unit": "count",
+      "doc": "Facts a history cell keeps, the newest, so a digest reads a bounded number."
+    },
+    {
+      "id": "history-kind-most",
+      "value": 8,
+      "unit": "count",
+      "doc": "Facts of one kind past this add nothing to a digest, so one flood does not drown the rest."
+    },
+    {
+      "id": "history-holders-most",
+      "value": 3,
+      "unit": "count",
+      "doc": "Distinct factions a digest counts as holding regions in reach."
+    },
+    {
+      "id": "pins-per-cell",
+      "value": 8,
+      "unit": "count",
+      "doc": "Live pins one pin cell may hold; bounds what a digest reads of pins."
+    },
+    {
+      "id": "pins-in-reach-max",
+      "value": 8,
+      "unit": "count",
+      "doc": "Pins a digest lists; at most pins-per-cell."
+    },
+    {
+      "id": "pin-days",
+      "value": 56,
+      "unit": "days",
+      "doc": "How long a landed reserve or an edit counts in later digests."
+    },
+    {
+      "id": "pin-path-tiles",
+      "value": 48,
+      "unit": "tiles",
+      "doc": "A pin's tile must reach discovered ground or a settlement within this many passable tiles."
+    },
+    {
+      "id": "pin-label-max",
+      "value": 60,
+      "unit": "count",
+      "doc": "Characters in a staged pin's label."
+    },
+    {
+      "id": "lead-region-weight",
+      "value": 3,
+      "unit": "weight",
+      "doc": "The region's own creature leads a tile this many times as often as another archetype."
+    },
+    {
+      "id": "lead-other-weight",
+      "value": 1,
+      "unit": "weight",
+      "doc": "The other archetypes' base weight for a tile's lead."
+    },
+    {
+      "id": "content-trait-weight",
+      "value": 1,
+      "unit": "weight",
+      "doc": "Each resident trait's base weight before history shifts it."
     }
   ]
 }

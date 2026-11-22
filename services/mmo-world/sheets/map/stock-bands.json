@@ -1,0 +1,36 @@
+{
+  "$schema": "../schema/map.stock-bands.schema.json",
+  "sheet": "map.stock-bands",
+  "rows": [
+    {
+      "id": "lean",
+      "percent": 60,
+      "weight": 15,
+      "note": "A node nearly spent before anyone came."
+    },
+    {
+      "id": "thin",
+      "percent": 80,
+      "weight": 20,
+      "note": "Somewhat under the usual."
+    },
+    {
+      "id": "plain",
+      "percent": 100,
+      "weight": 30,
+      "note": "node-stock, the most common."
+    },
+    {
+      "id": "full",
+      "percent": 120,
+      "weight": 20,
+      "note": "Somewhat over the usual."
+    },
+    {
+      "id": "rich",
+      "percent": 140,
+      "weight": 15,
+      "note": "A seam nobody found; mirrors lean so the mean stays node-stock."
+    }
+  ]
+}

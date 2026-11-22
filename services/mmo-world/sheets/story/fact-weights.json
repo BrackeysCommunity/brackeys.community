@@ -965,6 +965,36 @@
       "id": "track-followed",
       "kind": "track.followed",
       "weight": 10
+    },
+    {
+      "id": "pin-reserved",
+      "kind": "pin.reserved",
+      "weight": 10,
+      "note": "Under every player threshold: a pin is unseen content until its tile is reached."
+    },
+    {
+      "id": "pin-edited",
+      "kind": "pin.edited",
+      "weight": 10,
+      "note": "Under every player threshold, as pin.reserved."
+    },
+    {
+      "id": "pin-withdrawn",
+      "kind": "pin.withdrawn",
+      "weight": 10,
+      "note": "Under every player threshold, as pin.reserved."
+    },
+    {
+      "id": "pin-landed",
+      "kind": "pin.landed",
+      "weight": 45,
+      "note": "The tile was just reached, so a player may know; never indexed into history."
+    },
+    {
+      "id": "world-content-frozen",
+      "kind": "world.content-frozen",
+      "weight": 10,
+      "note": "An operator's change to how the world draws; nothing a player reads."
     }
   ]
 }

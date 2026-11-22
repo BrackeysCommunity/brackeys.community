@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "map.site-kinds",
+  "title": "map.site-kinds",
+  "description": "What a site slot holds, drawn at the tile's first reach (GDD 4.17).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "map.site-kinds"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "places",
+          "weight",
+          "tags",
+          "note"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "places": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "site",
+                "edge-site"
+              ]
+            },
+            "uniqueItems": true,
+            "x-unit": "enum",
+            "description": "The slots it may stand on."
+          },
+          "weight": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "weight",
+            "description": "Its base weight against the slot's other kinds, drawn under content.site-kind."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "tags",
+            "x-ref": "tags.vocabulary",
+            "description": "Place tags an encounter at the tile gains."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

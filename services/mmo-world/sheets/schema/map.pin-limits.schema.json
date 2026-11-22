@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "map.pin-limits",
+  "title": "map.pin-limits",
+  "description": "What each role may pin, how far and how often (GDD 14.5).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "map.pin-limits"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "role",
+          "reachMax",
+          "perDay",
+          "fields",
+          "note"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id",
+            "description": "The role's own name."
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "designer",
+              "admin",
+              "staff"
+            ],
+            "x-unit": "enum"
+          },
+          "reachMax": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "tiles"
+          },
+          "perDay": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "Pins an issuer may make in a world day; 0 means no cap."
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "site",
+                "landmark",
+                "site-kind",
+                "dungeon",
+                "floors",
+                "lead",
+                "stock"
+              ]
+            },
+            "uniqueItems": true,
+            "x-unit": "enum"
+          },
+          "points": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "event-points",
+            "description": "Event points a staff pin costs, recorded on its label."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

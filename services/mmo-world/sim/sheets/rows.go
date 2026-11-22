@@ -27,7 +27,7 @@ type Target struct {
 	ID        string `json:"id" unit:"id"`
 	Text      string `json:"text" unit:"text"`
 	Runs      string `json:"runs" unit:"text" doc:"The harness runs that hold it."`
-	HoldsFrom string `json:"holdsFrom" unit:"enum" enum:"MM1|MM2|MM3|MM4|MM5|MM6|MM7|MM8|MM9|MM10|MM11|MM12|MM13|MM14"`
+	HoldsFrom string `json:"holdsFrom" unit:"enum" enum:"MM1|MM2|MM3|MM4|MM5|MM6|MM7|MM8|MM8a|MM9|MM10|MM11|MM12|MM13|MM14"`
 }
 
 // ---- Items ----

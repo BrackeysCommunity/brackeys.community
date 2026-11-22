@@ -1,0 +1,82 @@
+{
+  "$schema": "../schema/map.site-kinds.schema.json",
+  "sheet": "map.site-kinds",
+  "rows": [
+    {
+      "id": "ruin",
+      "places": [
+        "site",
+        "edge-site"
+      ],
+      "weight": 30,
+      "tags": [
+        "hollow",
+        "hoarding"
+      ],
+      "note": "The common case: a shell of something older, with what was left locked up."
+    },
+    {
+      "id": "scrap-seam",
+      "places": [
+        "site",
+        "edge-site"
+      ],
+      "weight": 20,
+      "tags": [
+        "metal",
+        "node"
+      ],
+      "note": "Buried scrap worth working."
+    },
+    {
+      "id": "cable-run",
+      "places": [
+        "site"
+      ],
+      "weight": 15,
+      "tags": [
+        "wired",
+        "conductive"
+      ],
+      "note": "Old cable still strung between masts; inland only, since edges are too broken for it."
+    },
+    {
+      "id": "den",
+      "places": [
+        "site",
+        "edge-site"
+      ],
+      "weight": 15,
+      "tags": [
+        "pack",
+        "wary"
+      ],
+      "note": "Where creatures have dug in."
+    },
+    {
+      "id": "battlefield-ruin",
+      "places": [
+        "site"
+      ],
+      "weight": 10,
+      "tags": [
+        "scorched",
+        "rusted"
+      ],
+      "note": "Ground that was fought over; rare until history makes it."
+    },
+    {
+      "id": "scavenger-camp",
+      "places": [
+        "site",
+        "edge-site"
+      ],
+      "weight": 10,
+      "tags": [
+        "mercantile",
+        "toll"
+      ],
+      "note": "People living off what others left; rare until war or scarcity brings them."
+    }
+  ]
+}

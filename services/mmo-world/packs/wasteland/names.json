@@ -1309,6 +1309,61 @@
       "id": "hunts-tower-guardian",
       "ref": "fights.hunts:tower-guardian",
       "name": "Mast warden"
+    },
+    {
+      "id": "site-kinds-ruin",
+      "ref": "map.site-kinds:ruin",
+      "name": "Ruin"
+    },
+    {
+      "id": "site-kinds-scrap-seam",
+      "ref": "map.site-kinds:scrap-seam",
+      "name": "Scrap seam"
+    },
+    {
+      "id": "site-kinds-cable-run",
+      "ref": "map.site-kinds:cable-run",
+      "name": "Cable run"
+    },
+    {
+      "id": "site-kinds-den",
+      "ref": "map.site-kinds:den",
+      "name": "Den"
+    },
+    {
+      "id": "site-kinds-battlefield-ruin",
+      "ref": "map.site-kinds:battlefield-ruin",
+      "name": "Battlefield ruin"
+    },
+    {
+      "id": "site-kinds-scavenger-camp",
+      "ref": "map.site-kinds:scavenger-camp",
+      "name": "Scavenger camp"
+    },
+    {
+      "id": "stock-bands-lean",
+      "ref": "map.stock-bands:lean",
+      "name": "Lean"
+    },
+    {
+      "id": "stock-bands-thin",
+      "ref": "map.stock-bands:thin",
+      "name": "Thin"
+    },
+    {
+      "id": "stock-bands-plain",
+      "ref": "map.stock-bands:plain",
+      "name": "Plain"
+    },
+    {
+      "id": "stock-bands-full",
+      "ref": "map.stock-bands:full",
+      "name": "Full"
+    },
+    {
+      "id": "stock-bands-rich",
+      "ref": "map.stock-bands:rich",
+      "name": "Rich"
     }
   ]
 }

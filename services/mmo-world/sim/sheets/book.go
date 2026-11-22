@@ -94,19 +94,23 @@ type Book struct {
 	Measures   []Measure `sheet:"tags.measures" doc:"Numbers a rule can test or scale."`
 	Rules      []RuleRow `sheet:"tags.rules" doc:"The rules, in the order they are tried."`
 
-	Terrain       []Terrain      `sheet:"map.terrain" doc:"Terrain kinds: travel, sight, cover."`
-	Biomes        []BiomeBand    `sheet:"map.biomes" doc:"Which terrain an elevation and moisture make."`
-	Noise         []NoiseLayer   `sheet:"map.noise" doc:"The noise layers generation reads."`
-	BiomeVariants []BiomeVariant `sheet:"map.biome-variants" doc:"Biomes that appear only past a distance."`
-	Ecotones      []Ecotone      `sheet:"map.ecotones" doc:"What the fade between two land biomes holds."`
-	Landmarks     []Landmark     `sheet:"map.landmarks" doc:"Features a region's highest free tile can hold."`
-	RegionWeights []RegionWeight `sheet:"map.region-weights" doc:"Size classes of region centres and their shares."`
-	Shapes        []Shape        `sheet:"map.shapes" doc:"The shapes patterns are laid in."`
-	Patterns      []PatternRule  `sheet:"map.patterns" doc:"Patterns: shapes laid on the map before noise, with things on their points."`
-	MapParams     []Param        `sheet:"map.params" doc:"Loose cells for generation."`
-	Dungeons      []DungeonKind  `sheet:"map.dungeons" doc:"Dungeon kinds: where each stands, how deep it runs, what lives and what machines stand in it (GDD 4.9)."`
-	Forks         []Fork         `sheet:"map.forks" doc:"The ways down from a fork, and the tags each adds to the floor below (GDD 4.9)."`
-	Depths        []Depth        `sheet:"map.depths" doc:"How many floors a dungeon runs to, by its entrance's seed tier."`
+	Terrain        []Terrain       `sheet:"map.terrain" doc:"Terrain kinds: travel, sight, cover."`
+	Biomes         []BiomeBand     `sheet:"map.biomes" doc:"Which terrain an elevation and moisture make."`
+	Noise          []NoiseLayer    `sheet:"map.noise" doc:"The noise layers generation reads."`
+	BiomeVariants  []BiomeVariant  `sheet:"map.biome-variants" doc:"Biomes that appear only past a distance."`
+	Ecotones       []Ecotone       `sheet:"map.ecotones" doc:"What the fade between two land biomes holds."`
+	Landmarks      []Landmark      `sheet:"map.landmarks" doc:"Features a region's highest free tile can hold."`
+	RegionWeights  []RegionWeight  `sheet:"map.region-weights" doc:"Size classes of region centres and their shares."`
+	Shapes         []Shape         `sheet:"map.shapes" doc:"The shapes patterns are laid in."`
+	Patterns       []PatternRule   `sheet:"map.patterns" doc:"Patterns: shapes laid on the map before noise, with things on their points."`
+	MapParams      []Param         `sheet:"map.params" doc:"Loose cells for generation."`
+	Dungeons       []DungeonKind   `sheet:"map.dungeons" doc:"Dungeon kinds: where each stands, how deep it runs, what lives and what machines stand in it (GDD 4.9)."`
+	Forks          []Fork          `sheet:"map.forks" doc:"The ways down from a fork, and the tags each adds to the floor below (GDD 4.9)."`
+	Depths         []Depth         `sheet:"map.depths" doc:"How many floors a dungeon runs to, by its entrance's seed tier."`
+	ContentWeights []ContentWeight `sheet:"map.content-weights" doc:"How a tile's history shifts the weights its content is drawn with (GDD 4.17)."`
+	SiteKinds      []SiteKind      `sheet:"map.site-kinds" doc:"What a site slot holds, drawn at the tile's first reach (GDD 4.17)."`
+	StockBands     []StockBand     `sheet:"map.stock-bands" doc:"How much of node-stock a tile's material starts with (GDD 4.17)."`
+	PinLimits      []PinLimit      `sheet:"map.pin-limits" doc:"What each role may pin, how far and how often (GDD 14.5)."`
 
 	TileCounters []TileCounter `sheet:"tiles.counters" doc:"Decay per tile counter."`
 	FindRarities []FindRarity  `sheet:"tiles.find-rarities" doc:"Rarity of a trigger's find."`
@@ -286,7 +290,7 @@ func (b *Book) Validate() error {
 			errs = append(errs, checkValue(row, where, has)...)
 		}
 	}
-	for _, p := range b.delveProblems() {
+	for _, p := range append(b.delveProblems(), b.contentProblems()...) {
 		errs = append(errs, errors.New(p))
 	}
 	return errors.Join(errs...)
