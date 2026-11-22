@@ -129,6 +129,8 @@ type OperatorRequest struct {
 	Target string `json:"target,omitempty"`
 	// To is the tile a hunt opens on, or the dungeon whose name is hidden.
 	To *Hex `json:"to,omitempty"`
+	// Pin is what a pin kind carries.
+	Pin *PinOrder `json:"pin,omitempty"`
 }
 
 // ActionReply is what an accepted press did. Duplicate is true when the
@@ -414,6 +416,8 @@ type Tile struct {
 	Structures []string `json:"structures,omitempty"`
 	Weather    string   `json:"weather,omitempty"`
 	Found      int64    `json:"found"` // the tick it was first entered
+	SiteKind   string   `json:"siteKind,omitempty"`
+	Placed     *Placed  `json:"placed,omitempty"`
 }
 
 // Tiles is the reply to a TileQuery.

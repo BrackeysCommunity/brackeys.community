@@ -9,6 +9,7 @@ package world
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -72,6 +73,12 @@ type State struct {
 	// first; Opening counts those asked for, which open at the next day.
 	Opened  int `json:"opened"`
 	Opening int `json:"opening"`
+	// ContentVersion is 0 for a world from before content was drawn from
+	// history, 1 once it is (GDD 4.17).
+	ContentVersion int64         `json:"contentVersion,omitempty"`
+	History        []HistoryCell `json:"history,omitempty"`
+	Pins           []Pin         `json:"pins,omitempty"`
+	NextPin        int64         `json:"nextPin,omitempty"`
 
 	g         *gen.Gen
 	b         *sheets.Book
@@ -86,6 +93,13 @@ type State struct {
 	region    map[gen.LatticeID]int
 	tileAt    map[hex.Hex]int
 	gauge     map[string]int
+	// Rebuilt, never saved: the tiles whose content a command changed, and
+	// the pin and find indexes, rebuilt whenever len(Pins) or len(Finds)
+	// has moved.
+	edited    map[hex.Hex]bool
+	pinCells  map[pinCell][]int       //nolint:unused // read by PinsAt
+	findsIn   map[gen.LatticeID][]int //nolint:unused // read by DigestAt
+	findsSeen int                     //nolint:unused // read by DigestAt
 }
 
 // New starts a world: the first starting settlement is open and its
@@ -132,6 +146,16 @@ func (s *State) Attach(b *sheets.Book, g *gen.Gen, key draw.Key) {
 
 // Gen is the generator the world reads its baseline from.
 func (s *State) Gen() *gen.Gen { return s.g }
+
+// Drawn reports whether the world draws content from history at first
+// reach; a world from before that reads the seed's function.
+func (s *State) Drawn() bool { return s.ContentVersion >= ContentDrawn }
+
+// Edited are the tiles whose content changed since the last Advance, so a
+// command's save writes them too.
+func (s *State) Edited() []hex.Hex {
+	return slices.SortedFunc(maps.Keys(s.edited), hex.Compare)
+}
 
 func (s *State) p(id string) int64  { return sheets.IntParam(s.b.FactionParams, id) }
 func (s *State) wp(id string) int64 { return sheets.IntParam(s.b.WorldParams, id) }

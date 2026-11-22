@@ -43,6 +43,7 @@ type State struct {
 	Goals       []string              `json:"goals,omitempty"`
 	Dungeon     *Dungeon              `json:"dungeon,omitempty"`
 	Season      map[string]int64      `json:"season,omitempty"` // this season's totals of the counters
+	Content     *Content              `json:"content,omitempty"`
 }
 
 type Discovery struct {
@@ -231,5 +232,5 @@ func (s *State) Empty() bool {
 		s.Corruption == 0 && s.Fire == (Fire{}) && len(s.WeatherTags) == 0 && s.Road == 0 &&
 		len(s.Structures) == 0 && s.Owner == nil && len(s.Tracks) == 0 &&
 		len(s.Graves) == 0 && len(s.Events) == 0 && len(s.Rumours) == 0 && len(s.Goals) == 0 &&
-		s.Dungeon == nil && len(s.Season) == 0
+		s.Dungeon == nil && len(s.Season) == 0 && s.Content == nil
 }

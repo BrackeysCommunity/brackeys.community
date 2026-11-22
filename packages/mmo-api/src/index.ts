@@ -720,6 +720,10 @@ export interface OperatorRequest {
    * To is the tile a hunt opens on, or the dungeon whose name is hidden.
    */
   to?: Hex;
+  /**
+   * Pin is what a pin kind carries.
+   */
+  pin?: PinOrder;
 }
 /**
  * ActionReply is what an accepted press did. Duplicate is true when the
@@ -1078,6 +1082,8 @@ export interface Tile {
   structures?: string[];
   weather?: string;
   found: number /* int64 */; // the tick it was first entered
+  siteKind?: string;
+  placed?: Placed;
 }
 /**
  * Tiles is the reply to a TileQuery.
@@ -1152,6 +1158,137 @@ export interface ResetReply {
  */
 export interface ClockRequest {
   due: number /* int64 */;
+}
+
+//////////
+// source: content.go
+
+/**
+ * OpPinReserve stages a fix on a tile nobody has reached: Pin carries
+ * the tile, the reach and the fix.
+ */
+export const OpPinReserve = "pin-reserve";
+/**
+ * OpPinEdit changes a reached tile's stored content.
+ */
+export const OpPinEdit = "pin-edit";
+/**
+ * OpPinWithdraw stops a live pin counting: Pin.Pin names it.
+ */
+export const OpPinWithdraw = "pin-withdraw";
+/**
+ * OpContentFreeze stores the seed's content on a world from before
+ * content came from history; the service sends it itself at open.
+ */
+export const OpContentFreeze = "content-freeze";
+/**
+ * Refusal codes of pins and the freeze.
+ */
+export const CodePinReach = "pin-reach";
+/**
+ * Refusal codes of pins and the freeze.
+ */
+export const CodePinSeen = "pin-seen";
+/**
+ * Refusal codes of pins and the freeze.
+ */
+export const CodePinUnseen = "pin-unseen";
+/**
+ * Refusal codes of pins and the freeze.
+ */
+export const CodePinGround = "pin-ground";
+/**
+ * Refusal codes of pins and the freeze.
+ */
+export const CodePinPath = "pin-path";
+/**
+ * Refusal codes of pins and the freeze.
+ */
+export const CodePinFix = "pin-fix";
+/**
+ * Refusal codes of pins and the freeze.
+ */
+export const CodePinBudget = "pin-budget";
+/**
+ * Refusal codes of pins and the freeze.
+ */
+export const CodePinAnchor = "pin-anchor";
+/**
+ * Refusal codes of pins and the freeze.
+ */
+export const CodePinTaken = "pin-taken";
+/**
+ * Refusal codes of pins and the freeze.
+ */
+export const CodePinEntered = "pin-entered";
+/**
+ * Refusal codes of pins and the freeze.
+ */
+export const CodePinGone = "pin-gone";
+/**
+ * Refusal codes of pins and the freeze.
+ */
+export const CodeAlreadyFrozen = "already-frozen";
+/**
+ * PathOperatorPins lists the live pins, to operators only.
+ */
+export const PathOperatorPins = "/v1/operator/pins";
+/**
+ * Placed says a place was staged, and by whom (GDD 14.5).
+ */
+export interface Placed {
+  by: string; // admins, staff
+  label: string;
+  points?: number /* int64 */; // event points, staff only
+}
+/**
+ * PinFix is what a pin sets; "" and 0 leave a field to the draw.
+ */
+export interface PinFix {
+  site?: string;
+  landmark?: string;
+  siteKind?: string;
+  dungeon?: string;
+  floors?: number /* int64 */;
+  lead?: string;
+  stock?: string; // a map.stock-bands row
+}
+/**
+ * PinOrder is what a pin kind carries. As is "" or designer, admin or
+ * staff; For is the character an admin or staff pin is placed by, and
+ * Label its server's name.
+ */
+export interface PinOrder {
+  at: Hex;
+  reach?: number /* int64 */;
+  fix: PinFix;
+  as?: string;
+  for?: string;
+  label?: string;
+  pin?: string; // the pin a withdraw names
+}
+/**
+ * Pin is a pin as an operator reads it.
+ */
+export interface Pin {
+  id: string;
+  at: Hex;
+  reach: number /* int64 */;
+  fix: PinFix;
+  as: string;
+  server?: string;
+  label?: string;
+  points?: number /* int64 */;
+  tick: number /* int64 */;
+  landed?: number /* int64 */;
+  withdrawn?: number /* int64 */;
+  edit?: boolean;
+}
+/**
+ * Pins is the reply on PathOperatorPins.
+ */
+export interface Pins {
+  pins: Pin[];
 }
 
 //////////
@@ -1783,6 +1920,7 @@ export interface FloorView {
   pool?: Goods[]; // Hoard sense only
   haunted?: boolean;
   downed?: string[]; // names down on this floor
+  placed?: Placed;
 }
 /**
  * WayView is one way down from a fork.

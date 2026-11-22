@@ -175,6 +175,7 @@ type FloorView struct {
 	Pool    []Goods      `json:"pool,omitempty"`   // Hoard sense only
 	Haunted bool         `json:"haunted,omitempty"`
 	Downed  []string     `json:"downed,omitempty"` // names down on this floor
+	Placed  *Placed      `json:"placed,omitempty"`
 }
 
 // WayView is one way down from a fork.
