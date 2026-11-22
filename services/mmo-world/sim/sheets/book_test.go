@@ -35,7 +35,7 @@ func TestContentSheets(t *testing.T) {
 		percents = append(percents, s.Percent)
 		weights = append(weights, s.Weight)
 	}
-	if !slices.Equal(percents, []int64{60, 80, 100, 120, 140}) || !slices.Equal(weights, []int64{15, 20, 30, 20, 15}) {
+	if !slices.Equal(percents, []int64{90, 95, 100, 105, 110}) || !slices.Equal(weights, []int64{15, 20, 30, 20, 15}) {
 		t.Fatalf("stock bands %v at %v", percents, weights)
 	}
 	limits := sheets.Lookup(b.PinLimits)
@@ -124,7 +124,7 @@ func TestContentProblems(t *testing.T) {
 		{weights, `"fact": "holding-fell",`, `"fact": "holding-fell",
       "band": 1,`, "battlefield-ruin-fell: a band needs a gauge", false},
 		{"sheets/map/site-kinds.json", `"edge-site"`, `"site"`, "no kind stands on edge-site slots", true},
-		{"sheets/map/stock-bands.json", `"percent": 140,`, `"percent": 150,`, "the weighted mean percent is not 100", false},
+		{"sheets/map/stock-bands.json", `"percent": 110,`, `"percent": 120,`, "the weighted mean percent is not 100", false},
 		{limits, `"role": "staff",`, `"role": "admin",`, "role staff needs exactly one row", false},
 		{limits, `"role": "staff",`, `"role": "admin",`, "staff: a limit's id is its role", false},
 		{limits, `"role": "admin",

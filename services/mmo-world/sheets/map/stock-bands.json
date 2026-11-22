@@ -4,15 +4,15 @@
   "rows": [
     {
       "id": "lean",
-      "percent": 60,
+      "percent": 90,
       "weight": 15,
-      "note": "A node nearly spent before anyone came."
+      "note": "A node somewhat spent before anyone came. Bands stay within a tenth of node-stock: at four tenths the 10-player economy run drifted out of the coin band twice as often over 64 seeds, though its mean did not move."
     },
     {
       "id": "thin",
-      "percent": 80,
+      "percent": 95,
       "weight": 20,
-      "note": "Somewhat under the usual."
+      "note": "Just under the usual."
     },
     {
       "id": "plain",
@@ -22,15 +22,15 @@
     },
     {
       "id": "full",
-      "percent": 120,
+      "percent": 105,
       "weight": 20,
-      "note": "Somewhat over the usual."
+      "note": "Just over the usual."
     },
     {
       "id": "rich",
-      "percent": 140,
+      "percent": 110,
       "weight": 15,
-      "note": "A seam nobody found; mirrors lean so the mean stays node-stock."
+      "note": "A seam nobody worked; mirrors lean so the mean stays node-stock."
     }
   ]
 }

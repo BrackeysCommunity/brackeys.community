@@ -1794,8 +1794,8 @@
       },
       "lead": "flat-runner",
       "stock": {
-       "bog-iron": 28,
-       "cinder-ore": 19,
+       "bog-iron": 25,
+       "cinder-ore": 22,
        "saltglass": 24
       }
      }
@@ -1875,9 +1875,9 @@
       },
       "lead": "reed-rat",
       "stock": {
-       "bog-iron": 19,
-       "cinder-ore": 33,
-       "saltglass": 28
+       "bog-iron": 22,
+       "cinder-ore": 26,
+       "saltglass": 25
       }
      }
     },
@@ -1956,9 +1956,9 @@
       },
       "lead": "flat-runner",
       "stock": {
-       "bog-iron": 19,
-       "cinder-ore": 14,
-       "saltglass": 28
+       "bog-iron": 22,
+       "cinder-ore": 21,
+       "saltglass": 25
       }
      }
     },
@@ -2037,9 +2037,9 @@
       },
       "lead": "flat-runner",
       "stock": {
-       "bog-iron": 14,
-       "cinder-ore": 19,
-       "saltglass": 14
+       "bog-iron": 21,
+       "cinder-ore": 22,
+       "saltglass": 21
       }
      }
     },
@@ -2118,10 +2118,10 @@
       "siteKind": "ruin",
       "lead": "reed-rat",
       "stock": {
-       "heartwood": 33,
+       "heartwood": 26,
        "old-silk": 24,
-       "reedflax": 33,
-       "saltglass": 19,
+       "reedflax": 26,
+       "saltglass": 22,
        "stormglass": 24
       }
      }
@@ -3926,5 +3926,5 @@
    ]
   }
  ],
- "digest": "f9fcefadcab82b708060f3d9602ce8816a3c475e8a3ce96bf96385779a471a08"
+ "digest": "ed3233f49b2f3963f2f73df961e754342298ab534589d276a46c7ed4cbe754d8"
 }
