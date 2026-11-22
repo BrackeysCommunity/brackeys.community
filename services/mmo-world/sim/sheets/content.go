@@ -112,6 +112,9 @@ func (b *Book) contentProblems() []string {
 	if okCell && okReach && perCell < inReach {
 		p = append(p, "map.params pins-per-cell: under pins-in-reach-max")
 	}
+	if okReach && inReach < 1 {
+		p = append(p, "map.params pins-in-reach-max: a digest reads at least one pin")
+	}
 
 	facts := Lookup(b.FactWeights)
 	creature := holds(b.Creatures)
@@ -141,9 +144,9 @@ func (b *Book) contentProblems() []string {
 			p = append(p, at+": "+w.Row+" is not a row of the "+w.Table+" table")
 		}
 		if f, ok := facts[w.Fact]; ok {
-			if strings.HasPrefix(f.Kind, "pin.") {
+			if strings.HasPrefix(f.Kind, PinKinds) {
 				p = append(p, at+": "+f.Kind+" is never indexed")
-			} else if hasFloor && f.Weight < floor {
+			} else if hasFloor && !Indexed(f.Kind, f.Weight, floor) {
 				p = append(p, at+": "+f.Kind+" weighs under history-weight, so it is never indexed")
 			}
 		}
@@ -208,4 +211,21 @@ func (b *Book) contentProblems() []string {
 func holds[T any](rows []T) func(string) bool {
 	ids := Lookup(rows)
 	return func(id string) bool { _, ok := ids[id]; return ok }
+}
+
+// PinKinds is the prefix of the pin facts, which the history index never holds.
+const PinKinds = "pin."
+
+// Indexed reports whether a fact of this kind and weight enters the history
+// index: heavy enough, and not a pin's.
+func Indexed(kind string, weight, floor int64) bool {
+	return weight >= floor && !strings.HasPrefix(kind, PinKinds)
+}
+
+// FindKindIDs are the find kinds a content weight may count (world
+// Find.Kind).
+func FindKindIDs() []string {
+	def, _ := DefByName("map.content-weights")
+	f, _ := def.Row.FieldByName("Find")
+	return EnumValues(f)
 }

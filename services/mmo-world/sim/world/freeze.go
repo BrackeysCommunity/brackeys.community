@@ -3,14 +3,11 @@ package world
 import (
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/hex"
-	"jams.team/mmo-world/sim/tile"
 )
 
-// Freeze stores the seed's content on every discovered tile of a world
-// from before content was drawn from history, and on the extra tiles
-// someone stands on or is about to discover, and moves it to drawing; it
-// returns how many tiles it froze. What players already saw on those
-// tiles stays exactly as it was (GDD 4.17).
+// Freeze stores the seed's content on every discovered tile and on extra,
+// and moves the world to drawing; it returns how many tiles it froze.
+// Those tiles read exactly as before (GDD 4.17).
 func (s *State) Freeze(log fact.Log, extra []hex.Hex) (int, error) {
 	if s.Drawn() {
 		return 0, &Refusal{Code: CodeAlreadyFrozen, Msg: "this world already draws its content from history"}
@@ -35,8 +32,9 @@ func (s *State) Freeze(log fact.Log, extra []hex.Hex) (int, error) {
 		return 0, err
 	}
 	for _, h := range froze {
-		n := s.g.Native(h)
-		s.setContent(h, &tile.Content{Drawn: s.Tick, Native: true, Lead: n.Lead, Stock: n.Stock, Dungeon: storedPlan(n.Dungeon)})
+		c := contentOf(s.g.Native(h))
+		c.Drawn, c.Native = s.Tick, true
+		s.setContent(h, &c)
 	}
 	s.ContentVersion = ContentDrawn
 	if log != nil {

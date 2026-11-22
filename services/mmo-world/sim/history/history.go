@@ -7,7 +7,6 @@ import (
 	"cmp"
 	"maps"
 	"slices"
-	"strings"
 
 	"jams.team/mmo-world/sim/canon"
 	"jams.team/mmo-world/sim/hex"
@@ -16,7 +15,7 @@ import (
 
 // PinKinds is the prefix of the pin facts, which no digest counts: a pin
 // reaches later tiles only through its own reach.
-const PinKinds = "pin."
+const PinKinds = sheets.PinKinds
 
 // Heavy is one indexed fact.
 type Heavy struct {
@@ -69,22 +68,22 @@ func BoundsOf(mapParams []sheets.Param) Bounds {
 	}
 }
 
-// structural: the kinds of find a digest counts (world Find.Kind).
-const FindKinds = 6
+// FindKinds is how many kinds of find a digest counts.
+var FindKinds = int64(len(sheets.FindKindIDs()))
 
-// structural: a digest reads the 3 × 3 index cells round its own.
-const cellsRead = 9
+// structural: CellsRead is the 3 × 3 index cells a digest reads round its own.
+const CellsRead = 9
 
 // CostBound is the most a digest may visit: the disc, and per cell read its
 // kept facts, its pins and the find kinds of one region.
 func (b Bounds) CostBound() int64 {
-	return hex.DiscSize(b.Radius) + cellsRead*(b.CellKept+b.PinsPerCell+FindKinds)
+	return hex.DiscSize(b.Radius) + CellsRead*(b.CellKept+b.PinsPerCell+FindKinds)
 }
 
 // Indexed reports whether a fact of this kind and weight belongs in the
 // index at all.
 func (b Bounds) Indexed(kind string, weight int64) bool {
-	return weight >= b.Weight && !strings.HasPrefix(kind, PinKinds)
+	return sheets.Indexed(kind, weight, b.Weight)
 }
 
 // CellOf is the index cell holding h: cells are Radius by Radius axial

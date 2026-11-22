@@ -178,7 +178,7 @@ func TestBoundsOf(t *testing.T) {
 // The cost bound is the disc and, per cell read, its kept facts, its pins
 // and the find kinds.
 func TestCostBound(t *testing.T) {
-	want := hex.DiscSize(bounds.Radius) + 9*(bounds.CellKept+bounds.PinsPerCell+FindKinds)
+	want := hex.DiscSize(bounds.Radius) + CellsRead*(bounds.CellKept+bounds.PinsPerCell+FindKinds)
 	if got := bounds.CostBound(); got != want {
 		t.Fatalf("cost bound %d, want %d", got, want)
 	}

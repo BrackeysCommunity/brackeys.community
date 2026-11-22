@@ -15,17 +15,23 @@ import (
 // pin's content shows only once its tile is reached, through the tile's
 // stored content.
 
+func simFix(f api.PinFix) tile.Fix {
+	return tile.Fix{Site: f.Site, Landmark: f.Landmark, SiteKind: f.SiteKind, Dungeon: f.Dungeon, Floors: f.Floors, Lead: f.Lead, Stock: f.Stock}
+}
+
+func apiFix(f tile.Fix) api.PinFix {
+	return api.PinFix{Site: f.Site, Landmark: f.Landmark, SiteKind: f.SiteKind, Dungeon: f.Dungeon, Floors: f.Floors, Lead: f.Lead, Stock: f.Stock}
+}
+
 func simPin(p api.PinOrder) game.PinCmd {
-	f := p.Fix
 	return game.PinCmd{At: simHex(p.At), Reach: p.Reach, As: p.As, For: p.For, Label: p.Label, Pin: p.Pin,
-		Fix: tile.Fix{Site: f.Site, Landmark: f.Landmark, SiteKind: f.SiteKind, Dungeon: f.Dungeon, Floors: f.Floors, Lead: f.Lead, Stock: f.Stock}}
+		Fix: simFix(p.Fix)}
 }
 
 func apiPin(p world.Pin) api.Pin {
-	f := p.Fix
 	return api.Pin{ID: p.ID, At: apiHex(p.At), Reach: p.Reach, As: p.By.Role, Server: p.By.Server, Label: p.By.Label, Points: p.By.Points,
 		Tick: p.Tick, Landed: p.Landed, Withdrawn: p.Withdrawn, Edit: p.Edit,
-		Fix: api.PinFix{Site: f.Site, Landmark: f.Landmark, SiteKind: f.SiteKind, Dungeon: f.Dungeon, Floors: f.Floors, Lead: f.Lead, Stock: f.Stock}}
+		Fix: apiFix(p.Fix)}
 }
 
 // apiPlaced is who staged a reached tile's content (GDD 14.5); a

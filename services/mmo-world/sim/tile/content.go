@@ -58,8 +58,7 @@ type Way struct {
 }
 
 // FloorDraw is floor N reached by Way as its first reach drew it. Pick is
-// the raw draw the creature is chosen by, so the live tier keeps choosing
-// the pool.
+// kept raw so the creature is chosen from the pool at the live tier.
 type FloorDraw struct {
 	N       int64  `json:"n"`
 	Way     int64  `json:"way"`

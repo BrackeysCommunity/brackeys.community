@@ -40,7 +40,7 @@ const (
 	CodeContentNative = "content-native"
 )
 
-// The pin facts. Only a landing is heavy enough for a player's feed.
+// The pin facts. None reaches a player's read (GDD 14.5).
 const (
 	factPinReserved  = "pin.reserved"
 	factPinEdited    = "pin.edited"
@@ -112,11 +112,7 @@ func (s *State) pinSize() int64 {
 }
 
 func (s *State) pinLimit(role string) *sheets.PinLimit {
-	i := slices.IndexFunc(s.b.PinLimits, func(l sheets.PinLimit) bool { return l.Role == role })
-	if i < 0 {
-		return nil
-	}
-	return &s.b.PinLimits[i]
+	return sheets.Lookup(s.b.PinLimits)[role]
 }
 
 func (s *State) cellOfPin(h hex.Hex) pinCell {
@@ -268,9 +264,9 @@ func (s *State) dungeonPlace(site string) bool {
 	return site != "" && len(s.g.KindsAt(site)) > 0
 }
 
-// fields are the map.pin-limits fields a fix sets. A dungeon slot is a
-// dungeon, so it needs the dungeon field too.
-func fields(f tile.Fix) []string {
+// fields are the map.pin-limits fields a fix sets. A slot that stands a
+// dungeon needs the dungeon field too.
+func (s *State) fields(f tile.Fix) []string {
 	var out []string
 	add := func(set bool, name string) {
 		if set {
@@ -280,14 +276,15 @@ func fields(f tile.Fix) []string {
 	add(f.Site != "", fieldSite)
 	add(f.Landmark != "", fieldLandmark)
 	add(f.SiteKind != "", fieldSiteKind)
-	add(f.Dungeon != "" || f.Site == gen.PlaceDungeon, fieldDungeon)
+	add(f.Dungeon != "" || s.dungeonPlace(f.Site), fieldDungeon)
 	add(f.Floors != 0, fieldFloors)
 	add(f.Lead != "", fieldLead)
 	add(f.Stock != "", fieldStock)
 	return out
 }
 
-// CheckPin runs every pin validator, changing nothing.
+// CheckPin runs every pin validator, changing nothing; tools and tests use
+// it as a dry run.
 func (s *State) CheckPin(at hex.Hex, reach int64, fix tile.Fix, by PinBy, edit bool) error {
 	if !s.Drawn() {
 		return refuse(CodeContentNative, "this world does not draw content from history yet")
@@ -320,8 +317,9 @@ func (s *State) CheckPin(at hex.Hex, reach int64, fix tile.Fix, by PinBy, edit b
 	if edit && (fix.Dungeon != "" || fix.Floors != 0) && s.entered(at) {
 		return refuse(CodePinEntered, "the dungeon on %s has been entered", at.Ref())
 	}
-	if !s.pathFrom(at) {
-		return refuse(CodePinPath, "no known ground within %d tiles of %s", s.mp("pin-path-tiles"), at.Ref())
+	walk := s.mp("pin-path-tiles")
+	if !s.pathFrom(at, walk) {
+		return refuse(CodePinPath, "no known ground within %d tiles of %s", walk, at.Ref())
 	}
 	return s.checkBudget(at, fix, by, limit)
 }
@@ -365,7 +363,7 @@ func (s *State) checkFix(at hex.Hex, fix tile.Fix, limit *sheets.PinLimit, edit 
 	if fix.Empty() {
 		return refuse(CodePinFix, "the fix sets nothing")
 	}
-	for _, f := range fields(fix) {
+	for _, f := range s.fields(fix) {
 		if !slices.Contains(limit.Fields, f) {
 			return refuse(CodePinFix, "a %s may not set %s", limit.Role, f)
 		}
@@ -459,8 +457,7 @@ func (s *State) entered(h hex.Hex) bool {
 
 // pathFrom reports whether a walk over passable ground from h, within
 // pin-path-tiles, meets a discovered tile or a starting settlement.
-func (s *State) pathFrom(h hex.Hex) bool {
-	most := s.mp("pin-path-tiles")
+func (s *State) pathFrom(h hex.Hex, most int64) bool {
 	step := func(_, n hex.Hex) (int64, bool) { return 1, s.g.Passable(s.g.Baseline(n).Terrain) }
 	walked := hex.Reach([]hex.Hex{h}, step, most)
 	for _, at := range hex.DiscAt(h, most) {
@@ -505,13 +502,13 @@ func (s *State) checkBudget(at hex.Hex, fix tile.Fix, by PinBy, limit *sheets.Pi
 		switch {
 		case fix.Site != "" && sites+1 > s.mp("sites-max"):
 			return refuse(CodePinBudget, "the region holds %d sites already", sites)
-		case fix.Site == gen.PlaceDungeon && dungeon:
+		case s.dungeonPlace(fix.Site) && dungeon:
 			return refuse(CodePinBudget, "the region holds a dungeon already")
 		case fix.Landmark != "" && landmark:
 			return refuse(CodePinBudget, "the region holds a landmark already")
 		}
 	}
-	if n := int64(len(s.pinCellAt(at))); n >= s.mp("pins-per-cell") {
+	if n := int64(len(s.pinCellAt(at))); n >= s.bounds().PinsPerCell {
 		return refuse(CodePinBudget, "the pin cell holds %d pins already", n)
 	}
 	if limit.PerDay > 0 {
@@ -607,9 +604,9 @@ func (s *State) Withdraw(log fact.Log, id string) (*Pin, error) {
 	return &s.Pins[i], nil
 }
 
-// ApplyFix lands a reserve on content being drawn: the fix overrides the
+// applyFix lands a reserve on content being drawn: the fix overrides the
 // draw for every field it sets.
-func (s *State) ApplyFix(c *tile.Content, h hex.Hex, p *Pin, t int64, log fact.Log) error {
+func (s *State) applyFix(c *tile.Content, h hex.Hex, p *Pin, t int64, log fact.Log) error {
 	if _, err := s.pinFact(log, t, factPinLanded, s.refAt(h), p, fact.At(h)); err != nil {
 		return err
 	}
@@ -618,10 +615,8 @@ func (s *State) ApplyFix(c *tile.Content, h hex.Hex, p *Pin, t int64, log fact.L
 	return nil
 }
 
-// fix sets what a pin fixes on content: the slot and landmark only where
-// they differ from the scaffold, a fixed dungeon kind's plan drawn under
-// the content's digest, its floors, every material's stock to its band,
-// and who staged it.
+// fix writes a pin's fix onto content and records who staged it; a slot
+// or landmark is stored only where it differs from the scaffold's.
 func (s *State) fix(c *tile.Content, h hex.Hex, p *Pin) {
 	b, f := s.g.Baseline(h), p.Fix
 	if f.Site != "" && f.Site != b.Site {

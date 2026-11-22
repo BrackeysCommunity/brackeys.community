@@ -27,7 +27,7 @@ import (
 const (
 	contentSeeds       = 40  // seeds per history
 	sweepPerSeed       = 25  // pin-sweep seeds per history seed: 1,000 at the default
-	differsTarget      = 60  // per cent of S whose drawn fields differ, pooled
+	differsTarget      = 60  // per cent of S (see differs) whose drawn fields differ, pooled
 	costFlat           = 150 // per cent of day 1's median a day-300 draw may cost
 	reachWalk          = 200 // tiles a walk from the first settlement may take
 	sweepReachMost     = 12  // the sweep's pins reach 1 to this
@@ -166,8 +166,10 @@ func playHistory(b *sheets.Book, name string, seed int) (historyResult, error) {
 }
 
 // differs runs the twin from the split with one faction.raided noted 1 to
-// 6 tiles from each tile of S, just before the explorer reaches it, and
-// compares S's drawn fields with the first history's.
+// history-radius tiles from each sampled tile (S: up to twinSample tiles
+// first reached after the split whose draw sets a field) just before the
+// explorer reaches it, and compares their drawn fields with the first
+// history's.
 func differs(a, twin *historyRun, split int64, out *historyResult) error {
 	end := a.s.Tick
 	var cand []*tile.State
@@ -381,9 +383,9 @@ func fixHeld(h *historyRun, pin world.Pin, c *tile.Content) string {
 }
 
 // historyReach walks from the first settlement to every pinned slot and
-// every drawn dungeon entrance over baseline passability. An entrance on a
-// slot the scaffold put out of walking reach is the scaffold's, read the
-// same by the native function, and counted apart.
+// drawn dungeon entrance over baseline passability. A target on a scaffold
+// slot no walk reaches is counted apart in scaffoldLost: the scaffold put it
+// there, not a draw.
 func historyReach(h *historyRun, out *historyResult) {
 	var targets []hex.Hex
 	for _, t := range h.reached() {
@@ -571,11 +573,9 @@ func sweepSeed(b *sheets.Book, seed int) (sweepResult, error) {
 		reach := d.Between(1, sweepReachMost, "harness.pin", append(at, draw.Str("reach"))...)
 		p, err := s.Reserve(log, h, reach, fix, world.PinBy{Role: world.PinDesigner})
 		if err != nil {
-			code, ok := refusalCode(err)
-			if !ok {
+			if err := tallyRefusal(out.codes, err); err != nil {
 				return out, err
 			}
-			out.codes[code]++
 			continue
 		}
 		out.accepted++
@@ -806,12 +806,12 @@ func ContentRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 }
 
 // listBad writes up to badShown failures.
-func listBad(p func(string, ...any), bad []string) {
+func listBad(p func(string, ...any), heading string, bad []string) {
 	if len(bad) == 0 {
 		return
 	}
 	p("")
-	p("Failing, first %d:", min(len(bad), badShown))
+	p("%s, first %d:", heading, min(len(bad), badShown))
 	p("")
 	for _, s := range bad[:min(len(bad), badShown)] {
 		p("- %s", s)
@@ -829,7 +829,7 @@ func replayRow(p func(string, ...any), rs []historyResult, n int) Measured {
 	p("## The same history gives the same content twice")
 	p("")
 	p("Every history and seed is played twice from scratch. Both plays must store the same content on every tile (canonical digest of each tile's `Content`) and reach the same world digest (state and log).")
-	listBad(p, bad)
+	listBad(p, "Failing", bad)
 	return Measured{"content-replays", fmt.Sprintf("%d of %d plays (%d histories × %d seeds) replay to equal content and world digests", len(rs)-len(bad), len(rs), len(historyNames), n), len(bad) == 0}
 }
 
@@ -845,29 +845,42 @@ func differsRow(p func(string, ...any), rs []historyResult) Measured {
 	var bad []string
 	for _, name := range historyNames {
 		var s, c, k, d int
-		for _, r := range rs {
-			if r.name == name {
-				s, c, k, d = s+r.sample, c+r.candidates, k+r.keyDiffer, d+r.differ
-				bad = append(bad, r.differBad...)
-			}
+		for _, r := range byHistory(rs, name) {
+			s, c, k, d = s+r.sample, c+r.candidates, k+r.keyDiffer, d+r.differ
+			bad = append(bad, r.differBad...)
 		}
 		sample, differ = sample+s, differ+d
 		p("| %s | %s | %s | %s | %s | %.1f%% |", name, comma(int64(s)), comma(int64(c)), comma(int64(k)), comma(int64(d)), pct(d, s))
 	}
-	listBad(p, bad)
+	listBad(p, "Failing", bad)
 	share := pct(differ, sample)
 	var per []string
 	for _, name := range historyNames {
 		var s, d int
-		for _, r := range rs {
-			if r.name == name {
-				s, d = s+r.sample, d+r.differ
-			}
+		for _, r := range byHistory(rs, name) {
+			s, d = s+r.sample, d+r.differ
 		}
 		per = append(per, fmt.Sprintf("%s %.1f%%", name, pct(d, s)))
 	}
 	return Measured{"content-differs", fmt.Sprintf("%.1f%% of %s sampled tiles pooled (%s)", share, comma(int64(sample)), strings.Join(per, ", ")),
 		sample > 0 && len(bad) == 0 && differ*100 >= differsTarget*sample}
+}
+
+// byHistory are the results of one history.
+func byHistory(rs []historyResult, name string) []historyResult {
+	return slices.DeleteFunc(slices.Clone(rs), func(r historyResult) bool { return r.name != name })
+}
+
+// tallyRefusal counts a world refusal's code and returns any other error.
+func tallyRefusal(codes map[string]int, err error) error {
+	if err == nil {
+		return nil
+	}
+	if code, ok := refusalCode(err); ok {
+		codes[code]++
+		return nil
+	}
+	return err
 }
 
 // sumCodes adds src's counts to dst.
@@ -890,10 +903,7 @@ func pinRow(p func(string, ...any), rs []historyResult) Measured {
 	var pins, landed, holding, compared, before, outside, exempt int
 	codes := map[string]int{}
 	var bad []string
-	for _, r := range rs {
-		if r.name != historyPinned {
-			continue
-		}
+	for _, r := range byHistory(rs, historyPinned) {
 		pins, landed, holding = pins+r.pins, landed+r.landed, holding+r.holding
 		compared, before, outside, exempt = compared+r.compared, before+r.before, outside+r.outside, exempt+r.exempt
 		sumCodes(codes, r.codes)
@@ -909,7 +919,7 @@ func pinRow(p func(string, ...any), rs []historyResult) Measured {
 	refused := total(codes)
 	p("| %d | %d (%s) | %d | %d | %s | %s | %s | %s |", pins, refused, either(len(codes) > 0, mapList(codes), "none"), landed, holding,
 		comma(int64(compared)), comma(int64(before)), comma(int64(outside)), comma(int64(exempt)))
-	listBad(p, bad)
+	listBad(p, "Failing", bad)
 	return Measured{"pin-stays-in-reach", fmt.Sprintf("%d pins, %d landed, %d holding their fix; %s tiles equal to the pinless twin's (%s before a covering pin, %s outside every pin) and %s drawn in a pin's reach on the twin's digest but for its pins; %d failing", pins, landed, holding, comma(int64(compared)), comma(int64(before)), comma(int64(outside)), comma(int64(exempt)), len(bad)),
 		len(bad) == 0 && landed > 0 && holding == landed}
 }
@@ -939,18 +949,11 @@ func reachRow(p func(string, ...any), rs []historyResult, sw []sweepResult) Meas
 	p("| --- | --- | --- | --- | --- |")
 	refused := total(codes)
 	p("| %s | %s | %s (%s) | %d | %d |", comma(int64(regions)), comma(int64(accepted)), comma(int64(refused)), either(len(codes) > 0, mapList(codes), "none"), noRoom, len(sweepBad))
-	listBad(p, sweepBad)
+	listBad(p, "Failing", sweepBad)
 	p("")
 	p("**The histories.** At each history's end, every pinned slot and every dungeon entrance drawn from history must be a walk of at most %d tiles from the first settlement: %s of them, %d failing. An entrance whose slot the scaffold put where no walk reaches (gen's sites, the same at 366429aa: spike E's structures-reachable holds pattern points and settlements, not a region's own dungeon sites) is listed apart, %d of them; the explorer visits along its spiral, not on foot.", reachWalk, comma(int64(targets)), len(histBad), len(lost))
-	listBad(p, histBad)
-	if len(lost) > 0 {
-		p("")
-		p("Scaffold slots no walk reaches, first %d:", min(len(lost), badShown))
-		p("")
-		for _, s := range lost[:min(len(lost), badShown)] {
-			p("- %s", s)
-		}
-	}
+	listBad(p, "Failing", histBad)
+	listBad(p, "Scaffold slots no walk reaches", lost)
 	return Measured{"content-reachable", fmt.Sprintf("sweep: %s of %s pins accepted on %s seeds, %d failing; histories: %s slots and entrances, %d failing, %d on scaffold slots no walk reaches", comma(int64(accepted)), comma(int64(regions-noRoom)), comma(int64(len(sw))), len(sweepBad), comma(int64(targets)), len(histBad), len(lost)),
 		accepted > 0 && len(sweepBad) == 0 && len(histBad) == 0}
 }
@@ -978,7 +981,7 @@ func busyRow(p func(string, ...any), r busyResult) Measured {
 	p("| 1 | %s | %d | %d |", micros(r.day1), med1, most1)
 	p("| %d | %s | %d | %d |", busyDays, micros(r.day300), med300, most300)
 	p("")
-	p("Visits are what `DigestCost` counts: index entries, disc tiles, pins and finds. The bound is %d: 9 cells of history-cell-kept, the history-radius disc, 9 cells of pins-per-cell and 9 regions of %d find kinds.", r.bound, history.FindKinds)
+	p("Visits are what `DigestCost` counts: index entries, disc tiles, pins and finds. The bound is %d: %d cells of history-cell-kept, the history-radius disc, %d cells of pins-per-cell and %d regions of %d find kinds.", r.bound, history.CellsRead, history.CellsRead, history.CellsRead, history.FindKinds)
 	return Measured{"content-cost-flat", fmt.Sprintf("day %d median %s, day 1 %s (%.0f%%, at most %d%%); visits at most %d on day 1 and %d on day %d, bound %d", busyDays, micros(r.day300), micros(r.day1), ratio, costFlat, most1, most300, busyDays, r.bound), ok}
 }
 
@@ -996,7 +999,7 @@ func dungeonRow(p func(string, ...any), rs []historyResult) Measured {
 	p("## Dungeons drawn from history keep MM8's rules")
 	p("")
 	p("Every dungeon plan drawn from history at the end of every history: its floors within its kind's and %d to %d, its kind's guardian, and every floor above the bottom forking into three ways drawn as a delve at the end would draw them (`DrawWays` under the plan's key and the entrance's digest then), each a distinct `map.forks` row of its kind with 1 to %d tags; the bottom forks into none. %s plans, %s forks, %d failing.", dungeonFloorsLeast, dungeonFloorsMost, waysTagsMost, comma(int64(plans)), comma(int64(forks)), len(bad))
-	listBad(p, bad)
+	listBad(p, "Failing", bad)
 	return Measured{"content-dungeons", fmt.Sprintf("%s plans and %s forks drawn from history, %d failing", comma(int64(plans)), comma(int64(forks)), len(bad)), plans > 0 && len(bad) == 0}
 }
 
@@ -1015,19 +1018,14 @@ func drewSection(p func(string, ...any), b *sheets.Book, rs []historyResult) {
 	for _, name := range historyNames {
 		sk, dk, bands := map[string]int{}, map[string]int{}, map[string]int{}
 		var leads, region int
-		for _, r := range rs {
-			if r.name != name {
-				continue
-			}
+		for _, r := range byHistory(rs, name) {
 			for k, v := range r.siteKinds {
 				sk[label("map.site-kinds", k)] += v
 			}
 			for k, v := range r.dungeonKinds {
 				dk[label("map.dungeons", k)] += v
 			}
-			for k, v := range r.bands {
-				bands[k] += v
-			}
+			sumCodes(bands, r.bands)
 			leads, region = leads+r.leads, region+r.leadRegion
 		}
 		p("| %s | %s | %s | %s | %.1f%% of %s |", name, mapList(sk), mapList(dk), mapList(bands), pct(region, leads), comma(int64(leads)))

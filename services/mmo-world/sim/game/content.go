@@ -1,8 +1,6 @@
 package game
 
 import (
-	"slices"
-
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
@@ -196,11 +194,11 @@ func (g *Game) siteKindTags(h hex.Hex) []tags.Tag {
 	if k == "" {
 		return nil
 	}
-	i := slices.IndexFunc(g.r.Book.SiteKinds, func(s sheets.SiteKind) bool { return s.ID == k })
-	if i < 0 {
+	kind, ok := sheets.Lookup(g.r.Book.SiteKinds)[k]
+	if !ok {
 		return nil
 	}
-	return tags.Of(g.r.Book.SiteKinds[i].Tags)
+	return tags.Of(kind.Tags)
 }
 
 // Placed is who staged a reached tile's content, if a server did (GDD
@@ -234,10 +232,15 @@ func (g *Game) slot(h hex.Hex) string {
 // actions apply in.
 func (g *Game) reachTick() int64 { return g.Tick() + 1 }
 
+// Reach reaches h in the tick a command's reach falls in, so its content
+// is drawn and stored before anyone stands on it; the counterpart of
+// ReachFloor.
+func (g *Game) Reach(h hex.Hex) error { return g.World.Reach(g.Log, h, g.reachTick()) }
+
 // Teleport puts a character on h as an arrival does: the tile is reached
 // now and its discovery is queued for the next tick.
 func (g *Game) Teleport(c *Char, h hex.Hex) error {
-	if err := g.World.Reach(g.Log, h, g.reachTick()); err != nil {
+	if err := g.Reach(h); err != nil {
 		return err
 	}
 	c.C.At = h

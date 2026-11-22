@@ -94,7 +94,7 @@ func (g *Game) followTrack(c *Char, cmd Command) error {
 		return refuse(NoTrack, "no creature's track here is fresh enough to follow")
 	}
 	k := tracks[0]
-	if err := g.World.Reach(g.Log, k.To, g.reachTick()); err != nil {
+	if err := g.Reach(k.To); err != nil {
 		return err
 	}
 	from := c.C.At

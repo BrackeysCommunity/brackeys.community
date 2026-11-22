@@ -102,7 +102,6 @@ func (g *Game) Recap(c *Char, own, heavy []fact.Fact) Recap {
 	return out
 }
 
-// RecapWindow is how far back a recap reads facts, at most.
 // NewsWeight is the minimum weight for regional news.
 func (g *Game) NewsWeight() int64 { return g.r.wp("news-weight") }
 

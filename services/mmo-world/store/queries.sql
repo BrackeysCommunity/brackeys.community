@@ -85,7 +85,7 @@ SELECT * FROM mmo.fact WHERE world_id = @world_id AND tick > @since AND weight >
 ORDER BY id DESC LIMIT @lim;
 
 -- name: RecentFactsIn :many
-SELECT * FROM mmo.fact WHERE world_id = @world_id AND region = @region
+SELECT * FROM mmo.fact WHERE world_id = @world_id AND region = @region AND kind NOT LIKE 'pin.%'
 ORDER BY id DESC LIMIT @lim;
 
 -- name: InsertFacts :copyfrom

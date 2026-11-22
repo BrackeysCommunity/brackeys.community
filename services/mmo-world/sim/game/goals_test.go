@@ -1,6 +1,7 @@
 package game_test
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"testing"
@@ -459,4 +460,38 @@ func TestScreenedWordsAndHide(t *testing.T) {
 		t.Fatalf("hidden %v state %s coin %d → %d", x.Hidden, x.State, before, ts[0].c.C.Coin)
 	}
 	audit(t, g)
+}
+
+// A world drawing content draws a plan at first reach, so a Reach goal on an
+// unreached dungeon is refused (GDD 11.2).
+func TestReachNeedsAReachedDungeon(t *testing.T) {
+	g, ts := society(t, 1)
+	officer := ts[0]
+	var dun hex.Hex
+	found := false
+	for _, h := range hex.DiscAt(officer.c.C.At, 60) {
+		if _, ok := g.Content(h); ok {
+			continue
+		}
+		if native, ok := g.Rules().Gen.Dungeon(h); ok && !native.Up {
+			dun, found = h, true
+			break
+		}
+	}
+	if !found {
+		t.Skip("no unreached dungeon in range")
+	}
+	spec := game.GoalSpec{Title: "Go deep", Issuer: goal.ByCharacter, Mode: goal.First, Lifetime: goal.Standing, Turnover: goal.Keep,
+		Cond: goal.Condition{Verb: goal.Reach, Dungeon: dun.Ref(), Floor: 1, Count: 1}}
+	var ref *game.Refused
+	if _, err := g.Act(game.Command{Key: "unreached", Char: officer.c.C.ID, Kind: game.PostGoal, Goal: &spec}); !errors.As(err, &ref) || ref.Code != game.BadArgs {
+		t.Fatalf("a Reach of an unreached dungeon: %v", err)
+	}
+	if err := g.Reach(dun); err != nil {
+		t.Fatal(err)
+	}
+	if plan, ok := g.Plan(dun); !ok || plan.Floors < 1 {
+		t.Fatalf("a reached dungeon slot holds no plan: %+v %v", plan, ok)
+	}
+	post(officer, spec)
 }

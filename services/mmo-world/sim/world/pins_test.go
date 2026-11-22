@@ -135,7 +135,7 @@ func TestPinRefusals(t *testing.T) {
 		if !s.open(h) || slices.ContainsFunc(around[:], func(n hex.Hex) bool { return s.g.Passable(s.g.Baseline(n).Terrain) }) {
 			return false
 		}
-		return !s.pathFrom(h)
+		return !s.pathFrom(h, s.mp("pin-path-tiles"))
 	})
 	noLead := at
 	var wrongMark, wrongLead string
@@ -178,7 +178,7 @@ func TestPinRefusals(t *testing.T) {
 	daily := staged(s, PinAdmin, day)
 	mustPin(t)(s.Reserve(log, day, 2, tile.Fix{Lead: s.g.Archetypes(day)[0]}, daily))
 	day2 := pinFind(t, s, 1, 40, func(h hex.Hex) bool {
-		return s.open(h) && s.g.RegionOf(h) == s.g.RegionOf(day) && h != day && len(s.g.Archetypes(h)) > 0 && s.pathFrom(h)
+		return s.open(h) && s.g.RegionOf(h) == s.g.RegionOf(day) && h != day && len(s.g.Archetypes(h)) > 0 && s.pathFrom(h, s.mp("pin-path-tiles"))
 	})
 
 	cases := []struct {
@@ -287,7 +287,7 @@ func budgets(t *testing.T) {
 		}
 		var out []hex.Hex
 		for _, h := range s.g.RegionTiles(id) {
-			if s.open(h) && s.pathFrom(h) {
+			if s.open(h) && s.pathFrom(h, s.mp("pin-path-tiles")) {
 				out = append(out, h)
 			}
 		}
@@ -354,7 +354,7 @@ func TestPinReach(t *testing.T) {
 	a, logA := pinWorld(t, "pin-reach")
 	b, logB := pinWorld(t, "pin-reach")
 	const reach = 3
-	at := pinFind(t, a, 8, 14, func(h hex.Hex) bool { return a.open(h) && a.pathFrom(h) })
+	at := pinFind(t, a, 8, 14, func(h hex.Hex) bool { return a.open(h) && a.pathFrom(h, a.mp("pin-path-tiles")) })
 	var early, late []hex.Hex
 	for _, h := range hex.DiscAt(home(a), 2) {
 		if a.g.Passable(a.g.Baseline(h).Terrain) {
@@ -414,7 +414,7 @@ func TestPinReach(t *testing.T) {
 
 	// A server's pin is clipped to its region.
 	edge := pinFind(t, b, 4, 30, func(h hex.Hex) bool {
-		if !b.open(h) || !b.pathFrom(h) || len(b.g.Archetypes(h)) == 0 {
+		if !b.open(h) || !b.pathFrom(h, b.mp("pin-path-tiles")) || len(b.g.Archetypes(h)) == 0 {
 			return false
 		}
 		return slices.ContainsFunc(hex.DiscAt(h, reach), func(n hex.Hex) bool {
@@ -450,7 +450,7 @@ func TestPinReach(t *testing.T) {
 // draw, the label is stored, and one pin.landed names who staged it.
 func TestPinLands(t *testing.T) {
 	s, log := pinWorld(t, "pin-lands")
-	site := pinFind(t, s, 2, 40, func(h hex.Hex) bool { return s.slot(gen.SiteOrdinary)(h) && s.pathFrom(h) })
+	site := pinFind(t, s, 2, 40, func(h hex.Hex) bool { return s.slot(gen.SiteOrdinary)(h) && s.pathFrom(h, s.mp("pin-path-tiles")) })
 	by := staged(s, PinAdmin, site)
 	p := mustPin(t)(s.Reserve(log, site, 2, tile.Fix{SiteKind: "den"}, by))
 	if s.ReserveAt(site) == nil {
@@ -490,7 +490,7 @@ func TestPinLands(t *testing.T) {
 
 	// A staff pin records its points; a designer's stores no label.
 	staff := pinFind(t, s, 2, 40, func(h hex.Hex) bool {
-		return s.open(h) && s.pathFrom(h) && len(s.g.Archetypes(h)) > 1 && s.cellOfPin(h) != s.cellOfPin(site)
+		return s.open(h) && s.pathFrom(h, s.mp("pin-path-tiles")) && len(s.g.Archetypes(h)) > 1 && s.cellOfPin(h) != s.cellOfPin(site)
 	})
 	sb := staged(s, PinStaff, staff)
 	lead := s.g.Archetypes(staff)[1]
@@ -500,7 +500,7 @@ func TestPinLands(t *testing.T) {
 		t.Errorf("staff pin landed as %+v placed %+v", c, c.Placed)
 	}
 
-	dungeon := pinFind(t, s, 2, 60, func(h hex.Hex) bool { return s.slot(gen.PlaceDungeon)(h) && s.pathFrom(h) })
+	dungeon := pinFind(t, s, 2, 60, func(h hex.Hex) bool { return s.slot(gen.PlaceDungeon)(h) && s.pathFrom(h, s.mp("pin-path-tiles")) })
 	native, _ := s.g.Dungeon(dungeon)
 	k := s.b.Dungeons[slices.IndexFunc(s.b.Dungeons, func(k sheets.DungeonKind) bool {
 		return k.Place == gen.PlaceDungeon && k.ID != native.Kind
@@ -544,7 +544,7 @@ func TestPinAging(t *testing.T) {
 	tiles := make([]hex.Hex, 0, 3)
 	for len(tiles) < cap(tiles) {
 		tiles = append(tiles, pinFind(t, s, 3, 40, func(h hex.Hex) bool {
-			return s.open(h) && s.pathFrom(h) && !slices.ContainsFunc(tiles, func(o hex.Hex) bool { return s.cellOfPin(o) == s.cellOfPin(h) })
+			return s.open(h) && s.pathFrom(h, s.mp("pin-path-tiles")) && !slices.ContainsFunc(tiles, func(o hex.Hex) bool { return s.cellOfPin(o) == s.cellOfPin(h) })
 		}))
 	}
 	never := mustPin(t)(s.Reserve(log, tiles[0], 1, tile.Fix{Stock: "lean"}, designer)).ID
@@ -605,12 +605,12 @@ func TestPinAging(t *testing.T) {
 func TestPinCells(t *testing.T) {
 	s, log := pinWorld(t, "pin-cells")
 	most := s.mp("pins-per-cell")
-	first := pinFind(t, s, 2, 30, func(h hex.Hex) bool { return s.open(h) && s.pathFrom(h) })
+	first := pinFind(t, s, 2, 30, func(h hex.Hex) bool { return s.open(h) && s.pathFrom(h, s.mp("pin-path-tiles")) })
 	cell := s.cellOfPin(first)
 	var ids []string
 	var last hex.Hex
 	for _, h := range hex.DiscAt(first, s.pinSize()) {
-		if s.cellOfPin(h) != cell || !s.open(h) || !s.pathFrom(h) {
+		if s.cellOfPin(h) != cell || !s.open(h) || !s.pathFrom(h, s.mp("pin-path-tiles")) {
 			continue
 		}
 		if int64(len(ids)) == most {

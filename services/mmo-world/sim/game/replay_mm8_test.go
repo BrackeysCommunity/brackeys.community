@@ -185,7 +185,10 @@ func recordMM8(t *testing.T, r *game.Rules) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ds := harness.Dungeons(probe, probe.SettlementHex(0), mm8Radius, 3)
+	ds, err := harness.Dungeons(probe, probe.SettlementHex(0), mm8Radius, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, h := range ds[:min(len(ds), mm8Search)] {
 		fx, ok := playMM8(t, r, h)
 		if !ok {

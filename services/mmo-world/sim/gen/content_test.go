@@ -22,24 +22,6 @@ import (
 	"jams.team/mmo-world/sim/tags"
 )
 
-// nativeDraw is floor n by way as the native labels draw it, in the shape
-// a drawn floor is stored in.
-func nativeDraw(g *Gen, p Plan, n, way int64) FloorDraw {
-	at := []draw.Part{draw.Str(p.Hex.Ref()), draw.Int(n), draw.Int(way)}
-	f := FloorDraw{
-		N: n, Way: way,
-		Beats: g.d.Between(g.mp("floor-beats-min"), g.mp("floor-beats-max"), "dungeon.beats", at...),
-		Pick:  int64(g.d.Below(pickRange, "dungeon.creature", at...)),
-	}
-	if n < p.Floors {
-		k := g.kind(p.Kind)
-		if f.Machine = g.d.Percent(g.mp("fork-machine-share"), "dungeon.fork-machine", at...); f.Machine && len(k.Families) > 0 {
-			f.Family = k.Families[g.d.Below(uint64(len(k.Families)), "dungeon.fork-family", at...)]
-		}
-	}
-	return f
-}
-
 // wayIn is the way into floor n by way, as floor() takes it.
 func wayIn(ways func(n int64) [forkWays]Way, n, way int64) *Way {
 	if n <= 1 || way < 0 || way >= forkWays {
@@ -85,7 +67,7 @@ func TestNativeFloorFrom(t *testing.T) {
 			for n := int64(1); n <= p.Floors; n++ {
 				ways := g.ways(p, n)
 				for way := int64(-1); way < forkWays; way++ {
-					f := nativeDraw(g, p, n, way)
+					f := g.drawFloor(nativeFloor, p, n, way, draw.Str(p.Hex.Ref()), draw.Int(n), draw.Int(way))
 					in := wayIn(func(n int64) [forkWays]Way { return g.ways(p, n) }, n, way)
 					for tier := int64(1); tier <= scaffoldTierMost; tier++ {
 						got := g.FloorFrom(p, f, in, &ways, tier)

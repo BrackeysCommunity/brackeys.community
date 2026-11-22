@@ -80,7 +80,8 @@ type Command struct {
 	Now int64 `json:"now,omitempty"`
 	// Along is the Haul goal whose shared route a journey follows.
 	Along string `json:"along,omitempty"`
-	// Pin is what a pin command stages (GDD 14.4).
+	// Pin is a pin command's order: the tile, reach and fix, or the pin a
+	// withdraw names (GDD 14.4).
 	Pin *PinCmd `json:"pin,omitempty"`
 }
 
@@ -434,7 +435,7 @@ func (g *Game) create(server, guildName string) (*Char, error) {
 		c.C.At = g.SettlementHex(n)
 		c.C.Home = goal.SettlementRef(n)
 	}
-	if err := g.World.Reach(g.Log, c.C.At, g.reachTick()); err != nil {
+	if err := g.Reach(c.C.At); err != nil {
 		return nil, err
 	}
 	g.Pending = append(g.Pending, world.Action{Kind: world.ActDiscover, Hex: c.C.At, By: char.Ref(id)})

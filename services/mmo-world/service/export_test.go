@@ -11,3 +11,6 @@ func (s *Server) Hold() func() {
 	s.mu.Lock()
 	return s.mu.Unlock
 }
+
+// PlayerFacts is the reply filter that drops pin facts.
+var PlayerFacts = playerFacts

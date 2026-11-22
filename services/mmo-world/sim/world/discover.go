@@ -30,17 +30,20 @@ func (s *State) Reach(log fact.Log, h hex.Hex, t int64) error {
 	d := s.DigestAt(h, t)
 	key := d.Key()
 	dr := s.g.Content(h, site, d, key)
-	c := &tile.Content{
-		Drawn: t, Key: key, Digest: &d,
-		SiteKind: dr.SiteKind, Lead: dr.Lead, Stock: dr.Stock, Dungeon: storedPlan(dr.Dungeon),
-	}
+	c := contentOf(dr)
+	c.Drawn, c.Key, c.Digest = t, key, &d
 	if p != nil {
-		if err := s.ApplyFix(c, h, p, t, log); err != nil {
+		if err := s.applyFix(&c, h, p, t, log); err != nil {
 			return err
 		}
 	}
-	s.setContent(h, c)
+	s.setContent(h, &c)
 	return nil
+}
+
+// contentOf is drawn content as a tile keeps it.
+func contentOf(d gen.Drawn) tile.Content {
+	return tile.Content{SiteKind: d.SiteKind, Lead: d.Lead, Stock: d.Stock, Dungeon: storedPlan(d.Dungeon)}
 }
 
 // Content is a tile's stored content, or nil while nobody has reached it.

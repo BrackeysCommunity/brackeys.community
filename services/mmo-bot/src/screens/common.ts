@@ -18,6 +18,12 @@ export function relative(ms: number): string {
   return `<t:${Math.floor(ms / 1000)}:R>`;
 }
 
+/** Who staged a place, and for staff what it cost (GDD 14.5); a designer's place carries none. */
+export function placedLine(p: api.Placed): string {
+  if (p.by !== "staff") return `Placed by the admins of ${p.label}`;
+  return `Placed by staff of ${p.label}${p.points ? ` · ${amount(p.points, "event points")}` : ""}`;
+}
+
 /** Goods as a comma list of amounts, empty when there are none. */
 export function goodsLine(goods: readonly api.Goods[], lex: Lexicon): string {
   return goods.map((g) => amount(g.units, lex.material(g.material))).join(", ");

@@ -209,15 +209,21 @@ func (r *Rules) RoadRoles() []string {
 const placeRoad = "road"
 
 // stub draws an NPC's name and traits from its id, and from the stored
-// content's key once its tile has one.
+// content's key once its tile has one, its traits then weighted by the
+// digest through sheets.PickTraits.
 func (r *Rules) stub(id, kind, role string, home hex.Hex, d Draw) Stub {
+	givenP, familyP, who := draw.Purpose("npc.given"), draw.Purpose("npc.family"), []draw.Part{draw.Str(id)}
 	if d.Key != "" {
-		return r.drawnStub(id, kind, role, home, d)
+		givenP, familyP, who = draw.Purpose("content.npc.given"), draw.Purpose("content.npc.family"), []draw.Part{draw.Str(id), draw.Str(d.Key)}
 	}
-	who := draw.Str(id)
 	s := Stub{ID: id, Kind: kind, Role: role, Home: home, Traits: []string{},
-		Name: r.given[r.gen.Below(uint64(len(r.given)), "npc.given", who)] + " " + r.family[r.gen.Below(uint64(len(r.family)), "npc.family", who)]}
-	for _, k := range r.gen.Shuffle(len(r.traits), "npc.traits", who) {
+		Name: r.given[r.gen.Below(uint64(len(r.given)), givenP, who...)] + " " + r.family[r.gen.Below(uint64(len(r.family)), familyP, who...)]}
+	if d.Key != "" {
+		st := r.gen.Stream("content.npc.traits", who...)
+		s.Traits = append(s.Traits, sheets.PickTraits(r.traits, d.Traits, r.traitsN, st.Pick)...)
+		return s
+	}
+	for _, k := range r.gen.Shuffle(len(r.traits), "npc.traits", who...) {
 		if int64(len(s.Traits)) == r.traitsN {
 			break
 		}
@@ -225,18 +231,6 @@ func (r *Rules) stub(id, kind, role string, home hex.Hex, d Draw) Stub {
 			s.Traits = append(s.Traits, t.ID)
 		}
 	}
-	return s
-}
-
-// drawnStub is a stub under the content labels: traits are a weighted
-// pick without replacement that never takes an opposed pair, with even
-// weights when the digest's leave none.
-func (r *Rules) drawnStub(id, kind, role string, home hex.Hex, d Draw) Stub {
-	who := []draw.Part{draw.Str(id), draw.Str(d.Key)}
-	s := Stub{ID: id, Kind: kind, Role: role, Home: home, Traits: []string{},
-		Name: r.given[r.gen.Below(uint64(len(r.given)), "content.npc.given", who...)] + " " + r.family[r.gen.Below(uint64(len(r.family)), "content.npc.family", who...)]}
-	st := r.gen.Stream("content.npc.traits", who...)
-	s.Traits = append(s.Traits, sheets.PickTraits(r.traits, d.Traits, r.traitsN, st.Pick)...)
 	return s
 }
 

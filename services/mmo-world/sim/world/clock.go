@@ -155,6 +155,8 @@ func Advance(s *State, log fact.Log, acts []Action, tick int64) (*State, []fact.
 	first := fact.ID(log.Len())
 	s.edited = nil
 	s.Tick = tick
+	s.arriving = &arrivals{regions: map[int]bool{}, factions: map[int]bool{}}
+	defer func() { s.arriving = nil }()
 	for _, a := range acts {
 		if err := actions[a.Kind].apply(s, log, a); err != nil {
 			return s, nil, err

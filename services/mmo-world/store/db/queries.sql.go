@@ -850,7 +850,7 @@ func (q *Queries) ListTiles(ctx context.Context, worldID string) ([]MmoTile, err
 }
 
 const recentFactsIn = `-- name: RecentFactsIn :many
-SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND region = $2
+SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND region = $2 AND kind NOT LIKE 'pin.%'
 ORDER BY id DESC LIMIT $3
 `
 

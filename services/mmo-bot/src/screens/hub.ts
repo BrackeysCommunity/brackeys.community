@@ -15,11 +15,12 @@ import {
   factLine,
   gauges,
   launch,
+  placedLine,
   PRIVATE,
   stationLine,
   timeLeft,
 } from "./common.ts";
-import { dungeonName, floorOf, placedLine } from "./dungeon.ts";
+import { dungeonName, floorOf } from "./dungeon.ts";
 
 /** What testers are told before they start. */
 export const TESTER_NOTE =

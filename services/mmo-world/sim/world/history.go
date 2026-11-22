@@ -136,7 +136,7 @@ func (s *State) DigestCost(h hex.Hex, t int64) (history.Digest, int64) {
 
 	if len(s.b.Gauges) > 0 {
 		d.Bands = make([]int64, len(s.b.Gauges))
-		if r := s.RegionAt(h); r >= 0 {
+		if r := s.RegionAt(h); r >= 0 && !s.arrivedRegion(r) {
 			for i, g := range s.b.Gauges {
 				d.Bands[i] = history.BandOf(s.b.GaugeLines, g.ID, s.Regions[r].Gauge[i])
 			}
@@ -162,17 +162,21 @@ func (s *State) DigestCost(h hex.Hex, t int64) (history.Digest, int64) {
 	return d, cost
 }
 
+func (s *State) arrivedRegion(r int) bool { return s.arriving != nil && s.arriving.regions[r] }
+
+func (s *State) arrivedFaction(f int) bool { return s.arriving != nil && s.arriving.factions[f] }
+
 // pressure is what the factions holding the awake regions in reach bring.
 func (s *State) pressure(reach []gen.LatticeID, most int64) history.Pressure {
 	var p history.Pressure
 	var holders []int
 	for _, id := range reach {
 		r := s.RegionIndex(id)
-		if r < 0 {
+		if r < 0 || s.arrivedRegion(r) {
 			continue
 		}
 		fi := s.Regions[r].Holder
-		if fi < 0 || fi >= len(s.Factions) || slices.Contains(holders, fi) {
+		if fi < 0 || fi >= len(s.Factions) || s.arrivedFaction(fi) || slices.Contains(holders, fi) {
 			continue
 		}
 		holders = append(holders, fi)

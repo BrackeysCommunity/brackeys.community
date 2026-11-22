@@ -6,6 +6,7 @@ import (
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/gen"
+	"jams.team/mmo-world/sim/history"
 	"jams.team/mmo-world/sim/sheets"
 )
 
@@ -34,21 +35,37 @@ const (
 func (s *State) notable(role string, seat int) Notable {
 	id := s.NextNotable
 	s.NextNotable++
+	givenP, familyP, loyaltyP := draw.Purpose("notable.given"), draw.Purpose("notable.family"), draw.Purpose("notable.loyalty")
+	who := []draw.Part{draw.Int(int64(id))}
+	var dg history.Digest
 	if s.Drawn() {
-		return s.drawnNotable(id, role, seat)
+		dg = s.DigestAt(s.centre(seat), s.Tick)
+		// A notable is not a tile's content, so no pin reaches it.
+		dg.Pins = nil
+		givenP, familyP, loyaltyP = "content.notable.given", "content.notable.family", "content.notable.loyalty"
+		who = append(who, draw.Str(dg.Key()))
 	}
-	who := draw.Int(int64(id))
 	given, family := s.parts("notable-given"), s.parts("notable-family")
 	lo, hi := s.p("loyalty-min"), s.p("loyalty-max")
 	n := Notable{
 		ID:      id,
-		Given:   given[s.d.Below(uint64(len(given)), "notable.given", who)],
-		Family:  family[s.d.Below(uint64(len(family)), "notable.family", who)],
+		Given:   given[s.d.Below(uint64(len(given)), givenP, who...)],
+		Family:  family[s.d.Below(uint64(len(family)), familyP, who...)],
 		Role:    role,
-		Loyalty: s.d.Between(lo, hi, "notable.loyalty", who),
+		Loyalty: s.d.Between(lo, hi, loyaltyP, who...),
 	}
-	order := s.d.Shuffle(len(s.b.NPCTraits), "notable.traits", who)
-	for _, k := range order {
+	if s.Drawn() {
+		ids := make([]string, len(s.b.NPCTraits))
+		base := make([]int64, len(s.b.NPCTraits))
+		for i, t := range s.b.NPCTraits {
+			ids[i], base[i] = t.ID, sheets.IntParam(s.b.MapParams, "content-trait-weight")
+		}
+		weights := s.g.Weights(gen.TableTrait, ids, base, dg, "")
+		st := s.d.Stream("content.notable.traits", who...)
+		n.Traits = sheets.PickTraits(s.b.NPCTraits, weights, s.p("notable-traits"), st.Pick)
+		return n
+	}
+	for _, k := range s.d.Shuffle(len(s.b.NPCTraits), "notable.traits", who...) {
 		if int64(len(n.Traits)) == s.p("notable-traits") {
 			break
 		}
@@ -58,33 +75,6 @@ func (s *State) notable(role string, seat int) Notable {
 		}
 		n.Traits = append(n.Traits, t.ID)
 	}
-	return n
-}
-
-// drawnNotable draws a notable under the content labels, from the digest
-// at its seat's centre now.
-func (s *State) drawnNotable(id int, role string, seat int) Notable {
-	dg := s.DigestAt(s.centre(seat), s.Tick)
-	// A notable is not a tile's content, so no pin reaches it.
-	dg.Pins = nil
-	who := []draw.Part{draw.Int(int64(id)), draw.Str(dg.Key())}
-	given, family := s.parts("notable-given"), s.parts("notable-family")
-	lo, hi := s.p("loyalty-min"), s.p("loyalty-max")
-	n := Notable{
-		ID:      id,
-		Given:   given[s.d.Below(uint64(len(given)), "content.notable.given", who...)],
-		Family:  family[s.d.Below(uint64(len(family)), "content.notable.family", who...)],
-		Role:    role,
-		Loyalty: s.d.Between(lo, hi, "content.notable.loyalty", who...),
-	}
-	ids := make([]string, len(s.b.NPCTraits))
-	base := make([]int64, len(s.b.NPCTraits))
-	for i, t := range s.b.NPCTraits {
-		ids[i], base[i] = t.ID, sheets.IntParam(s.b.MapParams, "content-trait-weight")
-	}
-	weights := s.g.Weights(gen.TableTrait, ids, base, dg, "")
-	st := s.d.Stream("content.notable.traits", who...)
-	n.Traits = sheets.PickTraits(s.b.NPCTraits, weights, s.p("notable-traits"), st.Pick)
 	return n
 }
 

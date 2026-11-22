@@ -161,15 +161,14 @@ func (g *Gen) floor(p Plan, entrance []tags.Tag, n, way, tier int64) FloorPlan {
 		w := g.ways(p, n-1)[way]
 		in = &w
 	}
-	f := g.floorBase(p, k, entrance, n, way, tier, in, g.d.Between(g.mp("floor-beats-min"), g.mp("floor-beats-max"), "dungeon.beats", at...))
+	fd := g.drawFloor(nativeFloor, p, n, way, at...)
+	f := g.floorBase(p, k, entrance, n, way, tier, in, fd.Beats)
 	f.Creature = g.floorCreature(k, f.Step.Tier, at)
 	if f.Bottom {
 		return f
 	}
 	f.Ways = g.ways(p, n)
-	if f.Machine = g.d.Percent(g.mp("fork-machine-share"), "dungeon.fork-machine", at...); f.Machine && len(k.Families) > 0 {
-		f.Family = k.Families[g.d.Below(uint64(len(k.Families)), "dungeon.fork-family", at...)]
-	}
+	f.Machine, f.Family = fd.Machine, fd.Family
 	return f
 }
 

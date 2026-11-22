@@ -251,7 +251,8 @@ func (g *Game) target(c *Char, cond goal.Condition) error {
 
 // reachable refuses a Reach of a dungeon's floor the dungeon does not hold:
 // no dungeon at the tile named, or a floor past its count (GDD 11.2: a goal
-// must be meetable).
+// must be meetable). On a world drawing content the dungeon must have been
+// reached: its plan is drawn then, and may be shallower than the native one.
 func (g *Game) reachable(cond goal.Condition) error {
 	if cond.Verb != goal.Reach || cond.Dungeon == "" {
 		return nil
@@ -259,6 +260,11 @@ func (g *Game) reachable(cond goal.Condition) error {
 	h, ok := hex.ParseRef(cond.Dungeon)
 	if !ok {
 		return refuse(BadArgs, "no dungeon %q", cond.Dungeon)
+	}
+	if g.World.Drawn() {
+		if _, ok := g.Content(h); !ok {
+			return refuse(BadArgs, "nobody has reached the dungeon at %s", cond.Dungeon)
+		}
 	}
 	plan, ok := g.Plan(h)
 	switch {

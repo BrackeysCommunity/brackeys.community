@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
 
 	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/history"
@@ -191,9 +193,8 @@ func TestNotedOnce(t *testing.T) {
 }
 
 // However many facts and pins a world holds, a digest visits at most
-// 9 × history-cell-kept entries, one disc of tiles, 9 × pins-per-cell pins
-// and a handful of finds per region, and that maximum is the same on day
-// 300 as once the window first filled.
+// Bounds.CostBound, and that maximum is the same on day 300 as once the
+// window first filled.
 func TestDigestBounded(t *testing.T) {
 	s := historyWorld(t, "history-digest-bounded")
 	b := s.bounds()
@@ -413,4 +414,139 @@ func TestNoteV0(t *testing.T) {
 	if len(v1.History) == 0 {
 		t.Fatal("the v1 twin indexed nothing either: the test proves nothing")
 	}
+}
+
+// Two tiles reached in one tick store the same content whichever comes
+// first, even when the first one's discovery wakes the second's region.
+func TestArrivalOrder(t *testing.T) {
+	const label = "history-arrival-order"
+	book, err := sheetfs.LoadBook(sheetfs.ModuleRoot())
+	if err != nil {
+		t.Fatal(err)
+	}
+	raised := *book
+	raised.WorldParams = slices.Clone(book.WorldParams)
+	for i := range raised.WorldParams {
+		switch raised.WorldParams[i].ID {
+		case "baseline-min":
+			raised.WorldParams[i].Value = fixed.FromInt(550)
+		case "baseline-max":
+			raised.WorldParams[i].Value = fixed.FromInt(850)
+		}
+	}
+	by := fact.Ref{Kind: "character", ID: "t"}
+	for _, b := range []*sheets.Book{book, &raised} {
+		if a, c, s, ok := arrivalPair(t, b, label, by); ok {
+			checkArrivalOrder(t, s, label, by, a, c)
+			return
+		}
+	}
+	t.Fatal("no pair of tiles whose arrival changes a digest: the test would prove nothing")
+}
+
+func cloneState(t *testing.T, s *State, label string) *State {
+	t.Helper()
+	raw, err := json.Marshal(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var c State
+	if err := json.Unmarshal(raw, &c); err != nil {
+		t.Fatal(err)
+	}
+	c.Attach(s.b, s.g, keys.Throwaway(label).Roll)
+	return &c
+}
+
+func checkArrivalOrder(t *testing.T, s *State, label string, by fact.Ref, a, b hex.Hex) {
+	t.Helper()
+	run := func(first, second hex.Hex) (*tile.Content, *tile.Content) {
+		c := cloneState(t, s, label)
+		acts := []Action{{Kind: ActDiscover, Hex: first, By: by}, {Kind: ActDiscover, Hex: second, By: by}}
+		if _, _, err := Advance(c, &fact.Mem{}, acts, c.Tick+1); err != nil {
+			t.Fatal(err)
+		}
+		return c.Content(a), c.Content(b)
+	}
+	ca1, cb1 := run(a, b)
+	ca2, cb2 := run(b, a)
+	for _, p := range [][2]*tile.Content{{ca1, ca2}, {cb1, cb2}} {
+		if p[0] == nil || p[1] == nil {
+			t.Fatal("a discovered tile stored no content")
+		}
+		if p[0].Key != p[1].Key || !reflect.DeepEqual(p[0].Digest, p[1].Digest) {
+			t.Errorf("content depends on queue order: %+v vs %+v", p[0].Digest, p[1].Digest)
+		}
+	}
+}
+
+// arrivalPair finds two undiscovered tiles where discovering a wakes a
+// region in b's horizon and b's digest would differ were it read after the
+// arrival.
+func arrivalPair(t *testing.T, b *sheets.Book, label string, by fact.Ref) (a, c hex.Hex, s *State, ok bool) {
+	t.Helper()
+	k := keys.Throwaway(label)
+	g, err := gen.New(b, k.Generation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err = New(b, g, k.Roll)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.ContentVersion = ContentDrawn
+	hops := int(s.wp("horizon-hops"))
+	woken := func(id gen.LatticeID) map[gen.LatticeID]bool {
+		seen := map[gen.LatticeID]bool{id: true}
+		ring := []gen.LatticeID{id}
+		for range hops {
+			var next []gen.LatticeID
+			for _, r := range ring {
+				for _, n := range s.g.RegionNeighbours(r) {
+					if !seen[n] {
+						seen[n] = true
+						next = append(next, n)
+					}
+				}
+			}
+			ring = append(ring, next...)
+		}
+		return seen
+	}
+	free := func(h hex.Hex) bool {
+		return s.g.Passable(s.g.Baseline(h).Terrain) && !s.reached(h)
+	}
+	changes := func(a, c hex.Hex) bool {
+		x := cloneState(t, s, label)
+		if _, _, err := Advance(x, &fact.Mem{}, []Action{{Kind: ActDiscover, Hex: a, By: by}}, x.Tick+1); err != nil {
+			t.Fatal(err)
+		}
+		after, before := x.DigestAt(c, x.Tick), s.DigestAt(c, s.Tick+1)
+		return !reflect.DeepEqual(after.Bands, before.Bands) || !reflect.DeepEqual(after.Faction, before.Faction)
+	}
+	centre := s.g.Settlement(0).Hex
+	tried := 0
+	for r := int64(1); r <= 120 && tried < 40; r++ {
+		for _, h := range hex.Ring(centre, r) {
+			id := s.g.RegionOf(h)
+			i := s.RegionIndex(id)
+			if i < 0 || s.Regions[i].Discovered || !free(h) {
+				continue
+			}
+			near := woken(id)
+			for r2 := int64(1); r2 <= 120 && tried < 40; r2++ {
+				for _, h2 := range hex.Ring(h, r2) {
+					id2 := s.g.RegionOf(h2)
+					if s.RegionIndex(id2) < 0 && near[id2] && free(h2) {
+						tried++
+						if changes(h, h2) {
+							return h, h2, s, true
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+	return a, c, s, false
 }

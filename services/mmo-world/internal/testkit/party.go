@@ -42,7 +42,7 @@ func Party(t testing.TB, g *game.Game, n int) []*game.Char {
 
 // Delving stands characters on a floor of the nearest dungeon to the
 // first settlement with that many floors, each delving it, and returns
-// its entrance. Floors 1 to floor are reached first, as a first descent would.
+// its entrance, with floors 1 to floor reached first.
 func Delving(t testing.TB, g *game.Game, cs []*game.Char, floor int64) hex.Hex {
 	t.Helper()
 	h, ok := Dungeon(g, floor)
@@ -79,7 +79,7 @@ func Dungeon(g *game.Game, floors int64) (hex.Hex, bool) {
 			if _, ok := g.Rules().Gen.Dungeon(h); !ok {
 				continue
 			}
-			if err := g.World.Reach(g.Log, h, g.Tick()+1); err != nil {
+			if err := g.Reach(h); err != nil {
 				return hex.Hex{}, false
 			}
 			if p, ok := g.Plan(h); ok && p.Floors >= floors {

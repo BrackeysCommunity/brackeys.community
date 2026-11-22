@@ -105,6 +105,9 @@ func (s *State) wake(id gen.LatticeID) {
 	lo, hi, corruptionHi := s.wp("baseline-min"), s.wp("baseline-max"), s.wp("corruption-baseline-max")
 	base := s.g.Region(id)
 	idx := len(s.Regions)
+	if s.arriving != nil {
+		s.arriving.regions[idx] = true
+	}
 	reg := Region{
 		ID: idx, Lattice: id, Holder: none, Tiles: len(s.g.RegionTiles(id)),
 		Active: make([]bool, len(s.b.GaugeLines)), Tier: s.g.TierAt(base.Centre, s.Opened),
@@ -274,6 +277,9 @@ func (s *State) seatFactions(d *day) {
 			Head: heads[s.d.Below(uint64(len(heads)), "world.faction-name", draw.Int(int64(i)))],
 		}
 		s.Factions = append(s.Factions, f)
+		if s.arriving != nil {
+			s.arriving.factions[i] = true
+		}
 		for j := range s.Factions {
 			for len(s.Factions[j].Disposition) < len(s.Factions) {
 				s.Factions[j].grow()

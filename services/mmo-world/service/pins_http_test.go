@@ -770,3 +770,65 @@ func TestSheetsRestamp(t *testing.T) {
 		t.Fatalf("a world on these sheets was re-stamped again:\n%s", logs.String())
 	}
 }
+
+// TestPinFactsUnread: a landing writes pin.landed, but the region's
+// recent facts a player reads never list it.
+func TestPinFactsUnread(t *testing.T) {
+	ctx := context.Background()
+	r := startOn(t, pgtest.Pool(t), io.Discard, nil)
+	rep, ref, err := r.cli.Act(ctx, api.ActionRequest{InteractionID: "new", DiscordID: "u-1", Kind: api.ActCreate, Option: api.StartKnife})
+	if err != nil || ref != nil {
+		t.Fatal(ref, err)
+	}
+	id := rep.Character.ID
+	advance(t, ctx, r, 1)
+
+	release := r.srv.Hold()
+	g := r.srv.Game()
+	at := g.Char(id).C.At
+	const reach = 1
+	clear := func(h hex.Hex) bool {
+		return !slices.ContainsFunc(hex.DiscAt(h, reach+1), func(n hex.Hex) bool { return g.World.Content(n) != nil })
+	}
+	lead := func(h hex.Hex) api.PinFix { return leadFix(g, h) }
+	spot := pinTiles(g, at, 5, 8, 1, designer, "", lead, clear)
+	release()
+	if len(spot) != 1 {
+		t.Fatal("no tile a designer may pin near the character")
+	}
+	h := spot[0]
+	op(t, r, api.OperatorRequest{InteractionID: "op-pin", Kind: api.OpPinReserve, Pin: &api.PinOrder{At: *apiAt(h), Reach: reach, Fix: lead(h)}})
+
+	release = r.srv.Hold()
+	g = r.srv.Game()
+	err = g.Teleport(g.Char(id), h)
+	release()
+	if err != nil {
+		t.Fatal(err)
+	}
+	advance(t, ctx, r, 2)
+	pins, _ := inspectPins(t, ctx, r, h)
+	if len(pins) == 0 || pins[0].Landed == 0 {
+		t.Fatalf("the pin did not land: %+v", pins)
+	}
+	var here api.Here
+	if ref, err := r.cli.Do(ctx, http.MethodGet, api.PathHere+"?characterId="+id, nil, &here); err != nil || ref != nil {
+		t.Fatal(ref, err)
+	}
+	for _, f := range here.Recent {
+		if strings.HasPrefix(f.Kind, "pin.") {
+			t.Errorf("here lists a pin fact: %+v", f)
+		}
+	}
+}
+
+func TestPlayerFacts(t *testing.T) {
+	in := []api.Fact{{Kind: "a"}, {Kind: "pin.landed"}, {Kind: "b"}}
+	out := service.PlayerFacts(in)
+	if len(out) != 2 || out[0].Kind != "a" || out[1].Kind != "b" {
+		t.Errorf("got %+v", out)
+	}
+	if out := service.PlayerFacts(nil); out == nil || len(out) != 0 {
+		t.Errorf("nil input gave %#v", out)
+	}
+}

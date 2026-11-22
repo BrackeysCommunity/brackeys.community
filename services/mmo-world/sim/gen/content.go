@@ -49,9 +49,6 @@ const (
 // Content draws a reached tile's content from its digest, under labels of
 // its own. site is the slot as it stands, a pin's over the scaffold's.
 func (g *Gen) Content(h Hex, site string, d history.Digest, key string) Drawn {
-	at := func(more ...draw.Part) []draw.Part {
-		return append([]draw.Part{draw.Str(h.Ref()), draw.Str(key)}, more...)
-	}
 	var out Drawn
 	out.SiteKind = g.SiteKind(h, site, d, key)
 	region := g.Region(g.Baseline(h).Region)
@@ -63,7 +60,7 @@ func (g *Gen) Content(h Hex, site string, d history.Digest, key string) Drawn {
 				base[i] = g.mp("lead-region-weight")
 			}
 		}
-		out.Lead = rows[g.d.Pick(g.Weights(TableLead, rows, base, d, region.Creature), "content.lead", at()...)]
+		out.Lead = rows[g.d.Pick(g.Weights(TableLead, rows, base, d, region.Creature), "content.lead", contentParts(h, key)...)]
 	}
 	if len(region.Materials) > 0 {
 		out.Stock = map[string]int64{}
@@ -72,7 +69,7 @@ func (g *Gen) Content(h Hex, site string, d history.Digest, key string) Drawn {
 		for _, m := range region.Materials {
 			units := g.nodeStock()
 			if len(ids) > 0 {
-				units, _ = g.StockUnits(ids[g.d.Pick(weights, "content.stock", at(draw.Str(m))...)])
+				units, _ = g.StockUnits(ids[g.d.Pick(weights, "content.stock", contentParts(h, key, draw.Str(m))...)])
 			}
 			out.Stock[m] = units
 		}
@@ -85,7 +82,7 @@ func (g *Gen) Content(h Hex, site string, d history.Digest, key string) Drawn {
 
 // SiteKind is the kind Content draws for the slot.
 func (g *Gen) SiteKind(h Hex, site string, d history.Digest, key string) string {
-	return g.siteKind(site, d, []draw.Part{draw.Str(h.Ref()), draw.Str(key)})
+	return g.siteKind(site, d, contentParts(h, key))
 }
 
 // UniformStock gives every material of h's region the same units; nil when
@@ -104,9 +101,6 @@ func (g *Gen) UniformStock(h Hex, units int64) map[string]int64 {
 // siteKind draws what a site or edge-site slot holds; any other slot
 // holds no kind.
 func (g *Gen) siteKind(site string, d history.Digest, at []draw.Part) string {
-	if site != SiteOrdinary && site != SiteEdge {
-		return ""
-	}
 	var ids []string
 	var base []int64
 	for _, k := range g.b.SiteKinds {
@@ -249,32 +243,48 @@ func (g *Gen) condition(w sheets.ContentWeight, d history.Digest) int64 {
 }
 
 // DrawWays draws floor n's three ways down at its first reach; the bottom
-// floor has none. key is the plan's content key and at the digest key of
+// floor has none. key is the plan's content key; at is the digest key at
 // the floor's first reach.
 func (g *Gen) DrawWays(p Plan, key, at string, n int64) [forkWays]Way {
 	if n >= p.Floors {
 		return [forkWays]Way{}
 	}
-	return g.waysFrom(p.Kind, g.d.Stream("content.floor.fork", draw.Str(p.Hex.Ref()), draw.Str(key), draw.Str(at), draw.Int(n)))
+	return g.waysFrom(p.Kind, g.d.Stream("content.floor.fork", contentParts(p.Hex, key, draw.Str(at), draw.Int(n))...))
 }
 
 // DrawFloor draws floor n by way at its first reach; the bottom floor has
 // no fork machine.
 func (g *Gen) DrawFloor(p Plan, key, at string, n, way int64) FloorDraw {
-	parts := []draw.Part{draw.Str(p.Hex.Ref()), draw.Str(key), draw.Str(at), draw.Int(n), draw.Int(way)}
+	return g.drawFloor(contentFloor, p, n, way, contentParts(p.Hex, key, draw.Str(at), draw.Int(n), draw.Int(way))...)
+}
+
+// floorLabels are the purposes a floor's draws take.
+type floorLabels struct{ beats, creature, machine, family draw.Purpose }
+
+var (
+	nativeFloor  = floorLabels{"dungeon.beats", "dungeon.creature", "dungeon.fork-machine", "dungeon.fork-family"}
+	contentFloor = floorLabels{"content.floor.beats", "content.floor.creature", "content.floor.fork-machine", "content.floor.fork-family"}
+)
+
+func (g *Gen) drawFloor(l floorLabels, p Plan, n, way int64, parts ...draw.Part) FloorDraw {
 	f := FloorDraw{
 		N: n, Way: way,
-		Beats: g.d.Between(g.mp("floor-beats-min"), g.mp("floor-beats-max"), "content.floor.beats", parts...),
-		Pick:  int64(g.d.Below(pickRange, "content.floor.creature", parts...)),
+		Beats: g.d.Between(g.mp("floor-beats-min"), g.mp("floor-beats-max"), l.beats, parts...),
+		Pick:  int64(g.d.Below(pickRange, l.creature, parts...)),
 	}
 	if n >= p.Floors {
 		return f
 	}
 	k := g.kind(p.Kind)
-	if f.Machine = g.d.Percent(g.mp("fork-machine-share"), "content.floor.fork-machine", parts...); f.Machine && len(k.Families) > 0 {
-		f.Family = k.Families[g.d.Below(uint64(len(k.Families)), "content.floor.fork-family", parts...)]
+	if f.Machine = g.d.Percent(g.mp("fork-machine-share"), l.machine, parts...); f.Machine && len(k.Families) > 0 {
+		f.Family = k.Families[g.d.Below(uint64(len(k.Families)), l.family, parts...)]
 	}
 	return f
+}
+
+// contentParts keys a draw on the tile and the content key, then more.
+func contentParts(h Hex, key string, more ...draw.Part) []draw.Part {
+	return append([]draw.Part{draw.Str(h.Ref()), draw.Str(key)}, more...)
 }
 
 // FloorFrom builds a floor from its stored draw, the way in (nil for floor
@@ -300,11 +310,11 @@ func (g *Gen) FloorFrom(p Plan, f FloorDraw, in *Way, ways *[forkWays]Way, tier 
 
 // StockPercent is a map.stock-bands row's share of node-stock.
 func (g *Gen) StockPercent(band string) (int64, bool) {
-	i := slices.IndexFunc(g.b.StockBands, func(s sheets.StockBand) bool { return s.ID == band })
-	if i < 0 {
+	s, ok := sheets.Lookup(g.b.StockBands)[band]
+	if !ok {
 		return 0, false
 	}
-	return g.b.StockBands[i].Percent, true
+	return s.Percent, true
 }
 
 // StockUnits are the node units a material starts with in a stock band:

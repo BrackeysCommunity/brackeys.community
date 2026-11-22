@@ -43,7 +43,7 @@ func (g *Game) pinCommand(cmd Command) error {
 		return err
 	}
 	if cmd.Kind != PinWithdraw {
-		// A starting settlement's tile is the world's own to refuse.
+		// A guild-founded settlement; the world's placeTile refuses a starting one.
 		if pl := g.PlaceAt(p.At); pl != nil && pl.Lattice < 0 {
 			return refuse(world.CodePinGround, "%s holds a settlement", p.At.Ref())
 		}

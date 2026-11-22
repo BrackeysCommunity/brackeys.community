@@ -29,7 +29,7 @@ const (
 	historyExploreDays = 120 // explorer days after them
 	twinDay            = 60  // the day content-differs splits its twins
 	twinDays           = 30  // days both twins then run
-	twinSample         = 300 // tiles of S, at most
+	twinSample         = 300 // tiles of S (see differs), at most
 	pinEvery           = 3   // explorer days between pins in the pinned history
 	pinAheadMin        = 4   // a pin lands this many to pinAheadMax steps along the explorer's walk
 	pinAheadMax        = 12
@@ -51,13 +51,10 @@ func historyBooks(b *sheets.Book) map[string]*sheets.Book {
 	}
 }
 
-// The warring book's cells: twice the factions, seated half as far apart;
-// raids that wear a holding down more slowly, so borders last; every
-// archetype expanding whenever it can until its holdings border another's,
-// then raiding and betraying over any other move; betrayal that pays at
-// any friendliness and comes round weekly; and grudges that last the whole
-// history. That gives every week ten or more faction.raided or
-// faction.betrayed facts.
+// The warring book's cells: more factions seated closer, slower raid wear
+// so borders last, expand, raid and betray favoured over other moves,
+// betrayal at any friendliness weekly, and grudges that last the history,
+// so every week holds raids and betrayals (reported as weekMin).
 const (
 	warringRegionsPer      = 3   // factions.params regions-per-faction
 	warringSeatSpacing     = 9   // factions.params seat-spacing
@@ -96,7 +93,7 @@ func warringBook(b *sheets.Book) *sheets.Book {
 
 // The overrun book's cells: world.params baseline-min and baseline-max
 // (the band every gauge wakes in, threat's among them) and world.gauges
-// threat's daily rise, so that most awake regions sit over the 900 line.
+// threat's daily rise, so that most awake regions sit over the overrun line.
 const (
 	overrunBaselineMin = 550
 	overrunBaselineMax = 850
@@ -181,7 +178,9 @@ func (h *historyRun) days(n int, before func(*historyRun) error) error {
 		var acts []world.Action
 		if day := h.s.Day; day >= historyStillDays {
 			if h.pins && (day-historyStillDays)%pinEvery == 0 {
-				h.pin()
+				if err := h.pin(); err != nil {
+					return err
+				}
 			}
 			acts = h.ex.Day(h.s, explorerPerDay)
 		}
@@ -197,15 +196,15 @@ const historyLength = historyStillDays + historyExploreDays
 
 // pin reserves one designer pin ahead of the explorer, with a fix drawn
 // under harness.pin; a refusal is counted and never retried.
-func (h *historyRun) pin() {
+func (h *historyRun) pin() error {
 	day := draw.Int(h.s.Day)
 	at, ok := h.ahead(h.d.Between(pinAheadMin, pinAheadMax, "harness.pin", day, draw.Str("ahead")))
 	if !ok {
-		return
+		return nil
 	}
 	fixes := h.fixesFor(at, day)
 	if len(fixes) == 0 {
-		return
+		return nil
 	}
 	fix := fixes[h.d.Below(uint64(len(fixes)), "harness.pin", day, draw.Str("fix"))]
 	most := int64(pinReachMost)
@@ -215,14 +214,10 @@ func (h *historyRun) pin() {
 	reach := h.d.Between(pinReachLeast, most, "harness.pin", day, draw.Str("reach"))
 	p, err := h.s.Reserve(h.log, at, reach, fix, world.PinBy{Role: world.PinDesigner})
 	if err != nil {
-		code, ok := refusalCode(err)
-		if !ok {
-			code = err.Error()
-		}
-		h.codes[code]++
-		return
+		return tallyRefusal(h.codes, err)
 	}
 	h.pinsP = append(h.pinsP, *p)
+	return nil
 }
 
 // ahead is the first passable tile at least k steps along the explorer's

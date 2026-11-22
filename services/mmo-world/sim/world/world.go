@@ -94,12 +94,17 @@ type State struct {
 	gauge     map[string]int
 	// Never saved: edited is the tiles whose content changed since the last
 	// Advance; pinCells and findsIn are indexes rebuilt on demand after Pins
-	// or Finds change.
+	// or Finds change; arriving is what the tick has added.
 	edited    map[hex.Hex]bool
 	pinCells  map[pinCell][]int
 	findsIn   map[gen.LatticeID][]int
 	findsSeen int
+	arriving  *arrivals
 }
+
+// arrivals are the regions woken and factions seated during a tick; a
+// digest read in that tick treats them as not there yet.
+type arrivals struct{ regions, factions map[int]bool }
 
 // New starts a world: the first starting settlement is open and its
 // region discovered, and the horizon wakes round it.
