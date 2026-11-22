@@ -197,6 +197,9 @@ func (g *Game) marketHere(c *Char) (int, error) {
 	if g.Market == nil {
 		return 0, refuse(NotHere, "the market opens with the next world day")
 	}
+	if err := g.cityVendor(c, n); err != nil {
+		return 0, err
+	}
 	return n, nil
 }
 
@@ -323,8 +326,14 @@ func count[T any](seq iter.Seq[T]) int64 {
 	return n
 }
 
+// roomForOrder refuses an order past what a character may hold open; a
+// city's book holds book-share of that (GDD 4.8).
 func (g *Game) roomForOrder(c *Char) error {
-	if most := g.charScale(c, "order-limit", g.mp("open-orders")); g.OpenOrders(c) >= most {
+	most := g.charScale(c, "order-limit", g.mp("open-orders"))
+	if n, ok := g.MarketAt(c.C.At); ok && g.Story != nil {
+		most = fixed.PercentFloor(most, g.bookShare(n))
+	}
+	if g.OpenOrders(c) >= most {
 		return refuse(Busy, "%s already holds %d open orders", c.C.ID, most)
 	}
 	return nil
@@ -811,28 +820,42 @@ func (g *Game) postFactionOrders(t int64) error {
 		price := g.priceShare(n, t)
 		trader := fixed.PercentFloor(budget, g.mp("trader-share"))
 		m.Trader[n] = trader
-		qty := faucet.Plan(budget-trader, shares)
+		caravan := g.caravanBids(n, budget, wants, t)
+		qty := faucet.Plan(max(budget-trader-caravanCost(caravan), 0), shares)
+		day := strconv.FormatInt(t/sheets.TicksPerDay, decimal)
 		for i, w := range wants {
 			if qty[i] == 0 {
 				continue
 			}
-			fi := w.Buyer
-			owner := factionOwner(fi)
-			if fi == econ.Keepers {
-				owner = keepersOwner(h)
+			if err := g.factionBid(n, h, w, qty[i], price, t, ledger.SubKey("day", day, strconv.Itoa(n), w.Material)); err != nil {
+				return err
 			}
-			id, seq := g.nextID("f-")
-			b := g.Book(n, w.Material)
-			bid := w.Price
-			if price != fixed.Hundredths {
-				bid = max(fixed.PercentFloor(bid, price), 1)
-			}
-			b.Add(market.Order{ID: id, Owner: owner, Side: market.Bid, Price: bid, Qty: qty[i], Placed: t, Expires: t + sheets.TicksPerDay, Seq: seq, Faction: &fi})
-			m.opened(owner, 1)
-			if err := g.match(b, ledger.SubKey("day", strconv.FormatInt(t/sheets.TicksPerDay, decimal), strconv.Itoa(n), w.Material)); err != nil {
+		}
+		for _, cb := range caravan {
+			if err := g.factionBid(n, h, cb.want, cb.qty, price, t, ledger.SubKey("day", day, strconv.Itoa(n), cb.want.Material, caravanPart)); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+// factionBid posts one of the day's faction or keepers' bids at a place,
+// at price percent of the want's price, and matches it.
+func (g *Game) factionBid(n int, h hex.Hex, w econ.Want, qty, price, t int64, key string) error {
+	m := g.Market
+	fi := w.Buyer
+	owner := factionOwner(fi)
+	if fi == econ.Keepers {
+		owner = keepersOwner(h)
+	}
+	id, seq := g.nextID("f-")
+	b := g.Book(n, w.Material)
+	bid := w.Price
+	if price != fixed.Hundredths {
+		bid = max(fixed.PercentFloor(bid, price), 1)
+	}
+	b.Add(market.Order{ID: id, Owner: owner, Side: market.Bid, Price: bid, Qty: qty, Placed: t, Expires: t + sheets.TicksPerDay, Seq: seq, Faction: &fi})
+	m.opened(owner, 1)
+	return g.match(b, key)
 }

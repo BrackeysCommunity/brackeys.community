@@ -121,13 +121,21 @@ func (g *Game) HasStructure(h hex.Hex, kind string) bool {
 func TreasuryPool(n int) string { return ledger.TreasuryPool(n) }
 
 // marketFee is the fee on a sale of coin at a settlement: the market's,
-// raised while a raid's stake runs there, never more than the sale.
+// raised while a raid's stake runs there and cut at a faction city's
+// exchange, never more than the sale.
 func (g *Game) marketFee(settlement int, coin int64) int64 {
 	fee := g.r.Values.Fee(coin)
 	if g.Story != nil && settlement >= 0 && settlement < len(g.Places) {
-		fee = min(fixed.PercentFloor(fee, g.feeShare(settlement, g.Tick())), coin)
+		fee = fixed.PercentFloor(fee, g.feeShare(settlement, g.Tick()))
+		fee = min(fixed.PercentFloor(fee, g.cityFeeCut(settlement)), coin)
 	}
 	return fee
+}
+
+// StructureCap is the highest tier a structure rises to at a settlement:
+// a city's stations reach the city's cap.
+func (g *Game) StructureCap(n int, row *sheets.Structure) int64 {
+	return settle.CapFor(row, g.r.Settle, g.isCity(n))
 }
 
 // feeLegs sinks a seller's market fee; a guild's settlement keeps its
@@ -174,7 +182,10 @@ func (g *Game) charterOf(c *Char) (charterPlan, error) {
 	}
 	h := c.C.At
 	if p := g.PlaceAt(h); p != nil {
-		if p.Guild != "" {
+		switch {
+		case p.Ruined != 0:
+			return plan, refuse(Ruined, "this settlement lies in ruins")
+		case p.Guild != "":
 			return plan, refuse(NotHere, "a guild already runs this settlement")
 		}
 		plan.take = p
@@ -390,6 +401,9 @@ func (g *Game) mend(c *Char, cmd Command) error {
 	if p == nil {
 		return refuse(NotHere, "there is no settlement here")
 	}
+	if p.Ruined != 0 {
+		return refuse(Ruined, "nothing here is mended: it lies in ruins")
+	}
 	if gd := g.GuildOf(p.Guild); gd != nil && c.C.Guild != p.Guild && len(gd.G.Members) > 0 {
 		return refuse(NotHere, "only %s's members repair here", gd.G.Name)
 	}
@@ -480,8 +494,8 @@ var uses = map[string][]string{
 	Buy: {structureMarket, structureStable}, Feed: {structureStable},
 	Rest:     {structureGranary},
 	PostGoal: {structureBoard}, Pledge: {structureBoard}, DeliverGoal: {structureBoard}, TakeHaul: {structureBoard}, Raise: {structureBoard},
-	BackSide: {structureBoard},
-	Deposit:  {structureStorehouse}, Draw: {structureStorehouse}, Work: {structureStorehouse},
+	BackSide: {structureBoard}, CityRaise: {structureBoard},
+	Deposit: {structureStorehouse}, Draw: {structureStorehouse}, Work: {structureStorehouse},
 	BenchSolve: {structureTinker}, BenchLesson: {structureTinker},
 }
 
