@@ -137,7 +137,7 @@ func (g *Game) DungeonName(h hex.Hex) string {
 	if d := g.recordOf(h); d != nil && d.Name != "" && !d.Hidden {
 		return d.Name
 	}
-	if plan, ok := g.r.Gen.Dungeon(h); ok {
+	if plan, ok := g.Plan(h); ok {
 		return g.r.Name("map.dungeons:" + plan.Kind)
 	}
 	return ""

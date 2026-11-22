@@ -16,14 +16,12 @@ import (
 // other than those named.
 func machineFork(t *testing.T, g *Game, not ...hex.Hex) hex.Hex {
 	t.Helper()
-	from := g.SettlementHex(0)
-	for r := int64(1); r <= delveSearch; r++ {
-		for _, h := range hex.Ring(from, r) {
-			p, ok := g.r.Gen.Dungeon(h)
-			if ok && !p.Up && p.Floors >= 3 && len(g.r.Gen.Creatures(h)) > 0 && g.r.Gen.FloorAt(h, 1, noWay, g.tierAt(h)).Machine && !slices.Contains(not, h) {
-				return h
-			}
-		}
+	h, _, ok := entrances(t, g, g.SettlementHex(0), func(h hex.Hex, p gen.Plan) bool {
+		return !p.Up && p.Floors >= 3 && len(g.Creatures(h)) > 0 && !slices.Contains(not, h) &&
+			g.reachFloor(h, 1, noWay, g.tierAt(h), g.reachTick()).Machine
+	})
+	if ok {
+		return h
 	}
 	t.Fatal("no dungeon with a fork machine below floor 1")
 	return hex.Hex{}
@@ -157,9 +155,17 @@ func TestForkMapperAndHoardSense(t *testing.T) {
 	if !g.Maps(c) {
 		t.Skip("mapper is not live")
 	}
+	// A floor nobody has reached shows its tags alone; reached, its
+	// creature too.
 	for _, w := range g.Fork(c).Ways {
-		next := g.r.Gen.FloorAt(h, 2, w.Way, g.tierAt(h))
-		if len(w.Next) == 0 || w.Next[len(w.Next)-1] != next.Creature {
+		if next := g.FloorAt(h, 2, w.Way, g.tierAt(h)); next.N != 0 || !slices.Equal(w.Next, tagStrings(g.floorTags(h, 2, w.Way, g.tierAt(h)))) || len(w.Next) == 0 {
+			t.Fatalf("Mapper's way %d reads %v before floor 2 is reached", w.Way, w.Next)
+		}
+		g.reachFloor(h, 2, w.Way, g.tierAt(h), g.reachTick())
+	}
+	for _, w := range g.Fork(c).Ways {
+		next := g.FloorAt(h, 2, w.Way, g.tierAt(h))
+		if len(w.Next) == 0 || next.N != 2 || w.Next[len(w.Next)-1] != next.Creature || !slices.Equal(w.Next[:len(w.Next)-1], tagStrings(next.Tags)) {
 			t.Fatalf("Mapper's way %d reads %v", w.Way, w.Next)
 		}
 	}

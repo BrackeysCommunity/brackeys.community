@@ -11,6 +11,7 @@ import (
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fight"
 	"jams.team/mmo-world/sim/fixed"
+	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
@@ -69,12 +70,8 @@ func abFled(t *testing.T, g *Game, h hex.Hex) string {
 // dungeonNear is the nearest dungeon entrance to a tile.
 func abDungeon(t *testing.T, g *Game, from hex.Hex) (hex.Hex, int64) {
 	t.Helper()
-	for r := range int64(80) {
-		for _, h := range hex.Ring(from, r) {
-			if plan, ok := g.r.Gen.Dungeon(h); ok {
-				return h, plan.Floors
-			}
-		}
+	if h, plan, ok := entrances(t, g, from, func(hex.Hex, gen.Plan) bool { return true }); ok {
+		return h, plan.Floors
 	}
 	t.Fatal("no dungeon near")
 	return hex.Hex{}, 0
@@ -150,7 +147,7 @@ func TestAbilityConvoy(t *testing.T) {
 	var h hex.Hex
 	found := false
 	for _, n := range hex.DiscAt(l.C.At, 6) {
-		if len(g.r.Gen.Creatures(n)) > 0 && g.World.RegionAt(n) >= 0 {
+		if len(g.Creatures(n)) > 0 && g.World.RegionAt(n) >= 0 {
 			h, found = n, true
 			break
 		}

@@ -338,9 +338,11 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 	}
 	acts = append(acts, g.Pending...)
 	g.Pending = []world.Action{}
+	g.World.Note(g.Log.Since(first)...)
 	if _, _, err := world.Advance(g.World, g.Log, acts, t); err != nil {
 		return nil, err
 	}
+	after := fact.ID(g.Log.Len())
 	g.syncPlaces()
 	if err := g.creditGoals(first, ledger.SubKey("tick", strconv.FormatInt(t, decimal))); err != nil {
 		return nil, err
@@ -348,6 +350,7 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 	if err := g.goalsDue(t); err != nil {
 		return nil, err
 	}
+	g.World.Note(g.Log.Since(after)...)
 	out := g.Log.Since(first)
 	g.keepNews(out)
 	return out, nil
@@ -379,6 +382,9 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 	from, to := c.C.At, l.Route[0]
 	dir := from.DirectionTo(to)
 	followers := g.followersOn(c, from)
+	if err := g.World.Reach(g.Log, to, t); err != nil {
+		return acts, err
+	}
 	c.C.Walk(to, g.r.limits)
 	c.C.Facing = dir
 	g.visited(c, to, t)
@@ -502,8 +508,9 @@ func (g *Game) gatherTick(c *Char, t int64, acts []world.Action, gathered map[ga
 		}
 	} else {
 		node := gatherNode{c.C.At, l.Material}
+		stock := g.Stock(node.hex, node.material)
 		left := max(0, g.StockLeft(node.hex, node.material)-gathered[node])
-		if !g.stockWorkedOut(left) {
+		if !g.stockWorkedOut(stock, left) {
 			n = min(g.r.wp("gather-units"), left)
 		}
 		if n > 0 {
@@ -512,7 +519,7 @@ func (g *Game) gatherTick(c *Char, t int64, acts []world.Action, gathered map[ga
 			}
 			acts = append(acts, world.Action{Kind: world.ActGather, Hex: c.C.At, By: char.Ref(c.C.ID), Material: l.Material, Units: n})
 			gathered[node] += n
-			exhausted = g.stockWorkedOut(left - n)
+			exhausted = g.stockWorkedOut(stock, left-n)
 			if err := g.toolUse(c, t); err != nil {
 				return acts, err
 			}

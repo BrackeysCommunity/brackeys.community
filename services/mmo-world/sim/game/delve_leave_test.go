@@ -106,14 +106,11 @@ func TestDelveCrawledOutMemberLeavesTheForkRecord(t *testing.T) {
 // h and not a relay tower.
 func otherDungeon(t *testing.T, g *Game, h hex.Hex) hex.Hex {
 	t.Helper()
-	from := g.SettlementHex(0)
-	for r := int64(1); r <= delveSearch; r++ {
-		for _, x := range hex.Ring(from, r) {
-			p, ok := g.r.Gen.Dungeon(x)
-			if ok && !p.Up && x != h && len(g.r.Gen.Creatures(x)) > 0 {
-				return x
-			}
-		}
+	x, _, ok := entrances(t, g, g.SettlementHex(0), func(x hex.Hex, p gen.Plan) bool {
+		return !p.Up && x != h && len(g.Creatures(x)) > 0
+	})
+	if ok {
+		return x
 	}
 	t.Fatal("no second dungeon")
 	return h

@@ -68,7 +68,7 @@ func (g *Game) openFork(c *Char, n int64) {
 		sh = g.newShared(g.partyOf(c), c.C.At, n, []*Char{c})
 	}
 	h := c.C.At
-	fp := g.r.Gen.FloorAt(h, n, c.Delving.Way, g.tierAt(h))
+	fp := g.FloorAt(h, n, c.Delving.Way, g.tierAt(h))
 	f := &ForkState{Floor: n, Open: []int64{gen.WayOpen}}
 	if !fp.Machine {
 		f.Open = append(f.Open, gen.WayMachine)
@@ -95,7 +95,7 @@ func (g *Game) forkMachine(c *Char) (ForkMachine, error) {
 		return ForkMachine{}, refuse(NoFork, "%s stands at no fork", c.C.ID)
 	}
 	h := c.C.At
-	fp := g.r.Gen.FloorAt(h, f.Floor, c.Delving.Way, g.tierAt(h))
+	fp := g.FloorAt(h, f.Floor, c.Delving.Way, g.tierAt(h))
 	switch {
 	case !fp.Machine || fp.Family == "":
 		return ForkMachine{}, refuse(NoMachine, "no machine stands at this fork")
@@ -406,7 +406,7 @@ func (g *Game) Fork(c *Char) *ForkRead {
 	}
 	h := c.C.At
 	present := g.atFork(sh)
-	fp := g.r.Gen.FloorAt(h, sh.Floor, c.Delving.Way, g.tierAt(h))
+	fp := g.FloorAt(h, sh.Floor, c.Delving.Way, g.tierAt(h))
 	out := &ForkRead{Shared: sh.ID, Floor: sh.Floor, Choices: f.Choices, Opened: sh.Opened, Worked: f.Worked}
 	if len(present) > 1 {
 		out.Due = g.WindowDue(sh)
@@ -431,8 +431,13 @@ func (g *Game) Fork(c *Char) *ForkRead {
 			}
 		}
 		if maps {
-			next := g.r.Gen.FloorAt(h, sh.Floor+1, w, g.tierAt(h))
-			r.Next = append(tagStrings(next.Tags), next.Creature)
+			// A drawn floor nobody has reached shows its tags alone: what
+			// lives there is drawn at its first reach.
+			if next := g.FloorAt(h, sh.Floor+1, w, g.tierAt(h)); next.N != 0 {
+				r.Next = append(tagStrings(next.Tags), next.Creature)
+			} else {
+				r.Next = tagStrings(g.floorTags(h, sh.Floor+1, w, g.tierAt(h)))
+			}
 		}
 		out.Ways = append(out.Ways, r)
 	}

@@ -15,7 +15,7 @@ func TestTrackFledCreature(t *testing.T) {
 	h := huntTile(t, g)
 	c := mustCreate(t, g, "chaser", "knife")
 	c.C.At = h
-	arch := g.r.Gen.Creatures(h)[0]
+	arch := g.Creatures(h)[0]
 	g.soloEncounter(c, arch, 0, 0, "")
 	c.Fight.E.Why = append(c.Fight.E.Why, whyFlees)
 	endFight(t, g, c, fight.Won, nil)

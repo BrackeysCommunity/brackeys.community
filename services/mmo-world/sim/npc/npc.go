@@ -177,8 +177,43 @@ func (r *Rules) Role(id string) *sheets.NPCRole {
 	return nil
 }
 
-// stub draws an NPC's name and traits from its id.
-func (r *Rules) stub(id, kind, role string, home hex.Hex) Stub {
+// Draw is what a tile's stored content gives its people's draws; a zero
+// Draw draws as before content came from history (GDD 4.17).
+type Draw struct {
+	Key    string
+	Traits []int64 // weights per npcs.traits row; nil: even
+	Roles  []int64 // multipliers per road role, in npcs.roles order; nil: even
+}
+
+// TraitIDs are the npcs.traits rows, in sheet order.
+func (r *Rules) TraitIDs() []string {
+	out := make([]string, len(r.traits))
+	for i, t := range r.traits {
+		out[i] = t.ID
+	}
+	return out
+}
+
+// RoadRoles are the roles a wanderer can have, in sheet order.
+func (r *Rules) RoadRoles() []string {
+	var out []string
+	for _, row := range r.roles {
+		if row.Place == placeRoad {
+			out = append(out, row.ID)
+		}
+	}
+	return out
+}
+
+// placeRoad is the npcs.roles place wanderers come from.
+const placeRoad = "road"
+
+// stub draws an NPC's name and traits from its id, and from the stored
+// content's key once its tile has one.
+func (r *Rules) stub(id, kind, role string, home hex.Hex, d Draw) Stub {
+	if d.Key != "" {
+		return r.drawnStub(id, kind, role, home, d)
+	}
 	who := draw.Str(id)
 	s := Stub{ID: id, Kind: kind, Role: role, Home: home, Traits: []string{},
 		Name: r.given[r.gen.Below(uint64(len(r.given)), "npc.given", who)] + " " + r.family[r.gen.Below(uint64(len(r.family)), "npc.family", who)]}
@@ -193,16 +228,64 @@ func (r *Rules) stub(id, kind, role string, home hex.Hex) Stub {
 	return s
 }
 
+// drawnStub is a stub under the content labels: traits are a weighted
+// pick without replacement that never takes an opposed pair. Should the
+// weights leave nothing to take, the rest are taken evenly, so a stub
+// always carries traitsPer.
+func (r *Rules) drawnStub(id, kind, role string, home hex.Hex, d Draw) Stub {
+	who := []draw.Part{draw.Str(id), draw.Str(d.Key)}
+	s := Stub{ID: id, Kind: kind, Role: role, Home: home, Traits: []string{},
+		Name: r.given[r.gen.Below(uint64(len(r.given)), "content.npc.given", who...)] + " " + r.family[r.gen.Below(uint64(len(r.family)), "content.npc.family", who...)]}
+	st := r.gen.Stream("content.npc.traits", who...)
+	clashes := func(t sheets.NPCTrait) bool {
+		return slices.Contains(s.Traits, t.ID) || slices.Contains(s.Traits, t.Opposes) ||
+			slices.ContainsFunc(s.Traits, func(c string) bool { return r.opposes(c) == t.ID })
+	}
+	for int64(len(s.Traits)) < r.traitsN {
+		weighted, even := make([]int64, len(r.traits)), make([]int64, len(r.traits))
+		var total, open int64
+		for i, t := range r.traits {
+			if clashes(t) {
+				continue
+			}
+			even[i], weighted[i], open = 1, 1, open+1
+			if len(d.Traits) == len(r.traits) {
+				weighted[i] = d.Traits[i]
+			}
+			total += weighted[i]
+		}
+		if open == 0 {
+			break
+		}
+		if total == 0 {
+			weighted = even
+		}
+		s.Traits = append(s.Traits, r.traits[st.Pick(weighted)].ID)
+	}
+	return s
+}
+
+// opposes is the trait a trait opposes, if any.
+func (r *Rules) opposes(trait string) string {
+	for _, t := range r.traits {
+		if t.ID == trait {
+			return t.Opposes
+		}
+	}
+	return ""
+}
+
 // Residents are the role slots a place fills, as stubs: a keyed draw
-// from the place's id.
-func (r *Rules) Residents(place, placeID string, home hex.Hex) []Stub {
+// from the place's id. Ids never depend on the draw, so saved NPCs and
+// the trader stay who they are.
+func (r *Rules) Residents(place, placeID string, home hex.Hex, d Draw) []Stub {
 	var out []Stub
 	for _, row := range r.roles {
 		if row.Place != place {
 			continue
 		}
 		for i := range row.Count {
-			out = append(out, r.stub("r-"+placeID+"-"+row.ID+"-"+strconv.FormatInt(i, decimal), Resident, row.ID, home))
+			out = append(out, r.stub("r-"+placeID+"-"+row.ID+"-"+strconv.FormatInt(i, decimal), Resident, row.ID, home, d))
 		}
 	}
 	return out
@@ -212,16 +295,23 @@ func (r *Rules) Residents(place, placeID string, home hex.Hex) []Stub {
 const decimal = 10
 
 // MeetWanderer draws whether a wanderer is on a tile this world day, and
-// who: a road role favoured by the tile's tags.
-func (r *Rules) MeetWanderer(h hex.Hex, day int64, tileTags []string) (Stub, bool) {
+// who: a road role favoured by the tile's tags and, once the tile has
+// content, by the history it was drawn under.
+func (r *Rules) MeetWanderer(h hex.Hex, day int64, tileTags []string, d Draw) (Stub, bool) {
 	id := "w-" + h.Ref() + "-" + strconv.FormatInt(day, decimal)
-	if !r.gen.Roll(r.ParamF("wanderer-chance"), "npc.wanderer", draw.Str(id)) {
+	who := []draw.Part{draw.Str(id)}
+	meet, pick := draw.Purpose("npc.wanderer"), draw.Purpose("npc.wanderer-role")
+	if d.Key != "" {
+		who = append(who, draw.Str(d.Key))
+		meet, pick = "content.wanderer", "content.wanderer-role"
+	}
+	if !r.gen.Roll(r.ParamF("wanderer-chance"), meet, who...) {
 		return Stub{}, false
 	}
 	var roles []string
 	var weights []int64
 	for _, row := range r.roles {
-		if row.Place != "road" {
+		if row.Place != placeRoad {
 			continue
 		}
 		w := int64(1)
@@ -235,7 +325,18 @@ func (r *Rules) MeetWanderer(h hex.Hex, day int64, tileTags []string) (Stub, boo
 	if len(roles) == 0 {
 		return Stub{}, false
 	}
-	return r.stub(id, Wanderer, roles[r.gen.Pick(weights, "npc.wanderer-role", draw.Str(id))], h), true
+	if len(d.Roles) == len(weights) {
+		shifted := make([]int64, len(weights))
+		some := false
+		for i, w := range weights {
+			shifted[i] = w * d.Roles[i]
+			some = some || shifted[i] > 0
+		}
+		if some {
+			weights = shifted
+		}
+	}
+	return r.stub(id, Wanderer, roles[r.gen.Pick(weights, pick, who...)], h, d), true
 }
 
 // structural: a road role whose tag the tile holds is that much likelier.

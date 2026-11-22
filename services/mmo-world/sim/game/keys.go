@@ -14,11 +14,11 @@ import (
 // KeyCost is what a key for the dungeon at h costs: the material and the
 // units; false off a dungeon.
 func (g *Game) KeyCost(h hex.Hex) (string, int64, bool) {
-	plan, ok := g.r.Gen.Dungeon(h)
+	plan, ok := g.Plan(h)
 	if !ok {
 		return "", 0, false
 	}
-	tier := g.r.Gen.FloorAt(h, plan.Floors, noWay, g.tierAt(h)).Step.Tier
+	tier := g.r.Gen.Steps(g.tierAt(h), plan.Floors-1).Tier
 	for _, t := range g.r.Book.FightTiers {
 		if t.Tier == tier && len(t.Haul) > 0 {
 			return t.Haul[0], g.fp("key-cost"), true
@@ -35,7 +35,7 @@ func (g *Game) keyMake(c *Char, cmd Command) error {
 		return refuse(NoKeyMaker, "making a key takes Key-maker")
 	}
 	h := c.C.At
-	plan, ok := g.r.Gen.Dungeon(h)
+	plan, ok := g.Plan(h)
 	if !ok || c.C.Floor != 0 {
 		return refuse(NotHere, "a key is made at a dungeon's entrance")
 	}

@@ -138,7 +138,10 @@ func MachineBeat(t testing.TB, g *game.Game, c *game.Char, family string, level 
 // tinker's bench.
 func AtBench(t testing.TB, g *game.Game, c *game.Char) {
 	t.Helper()
-	c.C.At, c.Long, c.Fight = g.SettlementHex(0), nil, nil
+	c.Long, c.Fight = nil, nil
+	if err := g.Teleport(c, g.SettlementHex(0)); err != nil {
+		t.Fatal(err)
+	}
 	if _, ok := g.BenchAt(c); !ok {
 		t.Fatalf("no tinker's bench stands open at %v", c.C.At)
 	}

@@ -228,7 +228,7 @@ func (g *Game) TraderPays(in *item.Instance) int64 {
 
 // traderStub is a settlement's trader as its residents name it.
 func (g *Game) traderStub(h hex.Hex) (npc.Stub, bool) {
-	for _, s := range g.r.NPC.Residents(gen.PlaceSettlement, h.Ref(), h) {
+	for _, s := range g.r.NPC.Residents(gen.PlaceSettlement, h.Ref(), h, g.npcDraw(h)) {
 		if s.Role == roleTrader {
 			return s, true
 		}

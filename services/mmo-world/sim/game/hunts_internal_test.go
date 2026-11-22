@@ -374,7 +374,7 @@ func atGuardian(t *testing.T, g *Game, h hex.Hex, id string, cs ...*Char) *fight
 	p, _, _ := g.guardianRow(h)
 	site := fight.Site{ID: id, Place: machinePlace(h, p.Floors), Floor: p.Floors, Party: int64(len(cs)), Guardian: g.guardianPool(h, g.Tick()),
 		Tags: g.World.Place(h).Tags()}
-	e := g.r.Fight.Assemble(site, g.r.Fight.Spawn(g.r.Gen.Floor(h, p.Floors, 0).Creature, nil, site.Tags, nil))
+	e := g.r.Fight.Assemble(site, g.r.Fight.Spawn(g.reachFloor(h, p.Floors, 0, p.SeedTier, g.reachTick()).Creature, nil, site.Tags, nil))
 	if e.Beats[len(e.Beats)-1] != fight.BeatGuardian {
 		t.Fatalf("the bottom floor ends on %v", e.Beats)
 	}

@@ -95,10 +95,11 @@ func (g *Game) CanRest(h hex.Hex) bool { return g.IsSettlement(h) }
 
 // CanExplore reports whether a tile has a site to explore and something
 // living there to meet; a dungeon's first floor, once cleared, waits for
-// its refill.
-func (g *Game) CanExplore(h hex.Hex) bool {
-	site := g.r.Gen.Baseline(h).Site
-	return site != "" && site != gen.PlaceSettlement && len(g.r.Gen.Creatures(h)) > 0 && !g.FloorCleared(h)
+// its refill. A pinned slot counts only once the tile is reached.
+func (g *Game) CanExplore(h hex.Hex) bool { return g.explorable(h, g.slot(h)) }
+
+func (g *Game) explorable(h hex.Hex, site string) bool {
+	return site != "" && site != gen.PlaceSettlement && len(g.r.Gen.Archetypes(h)) > 0 && !g.FloorCleared(h)
 }
 
 // FloorCleared reports whether a dungeon's first floor is cleared and not
@@ -114,7 +115,7 @@ func (g *Game) FloorClearedAt(h hex.Hex, floor int64) bool {
 // IsDungeon reports whether a tile is a dungeon's entrance, a relay
 // tower's among them.
 func (g *Game) IsDungeon(h hex.Hex) bool {
-	_, ok := g.r.Gen.Dungeon(h)
+	_, ok := g.Plan(h)
 	return ok
 }
 
@@ -151,11 +152,12 @@ type Suggestion struct {
 }
 
 // Suggest is the nearest explorable site within the suggestion radius a
-// character can walk to, or false.
+// character can walk to, or false. It reads the scaffold's slots, so a
+// pin shows in no suggestion.
 func (g *Game) Suggest(from hex.Hex) (Suggestion, bool) {
 	for r := int64(1); r <= g.r.wp("suggest-radius"); r++ {
 		for _, h := range hex.Ring(from, r) {
-			if !g.CanExplore(h) {
+			if !g.explorable(h, g.r.Gen.Baseline(h).Site) {
 				continue
 			}
 			if path, _, ok := g.World.Path(from, h); ok && len(path) > 1 {

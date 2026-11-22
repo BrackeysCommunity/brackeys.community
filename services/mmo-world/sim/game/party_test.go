@@ -678,12 +678,19 @@ func TestPreMM8SnapshotDigest(t *testing.T) {
 }
 
 // forkDungeon is a dungeon near the first settlement whose first floor's
-// fork has a machine behind way 1.
+// fork has a machine behind way 1. Its entrance and first floor are
+// reached before they are read, since both are drawn at first reach.
 func forkDungeon(g *game.Game) (hex.Hex, bool) {
 	from := g.SettlementHex(0)
 	for r := int64(1); r <= 60; r++ {
 		for _, h := range hex.Ring(from, r) {
-			if p, ok := g.Rules().Gen.Dungeon(h); ok && p.Floors > 1 && g.Rules().Gen.Floor(h, 1, -1).Machine {
+			if _, slot := g.Rules().Gen.Dungeon(h); !slot {
+				continue
+			}
+			if err := g.World.Reach(g.Log, h, g.Tick()+1); err != nil {
+				return hex.Hex{}, false
+			}
+			if p, ok := g.Plan(h); ok && p.Floors > 1 && g.ReachFloor(h, 1, -1).Machine {
 				return h, true
 			}
 		}

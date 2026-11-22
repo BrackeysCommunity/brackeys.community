@@ -21,7 +21,9 @@ func Party(t testing.TB, g *game.Game, n int) []*game.Char {
 		cs = append(cs, res.Char)
 	}
 	for _, c := range cs[1:] {
-		c.C.At = cs[0].C.At
+		if err := g.Teleport(c, cs[0].C.At); err != nil {
+			t.Fatal(err)
+		}
 	}
 	for i, c := range cs[1:] {
 		key := "party-" + cs[0].C.ID + "-" + strconv.Itoa(i)
@@ -40,27 +42,48 @@ func Party(t testing.TB, g *game.Game, n int) []*game.Char {
 
 // Delving stands characters on a floor of the nearest dungeon to the
 // first settlement with that many floors, each delving it, and returns
-// its entrance.
+// its entrance. Every floor down to it is reached first, by the way the
+// characters are put there with.
 func Delving(t testing.TB, g *game.Game, cs []*game.Char, floor int64) hex.Hex {
 	t.Helper()
 	h, ok := Dungeon(g, floor)
 	if !ok {
 		t.Fatalf("no dungeon of %d floors near the first settlement", floor)
 	}
+	reachFloors(g, h, floor)
 	for _, c := range cs {
-		c.C.At, c.C.Floor, c.Long, c.Fight = h, floor, nil, nil
-		c.Delving = &game.Delving{Dungeon: h.Ref(), Way: -1}
+		c.Long, c.Fight = nil, nil
+		if err := g.Teleport(c, h); err != nil {
+			t.Fatal(err)
+		}
+		c.C.Floor = floor
+		c.Delving = &game.Delving{Dungeon: h.Ref(), Way: noWay}
 	}
 	return h
 }
 
+// reachFloors reaches floors 1 to n of the dungeon at h by the way in
+// from the entrance, as a party first descending would.
+func reachFloors(g *game.Game, h hex.Hex, n int64) {
+	for f := int64(1); f <= n; f++ {
+		g.ReachFloor(h, f, noWay)
+	}
+}
+
 // Dungeon is the nearest dungeon entrance to the first settlement with at
-// least so many floors.
+// least so many floors. A plan is drawn at its entrance's first reach, so
+// every entrance it looks at is reached.
 func Dungeon(g *game.Game, floors int64) (hex.Hex, bool) {
 	from := g.SettlementHex(0)
 	for r := int64(1); r <= dungeonSearch; r++ {
 		for _, h := range hex.Ring(from, r) {
-			if p, ok := g.Rules().Gen.Dungeon(h); ok && p.Floors >= floors {
+			if _, ok := g.Rules().Gen.Dungeon(h); !ok {
+				continue
+			}
+			if err := g.World.Reach(g.Log, h, g.Tick()+1); err != nil {
+				return hex.Hex{}, false
+			}
+			if p, ok := g.Plan(h); ok && p.Floors >= floors {
 				return h, true
 			}
 		}
@@ -68,8 +91,12 @@ func Dungeon(g *game.Game, floors int64) (hex.Hex, bool) {
 	return hex.Hex{}, false
 }
 
-// dungeonSearch is how far Dungeon looks, in tiles.
-const dungeonSearch = 60
+// dungeonSearch is how far Dungeon looks, in tiles; noWay is the way in
+// of a floor reached from the entrance.
+const (
+	dungeonSearch = 60
+	noWay         = -1
+)
 
 // PartyMachineBeat is game.FacePartyMachine for characters who count as
 // having worked a machine, so the beat is the family asked for.

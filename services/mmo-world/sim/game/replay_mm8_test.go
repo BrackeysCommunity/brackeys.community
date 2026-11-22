@@ -131,7 +131,7 @@ func replayMM8(t *testing.T, r *game.Rules, fx *mm8Fixture) *game.Game {
 // through every floor of the dungeon with machines worked by several
 // hands, and ten pressers whose parts sum to the roll.
 func mm8Shows(g *game.Game, h hex.Hex) error {
-	plan, _ := g.Rules().Gen.Dungeon(h)
+	plan, _ := g.Plan(h)
 	bottom, machines, pressers := false, 0, map[string]bool{}
 	var slain []fact.Fact
 	for _, f := range g.Log.Since(0) {

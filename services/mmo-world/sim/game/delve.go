@@ -56,7 +56,7 @@ func (g *Game) recordOf(h hex.Hex) *tile.Dungeon {
 // from now, with what fell there to find.
 func (g *Game) enterFloor(c *Char, b *beginning, site *fight.Site) error {
 	h := c.C.At
-	plan, ok := g.r.Gen.Dungeon(h)
+	plan, ok := g.Plan(h)
 	if !ok {
 		return nil
 	}
@@ -74,7 +74,7 @@ func (g *Game) enterFloor(c *Char, b *beginning, site *fight.Site) error {
 	if n > plan.Floors {
 		return refuse(NotHere, "%s stands on the bottom floor", c.C.ID)
 	}
-	fp := g.r.Gen.FloorAt(h, n, way, g.tierAt(h))
+	fp := g.reachFloor(h, n, way, g.tierAt(h), g.reachTick())
 	site.Floor, site.Place = n, machinePlace(h, n)
 	site.Tags = append(site.Tags, fp.Tags...)
 	if d := g.recordOf(h); d != nil && d.Haunted {
@@ -173,7 +173,7 @@ func (g *Game) floorClosed(c *Char, e *fight.Encounter, with []*Char) error {
 	if _, err := g.fact(c, "dungeon.floor-cleared", g.Tick(), append([]fact.Datum{fact.N("floor", e.Floor)}, fact.At(h)...)...); err != nil {
 		return err
 	}
-	plan, _ := g.r.Gen.Dungeon(h)
+	plan, _ := g.Plan(h)
 	if e.Floor >= plan.Floors {
 		return g.climbOut(c, ledger.SubKey(e.ID, "bottom"))
 	}
@@ -346,7 +346,7 @@ type DungeonRead struct {
 // off one.
 func (g *Game) DungeonOf(c *Char) (DungeonRead, bool) {
 	h := c.C.At
-	plan, ok := g.r.Gen.Dungeon(h)
+	plan, ok := g.Plan(h)
 	if !ok {
 		return DungeonRead{}, false
 	}

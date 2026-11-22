@@ -73,7 +73,9 @@ const (
 
 // WorldLevel reports whether a command acts on the world rather than on
 // a character: it names none, and its result carries none.
-func WorldLevel(kind string) bool { return kind == HuntStart }
+func WorldLevel(kind string) bool {
+	return kind == HuntStart || kind == PinReserve || kind == PinEdit || kind == PinWithdraw || kind == ContentFreeze
+}
 
 // Delve is what parties, shared encounters and live hunts make of the
 // world. Game embeds it, so its fields sit beside the Society's.

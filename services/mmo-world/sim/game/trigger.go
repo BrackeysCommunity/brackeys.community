@@ -83,7 +83,7 @@ func poolOf(h hex.Hex) string { return ledger.TilePool(h.Ref()) }
 
 // StockLeft is what a tile's node still holds of a material.
 func (g *Game) StockLeft(h hex.Hex, material string) int64 {
-	stock := sheets.IntParam(g.r.Book.TileParams, "node-stock")
+	stock := g.Stock(h, material)
 	if t := g.World.Tile(h); t != nil {
 		return max(0, stock-t.Gathered[material])
 	}
@@ -92,11 +92,11 @@ func (g *Game) StockLeft(h hex.Hex, material string) int64 {
 
 // WorkedOut reports whether a node is gathered past its stock.
 func (g *Game) WorkedOut(h hex.Hex, material string) bool {
-	return g.stockWorkedOut(g.StockLeft(h, material))
+	return g.stockWorkedOut(g.Stock(h, material), g.StockLeft(h, material))
 }
 
-func (g *Game) stockWorkedOut(left int64) bool {
-	stock := sheets.IntParam(g.r.Book.TileParams, "node-stock")
+// stockWorkedOut reads the worked-out line against the node's own stock.
+func (g *Game) stockWorkedOut(stock, left int64) bool {
 	return fixed.AtPercent(stock-left, stock, g.trigger(TrigWorkedOut).Magnitude)
 }
 
@@ -470,7 +470,7 @@ const cameFrom = 2
 func (g *Game) thin(c *Char, h hex.Hex) bool {
 	tr := g.trigger(TrigThin)
 	var n, capacity int64
-	for _, sp := range g.r.Gen.Creatures(h) {
+	for _, sp := range g.Creatures(h) {
 		n += g.World.Population(h, sp)
 		capacity += g.World.Capacity(h, sp)
 	}

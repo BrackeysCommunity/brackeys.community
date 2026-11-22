@@ -29,7 +29,7 @@ func GuardianID(h hex.Hex) string { return "hg-" + h.Ref() }
 
 // guardianRow is a dungeon's plan and its guardian's hunts row.
 func (g *Game) guardianRow(h hex.Hex) (gen.Plan, *sheets.Hunt, bool) {
-	p, ok := g.r.Gen.Dungeon(h)
+	p, ok := g.Plan(h)
 	if !ok || p.Guardian == "" {
 		return p, nil, false
 	}

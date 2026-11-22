@@ -15,6 +15,7 @@ import (
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
+	"jams.team/mmo-world/sim/history"
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/npc"
 	"jams.team/mmo-world/sim/sheets"
@@ -79,7 +80,7 @@ func (g *Game) PeopleHere(c *Char, h hex.Hex) []Person {
 		}
 	}
 	if g.IsSettlement(h) {
-		for _, s := range g.r.NPC.Residents(gen.PlaceSettlement, h.Ref(), h) {
+		for _, s := range g.r.NPC.Residents(gen.PlaceSettlement, h.Ref(), h, g.npcDraw(h)) {
 			if n := g.NPCs.Get(s.ID); n != nil {
 				if g.r.NPC.At(n, t) == h {
 					add(n)
@@ -109,7 +110,36 @@ func (g *Game) wanderer(h hex.Hex, t int64) (npc.Stub, bool) {
 	for _, x := range g.World.Place(h).Tags() {
 		tileTags = append(tileTags, string(x))
 	}
-	return g.r.NPC.MeetWanderer(h, t/sheets.TicksPerDay, tileTags)
+	return g.r.NPC.MeetWanderer(h, t/sheets.TicksPerDay, tileTags, g.npcDraw(h))
+}
+
+// npcDraw is what a tile's stored content gives the draws of the people
+// met there. A tile nobody has reached, or one frozen from before content
+// came from history, has no key and draws as it always did.
+func (g *Game) npcDraw(h hex.Hex) npc.Draw {
+	c, ok := g.Content(h)
+	if !ok || c == nil || c.Key == "" {
+		return npc.Draw{}
+	}
+	var d history.Digest
+	if c.Digest != nil {
+		d = *c.Digest
+	}
+	traits := g.r.NPC.TraitIDs()
+	base := make([]int64, len(traits))
+	for i := range base {
+		base[i] = sheets.IntParam(g.r.Book.MapParams, "content-trait-weight")
+	}
+	roles := g.r.NPC.RoadRoles()
+	even := make([]int64, len(roles))
+	for i := range even {
+		even[i] = 1
+	}
+	return npc.Draw{
+		Key:    c.Key,
+		Traits: g.r.Gen.Weights(gen.TableTrait, traits, base, d, ""),
+		Roles:  g.r.Gen.Weights(gen.TableRole, roles, even, d, ""),
+	}
 }
 
 // Visitors are the saved NPCs that want a word with a character.

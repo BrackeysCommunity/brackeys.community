@@ -75,16 +75,16 @@ func (g *Game) SettlementAt(h hex.Hex) (int, bool) {
 // IsSettlement reports whether a tile holds a settlement: one the world
 // was made with, or one a guild founded.
 func (g *Game) IsSettlement(h hex.Hex) bool {
-	return g.r.Gen.Baseline(h).Site == gen.PlaceSettlement || g.PlaceAt(h) != nil
+	return g.slot(h) == gen.PlaceSettlement || g.PlaceAt(h) != nil
 }
 
-// SiteAt is what stands on a tile: the world's site, or a founded
-// settlement.
+// SiteAt is what stands on a tile: the world's site, a pin's once the
+// tile is reached, or a founded settlement.
 func (g *Game) SiteAt(h hex.Hex) string {
 	if g.PlaceAt(h) != nil {
 		return gen.PlaceSettlement
 	}
-	return g.r.Gen.Baseline(h).Site
+	return g.slot(h)
 }
 
 // PlaceAt is the open settlement on a tile, or nil.

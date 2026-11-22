@@ -254,17 +254,28 @@ func (s *Script) Toward(c *game.Char, h hex.Hex) {
 }
 
 // Dungeons are the dungeon entrances near a settlement a party can delve,
-// nearest first: not relay towers, with something living there.
+// nearest first: not relay towers, with something living there. A plan is
+// drawn at its entrance's first reach (GDD 4.17), so each entrance slot is
+// reached before its plan is read.
 func Dungeons(g *game.Game, from hex.Hex, radius int64, least int64) []hex.Hex {
 	var out []hex.Hex
 	for r := int64(1); r <= radius; r++ {
 		for _, h := range hex.Ring(from, r) {
-			if p, ok := g.Rules().Gen.Dungeon(h); ok && !p.Up && p.Floors >= least && len(g.Rules().Gen.Creatures(h)) > 0 {
+			if native, ok := g.Rules().Gen.Dungeon(h); !ok || native.Up || reach(g, h) != nil {
+				continue
+			}
+			if p, ok := g.Plan(h); ok && p.Floors >= least && len(g.Creatures(h)) > 0 {
 				out = append(out, h)
 			}
 		}
 	}
 	return out
+}
+
+// reach reaches a tile outside any command, as an arrival in the next
+// tick would, so its content is drawn and stored.
+func reach(g *game.Game, h hex.Hex) error {
+	return g.World.Reach(g.Log, h, g.Tick()+1)
 }
 
 // Beside is passable land in a region next to a tile.
@@ -290,7 +301,9 @@ type seedDungeons struct {
 }
 
 // scanSeed reads every dungeon place within dungeonScan of a seed's
-// starting settlements and checks each against its plan's own rules.
+// starting settlements and checks each against its plan's own rules. It
+// reads the native function, the plans a frozen world keeps: plans drawn
+// from history are the content run's.
 func scanSeed(b *sheets.Book, seed int) (seedDungeons, error) {
 	var out seedDungeons
 	g, _, err := newGen(b, fmt.Sprintf("dungeons-%d", seed))
@@ -416,7 +429,7 @@ func playDelveWorld(b *sheets.Book, seed int) (delveWorld, error) {
 		return out, fmt.Errorf("%s: no dungeon of four floors within %d tiles", label, dungeonScan)
 	}
 	h := ds[0]
-	plan, _ := r.Gen.Dungeon(h)
+	plan, _ := g.Plan(h)
 	out.dungeon, out.floors = h, plan.Floors
 	create := func(who string) (*game.Char, error) {
 		res, err := g.Act(game.Command{Key: label + "-new-" + who, Kind: game.Create, Option: "knife"})
@@ -432,7 +445,9 @@ func playDelveWorld(b *sheets.Book, seed int) (delveWorld, error) {
 		if err != nil {
 			return out, err
 		}
-		c.C.At = h
+		if err := g.Teleport(c, h); err != nil {
+			return out, err
+		}
 		if i < party4 {
 			Ready(r, c, bottom, bottom)
 			ready = append(ready, c)
@@ -459,10 +474,12 @@ func playDelveWorld(b *sheets.Book, seed int) (delveWorld, error) {
 		if err != nil {
 			return out, err
 		}
-		c.C.At = beside
-		tier := int64(1)
+		at, tier := beside, int64(1)
 		if i >= huntGreen {
-			tier, c.C.At = huntVeteran, far[(i-huntGreen)%len(far)]
+			at, tier = far[(i-huntGreen)%len(far)], huntVeteran
+		}
+		if err := g.Teleport(c, at); err != nil {
+			return out, err
 		}
 		Ready(r, c, tier, tier)
 		hunters = append(hunters, c)

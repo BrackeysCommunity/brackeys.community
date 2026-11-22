@@ -19,18 +19,42 @@ import (
 // dungeon, in tiles.
 const delveSearch = 200
 
+// reachAt reaches a tile as an arrival does, so its content is drawn.
+func reachAt(t *testing.T, g *Game, h hex.Hex) {
+	t.Helper()
+	if err := g.World.Reach(g.Log, h, g.reachTick()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// entrances calls ok on each dungeon slot by distance from the first
+// settlement, reached first, since a plan is drawn at its entrance's
+// first reach; it stops at the first ok gives true for.
+func entrances(t *testing.T, g *Game, from hex.Hex, ok func(hex.Hex, gen.Plan) bool) (hex.Hex, gen.Plan, bool) {
+	t.Helper()
+	for r := int64(0); r <= delveSearch; r++ {
+		for _, h := range hex.Ring(from, r) {
+			if _, slot := g.r.Gen.Dungeon(h); !slot {
+				continue
+			}
+			reachAt(t, g, h)
+			if p, is := g.Plan(h); is && ok(h, p) {
+				return h, p, true
+			}
+		}
+	}
+	return hex.Hex{}, gen.Plan{}, false
+}
+
 // dungeonFor is the nearest dungeon to the first settlement that is not
 // a relay tower, of a kind ("" for any) and with at least min floors.
 func dungeonFor(t *testing.T, g *Game, kind string, least int64) (hex.Hex, gen.Plan) {
 	t.Helper()
-	from := g.SettlementHex(0)
-	for r := int64(1); r <= delveSearch; r++ {
-		for _, h := range hex.Ring(from, r) {
-			p, ok := g.r.Gen.Dungeon(h)
-			if ok && !p.Up && p.Floors >= least && (kind == "" || p.Kind == kind) && len(g.r.Gen.Creatures(h)) > 0 {
-				return h, p
-			}
-		}
+	h, p, ok := entrances(t, g, g.SettlementHex(0), func(h hex.Hex, p gen.Plan) bool {
+		return !p.Up && p.Floors >= least && (kind == "" || p.Kind == kind) && len(g.Creatures(h)) > 0
+	})
+	if ok {
+		return h, p
 	}
 	t.Fatalf("no %q dungeon of %d floors within %d tiles", kind, least, delveSearch)
 	return hex.Hex{}, gen.Plan{}

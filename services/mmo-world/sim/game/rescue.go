@@ -32,7 +32,7 @@ func (g *Game) pushThrough(c *Char, cmd Command) error {
 	if err := free(c); err != nil {
 		return err
 	}
-	if _, ok := g.r.Gen.Dungeon(c.C.At); !ok {
+	if !g.IsDungeon(c.C.At) {
 		return refuse(NoFork, "%s stands at no dungeon", c.C.ID)
 	}
 	if g.rescuing(c) == nil {
@@ -52,10 +52,11 @@ func (g *Game) through(c *Char, n, tick int64) error {
 		c.Delving = &Delving{Dungeon: h.Ref(), Way: noWay}
 	}
 	c.C.Floor = n
+	g.reachFloor(h, n, c.Delving.Way, g.tierAt(h), g.reachTick())
 	if _, err := g.fact(c, "dungeon.reached", tick, append([]fact.Datum{fact.N("floor", n), fact.N("way", c.Delving.Way), fact.N("through", 1)}, fact.At(h)...)...); err != nil {
 		return err
 	}
-	plan, _ := g.r.Gen.Dungeon(h)
+	plan, _ := g.Plan(h)
 	d := g.rescuing(c)
 	if n >= plan.Floors || d == nil {
 		return nil
@@ -79,9 +80,9 @@ func (g *Game) carryUp(c *Char, key string) error {
 	if g.wayBack(c) {
 		return g.climbOut(c, ledger.SubKey(key, "climb"))
 	}
-	arch := g.r.Gen.FloorAt(h, n, c.Delving.Way, g.tierAt(h)).Creature
+	arch := g.FloorAt(h, n, c.Delving.Way, g.tierAt(h)).Creature
 	if arch == "" {
-		kinds := g.r.Gen.Creatures(h)
+		kinds := g.Creatures(h)
 		if len(kinds) == 0 {
 			return g.climbOut(c, ledger.SubKey(key, "climb"))
 		}

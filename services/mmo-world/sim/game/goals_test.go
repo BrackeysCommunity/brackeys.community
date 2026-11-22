@@ -350,7 +350,7 @@ func TestOldPale(t *testing.T) {
 	if !ok {
 		t.Fatal("no site near the first settlement: the Old Pale proof needs one")
 	}
-	kinds := g.Rules().Gen.Creatures(site)
+	kinds := g.Creatures(site)
 	recipe, _ := bladeWithTrait(t, g.Rules())
 	for range 3 {
 		ts[1].grant(ledger.Material(recipe.Inputs[0].Kind), recipe.Inputs[0].Qty)

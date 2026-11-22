@@ -80,6 +80,8 @@ type Command struct {
 	Now int64 `json:"now,omitempty"`
 	// Along is the Haul goal whose shared route a journey follows.
 	Along string `json:"along,omitempty"`
+	// Pin is what a pin command stages (GDD 14.4).
+	Pin *PinCmd `json:"pin,omitempty"`
 }
 
 // Stop is when a journey halts on its own: before a region at or above a
@@ -94,7 +96,8 @@ type Stop struct {
 // Operator reports whether a command kind is for operators only.
 func Operator(kind string) bool {
 	return kind == Correct || kind == Grant || kind == Ban || kind == Unban || kind == HideGoal || kind == SetMachine ||
-		kind == HuntStart || kind == HideName || kind == SetReady
+		kind == HuntStart || kind == HideName || kind == SetReady ||
+		kind == PinReserve || kind == PinEdit || kind == PinWithdraw || kind == ContentFreeze
 }
 
 // passive reports whether a kind is sent for a character rather than by
@@ -235,6 +238,7 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	}
 	facts := g.Log.Since(first)
 	g.keepNews(facts)
+	g.World.Note(facts...)
 	return Result{Char: c, Facts: facts, Pressed: pressed, Machine: machine, Moved: slices.Clone(g.touched), Seen: g.seenNow()}, nil
 }
 
@@ -242,7 +246,16 @@ func (g *Game) Act(cmd Command) (Result, error) {
 // character to look up, collect for or mark as having acted.
 func (g *Game) actWorld(cmd Command) (Result, error) {
 	first := fact.ID(g.Log.Len())
-	if err := g.huntStart(cmd); err != nil {
+	var err error
+	switch cmd.Kind {
+	case HuntStart:
+		err = g.huntStart(cmd)
+	case PinReserve, PinEdit, PinWithdraw:
+		err = g.pinCommand(cmd)
+	case ContentFreeze:
+		err = g.freezeCommand(cmd)
+	}
+	if err != nil {
 		return Result{}, err
 	}
 	if err := g.creditGoals(first, cmd.Key); err != nil {
@@ -250,6 +263,7 @@ func (g *Game) actWorld(cmd Command) (Result, error) {
 	}
 	facts := g.Log.Since(first)
 	g.keepNews(facts)
+	g.World.Note(facts...)
 	return Result{Facts: facts, Moved: slices.Clone(g.touched), Seen: g.seenNow()}, nil
 }
 
@@ -426,6 +440,9 @@ func (g *Game) create(server, guildName string) (*Char, error) {
 		c.C.At = g.SettlementHex(n)
 		c.C.Home = goal.SettlementRef(n)
 	}
+	if err := g.World.Reach(g.Log, c.C.At, g.reachTick()); err != nil {
+		return nil, err
+	}
 	g.Pending = append(g.Pending, world.Action{Kind: world.ActDiscover, Hex: c.C.At, By: char.Ref(id)})
 	_, err := g.fact(c, "character.arrived", g.Tick())
 	return c, err
@@ -513,7 +530,7 @@ type beginning struct {
 // the tile and floor who are ready are in it too, as one shared encounter.
 func (g *Game) begin(c *Char, ambush bool, due int64) error {
 	h := c.C.At
-	kinds := g.r.Gen.Creatures(h)
+	kinds := g.Creatures(h)
 	if len(kinds) == 0 {
 		return refuse(NotHere, "nothing lives on this tile")
 	}
@@ -522,6 +539,11 @@ func (g *Game) begin(c *Char, ambush bool, due int64) error {
 	arch := kinds[g.r.draw.Below(uint64(len(kinds)), "game.creature", draw.Str(id))]
 	extra, high := g.encounterTags(c, h, arch)
 	place := append(g.World.Place(h).Tags(), high...)
+	for _, t := range g.siteKindTags(h) {
+		if !slices.Contains(place, t) {
+			place = append(place, t)
+		}
+	}
 	ms := g.measures(h)
 	if len(members) > 1 {
 		ms = append(ms, tags.Measure{ID: measurePartySize, Value: int64(len(members))})

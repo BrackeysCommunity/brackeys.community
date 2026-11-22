@@ -13,7 +13,7 @@ import (
 // band. It returns the band's index too, safest first.
 func (g *Game) riskBand(c *Char, h hex.Hex) (sheets.RouteRisk, int, bool) {
 	bands := g.r.Book.RouteRisks
-	if len(bands) == 0 || len(g.r.Gen.Creatures(h)) == 0 {
+	if len(bands) == 0 || len(g.Creatures(h)) == 0 {
 		return sheets.RouteRisk{}, 0, false
 	}
 	threat, ok := g.World.GaugeAt(h, gaugeThreat)

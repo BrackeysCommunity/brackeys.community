@@ -65,7 +65,7 @@ func TestNamingByTheFirstSlayers(t *testing.T) {
 	if _, err := g.Act(Command{Key: "hide-name", Char: cs[0].C.ID, Kind: HideName, To: &h, Note: "rude"}); err != nil {
 		t.Fatal(err)
 	}
-	plan, _ := g.r.Gen.Dungeon(h)
+	plan, _ := g.Plan(h)
 	if g.DungeonName(h) != g.r.Name("map.dungeons:"+plan.Kind) {
 		t.Fatal("a hidden name still shows")
 	}

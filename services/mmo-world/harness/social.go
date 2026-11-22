@@ -158,7 +158,9 @@ func (s *social) days(n int64) error {
 // visit puts a character where an NPC is at this hour and opens a
 // conversation.
 func (s *social) visit(c *game.Char, id string, at hex.Hex) (game.Conversation, error) {
-	c.C.At = at
+	if err := s.g.Teleport(c, at); err != nil {
+		return game.Conversation{}, err
+	}
 	if err := s.act(game.Command{Char: c.C.ID, Kind: game.Talk, NPC: id}); err != nil {
 		return game.Conversation{}, err
 	}
@@ -196,12 +198,18 @@ func meetings(b *sheets.Book, n int) (meetResult, error) {
 	// First meetings: a resident at home, or a wanderer met nearby.
 	for i, pl := range plans {
 		c := pl.c
-		c.C.At = home
+		if err := g.Teleport(c, home); err != nil {
+			return meetResult{}, err
+		}
 		people := g.PeopleHere(c, home)
 		if i%2 == 1 {
 			for _, h := range hex.DiscAt(home, 3) {
 				if ps := g.PeopleHere(c, h); len(ps) > 0 && ps[0].Kind == npc.Wanderer {
-					c.C.At, people = h, ps
+					// Who a road sends is drawn once it is reached.
+					if err := g.Teleport(c, h); err != nil {
+						return meetResult{}, err
+					}
+					people = g.PeopleHere(c, h)
 					break
 				}
 			}
@@ -607,13 +615,17 @@ func raisable(g *game.Game, b *sheets.Book) []string {
 func (s *social) raise(team []*game.Char, home hex.Hex, kind string) error {
 	g := s.g
 	before := len(g.Goals)
-	team[0].C.At = home
+	if err := g.Teleport(team[0], home); err != nil {
+		return err
+	}
 	if err := s.act(game.Command{Char: team[0].C.ID, Kind: game.Raise, Slot: kind}); err != nil {
 		return err
 	}
 	for i, x := range g.Goals[before:] {
 		c := team[1+i%(len(team)-1)]
-		c.C.At = home
+		if err := g.Teleport(c, home); err != nil {
+			return err
+		}
 		material, _ := g.MaterialOfTag(x.Cond.Tag)
 		if err := s.act(game.Command{Char: c.C.ID, Kind: game.Correct, Asset: ledger.Goods(material), Units: x.Cond.Count, Note: "social run stock"}); err != nil {
 			return err

@@ -260,7 +260,7 @@ func (g *Game) reachable(cond goal.Condition) error {
 	if !ok {
 		return refuse(BadArgs, "no dungeon %q", cond.Dungeon)
 	}
-	plan, ok := g.r.Gen.Dungeon(h)
+	plan, ok := g.Plan(h)
 	switch {
 	case !ok:
 		return refuse(BadArgs, "no dungeon at %s", cond.Dungeon)

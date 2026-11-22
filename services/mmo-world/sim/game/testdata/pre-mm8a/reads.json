@@ -1,0 +1,2172 @@
+[
+	{
+		"at": {
+			"Q": -27,
+			"R": 56
+		},
+		"site": "starting-settlement",
+		"creatures": [
+			"mire-stalker",
+			"reed-rat"
+		],
+		"stock": {
+			"heartwood": 24,
+			"marsh-amber": 24,
+			"reed-ash": 24
+		},
+		"people": [
+			{
+				"id": "r--27,56-settlement-keeper-0",
+				"role": "settlement-keeper",
+				"name": "Dex Kessler",
+				"traits": [
+					"devout",
+					"rash"
+				]
+			},
+			{
+				"id": "r--27,56-settlement-smith-0",
+				"role": "settlement-smith",
+				"name": "Kit Holt",
+				"traits": [
+					"bold",
+					"greedy"
+				]
+			},
+			{
+				"id": "r--27,56-settlement-tinker-0",
+				"role": "settlement-tinker",
+				"name": "Dex Vance",
+				"traits": [
+					"secretive",
+					"humble"
+				]
+			},
+			{
+				"id": "r--27,56-settlement-trader-0",
+				"role": "settlement-trader",
+				"name": "Lux Mercer",
+				"traits": [
+					"weary",
+					"open"
+				]
+			},
+			{
+				"id": "r--27,56-settlement-stablehand-0",
+				"role": "settlement-stablehand",
+				"name": "Kit Gantry",
+				"traits": [
+					"bold",
+					"devout"
+				]
+			},
+			{
+				"id": "r--27,56-settlement-watch-0",
+				"role": "settlement-watch",
+				"name": "Ozzy Solder",
+				"traits": [
+					"greedy",
+					"wary"
+				]
+			}
+		]
+	},
+	{
+		"at": {
+			"Q": -26,
+			"R": 55
+		},
+		"site": "",
+		"creatures": [
+			"mire-stalker",
+			"reed-rat"
+		],
+		"stock": {
+			"heartwood": 24,
+			"marsh-amber": 24,
+			"reed-ash": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -25,
+			"R": 54
+		},
+		"site": "",
+		"creatures": [
+			"mire-stalker",
+			"reed-rat"
+		],
+		"stock": {
+			"heartwood": 24,
+			"marsh-amber": 24,
+			"reed-ash": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -24,
+			"R": 53
+		},
+		"site": "",
+		"creatures": [
+			"mire-stalker",
+			"reed-rat"
+		],
+		"stock": {
+			"heartwood": 24,
+			"marsh-amber": 24,
+			"reed-ash": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -23,
+			"R": 52
+		},
+		"site": "",
+		"creatures": [
+			"mire-stalker",
+			"reed-rat"
+		],
+		"stock": {
+			"heartwood": 24,
+			"marsh-amber": 24,
+			"reed-ash": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -22,
+			"R": 51
+		},
+		"site": "",
+		"creatures": [
+			"old-growth"
+		],
+		"stock": {
+			"heartwood": 24,
+			"hide-scraps": 24,
+			"reed-ash": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -21,
+			"R": 50
+		},
+		"site": "",
+		"creatures": [
+			"old-growth"
+		],
+		"stock": {
+			"heartwood": 24,
+			"hide-scraps": 24,
+			"reed-ash": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -20,
+			"R": 49
+		},
+		"site": "",
+		"creatures": [
+			"old-growth"
+		],
+		"stock": {
+			"heartwood": 24,
+			"hide-scraps": 24,
+			"reed-ash": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -19,
+			"R": 48
+		},
+		"site": "site",
+		"creatures": [
+			"old-growth"
+		],
+		"stock": {
+			"heartwood": 24,
+			"hide-scraps": 24,
+			"reed-ash": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -18,
+			"R": 47
+		},
+		"site": "",
+		"creatures": [
+			"old-growth"
+		],
+		"stock": {
+			"heartwood": 24,
+			"hide-scraps": 24,
+			"reed-ash": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -17,
+			"R": 46
+		},
+		"site": "site",
+		"creatures": [
+			"old-growth"
+		],
+		"stock": {
+			"copper-ore": 24,
+			"deep-core": 24,
+			"hide-scraps": 24,
+			"reedflax": 24,
+			"timber": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -16,
+			"R": 45
+		},
+		"site": "",
+		"creatures": [
+			"reed-rat",
+			"flat-runner"
+		],
+		"stock": {
+			"cinder-ore": 24,
+			"reedflax": 24,
+			"saltglass": 24,
+			"timber": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -15,
+			"R": 44
+		},
+		"site": "",
+		"creatures": [
+			"reed-rat",
+			"flat-runner"
+		],
+		"stock": {
+			"cinder-ore": 24,
+			"reedflax": 24,
+			"saltglass": 24,
+			"timber": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -14,
+			"R": 43
+		},
+		"site": "",
+		"creatures": [
+			"reed-rat",
+			"flat-runner"
+		],
+		"stock": {
+			"cinder-ore": 24,
+			"reedflax": 24,
+			"saltglass": 24,
+			"timber": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -13,
+			"R": 42
+		},
+		"site": "",
+		"creatures": [
+			"reed-rat",
+			"flat-runner"
+		],
+		"stock": {
+			"cinder-ore": 24,
+			"reedflax": 24,
+			"saltglass": 24,
+			"timber": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -12,
+			"R": 41
+		},
+		"site": "",
+		"creatures": [
+			"reed-rat",
+			"flat-runner"
+		],
+		"stock": {
+			"cinder-ore": 24,
+			"reedflax": 24,
+			"saltglass": 24,
+			"timber": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -11,
+			"R": 40
+		},
+		"site": "",
+		"creatures": [
+			"reed-rat",
+			"flat-runner"
+		],
+		"stock": {
+			"cinder-ore": 24,
+			"reedflax": 24,
+			"saltglass": 24,
+			"timber": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -10,
+			"R": 39
+		},
+		"site": "",
+		"creatures": [
+			"cinder-hound",
+			"seam-crawler"
+		],
+		"stock": {
+			"cinder-ore": 24,
+			"reedflax": 24,
+			"saltglass": 24,
+			"timber": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -9,
+			"R": 38
+		},
+		"site": "",
+		"creatures": [
+			"seam-crawler",
+			"cinder-hound"
+		],
+		"stock": {
+			"chips": 24,
+			"cinder-ore": 24,
+			"marsh-amber": 24,
+			"river-clay": 24,
+			"stalker-hide": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -8,
+			"R": 37
+		},
+		"site": "",
+		"creatures": [
+			"seam-crawler",
+			"cinder-hound"
+		],
+		"stock": {
+			"chips": 24,
+			"cinder-ore": 24,
+			"marsh-amber": 24,
+			"river-clay": 24,
+			"stalker-hide": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -7,
+			"R": 36
+		},
+		"site": "",
+		"creatures": [
+			"seam-crawler",
+			"cinder-hound"
+		],
+		"stock": {
+			"chips": 24,
+			"cinder-ore": 24,
+			"marsh-amber": 24,
+			"river-clay": 24,
+			"stalker-hide": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -6,
+			"R": 35
+		},
+		"site": "",
+		"creatures": [
+			"seam-crawler",
+			"cinder-hound"
+		],
+		"stock": {
+			"chips": 24,
+			"cinder-ore": 24,
+			"marsh-amber": 24,
+			"river-clay": 24,
+			"stalker-hide": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -5,
+			"R": 34
+		},
+		"site": "",
+		"creatures": [
+			"seam-crawler",
+			"cinder-hound"
+		],
+		"stock": {
+			"chips": 24,
+			"cinder-ore": 24,
+			"marsh-amber": 24,
+			"river-clay": 24,
+			"stalker-hide": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -4,
+			"R": 33
+		},
+		"site": "",
+		"creatures": [
+			"seam-crawler",
+			"cinder-hound"
+		],
+		"stock": {
+			"chips": 24,
+			"cinder-ore": 24,
+			"marsh-amber": 24,
+			"river-clay": 24,
+			"stalker-hide": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -3,
+			"R": 32
+		},
+		"site": "",
+		"creatures": [
+			"seam-crawler",
+			"cinder-hound"
+		],
+		"stock": {
+			"chips": 24,
+			"cinder-ore": 24,
+			"marsh-amber": 24,
+			"river-clay": 24,
+			"stalker-hide": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -2,
+			"R": 31
+		},
+		"site": "",
+		"creatures": [
+			"seam-crawler",
+			"cinder-hound"
+		],
+		"stock": {
+			"deep-core": 24,
+			"thick-hide": 24,
+			"vault-plate": 24
+		}
+	},
+	{
+		"at": {
+			"Q": -1,
+			"R": 30
+		},
+		"site": "",
+		"creatures": [
+			"seam-crawler",
+			"cinder-hound"
+		],
+		"stock": {
+			"deep-core": 24,
+			"thick-hide": 24,
+			"vault-plate": 24
+		}
+	},
+	{
+		"at": {
+			"Q": 0,
+			"R": 29
+		},
+		"site": "",
+		"creatures": [
+			"seam-crawler",
+			"cinder-hound"
+		],
+		"stock": {
+			"deep-core": 24,
+			"thick-hide": 24,
+			"vault-plate": 24
+		}
+	},
+	{
+		"at": {
+			"Q": 1,
+			"R": 28
+		},
+		"site": "site",
+		"creatures": [
+			"seam-crawler",
+			"cinder-hound"
+		],
+		"stock": {
+			"deep-core": 24,
+			"thick-hide": 24,
+			"vault-plate": 24
+		}
+	},
+	{
+		"at": {
+			"Q": 1,
+			"R": 29
+		},
+		"site": "",
+		"creatures": [
+			"seam-crawler",
+			"cinder-hound"
+		],
+		"stock": {
+			"deep-core": 24,
+			"thick-hide": 24,
+			"vault-plate": 24
+		}
+	},
+	{
+		"at": {
+			"Q": 1,
+			"R": 30
+		},
+		"site": "site",
+		"creatures": [
+			"seam-crawler",
+			"cinder-hound"
+		],
+		"stock": {
+			"deep-core": 24,
+			"thick-hide": 24,
+			"vault-plate": 24
+		}
+	},
+	{
+		"at": {
+			"Q": 2,
+			"R": 27
+		},
+		"site": "starting-settlement",
+		"creatures": [
+			"seam-crawler",
+			"cinder-hound"
+		],
+		"stock": {
+			"chips": 24,
+			"fieldstone": 24,
+			"reed-ash": 24,
+			"thick-hide": 24
+		},
+		"people": [
+			{
+				"id": "r-2,27-settlement-keeper-0",
+				"role": "settlement-keeper",
+				"name": "Cass Novak",
+				"traits": [
+					"humble",
+					"greedy"
+				]
+			},
+			{
+				"id": "r-2,27-settlement-smith-0",
+				"role": "settlement-smith",
+				"name": "Lux Kessler",
+				"traits": [
+					"patient",
+					"generous"
+				]
+			},
+			{
+				"id": "r-2,27-settlement-tinker-0",
+				"role": "settlement-tinker",
+				"name": "Kit Flint",
+				"traits": [
+					"devout",
+					"wary"
+				]
+			},
+			{
+				"id": "r-2,27-settlement-trader-0",
+				"role": "settlement-trader",
+				"name": "Sable Solder",
+				"traits": [
+					"rash",
+					"devout"
+				]
+			},
+			{
+				"id": "r-2,27-settlement-stablehand-0",
+				"role": "settlement-stablehand",
+				"name": "Rook Wren",
+				"traits": [
+					"open",
+					"proud"
+				]
+			},
+			{
+				"id": "r-2,27-settlement-watch-0",
+				"role": "settlement-watch",
+				"name": "Rook Holt",
+				"traits": [
+					"greedy",
+					"secretive"
+				]
+			}
+		]
+	},
+	{
+		"at": {
+			"Q": 2,
+			"R": 28
+		},
+		"site": "",
+		"creatures": [
+			"seam-crawler",
+			"cinder-hound"
+		],
+		"stock": {
+			"chips": 24,
+			"fieldstone": 24,
+			"reed-ash": 24,
+			"thick-hide": 24
+		}
+	},
+	{
+		"at": {
+			"Q": 3,
+			"R": 28
+		},
+		"site": "",
+		"creatures": [
+			"seam-crawler",
+			"cinder-hound"
+		],
+		"stock": {
+			"chips": 24,
+			"fieldstone": 24,
+			"reed-ash": 24,
+			"thick-hide": 24
+		}
+	},
+	{
+		"at": {
+			"Q": 4,
+			"R": 28
+		},
+		"site": "",
+		"creatures": [
+			"seam-crawler",
+			"cinder-hound"
+		],
+		"stock": {
+			"chips": 24,
+			"fieldstone": 24,
+			"reed-ash": 24,
+			"thick-hide": 24
+		}
+	},
+	{
+		"at": {
+			"Q": 5,
+			"R": 28
+		},
+		"site": "dungeon",
+		"creatures": [
+			"seam-crawler",
+			"cinder-hound"
+		],
+		"dungeon": {
+			"Hex": {
+				"Q": 5,
+				"R": 28
+			},
+			"Kind": "bunker",
+			"Floors": 3,
+			"Guardian": "bunker-guardian",
+			"Up": false,
+			"SeedTier": 1
+		},
+		"floors": [
+			{
+				"n": 1,
+				"way": -1,
+				"plan": {
+					"N": 1,
+					"Steps": 0,
+					"Step": {
+						"Tier": 1,
+						"Half": false,
+						"Beyond": 0
+					},
+					"Tags": [
+						"deep",
+						"heights",
+						"hoarding"
+					],
+					"Beats": 6,
+					"Hidden": 0,
+					"Bottom": false,
+					"Ways": [
+						{
+							"Fork": "flooded-stair",
+							"Tags": [
+								"wet",
+								"deep"
+							]
+						},
+						{
+							"Fork": "blast-door",
+							"Tags": [
+								"hoarding",
+								"plated"
+							]
+						},
+						{
+							"Fork": "collapsed-shaft",
+							"Tags": [
+								"deep",
+								"dry"
+							]
+						}
+					],
+					"Machine": false,
+					"Family": "",
+					"Creature": "reed-rat"
+				},
+				"tiers": [
+					{
+						"N": 1,
+						"Steps": 0,
+						"Step": {
+							"Tier": 1,
+							"Half": false,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding"
+						],
+						"Beats": 6,
+						"Hidden": 0,
+						"Bottom": false,
+						"Ways": [
+							{
+								"Fork": "flooded-stair",
+								"Tags": [
+									"wet",
+									"deep"
+								]
+							},
+							{
+								"Fork": "blast-door",
+								"Tags": [
+									"hoarding",
+									"plated"
+								]
+							},
+							{
+								"Fork": "collapsed-shaft",
+								"Tags": [
+									"deep",
+									"dry"
+								]
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "reed-rat"
+					},
+					{
+						"N": 1,
+						"Steps": 0,
+						"Step": {
+							"Tier": 2,
+							"Half": false,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding"
+						],
+						"Beats": 6,
+						"Hidden": 0,
+						"Bottom": false,
+						"Ways": [
+							{
+								"Fork": "flooded-stair",
+								"Tags": [
+									"wet",
+									"deep"
+								]
+							},
+							{
+								"Fork": "blast-door",
+								"Tags": [
+									"hoarding",
+									"plated"
+								]
+							},
+							{
+								"Fork": "collapsed-shaft",
+								"Tags": [
+									"deep",
+									"dry"
+								]
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "seam-crawler"
+					},
+					{
+						"N": 1,
+						"Steps": 0,
+						"Step": {
+							"Tier": 3,
+							"Half": false,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding"
+						],
+						"Beats": 6,
+						"Hidden": 0,
+						"Bottom": false,
+						"Ways": [
+							{
+								"Fork": "flooded-stair",
+								"Tags": [
+									"wet",
+									"deep"
+								]
+							},
+							{
+								"Fork": "blast-door",
+								"Tags": [
+									"hoarding",
+									"plated"
+								]
+							},
+							{
+								"Fork": "collapsed-shaft",
+								"Tags": [
+									"deep",
+									"dry"
+								]
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "glass-heron"
+					},
+					{
+						"N": 1,
+						"Steps": 0,
+						"Step": {
+							"Tier": 4,
+							"Half": false,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding"
+						],
+						"Beats": 6,
+						"Hidden": 0,
+						"Bottom": false,
+						"Ways": [
+							{
+								"Fork": "flooded-stair",
+								"Tags": [
+									"wet",
+									"deep"
+								]
+							},
+							{
+								"Fork": "blast-door",
+								"Tags": [
+									"hoarding",
+									"plated"
+								]
+							},
+							{
+								"Fork": "collapsed-shaft",
+								"Tags": [
+									"deep",
+									"dry"
+								]
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "old-growth"
+					}
+				]
+			},
+			{
+				"n": 2,
+				"way": 0,
+				"plan": {
+					"N": 2,
+					"Steps": 1,
+					"Step": {
+						"Tier": 1,
+						"Half": true,
+						"Beyond": 0
+					},
+					"Tags": [
+						"deep",
+						"heights",
+						"hoarding",
+						"wet"
+					],
+					"Beats": 4,
+					"Hidden": 0,
+					"Bottom": false,
+					"Ways": [
+						{
+							"Fork": "cable-run",
+							"Tags": [
+								"wired",
+								"conductive"
+							]
+						},
+						{
+							"Fork": "blast-door",
+							"Tags": [
+								"hoarding",
+								"plated"
+							]
+						},
+						{
+							"Fork": "flooded-stair",
+							"Tags": [
+								"wet",
+								"deep"
+							]
+						}
+					],
+					"Machine": true,
+					"Family": "lock-pins",
+					"Creature": "reed-rat"
+				},
+				"tiers": [
+					{
+						"N": 2,
+						"Steps": 1,
+						"Step": {
+							"Tier": 1,
+							"Half": true,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding",
+							"wet"
+						],
+						"Beats": 4,
+						"Hidden": 0,
+						"Bottom": false,
+						"Ways": [
+							{
+								"Fork": "cable-run",
+								"Tags": [
+									"wired",
+									"conductive"
+								]
+							},
+							{
+								"Fork": "blast-door",
+								"Tags": [
+									"hoarding",
+									"plated"
+								]
+							},
+							{
+								"Fork": "flooded-stair",
+								"Tags": [
+									"wet",
+									"deep"
+								]
+							}
+						],
+						"Machine": true,
+						"Family": "lock-pins",
+						"Creature": "reed-rat"
+					},
+					{
+						"N": 2,
+						"Steps": 1,
+						"Step": {
+							"Tier": 2,
+							"Half": true,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding",
+							"wet"
+						],
+						"Beats": 4,
+						"Hidden": 0,
+						"Bottom": false,
+						"Ways": [
+							{
+								"Fork": "cable-run",
+								"Tags": [
+									"wired",
+									"conductive"
+								]
+							},
+							{
+								"Fork": "blast-door",
+								"Tags": [
+									"hoarding",
+									"plated"
+								]
+							},
+							{
+								"Fork": "flooded-stair",
+								"Tags": [
+									"wet",
+									"deep"
+								]
+							}
+						],
+						"Machine": true,
+						"Family": "lock-pins",
+						"Creature": "cinder-hound"
+					},
+					{
+						"N": 2,
+						"Steps": 1,
+						"Step": {
+							"Tier": 3,
+							"Half": true,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding",
+							"wet"
+						],
+						"Beats": 4,
+						"Hidden": 0,
+						"Bottom": false,
+						"Ways": [
+							{
+								"Fork": "cable-run",
+								"Tags": [
+									"wired",
+									"conductive"
+								]
+							},
+							{
+								"Fork": "blast-door",
+								"Tags": [
+									"hoarding",
+									"plated"
+								]
+							},
+							{
+								"Fork": "flooded-stair",
+								"Tags": [
+									"wet",
+									"deep"
+								]
+							}
+						],
+						"Machine": true,
+						"Family": "lock-pins",
+						"Creature": "glass-heron"
+					},
+					{
+						"N": 2,
+						"Steps": 1,
+						"Step": {
+							"Tier": 4,
+							"Half": true,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding",
+							"wet"
+						],
+						"Beats": 4,
+						"Hidden": 0,
+						"Bottom": false,
+						"Ways": [
+							{
+								"Fork": "cable-run",
+								"Tags": [
+									"wired",
+									"conductive"
+								]
+							},
+							{
+								"Fork": "blast-door",
+								"Tags": [
+									"hoarding",
+									"plated"
+								]
+							},
+							{
+								"Fork": "flooded-stair",
+								"Tags": [
+									"wet",
+									"deep"
+								]
+							}
+						],
+						"Machine": true,
+						"Family": "lock-pins",
+						"Creature": "old-growth"
+					}
+				]
+			},
+			{
+				"n": 2,
+				"way": 1,
+				"plan": {
+					"N": 2,
+					"Steps": 1,
+					"Step": {
+						"Tier": 1,
+						"Half": true,
+						"Beyond": 0
+					},
+					"Tags": [
+						"deep",
+						"heights",
+						"hoarding",
+						"plated"
+					],
+					"Beats": 5,
+					"Hidden": 0,
+					"Bottom": false,
+					"Ways": [
+						{
+							"Fork": "cable-run",
+							"Tags": [
+								"wired",
+								"conductive"
+							]
+						},
+						{
+							"Fork": "blast-door",
+							"Tags": [
+								"hoarding",
+								"plated"
+							]
+						},
+						{
+							"Fork": "flooded-stair",
+							"Tags": [
+								"wet",
+								"deep"
+							]
+						}
+					],
+					"Machine": false,
+					"Family": "",
+					"Creature": "reed-rat"
+				},
+				"tiers": [
+					{
+						"N": 2,
+						"Steps": 1,
+						"Step": {
+							"Tier": 1,
+							"Half": true,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding",
+							"plated"
+						],
+						"Beats": 5,
+						"Hidden": 0,
+						"Bottom": false,
+						"Ways": [
+							{
+								"Fork": "cable-run",
+								"Tags": [
+									"wired",
+									"conductive"
+								]
+							},
+							{
+								"Fork": "blast-door",
+								"Tags": [
+									"hoarding",
+									"plated"
+								]
+							},
+							{
+								"Fork": "flooded-stair",
+								"Tags": [
+									"wet",
+									"deep"
+								]
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "reed-rat"
+					},
+					{
+						"N": 2,
+						"Steps": 1,
+						"Step": {
+							"Tier": 2,
+							"Half": true,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding",
+							"plated"
+						],
+						"Beats": 5,
+						"Hidden": 0,
+						"Bottom": false,
+						"Ways": [
+							{
+								"Fork": "cable-run",
+								"Tags": [
+									"wired",
+									"conductive"
+								]
+							},
+							{
+								"Fork": "blast-door",
+								"Tags": [
+									"hoarding",
+									"plated"
+								]
+							},
+							{
+								"Fork": "flooded-stair",
+								"Tags": [
+									"wet",
+									"deep"
+								]
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "seam-crawler"
+					},
+					{
+						"N": 2,
+						"Steps": 1,
+						"Step": {
+							"Tier": 3,
+							"Half": true,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding",
+							"plated"
+						],
+						"Beats": 5,
+						"Hidden": 0,
+						"Bottom": false,
+						"Ways": [
+							{
+								"Fork": "cable-run",
+								"Tags": [
+									"wired",
+									"conductive"
+								]
+							},
+							{
+								"Fork": "blast-door",
+								"Tags": [
+									"hoarding",
+									"plated"
+								]
+							},
+							{
+								"Fork": "flooded-stair",
+								"Tags": [
+									"wet",
+									"deep"
+								]
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "glass-heron"
+					},
+					{
+						"N": 2,
+						"Steps": 1,
+						"Step": {
+							"Tier": 4,
+							"Half": true,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding",
+							"plated"
+						],
+						"Beats": 5,
+						"Hidden": 0,
+						"Bottom": false,
+						"Ways": [
+							{
+								"Fork": "cable-run",
+								"Tags": [
+									"wired",
+									"conductive"
+								]
+							},
+							{
+								"Fork": "blast-door",
+								"Tags": [
+									"hoarding",
+									"plated"
+								]
+							},
+							{
+								"Fork": "flooded-stair",
+								"Tags": [
+									"wet",
+									"deep"
+								]
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "old-growth"
+					}
+				]
+			},
+			{
+				"n": 2,
+				"way": 2,
+				"plan": {
+					"N": 2,
+					"Steps": 1,
+					"Step": {
+						"Tier": 1,
+						"Half": true,
+						"Beyond": 0
+					},
+					"Tags": [
+						"deep",
+						"dry",
+						"heights",
+						"hoarding"
+					],
+					"Beats": 4,
+					"Hidden": 1,
+					"Bottom": false,
+					"Ways": [
+						{
+							"Fork": "cable-run",
+							"Tags": [
+								"wired",
+								"conductive"
+							]
+						},
+						{
+							"Fork": "blast-door",
+							"Tags": [
+								"hoarding",
+								"plated"
+							]
+						},
+						{
+							"Fork": "flooded-stair",
+							"Tags": [
+								"wet",
+								"deep"
+							]
+						}
+					],
+					"Machine": true,
+					"Family": "fuse",
+					"Creature": "reed-rat"
+				},
+				"tiers": [
+					{
+						"N": 2,
+						"Steps": 1,
+						"Step": {
+							"Tier": 1,
+							"Half": true,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"dry",
+							"heights",
+							"hoarding"
+						],
+						"Beats": 4,
+						"Hidden": 1,
+						"Bottom": false,
+						"Ways": [
+							{
+								"Fork": "cable-run",
+								"Tags": [
+									"wired",
+									"conductive"
+								]
+							},
+							{
+								"Fork": "blast-door",
+								"Tags": [
+									"hoarding",
+									"plated"
+								]
+							},
+							{
+								"Fork": "flooded-stair",
+								"Tags": [
+									"wet",
+									"deep"
+								]
+							}
+						],
+						"Machine": true,
+						"Family": "fuse",
+						"Creature": "reed-rat"
+					},
+					{
+						"N": 2,
+						"Steps": 1,
+						"Step": {
+							"Tier": 2,
+							"Half": true,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"dry",
+							"heights",
+							"hoarding"
+						],
+						"Beats": 4,
+						"Hidden": 1,
+						"Bottom": false,
+						"Ways": [
+							{
+								"Fork": "cable-run",
+								"Tags": [
+									"wired",
+									"conductive"
+								]
+							},
+							{
+								"Fork": "blast-door",
+								"Tags": [
+									"hoarding",
+									"plated"
+								]
+							},
+							{
+								"Fork": "flooded-stair",
+								"Tags": [
+									"wet",
+									"deep"
+								]
+							}
+						],
+						"Machine": true,
+						"Family": "fuse",
+						"Creature": "seam-crawler"
+					},
+					{
+						"N": 2,
+						"Steps": 1,
+						"Step": {
+							"Tier": 3,
+							"Half": true,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"dry",
+							"heights",
+							"hoarding"
+						],
+						"Beats": 4,
+						"Hidden": 1,
+						"Bottom": false,
+						"Ways": [
+							{
+								"Fork": "cable-run",
+								"Tags": [
+									"wired",
+									"conductive"
+								]
+							},
+							{
+								"Fork": "blast-door",
+								"Tags": [
+									"hoarding",
+									"plated"
+								]
+							},
+							{
+								"Fork": "flooded-stair",
+								"Tags": [
+									"wet",
+									"deep"
+								]
+							}
+						],
+						"Machine": true,
+						"Family": "fuse",
+						"Creature": "glass-heron"
+					},
+					{
+						"N": 2,
+						"Steps": 1,
+						"Step": {
+							"Tier": 4,
+							"Half": true,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"dry",
+							"heights",
+							"hoarding"
+						],
+						"Beats": 4,
+						"Hidden": 1,
+						"Bottom": false,
+						"Ways": [
+							{
+								"Fork": "cable-run",
+								"Tags": [
+									"wired",
+									"conductive"
+								]
+							},
+							{
+								"Fork": "blast-door",
+								"Tags": [
+									"hoarding",
+									"plated"
+								]
+							},
+							{
+								"Fork": "flooded-stair",
+								"Tags": [
+									"wet",
+									"deep"
+								]
+							}
+						],
+						"Machine": true,
+						"Family": "fuse",
+						"Creature": "old-growth"
+					}
+				]
+			},
+			{
+				"n": 3,
+				"way": 0,
+				"plan": {
+					"N": 3,
+					"Steps": 2,
+					"Step": {
+						"Tier": 2,
+						"Half": false,
+						"Beyond": 0
+					},
+					"Tags": [
+						"conductive",
+						"deep",
+						"heights",
+						"hoarding",
+						"wired"
+					],
+					"Beats": 5,
+					"Hidden": 0,
+					"Bottom": true,
+					"Ways": [
+						{
+							"Fork": "",
+							"Tags": null
+						},
+						{
+							"Fork": "",
+							"Tags": null
+						},
+						{
+							"Fork": "",
+							"Tags": null
+						}
+					],
+					"Machine": false,
+					"Family": "",
+					"Creature": "cinder-hound"
+				},
+				"tiers": [
+					{
+						"N": 3,
+						"Steps": 2,
+						"Step": {
+							"Tier": 2,
+							"Half": false,
+							"Beyond": 0
+						},
+						"Tags": [
+							"conductive",
+							"deep",
+							"heights",
+							"hoarding",
+							"wired"
+						],
+						"Beats": 5,
+						"Hidden": 0,
+						"Bottom": true,
+						"Ways": [
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "cinder-hound"
+					},
+					{
+						"N": 3,
+						"Steps": 2,
+						"Step": {
+							"Tier": 3,
+							"Half": false,
+							"Beyond": 0
+						},
+						"Tags": [
+							"conductive",
+							"deep",
+							"heights",
+							"hoarding",
+							"wired"
+						],
+						"Beats": 5,
+						"Hidden": 0,
+						"Bottom": true,
+						"Ways": [
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "glass-heron"
+					},
+					{
+						"N": 3,
+						"Steps": 2,
+						"Step": {
+							"Tier": 4,
+							"Half": false,
+							"Beyond": 0
+						},
+						"Tags": [
+							"conductive",
+							"deep",
+							"heights",
+							"hoarding",
+							"wired"
+						],
+						"Beats": 5,
+						"Hidden": 0,
+						"Bottom": true,
+						"Ways": [
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "old-growth"
+					},
+					{
+						"N": 3,
+						"Steps": 2,
+						"Step": {
+							"Tier": 4,
+							"Half": false,
+							"Beyond": 1
+						},
+						"Tags": [
+							"conductive",
+							"deep",
+							"heights",
+							"hoarding",
+							"wired"
+						],
+						"Beats": 5,
+						"Hidden": 0,
+						"Bottom": true,
+						"Ways": [
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "old-growth"
+					}
+				]
+			},
+			{
+				"n": 3,
+				"way": 1,
+				"plan": {
+					"N": 3,
+					"Steps": 2,
+					"Step": {
+						"Tier": 2,
+						"Half": false,
+						"Beyond": 0
+					},
+					"Tags": [
+						"deep",
+						"heights",
+						"hoarding",
+						"plated"
+					],
+					"Beats": 3,
+					"Hidden": 0,
+					"Bottom": true,
+					"Ways": [
+						{
+							"Fork": "",
+							"Tags": null
+						},
+						{
+							"Fork": "",
+							"Tags": null
+						},
+						{
+							"Fork": "",
+							"Tags": null
+						}
+					],
+					"Machine": false,
+					"Family": "",
+					"Creature": "cinder-hound"
+				},
+				"tiers": [
+					{
+						"N": 3,
+						"Steps": 2,
+						"Step": {
+							"Tier": 2,
+							"Half": false,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding",
+							"plated"
+						],
+						"Beats": 3,
+						"Hidden": 0,
+						"Bottom": true,
+						"Ways": [
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "cinder-hound"
+					},
+					{
+						"N": 3,
+						"Steps": 2,
+						"Step": {
+							"Tier": 3,
+							"Half": false,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding",
+							"plated"
+						],
+						"Beats": 3,
+						"Hidden": 0,
+						"Bottom": true,
+						"Ways": [
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "glass-heron"
+					},
+					{
+						"N": 3,
+						"Steps": 2,
+						"Step": {
+							"Tier": 4,
+							"Half": false,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding",
+							"plated"
+						],
+						"Beats": 3,
+						"Hidden": 0,
+						"Bottom": true,
+						"Ways": [
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "old-growth"
+					},
+					{
+						"N": 3,
+						"Steps": 2,
+						"Step": {
+							"Tier": 4,
+							"Half": false,
+							"Beyond": 1
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding",
+							"plated"
+						],
+						"Beats": 3,
+						"Hidden": 0,
+						"Bottom": true,
+						"Ways": [
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "old-growth"
+					}
+				]
+			},
+			{
+				"n": 3,
+				"way": 2,
+				"plan": {
+					"N": 3,
+					"Steps": 2,
+					"Step": {
+						"Tier": 2,
+						"Half": false,
+						"Beyond": 0
+					},
+					"Tags": [
+						"deep",
+						"heights",
+						"hoarding",
+						"wet"
+					],
+					"Beats": 2,
+					"Hidden": 1,
+					"Bottom": true,
+					"Ways": [
+						{
+							"Fork": "",
+							"Tags": null
+						},
+						{
+							"Fork": "",
+							"Tags": null
+						},
+						{
+							"Fork": "",
+							"Tags": null
+						}
+					],
+					"Machine": false,
+					"Family": "",
+					"Creature": "seam-crawler"
+				},
+				"tiers": [
+					{
+						"N": 3,
+						"Steps": 2,
+						"Step": {
+							"Tier": 2,
+							"Half": false,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding",
+							"wet"
+						],
+						"Beats": 2,
+						"Hidden": 1,
+						"Bottom": true,
+						"Ways": [
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "seam-crawler"
+					},
+					{
+						"N": 3,
+						"Steps": 2,
+						"Step": {
+							"Tier": 3,
+							"Half": false,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding",
+							"wet"
+						],
+						"Beats": 2,
+						"Hidden": 1,
+						"Bottom": true,
+						"Ways": [
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "glass-heron"
+					},
+					{
+						"N": 3,
+						"Steps": 2,
+						"Step": {
+							"Tier": 4,
+							"Half": false,
+							"Beyond": 0
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding",
+							"wet"
+						],
+						"Beats": 2,
+						"Hidden": 1,
+						"Bottom": true,
+						"Ways": [
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "old-growth"
+					},
+					{
+						"N": 3,
+						"Steps": 2,
+						"Step": {
+							"Tier": 4,
+							"Half": false,
+							"Beyond": 1
+						},
+						"Tags": [
+							"deep",
+							"heights",
+							"hoarding",
+							"wet"
+						],
+						"Beats": 2,
+						"Hidden": 1,
+						"Bottom": true,
+						"Ways": [
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							},
+							{
+								"Fork": "",
+								"Tags": null
+							}
+						],
+						"Machine": false,
+						"Family": "",
+						"Creature": "old-growth"
+					}
+				]
+			}
+		],
+		"stock": {
+			"chips": 24,
+			"fieldstone": 24,
+			"reed-ash": 24,
+			"thick-hide": 24
+		}
+	}
+]

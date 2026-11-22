@@ -3,6 +3,7 @@ package harness
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -25,11 +26,13 @@ import (
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/puzzle"
 	"jams.team/mmo-world/sim/sheets"
+	"jams.team/mmo-world/sim/tile"
 )
 
 // The delve run (GDD 4.9, 7.5, 7.6, 7.11): on a live, disposable world, a
-// scripted party of four walks to a seven-floor bunker and goes down it
-// floor by floor through the action endpoint, working its machines
+// scripted party of four walks to the nearest dungeon entrance in a
+// first-tier region and goes down it floor by floor through the action
+// endpoint, working its machines
 // together through the Activity socket, every seat streaming its own
 // moves; and ten scripted hunters press a hunt the operator opens beside
 // the first settlement until it falls.
@@ -37,14 +40,16 @@ import (
 func init() { Runs["delve"] = DelveRun }
 
 const (
-	// delveKind and delveFloors are the dungeon the party goes down.
+	// delveKind and delveFloors are the dungeon the report looks for: its
+	// plan is drawn on arrival (GDD 4.17), so where one falls is reported,
+	// not chosen.
 	delveKind   = "bunker"
 	delveFloors = 7
 	// delveSearch is how far from the first settlement it is looked for.
 	delveSearch = 120
 	// delveMachines is the fewest machines the party must work together.
 	delveMachines = 3
-	// delveName is what the first slayers call the bunker.
+	// delveName is what the first slayers call the dungeon.
 	delveName = "The Seventh Stair"
 	// delveWait is how long the run gives the party and the hunters,
 	// unless -n names the minutes.
@@ -60,7 +65,7 @@ const (
 )
 
 // liveKeys are a disposable world's keys, which the run needs to find a
-// seven-floor bunker: floors are never shown. MMO_MASTER_SECRET when set,
+// dungeon entrance nobody has found yet. MMO_MASTER_SECRET when set,
 // else the local world's own.
 func liveKeys(b *sheets.Book) (*game.Rules, error) {
 	if os.Getenv(service.EnvMaster) == "" {
@@ -83,12 +88,13 @@ func liveKeys(b *sheets.Book) (*game.Rules, error) {
 	return game.NewRules(b, sec.Keys)
 }
 
-// liveDelve is the run's state: the world, the bunker, the party and the
+// liveDelve is the run's state: the world, the dungeon, the party and the
 // hunters, and what each did.
 type liveDelve struct {
 	w        *liveWorld
 	r        *game.Rules
-	bunker   hex.Hex
+	entrance hex.Hex
+	kind     string
 	huntAt   hex.Hex
 	party    []*member
 	hunters  []*member
@@ -180,11 +186,9 @@ func DelveRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	if err != nil {
 		return nil, err
 	}
-	if d.bunker, ok = deepBunker(founded, home); !ok {
-		return nil, fmt.Errorf("no %s within %d tiles of the first settlement", delveKind, delveSearch)
+	if d.entrance, ok = firstTierEntrance(founded, home); !ok {
+		return nil, fmt.Errorf("no dungeon entrance in a first-tier region within %d tiles of the first settlement", delveSearch)
 	}
-	plan, _ := r.Gen.Dungeon(d.bunker)
-	d.floors = plan.Floors
 	if d.huntAt, ok = passableBeside(r.Gen, home); !ok {
 		return nil, errors.New("no passable land beside the first settlement")
 	}
@@ -212,30 +216,49 @@ func DelveRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	return nil, errors.Join(slices.Concat(errs, d.unmet())...)
 }
 
-// deepBunker is the nearest seven-floor bunker in a first-tier region,
-// else the deepest there: floors step from their region's live tier, so
-// only a low-tier entrance leaves room to go deeper.
-func deepBunker(g *game.Game, from hex.Hex) (hex.Hex, bool) {
-	var best hex.Hex
-	floors := int64(0)
+// firstTierEntrance is the nearest dungeon entrance, not a relay tower, in
+// a first-tier region: floors step from their region's live tier, so only
+// a low-tier entrance leaves room to go deep. The native plan is read only
+// for its slot; what the entrance holds is drawn when the party gets there.
+func firstTierEntrance(g *game.Game, from hex.Hex) (hex.Hex, bool) {
 	for r := int64(1); r <= delveSearch; r++ {
 		for _, h := range hex.Ring(from, r) {
 			p, ok := g.Rules().Gen.Dungeon(h)
-			if !ok || p.Kind != delveKind {
+			if !ok || p.Up {
 				continue
 			}
-			if ri := g.World.RegionAt(h); ri < 0 || g.World.Regions[ri].Tier > 1 {
-				continue
-			}
-			if p.Floors == delveFloors {
+			if ri := g.World.RegionAt(h); ri >= 0 && g.World.Regions[ri].Tier <= 1 {
 				return h, true
-			}
-			if p.Floors > floors {
-				best, floors = h, p.Floors
 			}
 		}
 	}
-	return best, floors > 0
+	return hex.Hex{}, false
+}
+
+// readyTier is a tier above the bottom floor's of a first-tier dungeon so
+// many floors deep, capped at the ceiling.
+func (d *liveDelve) readyTier(floors int64) int64 {
+	return min(int64(len(d.r.Book.FightTiers)), 1+(floors-1)/2+1)
+}
+
+// planOnArrival reads the entrance's plan, drawn at its first reach,
+// through the operator's tile inspection.
+func (d *liveDelve) planOnArrival(ctx context.Context) error {
+	body, err := d.w.op.Tile(ctx, d.entrance.Q, d.entrance.R)
+	if err != nil {
+		return err
+	}
+	var got struct {
+		State *tile.State `json:"state"`
+	}
+	if err := json.Unmarshal(body, &got); err != nil {
+		return err
+	}
+	if got.State == nil || got.State.Content == nil || got.State.Content.Dungeon == nil {
+		return fmt.Errorf("the entrance at %s holds no plan once reached", d.entrance.Ref())
+	}
+	d.kind, d.floors = got.State.Content.Dungeon.Kind, got.State.Content.Dungeon.Floors
+	return nil
 }
 
 func passableBeside(g *gen.Gen, h hex.Hex) (hex.Hex, bool) {
@@ -258,7 +281,8 @@ func (d *liveDelve) newMember(ctx context.Context, who string) (*member, error) 
 	return &member{discord: discord, char: char, name: who}, nil
 }
 
-// delve forms the party, walks it to the bunker and takes it down.
+// delve forms the party, walks it to the entrance, reads what it holds and
+// takes it down.
 func (d *liveDelve) delve(ctx context.Context) error {
 	for i := range party4 {
 		m, err := d.newMember(ctx, fmt.Sprintf("delver-%d", i))
@@ -267,9 +291,8 @@ func (d *liveDelve) delve(ctx context.Context) error {
 		}
 		d.party = append(d.party, m)
 	}
-	ready := min(int64(len(d.r.Book.FightTiers)), 1+(d.floors-1)/2+1)
 	for _, m := range d.party {
-		if err := d.ready(ctx, m, ready); err != nil {
+		if err := d.ready(ctx, m, d.readyTier(1)); err != nil {
 			return err
 		}
 	}
@@ -292,6 +315,14 @@ func (d *liveDelve) delve(ctx context.Context) error {
 	if err := d.walk(ctx); err != nil {
 		return err
 	}
+	if err := d.planOnArrival(ctx); err != nil {
+		return err
+	}
+	for _, m := range d.party {
+		if err := d.ready(ctx, m, d.readyTier(d.floors)); err != nil {
+			return err
+		}
+	}
 	v := agent.Delver{BandOrder: agent.Bands(d.r.Book)}
 	for ctx.Err() == nil && d.named == "" {
 		if err := d.round(ctx, v); err != nil {
@@ -302,11 +333,11 @@ func (d *liveDelve) delve(ctx context.Context) error {
 	return nil
 }
 
-// walk takes every member to the bunker: by a journey where one is open,
+// walk takes every member to the entrance: by a journey where one is open,
 // else a step at a time; an ambush on the way is fought.
 func (d *liveDelve) walk(ctx context.Context) error {
 	v := agent.Delver{BandOrder: agent.Bands(d.r.Book)}
-	to := apiHex(d.bunker)
+	to := apiHex(d.entrance)
 	for ctx.Err() == nil {
 		there := 0
 		for _, m := range d.party {
@@ -341,10 +372,10 @@ func (d *liveDelve) walk(ctx context.Context) error {
 		}
 		time.Sleep(time.Second)
 	}
-	return fmt.Errorf("the party did not reach the bunker at %s: %w", d.bunker.Ref(), ctx.Err())
+	return fmt.Errorf("the party did not reach the entrance at %s: %w", d.entrance.Ref(), ctx.Err())
 }
 
-// round gives every member one turn in the bunker: the party's machine
+// round gives every member one turn in the dungeon: the party's machine
 // when one stands before it, a held pick, the fork, the leader's entry
 // and, once the guardian falls to them first, its name.
 func (d *liveDelve) round(ctx context.Context, v agent.Delver) error {
@@ -388,7 +419,7 @@ func (d *liveDelve) round(ctx context.Context, v agent.Delver) error {
 	if err != nil {
 		return err
 	}
-	if req, ok := v.Enter(o); ok && o.At == apiHex(d.bunker) {
+	if req, ok := v.Enter(o); ok && o.At == apiHex(d.entrance) {
 		if _, ref, err := d.act(ctx, lead, req); err != nil {
 			return err
 		} else if ref == nil {
@@ -644,8 +675,8 @@ func (d *liveDelve) huntID(ctx context.Context, at api.Hex) (string, error) {
 // unmet are the proof's conditions the run did not meet.
 func (d *liveDelve) unmet() []error {
 	var out []error
-	if d.floors < delveFloors {
-		out = append(out, fmt.Errorf("the nearest first-tier bunker runs %d floors, not %d", d.floors, delveFloors))
+	if d.floors == 0 {
+		out = append(out, fmt.Errorf("no plan was read at the entrance at %s", d.entrance.Ref()))
 	}
 	if d.deepest < d.floors {
 		out = append(out, fmt.Errorf("the party reached floor %d of %d", d.deepest, d.floors))
@@ -660,7 +691,7 @@ func (d *liveDelve) unmet() []error {
 		out = append(out, fmt.Errorf("the party worked %d machines together, under %d", together, delveMachines))
 	}
 	if d.named == "" {
-		out = append(out, errors.New("the bunker was not named"))
+		out = append(out, errors.New("the dungeon was not named"))
 	}
 	if _, ok := agent.Sum(d.card); !d.card.Slain || !ok || len(d.card.Pressers) < huntBand {
 		out = append(out, fmt.Errorf("the hunt: slain %v by %d pressers, parts summing to the roll %v", d.card.Slain, len(d.card.Pressers), ok))
@@ -672,13 +703,15 @@ func (d *liveDelve) unmet() []error {
 func (d *liveDelve) write(b *sheets.Book, base string, took time.Duration) *lineDoc {
 	var doc lineDoc
 	pr := doc.p
-	pr("# A party through a bunker, and ten at a hunt, on a live world")
+	pr("# A party through a dungeon, and ten at a hunt, on a live world")
 	pr("")
 	pr("World at %s, Activity listener at %s, every member signed in by the dev sign-in with a socket of its own, all in one Activity instance. The run took %s.", base, d.w.activity, took.Round(time.Second))
 	pr("")
-	pr("## The bunker")
+	pr("## The dungeon")
 	pr("")
-	pr("The nearest %s of %d floors in a first-tier region of the founded world, else the deepest there, found from the world's own keys (floors are never shown): %s, of %d floors. Four new characters, readied by the operator (`set-ready`) to a tier above its bottom floor's, capped at the ceiling, form a party by invitation, follow their leader there, and go down: each beat's pick held through `/v1/actions` (`party-pick`), each fork's push the same way, and each machine armed from the first seat's socket and worked by every seat streaming its own moves of the version's merged log.", delveKind, delveFloors, d.bunker.Ref(), d.floors)
+	pr("The nearest dungeon entrance in a first-tier region of the founded world, found by its slot from the world's own keys: %s. What it holds is drawn when it is first reached (GDD 4.17), so the plan is read on arrival through the operator's tile inspection: %s, of %d floors. Four new characters, readied by the operator (`set-ready`) for the walk and then to a tier above its bottom floor's, capped at the ceiling, form a party by invitation, follow their leader there, and go down: each beat's pick held through `/v1/actions` (`party-pick`), each fork's push the same way, and each machine armed from the first seat's socket and worked by every seat streaming its own moves of the version's merged log.", d.entrance.Ref(), either(d.kind != "", d.kind, "no plan"), d.floors)
+	pr("")
+	pr("A %d-floor %s: %s. Where one falls is reported, not proven: no one can know a plan before its entrance is reached.", delveFloors, delveKind, either(d.kind == delveKind && d.floors == delveFloors, "yes", "no"))
 	pr("")
 	pr("Deepest floor reached: %d of %d. Named: %s.", d.deepest, d.floors, either(d.named != "", "\""+d.named+"\"", "no"))
 	pr("")

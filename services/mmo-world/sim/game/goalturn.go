@@ -130,8 +130,7 @@ func (g *Game) equipped(e goal.Event, in *item.Instance) goal.Event {
 // tags of the materials it holds, and its generated fields.
 func (g *Game) discovered(e goal.Event, h hex.Hex) goal.Event {
 	e.Verb, e.Tags = goal.Discover, nil
-	b := g.r.Gen.Baseline(h)
-	e.Kind, e.Fields = b.Site, b.Fields()
+	e.Kind, e.Fields = g.slot(h), g.r.Gen.Baseline(h).Fields()
 	for _, m := range g.Materials(h) {
 		e.Tags = append(e.Tags, g.materialTags(m)...)
 	}
