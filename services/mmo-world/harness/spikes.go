@@ -16,6 +16,7 @@ var Runs = map[string]Run{
 	"social":   SocialRun,
 	"economy":  EconomyRun,
 	"puzzles":  PuzzlesRun,
+	"content":  ContentRun,
 	"activity": ActivityRun,
 	"spike-a":  spike(spikeA),
 	"spike-b":  spike(spikeB),

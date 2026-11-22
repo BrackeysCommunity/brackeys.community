@@ -15,8 +15,19 @@ type Measured struct {
 	Holds  bool
 }
 
+// spikeETargets are the scaffold targets spike E reads, in its own report rather
+// than as readings: generation is checked there, seed by seed, and every
+// pin and content draw leaves it untouched.
+var spikeETargets = map[string]bool{
+	"structures-reachable": true,
+	"chunk-order":          true,
+	"novelty-share":        true,
+	"biome-patches":        true,
+	"ecotone-share":        true,
+}
+
 // Report prints every target with its reading from readings, or "not
-// measured".
+// measured" ("spike E's" for the scaffold targets spike E reads).
 func Report(w io.Writer, b *sheets.Book, readings []Measured) {
 	got := map[string]Measured{}
 	for _, m := range readings {
@@ -28,6 +39,9 @@ func Report(w io.Writer, b *sheets.Book, readings []Measured) {
 	fmt.Fprintln(w, "| --- | --- | --- | --- | --- |")
 	for _, t := range b.Targets {
 		reading, mark := "not measured", "–"
+		if spikeETargets[t.ID] {
+			reading = "spike E's (`harness spike-e`)"
+		}
 		if m, ok := got[t.ID]; ok {
 			reading = m.Value
 			mark = holds(m.Holds)
