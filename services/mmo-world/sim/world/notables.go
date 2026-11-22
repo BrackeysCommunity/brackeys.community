@@ -66,6 +66,8 @@ func (s *State) notable(role string, seat int) Notable {
 // at its seat's centre now.
 func (s *State) drawnNotable(id int, role string, seat int) Notable {
 	dg := s.DigestAt(s.centre(seat), s.Tick)
+	// A notable is not a tile's content, so no pin reaches it.
+	dg.Pins = nil
 	who := []draw.Part{draw.Int(int64(id)), draw.Str(dg.Key())}
 	given, family := s.parts("notable-given"), s.parts("notable-family")
 	lo, hi := s.p("loyalty-min"), s.p("loyalty-max")
