@@ -355,7 +355,7 @@ func apiPerson(g *game.Game, p game.Person) api.Person {
 	if row := g.Rules().NPC.Role(p.Role); row != nil {
 		role = row.Role
 	}
-	return api.Person{ID: p.ID, Name: p.Name, Role: role, Kind: p.Kind, Traits: slices.Clone(p.Traits), Saved: p.Saved, Visit: p.Visit}
+	return api.Person{ID: p.ID, Name: p.Name, Role: role, Kind: p.Kind, Traits: slices.Clone(p.Traits), Saved: p.Saved, Visit: p.Visit, Called: p.Called}
 }
 
 func (s *Server) bannerInput(h hex.Hex) render.BannerInput {
@@ -384,7 +384,7 @@ func (s *Server) bannerInput(h hex.Hex) render.BannerInput {
 }
 
 func (s *Server) banner(in render.BannerInput) (string, error) {
-	b := s.rules.Book
+	b := s.rules.Load().Book
 	return s.picture("banner", in, func() (*render.Canvas, error) { return render.Banner(in, b.BannerLayers, b.Palette) })
 }
 
@@ -485,7 +485,7 @@ func (s *Server) recap(w http.ResponseWriter, r *http.Request) {
 		rc := s.g.Recap(&view, own, heavy)
 		out := api.Recap{Since: rc.Since, Tick: s.g.Tick(), Lines: []api.RecapLine{}, More: rc.More}
 		for _, l := range rc.Lines {
-			x := api.RecapLine{Rule: l.Rule, NPC: l.NPC}
+			x := api.RecapLine{Rule: l.Rule, Kind: l.Kind, NPC: l.NPC}
 			if l.NPC == "" {
 				f := apiFacts([]fact.Fact{l.Fact})[0]
 				x.Fact = &f
@@ -577,11 +577,13 @@ func (s *Server) mapHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) lexicon(w http.ResponseWriter, _ *http.Request) {
-	b := s.rules.Book
-	n := s.rules.CardNumbers()
+	rules := s.rules.Load()
+	b := rules.Book
+	n := rules.CardNumbers()
 	out := api.Lexicon{Names: map[string]string{}, Bands: sheets.BandsByRank(b), Starts: make([]string, 0, len(b.Starts)), Numbers: api.Numbers{AmbushLine: n.AmbushLine, OverrunLine: n.OverrunLine,
 		CrawlTicks: n.CrawlTicks, WoundedTicks: n.WoundedTicks, FreeTicks: n.FreeTicks, StepMin: n.StepMin, StepMax: n.StepMax,
-		BeatsMin: n.FirstBeatsMin, BeatsMax: n.FirstBeatsMax}}
+		BeatsMin: n.FirstBeatsMin, BeatsMax: n.FirstBeatsMax, SideMark: sideMark(b), RaidMark: sheets.IntParam(b.StoryParams, "raid-mark"),
+		ChronicleMin: sheets.IntParam(b.StoryParams, "chronicle-min-weight"), SeasonDays: sheets.IntParam(b.StoryParams, "season-days")}}
 	for _, n := range b.Names {
 		out.Names[n.Ref] = n.Name
 	}

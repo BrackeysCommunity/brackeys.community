@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"math"
 	"os"
 
@@ -36,6 +37,7 @@ const (
 	EnvManualClock   = "MMO_MANUAL_CLOCK" // tests only: the due tick is set through the operator API
 	EnvDisposable    = "MMO_DISPOSABLE"   // 1: found worlds that may be wiped; never on a world players keep
 	EnvSheetsFrom    = "MMO_SHEETS_FROM"  // a kept world's old sheets digest: re-stamp it onto these sheets, once
+	EnvSheetsNext    = "MMO_SHEETS_NEXT"  // a sheets root whose book the world takes at its next season's close
 	EnvPosthogKey    = "POSTHOG_KEY"
 	EnvPosthogHost   = "POSTHOG_HOST"
 	EnvURL           = "MMO_URL" // where the operator CLI finds the service
@@ -56,6 +58,20 @@ type Secrets struct {
 // BookFromEnv loads the sheets under the sheets root.
 func BookFromEnv() (*sheets.Book, error) {
 	return sheetfs.LoadBook(envvar.Get(EnvSheets, "."))
+}
+
+// NextBookFromEnv loads the pending book of a rules epoch, if one is
+// staged.
+func NextBookFromEnv() (*sheets.Book, error) {
+	root := os.Getenv(EnvSheetsNext)
+	if root == "" {
+		return nil, nil
+	}
+	b, err := sheetfs.LoadBook(root)
+	if err != nil {
+		return nil, fmt.Errorf("service: the pending sheets under %s: %w", EnvSheetsNext, err)
+	}
+	return b, nil
 }
 
 // PoolFromEnv opens the database.

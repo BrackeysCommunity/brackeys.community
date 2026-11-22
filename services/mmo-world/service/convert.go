@@ -268,6 +268,9 @@ func apiFacts(fs []fact.Fact) []api.Fact {
 		for j, d := range f.Data {
 			x.Data[j] = api.Datum{Key: d.Key, N: d.N, S: d.S}
 		}
+		for _, c := range f.Causes {
+			x.Causes = append(x.Causes, int64(c))
+		}
 		out[i] = x
 	}
 	return out
@@ -408,25 +411,33 @@ func apiTrouble(g *game.Game, n int) *api.Trouble {
 		if a.Scope != arc.Settlement || a.Place != ref || a.Outcome != "" || a.Stage < 0 || a.Stage >= len(a.Stages) {
 			continue
 		}
-		i := slices.IndexFunc(g.Rules().Book.Troubles, func(t sheets.TroubleRow) bool { return t.ID == a.Template })
-		if i < 0 {
-			continue
+		if out := troubleView(g, a); out != nil {
+			return out
 		}
-		row := g.Rules().Book.Troubles[i]
-		st := a.Stages[a.Stage]
-		out := &api.Trouble{Kind: row.ID, Title: cmp.Or(g.Rules().Name("story.troubles:"+row.ID), row.ID), Banner: row.Banner, Ends: st.Due, Hunt: a.Hunt}
-		for _, side := range st.Sides {
-			out.Mark += side.Mark
-			if x := g.GoalOf(side.Goal); x != nil {
-				out.Defence += min(x.Total(), side.Mark)
-			}
-		}
-		if len(a.Cause) > 0 {
-			out.Why = storyFact(g, a.Cause[0])
-		}
-		return out
 	}
 	return nil
+}
+
+// troubleView is a settlement arc as its trouble, open or decided: the
+// stage it stands at or ended on.
+func troubleView(g *game.Game, a *game.Arc) *api.Trouble {
+	i := slices.IndexFunc(g.Rules().Book.Troubles, func(t sheets.TroubleRow) bool { return t.ID == a.Template })
+	if i < 0 || len(a.Stages) == 0 {
+		return nil
+	}
+	row := g.Rules().Book.Troubles[i]
+	st := a.Stages[min(max(a.Stage, 0), len(a.Stages)-1)]
+	out := &api.Trouble{Kind: row.ID, Title: cmp.Or(g.Rules().Name("story.troubles:"+row.ID), row.ID), Banner: row.Banner, Ends: st.Due, Hunt: a.Hunt}
+	for _, side := range st.Sides {
+		out.Mark += side.Mark
+		if x := g.GoalOf(side.Goal); x != nil {
+			out.Defence += min(x.Total(), side.Mark)
+		}
+	}
+	if len(a.Cause) > 0 {
+		out.Why = storyFact(g, a.Cause[0])
+	}
+	return out
 }
 
 // apiOccasion is the occasion running at place n, if one is.

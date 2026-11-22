@@ -209,7 +209,7 @@ func apiReport(r game.Report, every int64) api.Report {
 // supplySeries is coin per active character over the weekly reports,
 // against the band, under the lock.
 func (s *Server) supplySeries() render.Series {
-	series := render.Series{Title: "coin per active character", Unit: "coin", Band: [2]int64{s.rules.Faucet.Low, s.rules.Faucet.High}}
+	series := render.Series{Title: "coin per active character", Unit: "coin", Band: [2]int64{s.g.Rules().Faucet.Low, s.g.Rules().Faucet.High}}
 	if m := s.g.Market; m != nil {
 		for _, r := range m.Reports {
 			series.Days = append(series.Days, r.Day)

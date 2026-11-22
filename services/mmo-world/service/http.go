@@ -55,6 +55,10 @@ func (s *Server) Handler() http.Handler {
 	player("GET "+api.PathParty, s.party)
 	player("GET "+api.PathParties, s.parties)
 	player("GET "+api.PathHunts, s.hunts)
+	player("GET "+api.PathChronicle, s.chronicle)
+	player("GET "+api.PathChronicleFact, s.chronicleFact)
+	player("GET "+api.PathStoryEvents, s.storyEvents)
+	player("GET "+api.PathArcs, s.arcs)
 	mux.HandleFunc("GET "+api.PathMedia+"{key}", s.mediaHandler)
 	op := func(path string, h http.HandlerFunc) {
 		mux.Handle(path, s.guard(s.cfg.OperatorToken, s.operatorOnly(h)))
@@ -66,6 +70,7 @@ func (s *Server) Handler() http.Handler {
 	op("GET "+api.PathOperatorAudit, s.auditHandler)
 	op("GET "+api.PathOperatorDigest, s.digestHandler)
 	op("GET "+api.PathOperatorEconomy, s.flags)
+	op("GET "+api.PathOperatorStory, s.operatorStory)
 	op("POST "+api.PathOperatorReset, s.reset)
 	op("POST "+api.PathOperatorClock, s.clock)
 	return mux
@@ -421,7 +426,7 @@ func (s *Server) inspectTile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer unlock()
-	reply(w, http.StatusOK, map[string]any{"baseline": s.rules.Gen.Baseline(h), "state": s.g.World.Tile(h), "region": s.g.World.RegionAt(h),
+	reply(w, http.StatusOK, map[string]any{"baseline": s.g.Rules().Gen.Baseline(h), "state": s.g.World.Tile(h), "region": s.g.World.RegionAt(h),
 		"pins": livePins(s.g, &h)})
 }
 

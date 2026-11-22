@@ -196,6 +196,13 @@ func apiGoal(g *game.Game, x *game.Goal, c *game.Char) api.Goal {
 	if x.Build != nil {
 		out.Building = x.Build.Structure
 	}
+	if x.Cond.Verb == goal.Back {
+		viewer := ""
+		if c != nil {
+			viewer = c.C.ID
+		}
+		out.Side = goalSide(g, x.ID, viewer)
+	}
 	if x.State == goal.Done {
 		for _, cl := range x.Claims {
 			paid := api.GoalClaim{Who: charName(g, cl.Who), Units: cl.Units, Coin: cl.Coin, Cited: int64(len(cl.Facts))}
@@ -210,6 +217,28 @@ func apiGoal(g *game.Game, x *game.Goal, c *game.Char) api.Goal {
 		}
 	}
 	return out
+}
+
+// goalSide is the arc side a Back goal fills, or nil once the arc is
+// forgotten or is someone else's personal thread.
+func goalSide(g *game.Game, id, viewer string) *api.Side {
+	if g.Story == nil {
+		return nil
+	}
+	for _, a := range g.Story.Arcs {
+		for i, st := range a.Stages {
+			for _, sr := range st.Sides {
+				if sr.Goal == id {
+					if !shown(a, viewer) {
+						return nil
+					}
+					sd := apiSide(g, a, i, sr, viewer)
+					return &sd
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // issuerName names who issued a goal.

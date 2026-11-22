@@ -8,7 +8,10 @@ import (
 	"time"
 
 	"jams.team/mmo-world/api"
+	"jams.team/mmo-world/sim/arc"
+	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/game"
+	"jams.team/mmo-world/sim/season"
 )
 
 // records is what applying a command needs of where it is kept: the
@@ -103,10 +106,30 @@ func operatorCommand(req api.OperatorRequest) (game.Command, *api.Refusal, int) 
 		p := simPin(*req.Pin)
 		cmd.Pin = &p
 	}
+	if req.Epoch != nil {
+		cmd.Epoch = &season.Epoch{From: req.Epoch.From, To: req.Epoch.To, Sheets: req.Epoch.Sheets}
+	}
+	if req.Arc != nil {
+		cmd.Arc = simArcOrder(*req.Arc)
+	}
 	if game.WorldLevel(req.Kind) {
 		cmd.Char = ""
 	}
 	return cmd, nil, 0
+}
+
+// simArcOrder is an arc-cast's order as the rules take it: each role
+// bound to the ref it names.
+func simArcOrder(o api.ArcOrder) *game.ArcCmd {
+	out := &game.ArcCmd{Template: o.Template}
+	for _, c := range o.Cast {
+		out.Cast = append(out.Cast, arc.Binding{Role: c.Role, Ref: fact.Ref{Kind: c.Kind, ID: c.ID}})
+	}
+	if o.Seat != nil {
+		h := simHex(*o.Seat)
+		out.Seat = &h
+	}
+	return out
 }
 
 func apiRefusal(r *game.Refused) *api.Refusal { return &api.Refusal{Code: r.Code, Message: r.Msg} }
