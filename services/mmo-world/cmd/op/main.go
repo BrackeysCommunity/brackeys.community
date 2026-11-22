@@ -189,11 +189,7 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		namer, err := namerOf(context.Background(), at)
-		if err != nil {
-			return err
-		}
-		return operate(api.OperatorRequest{InteractionID: *id, CharacterID: namer, Kind: cmd, To: &at, Note: strings.Join(rest[1:], " ")})
+		return operate(api.OperatorRequest{InteractionID: *id, Kind: cmd, To: &at, Note: strings.Join(rest[1:], " ")})
 	case "audit":
 		return shown(cli().Audit(context.Background()))
 	case "economy":
@@ -215,30 +211,6 @@ func hexArg(s string) (api.Hex, error) {
 		return api.Hex{}, fmt.Errorf("a tile is q,r, not %q", s)
 	}
 	return api.Hex{Q: h.Q, R: h.R}, nil
-}
-
-// namerOf is the first of those who named a dungeon: a hide is recorded
-// against the name's giver.
-func namerOf(ctx context.Context, at api.Hex) (string, error) {
-	raw, err := cli().Tile(ctx, at.Q, at.R)
-	if err != nil {
-		return "", err
-	}
-	var t struct {
-		State struct {
-			Dungeon struct {
-				Name    string   `json:"name"`
-				NamedBy []string `json:"namedBy"`
-			} `json:"dungeon"`
-		} `json:"state"`
-	}
-	if err := json.Unmarshal(raw, &t); err != nil {
-		return "", err
-	}
-	if d := t.State.Dungeon; d.Name == "" || len(d.NamedBy) == 0 {
-		return "", fmt.Errorf("the dungeon at %d,%d has no given name", at.Q, at.R)
-	}
-	return t.State.Dungeon.NamedBy[0], nil
 }
 
 func reset(args []string) error {

@@ -35,20 +35,20 @@ import { dungeonName, floorOf, tagWords, wayLabel } from "./dungeon.ts";
 /** Where a party thread's cards appear and who sees them. */
 export const THREAD = "Party thread · every member sees this";
 
-/** The "Time left" field of a beat's picks; `idle` is how the unstarted clock reads. */
+/** The "Time left" field of a beat's picks or a fork's choices; `who` takes the default, `idle` is how the unstarted clock reads. */
 function timeLeftField(
   due: number | undefined,
   takes: string,
-  opts: { waiting?: boolean; idle?: string } = {},
+  opts: { waiting?: boolean; idle?: string; who?: string } = {},
 ): EmbedField {
-  const { waiting, idle = "then" } = opts;
+  const { waiting, idle = "then", who = "Anyone who has not picked" } = opts;
   return {
     name: "Time left",
     value: waiting
       ? "The clock waits while the party's machine is armed."
       : due
-        ? `${relative(due)}. Anyone who has not picked then takes ${takes}.`
-        : `The first pick starts the clock. Anyone who has not picked ${idle} takes ${takes}.`,
+        ? `${relative(due)}. ${who} then takes ${takes}.`
+        : `The first pick starts the clock. ${who} ${idle} takes ${takes}.`,
   };
 }
 
@@ -428,7 +428,6 @@ export function threadCard(b: api.PartyBoard, lex: Lexicon, picture?: ThreadPict
     rows: [{ buttons: [btn("Open my card", "p-card", b.id, 0, { style: "primary" })] }],
     colour: COLOUR.signal,
   };
-  const due = b.due ? `${relative(b.due)}.` : "The first pick starts the clock.";
   if (b.beat) {
     const kind = lex.name("fights.beats", b.beat.kind);
     const cautious = lex.name("fights.options", b.beat.cautious || "hold");
@@ -454,12 +453,9 @@ export function threadCard(b: api.PartyBoard, lex: Lexicon, picture?: ThreadPict
         name: wayLabel(w, ways),
         value: `${tagWords(w.tags)} · ${w.open ? "open" : "closed"} · ${plural(w.votes, "vote")}`,
       });
-    fields.push({
-      name: "Time left",
-      value: f.waiting
-        ? "The clock waits while the party's machine is armed."
-        : `${due} Whoever has not chosen then takes the default.`,
-    });
+    fields.push(
+      timeLeftField(b.due, "the default", { waiting: f.waiting, who: "Whoever has not chosen" }),
+    );
     card.footer = "Choices at a fork are open.";
     card.rows = [{ buttons: [btn("Choose a way", "p-card", b.id, 0, { style: "primary" })] }];
     card.colour = COLOUR.hazard;

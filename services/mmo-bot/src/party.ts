@@ -74,7 +74,7 @@ export function shownOf(b: api.PartyBoard): string {
   return JSON.stringify([
     b.members.map((m) => [m.name, m.picked, m.chose, m.down]),
     b.beat && [b.beat.beat, b.beat.kind, b.beat.picked, b.beat.present, b.beat.waiting],
-    b.fork && [b.fork.floor, b.fork.ways.map((w) => [w.id, w.open, w.votes])],
+    b.fork && [b.fork.floor, b.fork.ways.map((w) => [w.id, w.open, w.votes]), b.fork.waiting],
     b.due ?? 0,
   ]);
 }

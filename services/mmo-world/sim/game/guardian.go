@@ -5,7 +5,6 @@ import (
 	"slices"
 	"strconv"
 
-	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fight"
@@ -110,10 +109,7 @@ func (g *Game) guardianPressed(h hex.Hex, e *fight.Encounter, sh *Shared, tick i
 	gd.Health = e.Pool.Health
 	members := g.poolMembers(e, sh)
 	g.saw(members...)
-	subjects := []fact.Ref{huntRef(GuardianID(h))}
-	for _, id := range members {
-		subjects = append(subjects, char.Ref(id))
-	}
+	subjects := append([]fact.Ref{huntRef(GuardianID(h))}, refsOf(members)...)
 	data := append(fact.At(h), fact.S("row", row.ID), fact.S("archetype", row.Creature), fact.N("floor", e.Floor))
 	switch {
 	case gd.Health == 0:

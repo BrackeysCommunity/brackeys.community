@@ -6,13 +6,17 @@ import (
 	"jams.team/mmo-world/sim/puzzle"
 )
 
-// race marks a fork machine just armed as racing every other context
-// armed at the same machine: one floor, one way in (GDD 7.11).
+// race marks a fork machine just armed as racing the first other context
+// armed at the same machine and racing nobody yet: one floor, one way in
+// (GDD 7.11). A third to arm races nobody.
 func (g *Game) race(sh *Shared) {
 	m := sh.Machine
 	for _, o := range g.Shared {
 		om := o.Machine
 		if o == sh || !om.Armed() || om.Source != SourceFork || om.Spec.Place != m.Spec.Place || om.Spec.Beat != m.Spec.Beat {
+			continue
+		}
+		if r, _ := g.RivalOf(o); r != nil {
 			continue
 		}
 		m.Rival, om.Rival = o.ID, sh.ID
@@ -53,8 +57,9 @@ func (g *Game) raced(sh *Shared, m *PartyMachine, res puzzle.Result, tick, now i
 	return nil
 }
 
-// endPartyMachine closes a party's machine: the window waits while it ran,
-// and every seat holds its result, those but the actor woken.
+// endPartyMachine closes a party's machine: the pick window moves on by the
+// time it was armed, and every seat holds its result; all but the actor
+// are woken.
 func (g *Game) endPartyMachine(sh *Shared, m *PartyMachine, res puzzle.Result, now, tick int64, actor *Char) {
 	if sh.Machine == m {
 		sh.Machine = nil

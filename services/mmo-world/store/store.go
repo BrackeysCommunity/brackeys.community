@@ -446,7 +446,7 @@ func (s *Store) rows(ctx context.Context, q *db.Queries, g *game.Game) error {
 	if err := s.factions(ctx, q, g); err != nil {
 		return err
 	}
-	if err := s.tiles(ctx, q, g, false); err != nil {
+	if err := s.tiles(ctx, q, g); err != nil {
 		return err
 	}
 	for _, c := range g.Chars {
@@ -497,46 +497,42 @@ func (s *Store) factions(ctx context.Context, q *db.Queries, g *game.Game) error
 	return nil
 }
 
-// tiles writes stored tiles in the world's order: a tile first stored
-// takes the next seq, so reading by seq gives the same order back. With
-// dungeons set it looks only at new tiles and those holding a dungeon,
-// the only ones a command changes, and skips the removal pass.
-func (s *Store) tiles(ctx context.Context, q *db.Queries, g *game.Game, dungeons bool) error {
-	var live map[hex.Hex]bool
-	if !dungeons {
-		live = make(map[hex.Hex]bool, len(g.World.Tiles))
+// writeTile writes a tile whose body changed; a tile first stored takes the
+// next seq, so reading by seq gives the world's order back.
+func (s *Store) writeTile(ctx context.Context, q *db.Queries, t *tile.State) error {
+	seq, ok := s.seq[t.Hex]
+	if !ok {
+		seq = s.next
+		s.next++
+		s.seq[t.Hex] = seq
 	}
-	for _, t := range g.World.Tiles {
-		if live != nil {
-			live[t.Hex] = true
+	body, err := json.Marshal(t)
+	if err != nil {
+		return err
+	}
+	k := tileKey(t.Hex)
+	if !ok || s.changed(k, body) {
+		var found pgtype.Int8
+		if t.Discovered != nil {
+			found = pgtype.Int8{Int64: t.Discovered.Tick, Valid: true}
 		}
-		seq, ok := s.seq[t.Hex]
-		if !ok {
-			seq = s.next
-			s.next++
-			s.seq[t.Hex] = seq
-		}
-		if dungeons && ok && t.Dungeon == nil {
-			continue
-		}
-		body, err := json.Marshal(t)
-		if err != nil {
+		if err := q.UpsertTile(ctx, db.UpsertTileParams{WorldID: s.World, Q: int32(t.Hex.Q), R: int32(t.Hex.R), Seq: seq, FoundTick: found, Body: body}); err != nil {
 			return err
 		}
-		k := tileKey(t.Hex)
-		if !ok || s.changed(k, body) {
-			var found pgtype.Int8
-			if t.Discovered != nil {
-				found = pgtype.Int8{Int64: t.Discovered.Tick, Valid: true}
-			}
-			if err := q.UpsertTile(ctx, db.UpsertTileParams{WorldID: s.World, Q: int32(t.Hex.Q), R: int32(t.Hex.R), Seq: seq, FoundTick: found, Body: body}); err != nil {
-				return err
-			}
-			s.mark(k, body)
-		}
+		s.mark(k, body)
 	}
-	if dungeons {
-		return nil
+	return nil
+}
+
+// tiles writes every changed tile in the world's order and removes those
+// no longer in the world.
+func (s *Store) tiles(ctx context.Context, q *db.Queries, g *game.Game) error {
+	live := make(map[hex.Hex]bool, len(g.World.Tiles))
+	for _, t := range g.World.Tiles {
+		live[t.Hex] = true
+		if err := s.writeTile(ctx, q, t); err != nil {
+			return err
+		}
 	}
 	for h := range s.seq {
 		if live[h] {
@@ -547,6 +543,21 @@ func (s *Store) tiles(ctx context.Context, q *db.Queries, g *game.Game, dungeons
 		}
 		delete(s.seq, h)
 		delete(s.saved, tileKey(h))
+	}
+	return nil
+}
+
+// commandTiles writes only new tiles and those holding a dungeon record, the
+// ones a command's save must carry; the tick save writes the rest and does
+// the removal pass.
+func (s *Store) commandTiles(ctx context.Context, q *db.Queries, g *game.Game) error {
+	for _, t := range g.World.Tiles {
+		if _, ok := s.seq[t.Hex]; ok && t.Dungeon == nil {
+			continue
+		}
+		if err := s.writeTile(ctx, q, t); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -743,7 +754,7 @@ func (s *Store) SaveAction(ctx context.Context, g *game.Game, cmd game.Command, 
 				return err
 			}
 		}
-		if err := s.tiles(ctx, q, g, true); err != nil {
+		if err := s.commandTiles(ctx, q, g); err != nil {
 			return err
 		}
 		var err error

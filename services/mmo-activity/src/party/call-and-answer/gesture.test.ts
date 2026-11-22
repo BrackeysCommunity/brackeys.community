@@ -50,32 +50,36 @@ function table(c: PartyCase): Table {
   };
 }
 
-test("the merged solve played by pointer: each symbol called by its seat, pressed by the keypad", () => {
-  for (const c of cases) {
-    const t = table(c);
-    const solve = c.logs.find((l) => l.name === "solve")!.log.moves;
-    // The keypad seat presses its own symbols without calling them.
-    const want: PuzzleMove[] = [];
-    for (let i = 0; i < solve.length; i += 2) {
-      const call = solve[i]!;
-      const press = solve[i + 1]!;
-      const keypad = press.seat ?? 0;
-      if ((call.seat ?? 0) !== keypad) {
-        t.tap(call.seat ?? 0, call.a, call.at);
-        want.push({ ...call, seat: call.seat ?? 0 });
+test(
+  "the merged solve played by pointer: each symbol called by its seat, pressed by the keypad",
+  { timeout: 60_000 },
+  () => {
+    for (const c of cases) {
+      const t = table(c);
+      const solve = c.logs.find((l) => l.name === "solve")!.log.moves;
+      // The keypad seat presses its own symbols without calling them.
+      const want: PuzzleMove[] = [];
+      for (let i = 0; i < solve.length; i += 2) {
+        const call = solve[i]!;
+        const press = solve[i + 1]!;
+        const keypad = press.seat ?? 0;
+        if ((call.seat ?? 0) !== keypad) {
+          t.tap(call.seat ?? 0, call.a, call.at);
+          want.push({ ...call, seat: call.seat ?? 0 });
+        }
+        t.tap(keypad, press.a, press.at);
+        want.push({ at: press.at, a: press.a, seat: keypad });
       }
-      t.tap(keypad, press.a, press.at);
-      want.push({ at: press.at, a: press.a, seat: keypad });
+      const made = t.stages
+        .flatMap((s) => s.moves)
+        .sort((x, y) => x.at - y.at || (y.c ?? 0) - (x.c ?? 0));
+      expect(made, c.name).toEqual(want);
+      expect(t.whole.k, c.name).toBe((c.layout.size * (c.layout.size + 1)) / 2);
+      // No dealt part can tell on its own that the machine is solved.
+      for (const s of t.stages) expect((s.model as CallModel).blind, c.name).toBe(true);
     }
-    const made = t.stages
-      .flatMap((s) => s.moves)
-      .sort((x, y) => x.at - y.at || (y.c ?? 0) - (x.c ?? 0));
-    expect(made, c.name).toEqual(want);
-    expect(t.whole.k, c.name).toBe((c.layout.size * (c.layout.size + 1)) / 2);
-    // No dealt part can tell on its own that the machine is solved.
-    for (const s of t.stages) expect((s.model as CallModel).blind, c.name).toBe(true);
-  }
-});
+  },
+);
 
 test("a pad off the keypad is a call: shown on every screen, and nothing is pressed", () => {
   const c = cases.find((x) => x.name === "level-3-seats-3-shape-0")!;

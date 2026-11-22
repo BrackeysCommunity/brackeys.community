@@ -120,8 +120,8 @@ func (e *Encounter) EndsOnGuardian() bool {
 // AtGuardian reports whether the encounter is on that last beat.
 func (e *Encounter) AtGuardian() bool { return e.EndsOnGuardian() && e.Final() }
 
-// onPool: the encounter is on the guardian's beat with the dungeon's pool
-// attached.
+// onPool reports whether the encounter is on the guardian's beat with the
+// dungeon's pool attached.
 func (e *Encounter) onPool() bool {
 	return e.Pool != nil && !e.Over && e.AtGuardian()
 }

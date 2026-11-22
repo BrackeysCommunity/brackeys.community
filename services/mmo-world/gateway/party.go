@@ -122,17 +122,7 @@ func (g *Gateway) move(ctx context.Context, s *Seat, c *conn, msg api.ClientMess
 	g.relay(s, ps.key, mv)
 	ml.mu.Unlock()
 
-	status, err := g.cfg.Host.Judge(ctx, s.Char, log)
-	if err != nil {
-		g.log.Error("activity: judging a party's merged log", "context", ps.key, "err", err.Error())
-		ml.mu.Lock()
-		g.rejudgeLater(ml)
-		ml.mu.Unlock()
-		return
-	}
-	if status == JudgeDone || status == JudgeBroke {
-		g.finishParty(ctx, ml, n)
-	}
+	g.judgeMerged(ctx, ml, s.Char, log, n, "activity: judging a party's merged log")
 }
 
 // relay sends a kept move to every other seat bound to the context, in

@@ -190,6 +190,20 @@ func (m *machines) same(o *machines) (canon.Sum, error) {
 	return d1, nil
 }
 
+// replayed ticks a played game on, replays it, and fails unless the replay
+// ends the same.
+func (m *machines) replayed() (first, second *machines, digest canon.Sum, err error) {
+	if err = m.tick(); err != nil {
+		return nil, nil, digest, err
+	}
+	again, err := m.again()
+	if err != nil {
+		return nil, nil, digest, err
+	}
+	digest, err = m.same(again)
+	return m, again, digest, err
+}
+
 // solving is the kit's own solve of the machine a character has before
 // it, and half of it: a log that stops short.
 func (m *machines) solving(c *game.Char, v game.Viewer) (rig game.Rig, whole, half puzzle.Log, err error) {
@@ -273,15 +287,7 @@ func benchReplay(b *sheets.Book, family string) (benchPlay, error) {
 	if err := play(fmt.Sprintf("level %d, half a solve", top), top, true); err != nil {
 		return out, err
 	}
-	if err := m.tick(); err != nil {
-		return out, err
-	}
-	again, err := m.again()
-	if err != nil {
-		return out, err
-	}
-	out.first, out.second = m, again
-	out.digest, err = m.same(again)
+	out.first, out.second, out.digest, err = m.replayed()
 	return out, err
 }
 
@@ -355,7 +361,7 @@ func partyReplay(b *sheets.Book, family string) (partyPlay, error) {
 		version := rig.Machine.Spec.Party
 		met[version] = true
 		p := m.g.Puzzles()
-		log := p.PartySolve(p.Make(rig.Machine.Spec))
+		log := p.Solve(p.Make(rig.Machine.Spec))
 		name := "the version's solve"
 		if cut {
 			log = puzzle.Log{Moves: log.Moves[:len(log.Moves)/halfLog]}
@@ -393,15 +399,7 @@ func partyReplay(b *sheets.Book, family string) (partyPlay, error) {
 	if err := play(most, 0, true); err != nil {
 		return out, err
 	}
-	if err := m.tick(); err != nil {
-		return out, err
-	}
-	again, err := m.again()
-	if err != nil {
-		return out, err
-	}
-	out.first, out.second = m, again
-	out.digest, err = m.same(again)
+	out.first, out.second, out.digest, err = m.replayed()
 	return out, err
 }
 

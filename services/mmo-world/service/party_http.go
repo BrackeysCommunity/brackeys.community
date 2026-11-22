@@ -105,7 +105,7 @@ func partyState(g *game.Game, c *game.Char) (out api.PartyState, thread []string
 		}
 	}
 	held := func(partyID string, x party.Invite) {
-		if x.To == c.C.ID && tick <= x.Until {
+		if x.To == c.C.ID && x.Open(tick) {
 			out.Invites = append(out.Invites, api.PartyInvite{Party: partyID, CharacterID: x.By, Name: charName(g, x.By), Until: x.Until})
 		}
 	}

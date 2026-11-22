@@ -69,7 +69,7 @@ func (g *Game) partyWindow(c *Char, cmd Command) ([]fight.Pressed, error) {
 	if sh.Machine.Armed() {
 		return nil, refuse(MachineArmed, "the party's machine is armed and its countdown is running")
 	}
-	if sh.Opened == 0 || cmd.Now < sh.Opened+g.PartyWindowMs() {
+	if due := g.WindowDue(sh); due == 0 || cmd.Now < due {
 		return nil, refuse(NotDue, "the window is not over")
 	}
 	if sh.Fork != nil {
@@ -161,8 +161,8 @@ func packsOf(in []*Char) [][]*item.Instance {
 
 // afterShared is what a shared beat's press leaves: its facts, one for
 // each member who pressed and one for the beat, gear lost, wins on the
-// tile, those who backed out let go, every row moved, and an encounter
-// that ended closed.
+// tile, those who backed out let go, climbing out if on a floor, every row
+// moved, and an encounter that ended closed.
 func (g *Game) afterShared(sh *Shared, actor *Char, in []*Char, packs [][]*item.Instance, pressed []fight.Pressed, facts []fact.Fact,
 	key string, tick int64, w *worked) error {
 	e := in[0].Fight.E
@@ -207,7 +207,7 @@ func (g *Game) afterShared(sh *Shared, actor *Char, in []*Char, packs [][]*item.
 		if slices.Contains(e.Gone, c.C.ID) && !e.Over {
 			g.leaveShared(sh, c)
 			if e.Floor > 0 && c.Delving != nil {
-				if err := g.climbOut(c, ledger.SubKey(e.ID, "gone", c.C.ID)); err != nil {
+				if err := g.climbGone(c, e); err != nil {
 					return err
 				}
 			}

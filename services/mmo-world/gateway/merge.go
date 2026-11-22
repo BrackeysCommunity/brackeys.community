@@ -26,7 +26,7 @@ type mergedLog struct {
 	stop      func() // the countdown's timer, while one is set
 	sent      bool   // the one merged solve is being or has been written
 	gone      bool   // the machine is over; the record is to be dropped
-	rejudging bool   // a judging again is armed
+	rejudging bool   // a rejudge timer is pending
 }
 
 // partySeat is the party machine a seat's last state shows armed.
@@ -75,10 +75,7 @@ func (g *Gateway) keepParty(rec api.ArmedMachine, source string) {
 		ml.stop = nil
 	}
 	ml.due = rec.Due
-	g.mu.Lock()
-	closed := g.closed
-	g.mu.Unlock()
-	if !closed {
+	if !g.isClosed() {
 		ml.arm(g, max(0, time.UnixMilli(rec.Due).Sub(g.clock.Now())+expirySlack))
 	}
 }
@@ -162,10 +159,7 @@ func (g *Gateway) expireParty(ml *mergedLog) {
 	if ml.sent || ml.gone {
 		return
 	}
-	g.mu.Lock()
-	closed := g.closed
-	g.mu.Unlock()
-	if closed {
+	if g.isClosed() {
 		return
 	}
 	ctx, cancel := context.WithTimeout(g.ctx, hostWait)
@@ -205,13 +199,34 @@ func (g *Gateway) finishParty(ctx context.Context, ml *mergedLog, n int) {
 	}
 }
 
-// rejudge judges a merged log again after a Judge or a write failed on
-// the move that completed it: the countdown's own end is always late.
-func (g *Gateway) rejudge(ml *mergedLog) {
+// isClosed reads whether the gateway has closed.
+func (g *Gateway) isClosed() bool {
 	g.mu.Lock()
-	closed := g.closed
-	g.mu.Unlock()
-	if closed {
+	defer g.mu.Unlock()
+	return g.closed
+}
+
+// judgeMerged judges a merged log of n moves: a failed Judge is tried again
+// later, and a done or broken log is written.
+func (g *Gateway) judgeMerged(ctx context.Context, ml *mergedLog, char string, log api.PuzzleLog, n int, what string) {
+	status, err := g.cfg.Host.Judge(ctx, char, log)
+	if err != nil {
+		g.log.Error(what, "context", ml.key, "err", err.Error())
+		ml.mu.Lock()
+		g.rejudgeLater(ml)
+		ml.mu.Unlock()
+		return
+	}
+	if status == JudgeDone || status == JudgeBroke {
+		g.finishParty(ctx, ml, n)
+	}
+}
+
+// rejudge judges a merged log again after a Judge or a merged write failed:
+// left to the countdown, the write would come after the grace and always
+// haywire.
+func (g *Gateway) rejudge(ml *mergedLog) {
+	if g.isClosed() {
 		return
 	}
 	ml.mu.Lock()
@@ -225,17 +240,7 @@ func (g *Gateway) rejudge(ml *mergedLog) {
 	ml.mu.Unlock()
 	ctx, cancel := context.WithTimeout(g.ctx, hostWait)
 	defer cancel()
-	status, err := g.cfg.Host.Judge(ctx, seat0, log)
-	if err != nil {
-		g.log.Error("activity: judging a party's merged log again", "context", ml.key, "err", err.Error())
-		ml.mu.Lock()
-		g.rejudgeLater(ml)
-		ml.mu.Unlock()
-		return
-	}
-	if status == JudgeDone || status == JudgeBroke {
-		g.finishParty(ctx, ml, n)
-	}
+	g.judgeMerged(ctx, ml, seat0, log, n, "activity: judging a party's merged log again")
 }
 
 // rejudgeLater arms a judging of the merged log again. The caller holds

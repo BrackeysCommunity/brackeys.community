@@ -108,6 +108,8 @@ func (g *Game) followTrack(c *Char, cmd Command) error {
 // soloEncounter starts an encounter for a character alone against a
 // creature of an archetype it did not draw: one it followed, or what
 // waits on a floor it carries someone up.
+// floor and beats are the site's (0: off a floor, the tier's count);
+// only, when set, makes every beat that kind, as a carry up's hazards.
 func (g *Game) soloEncounter(c *Char, arch string, floor, beats int64, only string) *fight.Encounter {
 	h := c.C.At
 	c.Encounters++

@@ -97,6 +97,11 @@ func (g *Game) followed(l *Char, followers []*Char, to hex.Hex, owe, t int64, ac
 		if _, err := g.fact(f, "travel.entered", t, append(fact.At(to), fact.N("ticks", l.Long.StepTicks), fact.S("follows", l.C.ID))...); err != nil {
 			return acts, err
 		}
+		if f.Carrying != "" {
+			if err := g.carried(f, to, t); err != nil {
+				return acts, err
+			}
+		}
 		if err := g.arrived(f, to, ledger.SubKey(l.Long.Key, "follow", f.C.ID, "arrive", strconv.FormatInt(step, decimal)), t); err != nil {
 			return acts, err
 		}

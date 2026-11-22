@@ -758,10 +758,7 @@ func (g *Game) crawled(c *Char, t int64) error {
 	var data []fact.Datum
 	if c.C.Floor > 0 {
 		data = append(data, fact.N("floor", c.C.Floor))
-		if sh := g.sharedOf(c); sh != nil && sh.Floor > 0 {
-			g.leaveShared(sh, c)
-			g.saw(sh.Members...)
-		}
+		g.leaveFloorRecord(c)
 		c.C.Floor, c.Delving = 0, nil
 	}
 	_, err := g.fact(c, "character.crawled", t, data...)

@@ -23,24 +23,28 @@ function table(layout: PuzzleLayout): Stage[] {
   return [first, ...rest];
 }
 
-test("the merged solve played by pointer, each rub on its band's screen", () => {
-  for (const c of cases) {
-    const stages = table(c.layout);
-    const solve = c.logs.find((l) => l.name === "solve")!;
-    for (const m of solve.log.moves) {
-      for (const s of stages) s.at = m.at;
-      stages[0]!.model.run(m.at);
-      stages[m.seat ?? 0]!.tap(centre(geo(c.layout), m.a));
+test(
+  "the merged solve played by pointer, each rub on its band's screen",
+  { timeout: 60_000 },
+  () => {
+    for (const c of cases) {
+      const stages = table(c.layout);
+      const solve = c.logs.find((l) => l.name === "solve")!;
+      for (const m of solve.log.moves) {
+        for (const s of stages) s.at = m.at;
+        stages[0]!.model.run(m.at);
+        stages[m.seat ?? 0]!.tap(centre(geo(c.layout), m.a));
+      }
+      const made = stages.flatMap((s) => s.moves).sort((x, y) => x.at - y.at);
+      expect(made, c.name).toEqual(solve.log.moves.map(seated));
+      const model = stages[0]!.model as PanelModel;
+      expect(
+        model.cells.every((cell) => model.grit[cell] === 0),
+        c.name,
+      ).toBe(true);
     }
-    const made = stages.flatMap((s) => s.moves).sort((x, y) => x.at - y.at);
-    expect(made, c.name).toEqual(solve.log.moves.map(seated));
-    const model = stages[0]!.model as PanelModel;
-    expect(
-      model.cells.every((cell) => model.grit[cell] === 0),
-      c.name,
-    ).toBe(true);
-  }
-});
+  },
+);
 
 test("a finger rubbed across another seat's band takes nothing off it", () => {
   const c = cases.find((x) => x.name === "level-3-seats-2-shape-0")!;

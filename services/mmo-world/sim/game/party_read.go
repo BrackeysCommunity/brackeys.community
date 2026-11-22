@@ -17,13 +17,7 @@ func (g *Game) SeatsOf(sh *Shared) []*Char {
 	if !sh.Machine.Armed() {
 		return g.seatsOf(sh)
 	}
-	var out []*Char
-	for _, id := range sh.Machine.Seats {
-		if c := g.Char(id); c != nil {
-			out = append(out, c)
-		}
-	}
-	return out
+	return g.seatChars(sh.Machine)
 }
 
 // EncounterOf reads a shared encounter's encounter, nil once it is over.

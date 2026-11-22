@@ -63,7 +63,7 @@ func (g *Game) partyJoin(c *Char, cmd Command) error {
 		x, ok := p.InviteFor(c.C.ID, tick)
 		held = ok && x.By == by.C.ID
 	}
-	lone := slices.ContainsFunc(g.Invites, func(x party.Invite) bool { return x.By == by.C.ID && x.To == c.C.ID && tick <= x.Until })
+	lone := slices.ContainsFunc(g.Invites, func(x party.Invite) bool { return x.By == by.C.ID && x.To == c.C.ID && x.Open(tick) })
 	if !held && !lone {
 		return refuse(NoInvite, "%s holds no invitation from %s", c.C.ID, by.C.ID)
 	}
@@ -112,10 +112,7 @@ func (g *Game) partyLeave(c *Char, cmd Command) error {
 	if c.Fight != nil && c.Fight.Shared != "" {
 		return refuse(Busy, "%s is in a shared encounter: back out of it first", c.C.ID)
 	}
-	if sh := g.sharedOf(c); sh != nil {
-		g.leaveShared(sh, c)
-		g.saw(sh.Members...)
-	}
+	g.leaveRecord(c)
 	if err := g.quitParty(c, g.Tick()); err != nil {
 		return err
 	}
@@ -169,7 +166,7 @@ func waitsOnMachine(kind string) bool {
 
 // partyTurn lets invitations lapse.
 func (g *Game) partyTurn(tick int64) error {
-	g.Invites = slices.DeleteFunc(g.Invites, func(x party.Invite) bool { return tick > x.Until })
+	g.Invites = slices.DeleteFunc(g.Invites, func(x party.Invite) bool { return !x.Open(tick) })
 	for _, p := range g.Parties {
 		p.Expire(tick)
 	}
@@ -211,8 +208,8 @@ func (g *Game) unshare(c *Char) {
 		e.Gone = append(e.Gone, c.C.ID)
 	}
 	g.leaveShared(sh, c)
-	// Seats never change while armed, so a seat leaving ends the countdown
-	// and the merged log with it.
+	// Seats never change while armed: a seat leaving puts the machine back at
+	// rest (a guardian's stays staged), and the merged log ends with it.
 	if m := sh.Machine; m.Armed() && slices.Contains(m.Seats, c.C.ID) {
 		if m.Source == SourceGuardian {
 			spec := m.Spec
@@ -252,7 +249,7 @@ const msPerSecond = 1000
 func (g *Game) OpenWindows() []*Shared {
 	var out []*Shared
 	for _, sh := range g.Shared {
-		if sh.Opened > 0 && !sh.Machine.Armed() {
+		if g.WindowDue(sh) > 0 {
 			out = append(out, sh)
 		}
 	}

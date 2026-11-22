@@ -34,7 +34,7 @@ export function passLamps(n: number, x: number, y: number): SVGGElement[] {
   );
 }
 
-/** The bad-swipe marks, laid leftward from the right edge. A bad swipe the reader still forgives is a ring; one spent is a cross. */
+/** The bad-swipe marks, laid leftward from the right edge; a mark the caller sets `on` shows a spent swipe's cross, else a forgiven one's ring. */
 export function strikeMarks(n: number, right: number, y: number): SVGGElement[] {
   return Array.from({ length: n }, (_, i) =>
     svg(

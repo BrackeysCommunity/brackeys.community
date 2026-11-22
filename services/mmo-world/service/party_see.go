@@ -210,6 +210,8 @@ func floorView(g *game.Game, c *game.Char) *api.FloorView {
 	return out
 }
 
+// waysView is a fork's ways; next keeps Mapper's look ahead, which only a
+// viewer's own floor view carries.
 func waysView(g *game.Game, ways []game.WayRead, next bool) []api.WayView {
 	out := []api.WayView{}
 	for _, w := range ways {

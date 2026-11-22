@@ -126,9 +126,6 @@ func (s *Script) Machine(c *game.Char, src string) bool {
 	if rig, ok := s.G.PartyRigOf(c); ok {
 		l := p.Make(rig.Machine.Spec)
 		log := p.Solve(l)
-		if rig.Machine.Spec.Party != "" {
-			log = p.PartySolve(l)
-		}
 		_, ok = s.Act(c, game.Command{Kind: game.MachineSolve, Machine: &game.MachineCmd{Source: src, Log: &log}, Now: rig.Machine.At + log.Stop()})
 		return ok
 	}

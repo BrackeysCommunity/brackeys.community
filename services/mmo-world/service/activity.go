@@ -129,6 +129,17 @@ func inGame[T any](ctx context.Context, w held, f func(*game.Game) T) (T, error)
 	return f(g), nil
 }
 
+// hold runs f on the held game; f sets its caller's results.
+func hold(ctx context.Context, w held, f func(*game.Game)) error {
+	g, _, release, err := w.holdGame(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
+	f(g)
+	return nil
+}
+
 // withChar runs f on the held game and a character; ok is false, and f not
 // run, when the character is gone.
 func withChar[T any](ctx context.Context, w held, id string, f func(*game.Game, *game.Char) T) (T, bool, error) {

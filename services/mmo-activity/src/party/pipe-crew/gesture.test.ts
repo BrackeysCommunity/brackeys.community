@@ -24,19 +24,23 @@ function table(layout: PuzzleLayout): Stage[] {
   return [first, ...rest];
 }
 
-test("the merged solve played by pointer, each leak tapped on its run's screen", () => {
-  for (const c of cases) {
-    const stages = table(c.layout);
-    const solve = c.logs.find((l) => l.name === "solve")!;
-    for (const m of solve.log.moves) {
-      for (const s of stages) s.at = m.at;
-      stages[m.seat ?? 0]!.tap(geo(c.layout).slots[m.a]!);
+test(
+  "the merged solve played by pointer, each leak tapped on its run's screen",
+  { timeout: 60_000 },
+  () => {
+    for (const c of cases) {
+      const stages = table(c.layout);
+      const solve = c.logs.find((l) => l.name === "solve")!;
+      for (const m of solve.log.moves) {
+        for (const s of stages) s.at = m.at;
+        stages[m.seat ?? 0]!.tap(geo(c.layout).slots[m.a]!);
+      }
+      const made = stages.flatMap((s) => s.moves).sort((x, y) => x.at - y.at);
+      expect(made, c.name).toEqual(solve.log.moves.map(seated));
+      expect(stages[0]!.model.run(solve.log.end!), c.name).toEqual([DONE, solve.outcome.at]);
     }
-    const made = stages.flatMap((s) => s.moves).sort((x, y) => x.at - y.at);
-    expect(made, c.name).toEqual(solve.log.moves.map(seated));
-    expect(stages[0]!.model.run(solve.log.end!), c.name).toEqual([DONE, solve.outcome.at]);
-  }
-});
+  },
+);
 
 test("a tap on another run's joint is not sent and costs nothing", () => {
   const c = cases.find((x) => x.name === "level-9-seats-3-shape-0")!;

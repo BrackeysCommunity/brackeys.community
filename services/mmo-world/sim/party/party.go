@@ -38,6 +38,9 @@ type Invite struct {
 	Until int64  `json:"until"` // tick
 }
 
+// Open reports whether the invitation still stands at a tick.
+func (x Invite) Open(tick int64) bool { return tick <= x.Until }
+
 // structural: a party is at least two; reach is the same or a
 // neighbouring tile.
 const (
@@ -116,7 +119,7 @@ func (p *Party) Invite(to, by string, until int64) {
 // InviteFor is the invitation open for id at a tick, if there is one.
 func (p *Party) InviteFor(id string, tick int64) (Invite, bool) {
 	for _, x := range p.Invites {
-		if x.To == id && tick <= x.Until {
+		if x.To == id && x.Open(tick) {
 			return x, true
 		}
 	}
@@ -127,7 +130,7 @@ func (p *Party) InviteFor(id string, tick int64) (Invite, bool) {
 // went.
 func (p *Party) Expire(tick int64) bool {
 	n := len(p.Invites)
-	p.Invites = slices.DeleteFunc(p.Invites, func(x Invite) bool { return tick > x.Until })
+	p.Invites = slices.DeleteFunc(p.Invites, func(x Invite) bool { return !x.Open(tick) })
 	return len(p.Invites) != n
 }
 

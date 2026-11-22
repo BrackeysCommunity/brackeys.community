@@ -71,6 +71,34 @@ func TestNamingByTheFirstSlayers(t *testing.T) {
 	}
 }
 
+func TestHideNameNeedsNoCharacter(t *testing.T) {
+	g := guardGame(t)
+	h, _ := dungeonFor(t, g, "", 3)
+	cs := formParty(t, g, 2, h)
+	if err := g.firstSlain(h, []string{cs[0].C.ID, cs[1].C.ID}, g.Tick()); err != nil {
+		t.Fatal(err)
+	}
+	before := digestOf(t, g)
+	if _, err := g.Act(Command{Key: "hide-unnamed", Kind: HideName, To: &h}); !refusedAs(err, BadArgs) {
+		t.Fatalf("a hide at an unnamed dungeon: %v", err)
+	}
+	if _, err := g.Act(Command{Key: "hide-no-to", Kind: HideName}); !refusedAs(err, BadArgs) {
+		t.Fatalf("a hide with no tile: %v", err)
+	}
+	if digestOf(t, g) != before {
+		t.Fatal("a refused hide changed the game")
+	}
+	if _, err := g.Act(Command{Key: "name-it", Char: cs[0].C.ID, Kind: DungeonName, Note: "The Long Dark", To: &h}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := g.Act(Command{Key: "hide-it", Kind: HideName, To: &h}); err != nil {
+		t.Fatal(err)
+	}
+	if !g.recordOf(h).Hidden {
+		t.Fatal("the name is still shown")
+	}
+}
+
 func TestNamePackNamesAnUnnamedDungeon(t *testing.T) {
 	g := guardGame(t)
 	h, _ := dungeonFor(t, g, "", 3)

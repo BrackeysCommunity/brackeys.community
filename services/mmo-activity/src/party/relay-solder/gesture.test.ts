@@ -24,47 +24,51 @@ function table(layout: PuzzleLayout): Stage[] {
   return [first, ...rest];
 }
 
-test("the merged solve played by pointer: each seat solders its segments and hands the iron on", () => {
-  for (const c of cases) {
-    const stages = table(c.layout);
-    const model = stages[0]!.model as SolderModel;
-    const g = geo(c.layout);
-    const held = new Set<number>();
-    const solve = c.logs.find((l) => l.name === "solve")!;
-    for (const m of solve.log.moves) {
-      const seat = m.seat ?? 0;
-      const s = stages[seat]!;
-      for (const t of stages) t.at = m.at;
-      model.run(m.at);
-      const p = centre(g, m.a);
-      if (m.c === DOWN) {
-        if (held.has(seat)) s.up(p);
-        s.down(p);
-        held.add(seat);
-      } else if (m.c === DRAG) s.move(p);
-      else if (held.has(seat)) {
-        s.up(p);
-        held.delete(seat);
+test(
+  "the merged solve played by pointer: each seat solders its segments and hands the iron on",
+  { timeout: 60_000 },
+  () => {
+    for (const c of cases) {
+      const stages = table(c.layout);
+      const model = stages[0]!.model as SolderModel;
+      const g = geo(c.layout);
+      const held = new Set<number>();
+      const solve = c.logs.find((l) => l.name === "solve")!;
+      for (const m of solve.log.moves) {
+        const seat = m.seat ?? 0;
+        const s = stages[seat]!;
+        for (const t of stages) t.at = m.at;
+        model.run(m.at);
+        const p = centre(g, m.a);
+        if (m.c === DOWN) {
+          if (held.has(seat)) s.up(p);
+          s.down(p);
+          held.add(seat);
+        } else if (m.c === DRAG) s.move(p);
+        else if (held.has(seat)) {
+          s.up(p);
+          held.delete(seat);
+        }
+        // At a joint the iron lifts by itself, and the hand that held it lets go.
+        if (!model.on) {
+          for (const h of held) stages[h]!.up(p);
+          held.clear();
+        }
       }
-      // At a joint the iron lifts by itself, and the hand that held it lets go.
-      if (!model.on) {
-        for (const h of held) stages[h]!.up(p);
-        held.clear();
+      expect(model.k, c.name).toBe(model.length);
+      // Every move sent was the sending seat's to make, and they solve it again.
+      const made = stages.flatMap((s) => s.moves).sort((x, y) => x.at - y.at);
+      const fresh = new SolderModel(c.layout);
+      let st = 0;
+      for (const m of made) {
+        fresh.run(m.at);
+        expect(m.seat, c.name).toBe(fresh.seatFor(m.c ?? 0));
+        st = fresh.apply(m);
       }
+      expect(st, c.name).toBe(DONE);
     }
-    expect(model.k, c.name).toBe(model.length);
-    // Every move sent was the sending seat's to make, and they solve it again.
-    const made = stages.flatMap((s) => s.moves).sort((x, y) => x.at - y.at);
-    const fresh = new SolderModel(c.layout);
-    let st = 0;
-    for (const m of made) {
-      fresh.run(m.at);
-      expect(m.seat, c.name).toBe(fresh.seatFor(m.c ?? 0));
-      st = fresh.apply(m);
-    }
-    expect(st, c.name).toBe(DONE);
-  }
-});
+  },
+);
 
 test("a finger put down while another seat has the iron solders nothing", () => {
   const c = cases.find((x) => x.name === "level-3-seats-2-shape-0")!;

@@ -139,8 +139,8 @@ func (g *Game) floorClosed(c *Char, e *fight.Encounter, with []*Char) error {
 	if c.Delving.Climb > 0 {
 		return g.carriedUp(c, e)
 	}
-	// The haul is paid after this: a solved fork machine's more is grown in
-	// once, for the first member, and is gone for the rest.
+	// The bonus grows the haul once, on the first member closed, and is
+	// spent for every member closed with it.
 	if bonus := c.Delving.Bonus; bonus > 0 {
 		e.Haul = fight.GrowHaul(e.Haul, bonus)
 		for _, m := range with {
@@ -150,7 +150,7 @@ func (g *Game) floorClosed(c *Char, e *fight.Encounter, with []*Char) error {
 		}
 	}
 	if slices.Contains(e.Gone, c.C.ID) {
-		return g.climbOut(c, ledger.SubKey(e.ID, "gone", c.C.ID))
+		return g.climbGone(c, e)
 	}
 	if slices.Contains(e.Down, c.C.ID) || e.Result == fight.Lost {
 		if e.Keeps(c.C.ID) {
@@ -228,6 +228,28 @@ func (g *Game) climbOut(c *Char, key string) error {
 	return nil
 }
 
+// leaveRecord takes a character out of its shared record and wakes the rest.
+func (g *Game) leaveRecord(c *Char) {
+	if sh := g.sharedOf(c); sh != nil {
+		g.leaveShared(sh, c)
+		g.saw(sh.Members...)
+	}
+}
+
+// leaveFloorRecord is leaveRecord for a record on a dungeon's floor; an
+// overland one is kept.
+func (g *Game) leaveFloorRecord(c *Char) {
+	if sh := g.sharedOf(c); sh != nil && sh.Floor > 0 {
+		g.leaveShared(sh, c)
+		g.saw(sh.Members...)
+	}
+}
+
+// climbGone starts a member who backed out of a floor's encounter climbing out.
+func (g *Game) climbGone(c *Char, e *fight.Encounter) error {
+	return g.climbOut(c, ledger.SubKey(e.ID, "gone", c.C.ID))
+}
+
 // outOfDungeon stands a delver at the entrance, with whoever it carries up.
 func (g *Game) outOfDungeon(c *Char, t int64) error {
 	floor := c.C.Floor
@@ -235,10 +257,7 @@ func (g *Game) outOfDungeon(c *Char, t int64) error {
 		c.Long = nil
 	}
 	if d := g.Char(c.Carrying); d != nil && d.C.Floor > 0 {
-		if sh := g.sharedOf(d); sh != nil && sh.Floor > 0 {
-			g.leaveShared(sh, d)
-			g.saw(sh.Members...)
-		}
+		g.leaveFloorRecord(d)
 		d.C.Floor, d.Delving = 0, nil
 		g.touch(d)
 	}

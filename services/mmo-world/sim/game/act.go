@@ -158,6 +158,17 @@ func (g *Game) Act(cmd Command) (Result, error) {
 			cmd.Char = x.Poster
 		}
 	}
+	// A hide is recorded against the dungeon's first namer.
+	if cmd.Kind == HideName && cmd.Char == "" {
+		if cmd.To == nil {
+			return Result{}, refuse(BadArgs, "a hide names a dungeon's entrance")
+		}
+		d := g.recordOf(*cmd.To)
+		if d == nil || d.Name == "" || len(d.NamedBy) == 0 {
+			return Result{}, refuse(BadArgs, "no given name at %s", cmd.To.Ref())
+		}
+		cmd.Char = d.NamedBy[0]
+	}
 	first := fact.ID(g.Log.Len())
 	var c *Char
 	var err error

@@ -12,18 +12,11 @@ import (
 )
 
 // TestHuntStartAndHideName runs op hunt-start and op hide-name against a
-// stand-in service: hunt-start names no character, and hide-name is sent
-// as the dungeon's first namer, read from the tile.
+// stand-in service: neither names a character, since the sim records a
+// hide against the dungeon's first namer.
 func TestHuntStartAndHideName(t *testing.T) {
 	var sent []api.OperatorRequest
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET "+api.PathOperatorTile, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("q") != "3" || r.URL.Query().Get("r") != "-2" {
-			http.Error(w, `{"code":"not-found"}`, http.StatusNotFound)
-			return
-		}
-		_, _ = w.Write([]byte(`{"state":{"dungeon":{"name":"The Drowned Stair","namedBy":["c-7","c-8"]}}}`))
-	})
 	mux.HandleFunc("POST "+api.PathOperator, func(w http.ResponseWriter, r *http.Request) {
 		var req api.OperatorRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -46,12 +39,12 @@ func TestHuntStartAndHideName(t *testing.T) {
 	at := &api.Hex{Q: 3, R: -2}
 	want := []api.OperatorRequest{
 		{InteractionID: "op-1", Kind: api.OpHuntStart, Asset: "walking-factory", To: at, Note: "a test"},
-		{InteractionID: "op-2", CharacterID: "c-7", Kind: api.OpHideName, To: at, Note: "a rude name"},
+		{InteractionID: "op-2", Kind: api.OpHideName, To: at, Note: "a rude name"},
 	}
 	if !reflect.DeepEqual(sent, want) {
 		t.Fatalf("sent %+v\nwant %+v", sent, want)
 	}
-	for _, args := range [][]string{{"hunt-start", "walking-factory", "3;-2"}, {"hide-name", "4,4"}, {"hunt-start", "walking-factory"}} {
+	for _, args := range [][]string{{"hunt-start", "walking-factory", "3;-2"}, {"hide-name", "4;4"}, {"hide-name"}, {"hunt-start", "walking-factory"}} {
 		if err := run(args); err == nil {
 			t.Errorf("op %v ran", args)
 		}

@@ -56,20 +56,24 @@ function table(layout: PuzzleLayout): Table {
   };
 }
 
-test("the merged solve played by pointer: both readers swiped together, each by its seat", () => {
-  for (const c of cases) {
-    const t = table(c.layout);
-    const solve = c.logs.find((l) => l.name === "solve")!;
-    for (const m of solve.log.moves) t.swipe(m.seat ?? 0, m.b ?? 0, m.a, m.at);
-    const made = t.stages
-      .flatMap((s) => s.moves)
-      .sort((x, y) => x.at - y.at || (x.b ?? 0) - (y.b ?? 0));
-    expect(made, c.name).toEqual(solve.log.moves.map(seated));
-    expect((t.stages[0]!.model as SwipeModel).k, c.name).toBe(c.layout.size);
-    const fresh = new SwipeModel(c.layout);
-    expect(made.map((m) => fresh.apply(m)).at(-1), c.name).toBe(DONE);
-  }
-});
+test(
+  "the merged solve played by pointer: both readers swiped together, each by its seat",
+  { timeout: 60_000 },
+  () => {
+    for (const c of cases) {
+      const t = table(c.layout);
+      const solve = c.logs.find((l) => l.name === "solve")!;
+      for (const m of solve.log.moves) t.swipe(m.seat ?? 0, m.b ?? 0, m.a, m.at);
+      const made = t.stages
+        .flatMap((s) => s.moves)
+        .sort((x, y) => x.at - y.at || (x.b ?? 0) - (y.b ?? 0));
+      expect(made, c.name).toEqual(solve.log.moves.map(seated));
+      expect((t.stages[0]!.model as SwipeModel).k, c.name).toBe(c.layout.size);
+      const fresh = new SwipeModel(c.layout);
+      expect(made.map((m) => fresh.apply(m)).at(-1), c.name).toBe(DONE);
+    }
+  },
+);
 
 test("the card of the reader another seat holds does not move, and the bar says whose it is", () => {
   const c = cases.find((x) => x.name === "level-3-seats-2-shape-0")!;

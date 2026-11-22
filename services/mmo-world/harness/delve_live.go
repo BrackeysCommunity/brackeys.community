@@ -492,9 +492,6 @@ func (d *liveDelve) work(ctx context.Context, by *member, src string) error {
 	}
 	whole := reassemble(parts)
 	log := d.w.kit.Solve(whole)
-	if whole.Party != "" {
-		log = d.w.kit.PartySolve(whole)
-	}
 	ahead := armed.Now - time.Now().UnixMilli()
 	moves := service.LogOf(log).Moves
 	slices.SortStableFunc(moves, func(a, b api.PuzzleMove) int { return cmp.Compare(a.At, b.At) })

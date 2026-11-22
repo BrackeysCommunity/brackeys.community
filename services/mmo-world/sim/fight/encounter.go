@@ -247,7 +247,7 @@ func (r *Rules) machines(e *Encounter, site Site, c Creature, all []tags.Tag) {
 	}
 }
 
-// BeatHazard is the beat a carry up is made of.
+// BeatHazard is the hazard beat: a floor's mix counts it, and a carry up is made of it.
 const BeatHazard = "hazard"
 
 func (r *Rules) mixes(beat string) bool {

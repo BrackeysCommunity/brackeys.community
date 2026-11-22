@@ -509,11 +509,20 @@ func (p *Puzzles) judge(out Outcome, fail Result, countdown, elapsed int64) Resu
 }
 
 // Solve is a log that solves a layout and stops at the solve: what the
-// bench player presses and what a guide line is drawn from.
+// bench player presses and what a guide line is drawn from. A party layout
+// gets its version's merged log.
 func (p *Puzzles) Solve(l Layout) Log {
+	if l.Party != "" {
+		r := partyRule(l.Party)
+		return solveWith(r.Start(&l), r.Solve(&l))
+	}
 	f := registry[l.Family]
-	log := f.Solve(&l)
-	_, at, used := feed(f.Start(&l), log.Moves, log.End, math.MaxInt64, 0, nil)
+	return solveWith(f.Start(&l), f.Solve(&l))
+}
+
+// solveWith stops a solving log at the solve.
+func solveWith(start Play, log Log) Log {
+	_, at, used := feed(start, log.Moves, log.End, math.MaxInt64, 0, nil)
 	out := Log{Moves: log.Moves[:used]}
 	if at > out.Stop() {
 		out.End = at

@@ -11,7 +11,7 @@ import { memoryStore } from "../src/forum.ts";
 import { HuntPoster, type ChannelSink } from "../src/hunts.ts";
 import { decodeId, encodeId, type Id } from "../src/ids.ts";
 import { Lexicon } from "../src/lexicon.ts";
-import { type PartyNote, PartyPoster, type ThreadSink } from "../src/party.ts";
+import { type PartyNote, PartyPoster, shownOf, type ThreadSink } from "../src/party.ts";
 import { ThreadBudget, THREADS_PER_WINDOW } from "../src/publish.ts";
 import { THREAD } from "../src/screens/party.ts";
 import type { PartyRead, World } from "../src/world.ts";
@@ -629,4 +629,12 @@ test("a thread that will not open is forgotten, and the next press tries again",
   refuse = false;
   expect(await poster.note(note)).toBe("thread");
   expect(calls.filter((c) => c.startsWith("open"))).toHaveLength(1);
+});
+
+test("arming the machine at a fork changes what the thread shows", () => {
+  const fork = mm8.forkBoard.fork;
+  if (!fork) throw new Error("fixture has no fork");
+  const armed = { ...mm8.forkBoard, fork: { ...fork, waiting: true } };
+  expect(shownOf(armed)).not.toBe(shownOf({ ...mm8.forkBoard, fork: { ...fork, waiting: false } }));
+  expect(shownOf(armed)).not.toBe(shownOf(mm8.forkBoard));
 });

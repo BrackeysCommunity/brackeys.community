@@ -39,12 +39,13 @@ func armedShared(g *game.Game, c *game.Char) *game.Shared {
 
 // window is Window on a held game.
 func window(g *game.Game, sh *game.Shared) (api.OpenWindow, bool) {
-	if sh.Opened == 0 || sh.Machine.Armed() {
+	due := g.WindowDue(sh)
+	if due == 0 {
 		return api.OpenWindow{}, false
 	}
 	for _, m := range g.SeatsOf(sh) {
 		if !m.Banned && m.Armed == nil {
-			return api.OpenWindow{Shared: sh.ID, Character: m.C.ID, Opened: sh.Opened, Due: g.WindowDue(sh)}, true
+			return api.OpenWindow{Shared: sh.ID, Character: m.C.ID, Opened: sh.Opened, Due: due}, true
 		}
 	}
 	return api.OpenWindow{}, false
@@ -89,19 +90,13 @@ func windowsIn(ctx context.Context, w held) ([]api.OpenWindow, error) {
 	return inGame(ctx, w, windows)
 }
 
-func windowIn(ctx context.Context, w held, shared string) (api.OpenWindow, bool, error) {
-	type found struct {
-		w  api.OpenWindow
-		ok bool
-	}
-	f, err := inGame(ctx, w, func(g *game.Game) found {
+func windowIn(ctx context.Context, w held, shared string) (out api.OpenWindow, ok bool, err error) {
+	err = hold(ctx, w, func(g *game.Game) {
 		if sh := g.SharedByID(shared); sh != nil {
-			out, ok := window(g, sh)
-			return found{out, ok}
+			out, ok = window(g, sh)
 		}
-		return found{}
 	})
-	return f.w, f.ok, err
+	return out, ok, err
 }
 
 func judgeIn(ctx context.Context, w held, characterID string, log api.PuzzleLog) (string, error) {
@@ -109,17 +104,13 @@ func judgeIn(ctx context.Context, w held, characterID string, log api.PuzzleLog)
 	return out, err
 }
 
-type seated struct {
-	key string
-	ids []string
-}
-
-func seatsIn(ctx context.Context, w held, characterID string) (string, []string, error) {
-	out, _, err := withChar(ctx, w, characterID, func(g *game.Game, c *game.Char) seated {
-		key, ids := seats(g, c)
-		return seated{key, ids}
+func seatsIn(ctx context.Context, w held, characterID string) (key string, ids []string, err error) {
+	err = hold(ctx, w, func(g *game.Game) {
+		if c := g.Char(characterID); c != nil {
+			key, ids = seats(g, c)
+		}
 	})
-	return out.key, out.ids, err
+	return key, ids, err
 }
 
 // Windows is the gateway Host's Windows, under the world's lock.

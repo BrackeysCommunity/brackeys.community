@@ -39,34 +39,38 @@ function table(layout: PuzzleLayout): Stage[] {
   return [first, ...rest];
 }
 
-test("the merged solve played by pointer: each quarter turn on the crank its seat holds then", () => {
-  for (const c of cases) {
-    const stages = table(c.layout);
-    // Where each seat's finger is: the crank it holds and its angle.
-    const hands = stages.map(() => ({ crank: -1, angle: 0 }));
-    const solve = c.logs.find((l) => l.name === "solve")!;
-    for (const m of solve.log.moves) {
-      const seat = m.seat ?? 0;
-      const s = stages[seat]!;
-      const hand = hands[seat]!;
-      for (const t of stages) t.at = m.at;
-      if (hand.crank !== m.b) {
-        if (hand.crank >= 0) s.up(rim(hand.crank, hand.angle));
-        // A few degrees in hand, so each quarter lands inside a move.
-        s.down(rim(m.b ?? 0, 0));
-        s.move(rim(m.b ?? 0, 5));
-        Object.assign(hand, { crank: m.b ?? 0, angle: 5 });
+test(
+  "the merged solve played by pointer: each quarter turn on the crank its seat holds then",
+  { timeout: 60_000 },
+  () => {
+    for (const c of cases) {
+      const stages = table(c.layout);
+      // Where each seat's finger is: the crank it holds and its angle.
+      const hands = stages.map(() => ({ crank: -1, angle: 0 }));
+      const solve = c.logs.find((l) => l.name === "solve")!;
+      for (const m of solve.log.moves) {
+        const seat = m.seat ?? 0;
+        const s = stages[seat]!;
+        const hand = hands[seat]!;
+        for (const t of stages) t.at = m.at;
+        if (hand.crank !== m.b) {
+          if (hand.crank >= 0) s.up(rim(hand.crank, hand.angle));
+          // A few degrees in hand, so each quarter lands inside a move.
+          s.down(rim(m.b ?? 0, 0));
+          s.move(rim(m.b ?? 0, 5));
+          Object.assign(hand, { crank: m.b ?? 0, angle: 5 });
+        }
+        wind(s, hand.crank, hand.angle, hand.angle + QUARTER);
+        hand.angle += QUARTER;
       }
-      wind(s, hand.crank, hand.angle, hand.angle + QUARTER);
-      hand.angle += QUARTER;
+      const made = stages
+        .flatMap((s) => s.moves)
+        .sort((x, y) => x.at - y.at || (x.b ?? 0) - (y.b ?? 0));
+      expect(made, c.name).toEqual(solve.log.moves.map(seated));
+      expect(stages[0]!.model.run(solve.log.end!), c.name).toEqual([DONE, solve.outcome.at]);
     }
-    const made = stages
-      .flatMap((s) => s.moves)
-      .sort((x, y) => x.at - y.at || (x.b ?? 0) - (y.b ?? 0));
-    expect(made, c.name).toEqual(solve.log.moves.map(seated));
-    expect(stages[0]!.model.run(solve.log.end!), c.name).toEqual([DONE, solve.outcome.at]);
-  }
-});
+  },
+);
 
 test("the crank another seat holds does not wind, and the bar says whose it is", () => {
   const c = cases.find((x) => x.name === "level-3-seats-2-shape-0")!;

@@ -6,7 +6,6 @@ import (
 	"slices"
 
 	"jams.team/mmo-world/sim/draw"
-	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/sheets"
 )
 
@@ -73,13 +72,6 @@ func (p *Puzzles) makeParty(s Spec) Layout {
 	return l
 }
 
-// PartyCountdown is a party machine's countdown in milliseconds: the row's
-// percent of the solo countdown at the best practice among its seats.
-func (p *Puzzles) PartyCountdown(s Spec, practice int64) int64 {
-	row, _ := p.partyRow(s.Party)
-	return fixed.PercentOf(p.Countdown(s.Family, s.Level, s.Tier, practice), row.Countdown)
-}
-
 // PartyVersion draws the party version a family's machine takes when
 // several hands meet it, by the rows' weights; "" when it has none.
 func (p *Puzzles) PartyVersion(family string, w Where) string {
@@ -129,18 +121,8 @@ func RunParty(l Layout, log Log, horizon int64, see func(at int64, state []int64
 	return Outcome{Status: st, At: at}
 }
 
-// PartySolve is the version's merged log that solves a party layout,
-// stopped at the solve.
-func (p *Puzzles) PartySolve(l Layout) Log {
-	r := partyRule(l.Party)
-	log := r.Solve(&l)
-	_, at, used := feed(r.Start(&l), log.Moves, log.End, math.MaxInt64, 0, nil)
-	out := Log{Moves: log.Moves[:used]}
-	if at > out.Stop() {
-		out.End = at
-	}
-	return out
-}
+// PartySolve is Solve, for a party layout's callers.
+func (p *Puzzles) PartySolve(l Layout) Log { return p.Solve(l) }
 
 // holder is the seat holding role r once the roles have passed turn
 // times.
