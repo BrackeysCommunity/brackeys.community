@@ -27,7 +27,7 @@ import (
 const (
 	contentSeeds       = 40  // seeds per history
 	sweepPerSeed       = 25  // pin-sweep seeds per history seed: 1,000 at the default
-	differsTarget      = 60  // per cent of S (see differs) whose drawn fields differ, pooled
+	differsTarget      = 60  // per cent of S (see differs) whose drawn fields differ, in every history
 	costFlat           = 150 // per cent of day 1's median a draw on day busyDays may cost
 	reachWalk          = 200 // tiles a walk from the first settlement may take
 	sweepReachMost     = 12  // the sweep's pins reach 1 to this
@@ -53,8 +53,8 @@ type historyResult struct {
 	weekMin   int // raids and betrayals in the quietest whole week
 	over      int // per cent of awake regions over the overrun line at the end
 
-	sample, candidates, differ, keyDiffer int
-	differBad                             []string
+	sample, candidates, differ, keyDiffer, saturated int
+	differBad                                        []string
 
 	pins, landed, holding int
 	codes                 map[string]int
@@ -165,11 +165,18 @@ func playHistory(b *sheets.Book, name string, seed int) (historyResult, error) {
 	return out, nil
 }
 
-// differs runs the twin from the split with one faction.raided noted 1 to
+// twinKinds are the heavy kinds the twin may note near a tile. Each tile
+// gets the one the first history's digest of it holds fewest of: a kind
+// already at history-kind-most adds nothing to a digest by design, so
+// noting it would not make the neighbourhoods differ.
+var twinKinds = []string{"faction.raided", "faction.besieged", "region.unrest", "character.down"}
+
+// differs runs the twin from the split with one heavy fact noted 1 to
 // history-radius tiles from each sampled tile (S: up to twinSample tiles
 // first reached after the split whose draw sets a field) just before the
 // explorer reaches it, and compares their drawn fields with the first
-// history's.
+// history's. A tile whose digest holds every twin kind at the cap is left
+// out of S and counted.
 func differs(a, twin *historyRun, split int64, out *historyResult) error {
 	end := a.s.Tick
 	var cand []*tile.State
@@ -187,18 +194,33 @@ func differs(a, twin *historyRun, split int64, out *historyResult) error {
 		}
 		sample = append(sample, cand[i])
 	}
-	out.sample = len(sample)
-	near := history.BoundsOf(a.b.MapParams).Radius
+	bounds := history.BoundsOf(a.b.MapParams)
+	full := map[hex.Hex]bool{}
 	err := twin.days(twinDays, func(h *historyRun) error {
 		for _, t := range sample {
-			if d := t.Content.Drawn; d <= h.s.Tick || d > h.s.Tick+sheets.TicksPerDay {
+			d := t.Content.Drawn
+			if d <= h.s.Tick || d > h.s.Tick+sheets.TicksPerDay {
 				continue
 			}
 			x := t.Hex
-			dist := h.d.Between(1, near, "harness.sample", seed, draw.Int(x.Q), draw.Int(x.R), draw.Str("dist"))
+			var window history.Digest
+			if t.Content.Digest != nil {
+				window = *t.Content.Digest
+			}
+			kind := twinKinds[0]
+			for _, k := range twinKinds[1:] {
+				if window.Count(k) < window.Count(kind) {
+					kind = k
+				}
+			}
+			if window.Count(kind) >= bounds.KindMost {
+				full[x] = true
+				continue
+			}
+			dist := h.d.Between(1, bounds.Radius, "harness.sample", seed, draw.Int(x.Q), draw.Int(x.R), draw.Str("dist"))
 			ring := hex.Ring(x, dist)
 			at := ring[h.d.Below(uint64(len(ring)), "harness.sample", seed, draw.Int(x.Q), draw.Int(x.R), draw.Str("at"))]
-			if err := h.note("faction.raided", at); err != nil {
+			if err := h.note(kind, at); err != nil {
 				return err
 			}
 		}
@@ -208,6 +230,11 @@ func differs(a, twin *historyRun, split int64, out *historyResult) error {
 		return err
 	}
 	for _, t := range sample {
+		if full[t.Hex] {
+			out.saturated++
+			continue
+		}
+		out.sample++
 		c := twin.s.Content(t.Hex)
 		if c == nil {
 			out.differBad = append(out.differBad, fmt.Sprintf("%s seed %d: %s unreached in the twin", a.name, a.seed, t.Hex.Ref()))
@@ -837,26 +864,27 @@ func differsRow(p func(string, ...any), rs []historyResult) Measured {
 	p("")
 	p("## Two neighbourhoods, two contents")
 	p("")
-	p("Each history is copied on day %d. S is up to %d tiles, drawn under `harness.sample`, that the explorer first reaches in the next %d days and whose draw sets at least one field. In the copy, one `faction.raided` is noted 1 to history-radius tiles from each tile of S at the end of the day before the explorer reaches it, so it lies inside the tile's window; both then run the same %d days. A tile differs when a drawn field does: its site kind, lead, any material's stock, or its dungeon's kind or floors (residents are the game's, not a world-only history's). The key alone does not count.", twinDay, twinSample, twinDays, twinDays)
+	p("Each history is copied on day %d. S is up to %d tiles, drawn under `harness.sample`, that the explorer first reaches in the next %d days and whose draw sets at least one field. In the copy, one heavy fact is noted 1 to history-radius tiles from each tile of S at the end of the day before the explorer reaches it, so it lies inside the tile's window: whichever of %s the first history's digest of the tile holds fewest of, since a kind already at history-kind-most adds nothing to a digest. A tile whose digest holds all of them at the cap is left out of S and counted. Both then run the same %d days. A tile differs when a drawn field does: its site kind, lead, any material's stock, or its dungeon's kind or floors (residents are the game's, not a world-only history's). The key alone does not count.", twinDay, twinSample, twinDays, "`"+strings.Join(twinKinds, "`, `")+"`", twinDays)
 	p("")
-	p("| History | Tiles in S | Of the candidates | Key differs | Drawn fields differ | Share |")
-	p("| --- | --- | --- | --- | --- | --- |")
-	var sample, differ int
+	p("| History | Tiles in S | Left out, every kind at the cap | Of the candidates | Key differs | Drawn fields differ | Share |")
+	p("| --- | --- | --- | --- | --- | --- | --- |")
+	var sample int
 	var bad, per []string
+	holds := true
 	for _, name := range historyNames {
-		var s, c, k, d int
+		var s, f, c, k, d int
 		for _, r := range byHistory(rs, name) {
-			s, c, k, d = s+r.sample, c+r.candidates, k+r.keyDiffer, d+r.differ
+			s, f, c, k, d = s+r.sample, f+r.saturated, c+r.candidates, k+r.keyDiffer, d+r.differ
 			bad = append(bad, r.differBad...)
 		}
-		sample, differ = sample+s, differ+d
-		p("| %s | %s | %s | %s | %s | %.1f%% |", name, comma(int64(s)), comma(int64(c)), comma(int64(k)), comma(int64(d)), pct(d, s))
+		sample += s
+		holds = holds && s > 0 && d*100 >= differsTarget*s
+		p("| %s | %s | %s | %s | %s | %s | %.1f%% |", name, comma(int64(s)), comma(int64(f)), comma(int64(c)), comma(int64(k)), comma(int64(d)), pct(d, s))
 		per = append(per, fmt.Sprintf("%s %.1f%%", name, pct(d, s)))
 	}
 	listBad(p, "Failing", bad)
-	share := pct(differ, sample)
-	return Measured{"content-differs", fmt.Sprintf("%.1f%% of %s sampled tiles pooled (%s)", share, comma(int64(sample)), strings.Join(per, ", ")),
-		sample > 0 && len(bad) == 0 && differ*100 >= differsTarget*sample}
+	return Measured{"content-differs", fmt.Sprintf("in every history, of %s sampled tiles: %s", comma(int64(sample)), strings.Join(per, ", ")),
+		holds && len(bad) == 0}
 }
 
 // byHistory are the results of one history.
