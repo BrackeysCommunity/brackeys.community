@@ -97,15 +97,15 @@ type State struct {
 	// the pin and find indexes, rebuilt whenever len(Pins) or len(Finds)
 	// has moved.
 	edited    map[hex.Hex]bool
-	pinCells  map[pinCell][]int       //nolint:unused // read by PinsAt
-	findsIn   map[gen.LatticeID][]int //nolint:unused // read by DigestAt
-	findsSeen int                     //nolint:unused // read by DigestAt
+	pinCells  map[pinCell][]int
+	findsIn   map[gen.LatticeID][]int
+	findsSeen int
 }
 
 // New starts a world: the first starting settlement is open and its
 // region discovered, and the horizon wakes round it.
 func New(b *sheets.Book, g *gen.Gen, key draw.Key) (*State, error) {
-	s := &State{Opened: 1, Sky: weather.Sky{Systems: []weather.System{}}}
+	s := &State{Opened: 1, Sky: weather.Sky{Systems: []weather.System{}}, ContentVersion: ContentDrawn}
 	s.Attach(b, g, key)
 	home := g.Settlement(0)
 	if err := s.discoverRegion(nil, g.RegionOf(home.Hex)); err != nil {

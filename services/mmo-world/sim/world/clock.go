@@ -153,6 +153,7 @@ func Advance(s *State, log fact.Log, acts []Action, tick int64) (*State, []fact.
 		}
 	}
 	first := fact.ID(log.Len())
+	s.edited = nil
 	s.Tick = tick
 	for _, a := range acts {
 		if err := actions[a.Kind].apply(s, log, a); err != nil {
@@ -167,7 +168,9 @@ func Advance(s *State, log fact.Log, acts []Action, tick int64) (*State, []fact.
 	if d.err != nil {
 		return s, nil, d.err
 	}
-	return s, log.Since(first), nil
+	fs := log.Since(first)
+	s.Note(fs...)
+	return s, fs, nil
 }
 
 // AdvanceDay runs the world through to the end of the next world day,
@@ -265,6 +268,8 @@ func (d *day) daily() {
 		d.season()
 	}
 	s.prune()
+	s.pruneHistory()
+	s.prunePins(s.Tick)
 }
 
 // open opens the settlements asked for. The regions a new settlement

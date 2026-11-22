@@ -71,6 +71,16 @@ func (g *Gen) Dungeon(h Hex) (Plan, bool) {
 }
 
 func (g *Gen) plan(h Hex, site string, homeDist int64) (Plan, bool) {
+	kinds, weights := g.kindsAt(site)
+	if len(kinds) == 0 {
+		return Plan{}, false
+	}
+	at := draw.Str(h.Ref())
+	return g.planOf(h, kinds[g.d.Pick(weights, "dungeon.kind", at)], homeDist, "dungeon.floors", at), true
+}
+
+// kindsAt are the dungeon kinds a place stands, with their shares.
+func (g *Gen) kindsAt(site string) ([]*sheets.DungeonKind, []int64) {
 	var kinds []*sheets.DungeonKind
 	var weights []int64
 	for i := range g.b.Dungeons {
@@ -78,23 +88,24 @@ func (g *Gen) plan(h Hex, site string, homeDist int64) (Plan, bool) {
 			kinds, weights = append(kinds, k), append(weights, k.Share)
 		}
 	}
-	if len(kinds) == 0 {
-		return Plan{}, false
-	}
-	at := draw.Str(h.Ref())
-	k := kinds[g.d.Pick(weights, "dungeon.kind", at)]
+	return kinds, weights
+}
+
+// planOf is a kind's plan at h, its depth drawn from map.depths at the
+// seed tier and held to the kind's range.
+func (g *Gen) planOf(h Hex, k *sheets.DungeonKind, homeDist int64, floors draw.Purpose, at ...draw.Part) Plan {
 	p := Plan{Hex: h, Kind: k.ID, Up: k.Up, SeedTier: g.SeedTier(homeDist), Floors: k.FloorsMin}
 	if d, ok := sheets.DepthAt(g.b.Depths, p.SeedTier); ok {
 		w := make([]int64, len(d.Weights))
 		for i, x := range d.Weights {
 			w[i] = x.Weight
 		}
-		p.Floors = min(k.FloorsMax, max(k.FloorsMin, d.Weights[g.d.Pick(w, "dungeon.floors", at)].Floors))
+		p.Floors = min(k.FloorsMax, max(k.FloorsMin, d.Weights[g.d.Pick(w, floors, at...)].Floors))
 	}
 	if gd, ok := sheets.GuardianOf(g.b.Hunts, k.ID); ok {
 		p.Guardian = gd.ID
 	}
-	return p, true
+	return p
 }
 
 // SeedTier is the tier a tile has with every starting settlement open:
@@ -139,19 +150,12 @@ func (g *Gen) FloorAt(h Hex, n, way, tier int64) FloorPlan {
 func (g *Gen) floor(p Plan, entrance []tags.Tag, n, way, tier int64) FloorPlan {
 	k := g.kind(p.Kind)
 	at := []draw.Part{draw.Str(p.Hex.Ref()), draw.Int(n), draw.Int(way)}
-	f := FloorPlan{N: n, Steps: n - 1, Bottom: n >= p.Floors}
-	f.Step = g.Steps(tier, f.Steps)
-	f.Tags = append(tags.Of(k.Tags), entrance...)
+	var in *Way
 	if n > 1 && way >= 0 && way < forkWays {
-		f.Tags = append(f.Tags, g.ways(p, n-1)[way].Tags...)
+		w := g.ways(p, n-1)[way]
+		in = &w
 	}
-	slices.Sort(f.Tags)
-	f.Tags = slices.Compact(f.Tags)
-	f.Beats = g.d.Between(g.mp("floor-beats-min"), g.mp("floor-beats-max"), "dungeon.beats", at...)
-	if way == WayHidden {
-		f.Beats = max(1, f.Beats-g.fp("third-way-beats"))
-		f.Hidden = g.fp("third-way-hidden")
-	}
+	f := g.floorBase(p, k, entrance, n, way, tier, in, g.d.Between(g.mp("floor-beats-min"), g.mp("floor-beats-max"), "dungeon.beats", at...))
 	f.Creature = g.floorCreature(k, f.Step.Tier, at)
 	if f.Bottom {
 		return f
@@ -163,17 +167,41 @@ func (g *Gen) floor(p Plan, entrance []tags.Tag, n, way, tier int64) FloorPlan {
 	return f
 }
 
+// floorBase is a floor less its creature, ways and fork machine: where
+// it steps to, its tags with the way in's, and its beats less the third
+// way's cut.
+func (g *Gen) floorBase(p Plan, k *sheets.DungeonKind, entrance []tags.Tag, n, way, tier int64, in *Way, beats int64) FloorPlan {
+	f := FloorPlan{N: n, Steps: n - 1, Bottom: n >= p.Floors}
+	f.Step = g.Steps(tier, f.Steps)
+	f.Tags = append(tags.Of(k.Tags), entrance...)
+	if in != nil {
+		f.Tags = append(f.Tags, in.Tags...)
+	}
+	slices.Sort(f.Tags)
+	f.Tags = slices.Compact(f.Tags)
+	f.Beats = beats
+	if way == WayHidden {
+		f.Beats = max(1, f.Beats-g.fp("third-way-beats"))
+		f.Hidden = g.fp("third-way-hidden")
+	}
+	return f
+}
+
 // ways are the three ways down from floor n, distinct, weighted.
 func (g *Gen) ways(p Plan, n int64) [forkWays]Way {
+	return g.waysFrom(p.Kind, g.d.Stream("dungeon.fork", draw.Str(p.Hex.Ref()), draw.Int(n)))
+}
+
+// waysFrom draws a kind's three ways down from one stream.
+func (g *Gen) waysFrom(kind string, s *draw.Stream) [forkWays]Way {
 	var rows []*sheets.Fork
 	var weights []int64
 	for i := range g.b.Forks {
-		if f := &g.b.Forks[i]; slices.Contains(f.Kinds, p.Kind) {
+		if f := &g.b.Forks[i]; slices.Contains(f.Kinds, kind) {
 			rows, weights = append(rows, f), append(weights, f.Weight)
 		}
 	}
 	var out [forkWays]Way
-	s := g.d.Stream("dungeon.fork", draw.Str(p.Hex.Ref()), draw.Int(n))
 	for i := range out {
 		if len(rows) == 0 {
 			break
@@ -188,6 +216,16 @@ func (g *Gen) ways(p Plan, n int64) [forkWays]Way {
 // floorCreature draws from the kind's creatures at the tier, or failing
 // any, from every archetype of the tier.
 func (g *Gen) floorCreature(k *sheets.DungeonKind, tier int64, at []draw.Part) string {
+	pool := g.creaturePool(k, tier)
+	if len(pool) == 0 {
+		return ""
+	}
+	return pool[g.d.Below(uint64(len(pool)), "dungeon.creature", at...)]
+}
+
+// creaturePool is what a kind's floor at the tier draws its creature
+// from: the kind's own of that tier, or failing any, every archetype of it.
+func (g *Gen) creaturePool(k *sheets.DungeonKind, tier int64) []string {
 	var pool []string
 	for _, id := range k.Creatures {
 		if c := g.creature(id); c != nil && c.Tier == tier {
@@ -201,10 +239,7 @@ func (g *Gen) floorCreature(k *sheets.DungeonKind, tier int64, at []draw.Part) s
 			}
 		}
 	}
-	if len(pool) == 0 {
-		return ""
-	}
-	return pool[g.d.Below(uint64(len(pool)), "dungeon.creature", at...)]
+	return pool
 }
 
 // tileTags are the entrance tile's own tags: its terrain's and the place

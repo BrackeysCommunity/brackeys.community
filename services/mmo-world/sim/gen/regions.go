@@ -402,18 +402,7 @@ func (g *Gen) landmarkOf(id LatticeID) landmark {
 // lives there (GDD 4.10).
 func (g *Gen) Creatures(h Hex) []string {
 	t := g.Baseline(h)
-	var rows []sheets.Creature
-	for _, c := range g.b.Creatures {
-		if slices.Contains(c.Biomes, t.Terrain) {
-			rows = append(rows, c)
-		}
-	}
-	slices.SortFunc(rows, func(a, b sheets.Creature) int {
-		if a.Tier != b.Tier {
-			return int(a.Tier - b.Tier)
-		}
-		return strings.Compare(a.ID, b.ID)
-	})
+	rows := g.archetypes(t.Terrain)
 	out := make([]string, 0, len(rows))
 	own := g.Region(t.Region).Creature
 	for _, c := range rows {
@@ -424,4 +413,21 @@ func (g *Gen) Creatures(h Hex) []string {
 		out = append(out, c.ID)
 	}
 	return out
+}
+
+// archetypes are a terrain's creature archetypes by tier, then id.
+func (g *Gen) archetypes(terrain string) []sheets.Creature {
+	var rows []sheets.Creature
+	for _, c := range g.b.Creatures {
+		if slices.Contains(c.Biomes, terrain) {
+			rows = append(rows, c)
+		}
+	}
+	slices.SortFunc(rows, func(a, b sheets.Creature) int {
+		if a.Tier != b.Tier {
+			return int(a.Tier - b.Tier)
+		}
+		return strings.Compare(a.ID, b.ID)
+	})
+	return rows
 }

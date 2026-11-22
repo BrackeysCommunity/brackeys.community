@@ -5,6 +5,7 @@ import (
 
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/sheets"
 )
 
@@ -27,11 +28,16 @@ const (
 	RoleFactor  = "factor"
 )
 
-// notable generates a notable on demand: names, traits and loyalty are
-// keyed draws on its id.
-func (s *State) notable(role string) Notable {
+// notable generates a notable on demand for a faction seated at seat:
+// names, traits and loyalty are keyed draws on its id. A world drawing
+// content from history also keys them on the seat's neighbourhood, and
+// weights the traits by it (GDD 4.17).
+func (s *State) notable(role string, seat int) Notable {
 	id := s.NextNotable
 	s.NextNotable++
+	if s.Drawn() {
+		return s.drawnNotable(id, role, seat)
+	}
 	who := draw.Int(int64(id))
 	given, family := s.parts("notable-given"), s.parts("notable-family")
 	lo, hi := s.p("loyalty-min"), s.p("loyalty-max")
@@ -54,6 +60,54 @@ func (s *State) notable(role string) Notable {
 		n.Traits = append(n.Traits, t.ID)
 	}
 	return n
+}
+
+// drawnNotable draws a notable under the content labels, from the digest
+// at its seat's centre now.
+func (s *State) drawnNotable(id int, role string, seat int) Notable {
+	dg := s.DigestAt(s.centre(seat), s.Tick)
+	who := []draw.Part{draw.Int(int64(id)), draw.Str(dg.Key())}
+	given, family := s.parts("notable-given"), s.parts("notable-family")
+	lo, hi := s.p("loyalty-min"), s.p("loyalty-max")
+	n := Notable{
+		ID:      id,
+		Given:   given[s.d.Below(uint64(len(given)), "content.notable.given", who...)],
+		Family:  family[s.d.Below(uint64(len(family)), "content.notable.family", who...)],
+		Role:    role,
+		Loyalty: s.d.Between(lo, hi, "content.notable.loyalty", who...),
+	}
+	ids := make([]string, len(s.b.NPCTraits))
+	base := make([]int64, len(s.b.NPCTraits))
+	for i, t := range s.b.NPCTraits {
+		ids[i], base[i] = t.ID, sheets.IntParam(s.b.MapParams, "content-trait-weight")
+	}
+	weights := s.g.Weights(gen.TableTrait, ids, base, dg, "")
+	st := s.d.Stream("content.notable.traits", who...)
+	for int64(len(n.Traits)) < s.p("notable-traits") {
+		w := slices.Clone(weights)
+		total := int64(0)
+		for i, t := range s.b.NPCTraits {
+			if slices.Contains(n.Traits, t.ID) || slices.Contains(n.Traits, t.Opposes) || slices.ContainsFunc(n.Traits, func(c string) bool { return s.opposes(c) == t.ID }) {
+				w[i] = 0
+			}
+			total += w[i]
+		}
+		if total == 0 {
+			break
+		}
+		n.Traits = append(n.Traits, s.b.NPCTraits[st.Pick(w)].ID)
+	}
+	return n
+}
+
+// opposes is the trait a trait opposes, if any.
+func (s *State) opposes(trait string) string {
+	for _, t := range s.b.NPCTraits {
+		if t.ID == trait {
+			return t.Opposes
+		}
+	}
+	return ""
 }
 
 func (f *Faction) living() int {
@@ -97,7 +151,7 @@ func (s *State) appoint(d *day, fi int, founding bool) {
 			f.Notables[best].Role = RoleLeader
 			say("notable.promoted", f.Notables[best])
 		} else {
-			n := s.notable(RoleLeader)
+			n := s.notable(RoleLeader, f.Seat)
 			f.Notables = append(f.Notables, n)
 			say("notable.promoted", n)
 		}
@@ -109,12 +163,12 @@ func (s *State) appoint(d *day, fi int, founding bool) {
 			say("notable.promoted", f.Notables[k])
 			continue
 		}
-		n := s.notable(RoleCaptain)
+		n := s.notable(RoleCaptain, f.Seat)
 		f.Notables = append(f.Notables, n)
 		say("notable.appointed", n)
 	}
 	if f.count(RoleFactor) == 0 {
-		n := s.notable(RoleFactor)
+		n := s.notable(RoleFactor, f.Seat)
 		f.Notables = append(f.Notables, n)
 		say("notable.appointed", n)
 	}

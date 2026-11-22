@@ -38,14 +38,17 @@ type NoveltyBand struct {
 // structural: novelty is reported per band of this many tiles (GDD 4.17).
 const noveltyBand = 40
 
-// Discover marks a tile discovered by someone: the frontier grows, and a
-// region discovered for the first time wakes the horizon round it.
+// Discover marks a tile discovered by someone: its content is drawn if
+// nobody had reached it, the frontier grows, and a region discovered for
+// the first time wakes the horizon round it.
 func (s *State) Discover(log fact.Log, h hex.Hex, by fact.Ref) error {
-	t := s.touch(h)
-	if t.Discovered != nil {
+	if t := s.Tile(h); t != nil && t.Discovered != nil {
 		return nil
 	}
-	t.Discovered = &tile.Discovery{By: by, Tick: s.Tick}
+	if err := s.Reach(log, h, s.Tick); err != nil {
+		return err
+	}
+	s.touch(h).Discovered = &tile.Discovery{By: by, Tick: s.Tick}
 	return s.discoverRegion(log, s.g.RegionOf(h))
 }
 
