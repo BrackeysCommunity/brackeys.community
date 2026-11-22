@@ -16,6 +16,7 @@ import (
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/market"
 	"jams.team/mmo-world/sim/puzzle"
+	"jams.team/mmo-world/sim/season"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tags"
 	"jams.team/mmo-world/sim/world"
@@ -83,6 +84,9 @@ type Command struct {
 	// Pin is a pin command's order: the tile, reach and fix, or the pin a
 	// withdraw names (GDD 14.4).
 	Pin *PinCmd `json:"pin,omitempty"`
+	// Epoch is a season-epoch's change of rules; Arc an arc-cast's order.
+	Epoch *season.Epoch `json:"epoch,omitempty"`
+	Arc   *ArcCmd       `json:"arc,omitempty"`
 }
 
 // Stop is when a journey halts on its own: before a region at or above a
@@ -406,6 +410,8 @@ func (g *Game) act(c *Char, cmd Command) ([]fight.Pressed, error) {
 		return nil, g.followTrack(c, cmd)
 	case HideName:
 		return nil, g.hideName(c, cmd)
+	case BackSide:
+		return nil, g.backSide(c, cmd)
 	}
 	return nil, refuse(BadArgs, "unknown command %q", cmd.Kind)
 }
@@ -608,6 +614,7 @@ func (g *Game) pressOption(c *Char, key, pick string, tick int64, w *worked) ([]
 		m.Puzzle = &w.res
 	}
 	pack := slices.Clone(c.C.Pack)
+	beat := int64(e.At) + 1
 	g.attachPool(c.C.At, e, tick)
 	pressed, facts, err := f.Press(e, []*fight.Member{m}, tick)
 	if err != nil {
@@ -625,6 +632,14 @@ func (g *Game) pressOption(c *Char, key, pick string, tick int64, w *worked) ([]
 	}
 	if len(pressed) > 0 && pressed[0].Outcome.Success {
 		g.wonBeat(c, e)
+		// A side counts a solo fighter's beats as it counts a party's; a
+		// world from before arcs writes none, so its log stays as it was.
+		if g.Story != nil {
+			if _, err := g.factWith(c, nil, "beat.won", tick, fact.S("encounter", e.ID), fact.N("beat", beat),
+				fact.S("option", pressed[0].Option.ID), fact.N("score", pressed[0].Option.Score)); err != nil {
+				return nil, err
+			}
+		}
 	}
 	if e.Over {
 		return pressed, g.close(c, key, tick)
