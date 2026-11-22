@@ -292,7 +292,9 @@ func (g *Game) sellItem(c *Char, cmd Command) error {
 	m.Week.faucet(pay)
 	c.C.Earned.Bump("trader", pay)
 	m.Held = append(m.Held, Held{Item: in.ID, NPC: tr.Stub.ID, From: c.C.ID, Paid: pay, Bought: f.ID})
-	g.note(tr, c, npc.Entry{Kind: "traded", Player: c.C.ID, Weight: g.r.NPC.Param("traded-weight"), Tick: g.Tick(), Fact: int64(f.ID), Thing: g.KindName(in.Kind)}, g.Tick())
+	if err := g.note(tr, c, npc.Entry{Kind: "traded", Player: c.C.ID, Weight: g.r.NPC.Param("traded-weight"), Tick: g.Tick(), Fact: int64(f.ID), Thing: g.KindName(in.Kind)}, g.Tick()); err != nil {
+		return err
+	}
 	if err := g.NPCs.Touched(tr); err != nil {
 		return err
 	}
@@ -343,9 +345,13 @@ func (g *Game) resold(l market.Listing, buyer string, sale fact.ID, fee int64) e
 		return err
 	}
 	thing := g.KindName(l.Item.Kind)
-	g.note(tr, from, npc.Entry{Kind: entryResold, Player: from.C.ID, Weight: g.r.NPC.Param("traded-weight"), Tick: t, Fact: int64(fid), Thing: thing, N: profit}, t)
+	if err := g.note(tr, from, npc.Entry{Kind: entryResold, Player: from.C.ID, Weight: g.r.NPC.Param("traded-weight"), Tick: t, Fact: int64(fid), Thing: thing, N: profit}, t); err != nil {
+		return err
+	}
 	if g.charOf(buyer) != nil && buyer != ledger.Char(from.C.ID) {
-		g.note(tr, from, npc.Entry{Kind: entrySoldOn, Player: from.C.ID, Weight: g.r.NPC.Param("traded-weight"), Tick: t, Fact: int64(fid), Thing: thing}, t)
+		if err := g.note(tr, from, npc.Entry{Kind: entrySoldOn, Player: from.C.ID, Weight: g.r.NPC.Param("traded-weight"), Tick: t, Fact: int64(fid), Thing: thing}, t); err != nil {
+			return err
+		}
 	}
 	step := g.mp("fortune-step")
 	after := g.Ledger.Of(ledger.NPCPool(tr.Stub.ID), ledger.Coin)

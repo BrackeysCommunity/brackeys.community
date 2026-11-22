@@ -430,6 +430,16 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 	if err := g.arrived(c, to, ledger.SubKey(l.Key, "arrive", strconv.FormatInt(l.Steps, decimal)), t); err != nil {
 		return acts, err
 	}
+	if err := g.tileEntered(c, to, t); err != nil {
+		return acts, err
+	}
+	for _, f := range followers {
+		if f.C.At == to {
+			if err := g.tileEntered(f, to, t); err != nil {
+				return acts, err
+			}
+		}
+	}
 	l.Route = l.Route[1:]
 	if g.ambushed(c, to, t) {
 		endJourney(c)

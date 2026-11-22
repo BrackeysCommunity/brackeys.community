@@ -48,7 +48,8 @@ func (g *Game) keepNews(fs []fact.Fact) {
 	line, kept := g.NewsWeight(), g.r.wp("news-kept")
 	for _, f := range fs {
 		g.countBuilt(f)
-		if f.Weight < line {
+		// News is told to anyone, so a thread's facts never join it.
+		if f.Weight < line || ThreadFact(f.Kind) {
 			continue
 		}
 		at, ok := g.World.FactAt(f)
@@ -66,18 +67,21 @@ type Person struct {
 	npc.Stub
 	Saved bool `json:"saved"`
 	Visit bool `json:"visit"` // it has queued a visit to this character
+	// Called is an NPC that came to this tile to find the character.
+	Called bool `json:"called,omitempty"`
 }
 
 // PeopleHere are the NPCs on a tile at this hour: a settlement's
 // residents at home or on their routes, saved NPCs whose routes pass now,
-// and the day's wanderer. Nothing is walked: the route index answers.
+// those calling on the character, and the day's wanderer. Nothing is
+// walked: the route index answers.
 func (g *Game) PeopleHere(c *Char, h hex.Hex) []Person {
 	t := g.Tick()
 	var out []Person
 	seen := func(id string) bool { return slices.ContainsFunc(out, func(p Person) bool { return p.ID == id }) }
 	add := func(n *npc.NPC) {
 		if !seen(n.Stub.ID) {
-			out = append(out, Person{Stub: n.Stub, Saved: true, Visit: slices.Contains(n.Visits, c.C.ID)})
+			out = append(out, Person{Stub: n.Stub, Saved: true, Visit: slices.Contains(n.Visits, c.C.ID), Called: c.calling(n.Stub.ID, h)})
 		}
 	}
 	if g.IsSettlement(h) {
@@ -93,6 +97,11 @@ func (g *Game) PeopleHere(c *Char, h hex.Hex) []Person {
 	}
 	for _, n := range g.NPCs.Through(h) {
 		if g.r.NPC.At(n, t) == h {
+			add(n)
+		}
+	}
+	for _, x := range c.Callers {
+		if n := g.NPCs.Get(x.NPC); n != nil && c.calling(x.NPC, h) {
 			add(n)
 		}
 	}
@@ -166,15 +175,15 @@ func (g *Game) talk(c *Char, cmd Command) error {
 		g.r.NPC.LayRoute(n, t, g.routeCost)
 		g.NPCs.Routed(n, old)
 	} else {
-		if g.r.NPC.Dormant(n, t) {
-			g.r.NPC.Wake(n)
+		if _, err := g.wake(n, t); err != nil {
+			return err
 		}
 		g.relay(n, t)
 	}
 	first := n.Meeting(c.C.ID) == nil
 	n.Meet(c.C.ID, t)
 	g.NPCs.Visited(n, c.C.ID)
-	c.C.Meet(char.Met{Who: "npc:" + n.Stub.ID, How: "met", Tick: t}, g.r.limits)
+	c.C.Meet(char.Met{Who: npcPrefix + n.Stub.ID, How: char.MetMet, Tick: t}, g.r.limits)
 	if _, err := g.npcFact(c, n, "npc.met", t, fact.B("first", first)); err != nil {
 		return err
 	}
@@ -519,7 +528,9 @@ func (g *Game) choose(c *Char, cmd Command) error {
 		return err
 	}
 	if row.Remember != "" {
-		g.note(n, c, npc.Entry{Kind: row.Remember, Player: c.C.ID, Weight: row.Weight, Tick: t, Fact: int64(f.ID), Thing: lowerFirst(strings.TrimSuffix(row.Line, "."))}, t)
+		if err := g.note(n, c, npc.Entry{Kind: row.Remember, Player: c.C.ID, Weight: row.Weight, Tick: t, Fact: int64(f.ID), Thing: lowerFirst(strings.TrimSuffix(row.Line, "."))}, t); err != nil {
+			return err
+		}
 	}
 	m.Answer(topicID, conv.Topics[ti].Line, day)
 	return g.NPCs.Touched(n)
@@ -534,12 +545,21 @@ func lowerFirst(s string) string {
 }
 
 // note has an NPC remember an entry about a character, and queue a visit
-// to them when the entry is one it wants a word about.
-func (g *Game) note(n *npc.NPC, c *Char, e npc.Entry, t int64) {
-	g.r.NPC.Remember(n, e, t)
-	if g.r.NPC.Wants(e) {
-		g.NPCs.Queue(n, c.C.ID)
+// to them when the entry is one it wants a word about. Under a season a
+// queued topic wakes a dormant NPC first, so the entry is not folded away,
+// and a visit about a debt queues the debt thread.
+func (g *Game) note(n *npc.NPC, c *Char, e npc.Entry, t int64) error {
+	wants := g.r.NPC.Wants(e)
+	if wants && g.Story != nil {
+		if _, err := g.wake(n, t); err != nil {
+			return err
+		}
 	}
+	g.r.NPC.Remember(n, e, t)
+	if wants && g.queueVisit(n, c) {
+		g.pendDebt(n, c, e, t)
+	}
+	return nil
 }
 
 // effect applies a choice: standing with whose the NPC is, coin with its
@@ -640,7 +660,9 @@ func (g *Game) fought(c *Char, h hex.Hex, creature string, t int64) error {
 		if g.r.NPC.At(n, t) != h {
 			continue
 		}
-		g.note(n, c, npc.Entry{Kind: "fought", Player: c.C.ID, Weight: g.r.NPC.Param("fought-weight"), Tick: t, Thing: g.r.Name("creatures.archetypes:" + creature)}, t)
+		if err := g.note(n, c, npc.Entry{Kind: entryFought, Player: c.C.ID, Weight: g.r.NPC.Param("fought-weight"), Tick: t, Thing: g.r.Name("creatures.archetypes:" + creature)}, t); err != nil {
+			return err
+		}
 		if err := g.NPCs.Touched(n); err != nil {
 			return err
 		}
@@ -656,7 +678,9 @@ func (g *Game) traded(c *Char, h hex.Hex, material string, t int64) error {
 		return nil
 	}
 	if n := g.NPCs.Get(s.ID); n != nil {
-		g.note(n, c, npc.Entry{Kind: "traded", Player: c.C.ID, Weight: g.r.NPC.Param("traded-weight"), Tick: t, Thing: g.MaterialName(material)}, t)
+		if err := g.note(n, c, npc.Entry{Kind: entryTraded, Player: c.C.ID, Weight: g.r.NPC.Param("traded-weight"), Tick: t, Thing: g.MaterialName(material)}, t); err != nil {
+			return err
+		}
 		return g.NPCs.Touched(n)
 	}
 	return nil

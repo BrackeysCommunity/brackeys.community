@@ -233,6 +233,8 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	}
 	c.Version++
 	if !passive(cmd.Kind) {
+		g.returned(c, g.Tick())
+		g.threadGate(c, g.Tick())
 		c.Acted = g.Tick()
 		c.markDay(g.Tick() / sheets.TicksPerDay)
 		g.visited(c, c.C.At, g.Tick())
@@ -412,6 +414,10 @@ func (g *Game) act(c *Char, cmd Command) ([]fight.Pressed, error) {
 		return nil, g.hideName(c, cmd)
 	case BackSide:
 		return nil, g.backSide(c, cmd)
+	case CityRaise:
+		return nil, g.cityRaise(c, cmd)
+	case PatternSet:
+		return nil, g.patternSet(c, cmd)
 	}
 	return nil, refuse(BadArgs, "unknown command %q", cmd.Kind)
 }
