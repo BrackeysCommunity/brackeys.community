@@ -416,8 +416,9 @@ func (x effect) cache() error {
 	return g.openCache(g.r.Book.Caches[i].Goods, pool, w.Progress, at, ledger.SubKey(x.key, "cache"), "cache", x.cause, x.t)
 }
 
-// openCache mints cache lines into a pool, splits each among by by share,
-// hands the shares on at at, and has each taker await the goods there.
+// openCache mints cache lines into pool and splits each line among the
+// contributors in by, by share; each share is handed to its taker at tile
+// at, who then awaits it there.
 func (g *Game) openCache(lines []sheets.CacheLine, pool string, by tally.Tally, at hex.Hex, key, kind string, cause fact.ID, t int64) error {
 	var legs []ledger.Leg
 	for _, line := range lines {

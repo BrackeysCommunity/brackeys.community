@@ -96,6 +96,9 @@ func apiArc(g *game.Game, a *game.Arc, viewer string) api.Arc {
 	for _, sr := range st.Sides {
 		out.Sides = append(out.Sides, apiSide(g, a, i, sr, viewer))
 	}
+	if a.Scope == arc.Settlement {
+		out.Trouble = troubleView(g, a)
+	}
 	return out
 }
 

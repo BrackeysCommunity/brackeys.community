@@ -556,7 +556,10 @@ func (g *Game) note(n *npc.NPC, c *Char, e npc.Entry, t int64) error {
 		}
 	}
 	g.r.NPC.Remember(n, e, t)
-	if wants && g.queueVisit(n, c) {
+	if wants {
+		if err := g.queueVisit(n, c); err != nil {
+			return err
+		}
 		g.pendDebt(n, c, e, t)
 	}
 	return nil

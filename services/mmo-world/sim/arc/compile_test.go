@@ -90,7 +90,8 @@ func TestCompileShippedBook(t *testing.T) {
 	}
 }
 
-// Params holds every story.params cell, at the values the design set.
+// TestParamsOfShippedBook checks that ParamsOf reads every story.params
+// cell of the shipped book.
 func TestParamsOfShippedBook(t *testing.T) {
 	b := shippedBook(t)
 	p := ParamsOf(b)

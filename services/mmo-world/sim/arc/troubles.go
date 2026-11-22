@@ -172,9 +172,9 @@ func factionCollapsing(w World, row Row, p Params) []Candidate {
 	})
 }
 
-// lostHolding reports whether the ring recalls a holding of a faction's
-// falling: one holding is collapsing only once it was more, since every
-// faction starts on one. A fall names its holder last.
+// lostHolding reports whether memory holds a holding.fell whose holder,
+// its last subject, is ref. Every faction starts on one holding, so being
+// down to one is collapse only after a loss.
 func lostHolding(w World, p Params, ref fact.Ref) bool {
 	return len(recalled(w, p.MemoryDays, []string{memHoldingFell}, func(m Memory) bool {
 		return len(m.Subjects) > 0 && m.Subjects[len(m.Subjects)-1] == ref

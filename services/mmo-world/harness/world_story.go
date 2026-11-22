@@ -15,14 +15,27 @@ import (
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// The World run with the director on (GDD 18.4, 12.4): unplayed worlds left for worldDays, so every arc and trouble goes unbacked.
-//
-// structural: measurements. The director's day is timed per storyWeek of day turns, each the least of storyReps copies after a warm-up; the last week is compared with the first week the memory ring is full.
+// The World run with the director on (GDD 18.4, 12.4): unplayed worlds left
+// for worldDays, so every arc and trouble goes unbacked.
+
+// structural: the director's day is timed per storyWeek of day turns, each
+// the least of storyReps copies after a warm-up; the last week is compared
+// with the first week the memory ring is full.
 const (
 	storyWeek = 7
 	storyReps = 5
 	storyFlat = 110 // percent of the filled week the last one may cost
 )
+
+// stageLapsed reports whether a stage end lapsed: its lapsed datum, which
+// every stage end writes, else a side naming no winner.
+func stageLapsed(f fact.Fact) bool {
+	if d, ok := f.Get("lapsed"); ok {
+		return d.N == 1
+	}
+	side, _ := f.Get("side")
+	return side.S == "" || side.S == outcomeLapsed
+}
 
 // storyKey groups casts and stage ends by template.
 type storyKey struct{ scope, template string }
@@ -139,7 +152,7 @@ func (r *storyResult) note(facts []fact.Fact) {
 		case "arc.cast", "trouble.started", "thread.cast":
 			r.cast[key()]++
 		case "arc.stage-ended", "trouble.held", "trouble.lost", "thread.ended":
-			if d, ok := f.Get("lapsed"); ok && d.N == 1 {
+			if stageLapsed(f) {
 				r.lapsed[key()]++
 			} else {
 				r.won[key()]++

@@ -49,6 +49,9 @@ type Arc struct {
 	Cause    []fact.ID  `json:"cause,omitempty"`
 	Fact     fact.ID    `json:"fact"`
 	Hunt     string     `json:"hunt,omitempty"` // a raid's hunt
+	// HuntSlain: the raid's hunt fell, kept here since a closed hunt is
+	// forgotten next day.
+	HuntSlain bool `json:"huntSlain,omitempty"`
 }
 
 // StageRun is one stage of an arc as it runs.

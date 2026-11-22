@@ -498,8 +498,8 @@ func guildSections(p func(string, ...any), b *sheets.Book, results []economyResu
 	return append([]Measured{class}, append(readings, found)...)
 }
 
-// structural: the population city-takes-season is read from, the design's
-// n; a smaller soak's server is too few to make a city.
+// structural: the least soak size city-takes-season is read at; a smaller
+// server is too few to make a city.
 const cityFrom = 1000
 
 // citySection writes the server guild's city and returns the

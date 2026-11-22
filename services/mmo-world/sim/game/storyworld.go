@@ -152,7 +152,7 @@ func (v *storyView) Places() []arc.PlaceView {
 	out := make([]arc.PlaceView, len(g.Places))
 	for n, p := range g.Places {
 		pv := arc.PlaceView{N: n, Hex: p.Hex, Region: g.World.RegionAt(p.Hex), Guild: p.Guild, Chartered: p.Chartered(),
-			Open: p.Ruined == 0, Ruined: p.Ruined != 0, City: p.City != nil, Structures: int64(len(p.Structures)),
+			Open: p.Ruined == 0, Ruined: p.Ruined != 0, City: g.isCity(n), Structures: int64(len(p.Structures)),
 			Raised: raised[p.Hex], Users: users[n]}
 		for _, st := range p.Structures {
 			pv.Raised = max(pv.Raised, st.Built)

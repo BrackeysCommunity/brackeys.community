@@ -64,12 +64,9 @@ type cityWorks struct {
 // distance.
 func NewGuildPlan(b *sheets.Book) *GuildPlan {
 	sp := func(id string) int64 { return sheets.IntParam(b.SettlementParams, id) }
-	g := &GuildPlan{Tags: map[string][]string{provisions: {provisions}}, Distance: sp("found-distance"),
+	g := &GuildPlan{Tags: MaterialTags(b), Distance: sp("found-distance"),
 		city: cityWorks{wallTier: sp("city-wall-tier"), stations: sp("city-stations"), stationTier: sp("city-station-tier"), station: map[string]bool{},
 			goods: map[string]int64{tagTimber: sp("city-timber"), tagStone: sp("city-stone"), tagMetal: sp("city-metal")}}}
-	for _, m := range b.Materials {
-		g.Tags[m.ID] = m.Tags
-	}
 	for _, s := range b.Structures {
 		g.city.station[s.ID] = s.Station
 	}
@@ -162,7 +159,9 @@ const (
 	tagCoin    = ""
 )
 
-// structural: the city's wall, the market an admin mends first, the CityCheck needs the project waits on, and the days after which an undelivered project is posted again.
+// structural: the city's wall, the market an admin mends first, the
+// CityCheck needs the project waits on, and the days before an undelivered
+// project is posted again.
 const (
 	cityWall        = "wall"
 	structureMarket = "market"

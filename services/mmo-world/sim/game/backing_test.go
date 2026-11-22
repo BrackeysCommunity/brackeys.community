@@ -1,6 +1,7 @@
 package game
 
 import (
+	"slices"
 	"strconv"
 	"testing"
 
@@ -384,5 +385,52 @@ func TestSidesForListsWhatACharacterMayBack(t *testing.T) {
 	opts = g.SidesFor(c)
 	if len(opts) != 1 || opts[0].Side != "besiegers" || !opts[0].Backed || opts[0].Region == "" {
 		t.Fatalf("a backer sees only its own side: %+v", opts)
+	}
+}
+
+// A character who reaches a world arc's tile backs it without a command,
+// and is told it is marked as one who chose a side.
+func TestBackImplicitReachMarks(t *testing.T) {
+	g := tplGame(t)
+	tplOpenCore(t, g)
+	tplQuiet(g)
+	a := tplCast(t, g, tplSpec{id: "the-opening", by: ByOpening})
+	var sr SideRun
+	for _, r := range a.Stages[a.Stage].Sides {
+		if s, ok := g.sideOf(g.GoalOf(r.Goal)); ok && s.wants == arc.WantReach {
+			sr = r
+		}
+	}
+	x := g.GoalOf(sr.Goal)
+	if x == nil {
+		t.Fatal("the opening's first stage has no reach side")
+	}
+	if got, stage, side, ok := g.SideOf(x); !ok || got != a || stage != a.Stage || side.Goal != x.ID {
+		t.Fatalf("SideOf(%s) = %v, %d, %+v, %v", x.ID, got, stage, side, ok)
+	}
+	h, ok := g.refHex(sr.At)
+	if !ok {
+		t.Fatalf("%s is reached nowhere: %q", sr.Side, sr.At)
+	}
+	c := mustCreate(t, g, "walker", "knife")
+	c.C.At = h
+	first := fact.ID(g.Log.Len())
+	if _, err := g.factWith(c, nil, "travel.entered", g.Tick(), append(fact.At(h), fact.N("ticks", 1))...); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.creditGoals(first, "walk"); err != nil {
+		t.Fatal(err)
+	}
+	if x.Progress.Get(c.C.ID) != 1 || !c.C.Has(char.ArcMarked, g.Tick()) {
+		t.Fatalf("reaching %s counts %d, marked %v", sr.At, x.Progress.Get(c.C.ID), c.C.Has(char.ArcMarked, g.Tick()))
+	}
+	n := 0
+	for _, f := range factsOf(g, "character.marked") {
+		if arcID, _ := f.Get("arc"); slices.Contains(f.Subjects, char.Ref(c.C.ID)) && arcID.S == a.ID {
+			n++
+		}
+	}
+	if n != 1 || len(g.marked) != 0 {
+		t.Fatalf("want one character.marked for %s, got %d (%d pending)", a.ID, n, len(g.marked))
 	}
 }

@@ -209,21 +209,7 @@ func (g *Game) seasonDay(t int64) error {
 // day the next band's casting runs.
 func (g *Game) worldStagesDue(t int64) error {
 	for _, a := range g.openArcs(arc.ScopeWorld) {
-		if err := g.lapseWorldArc(a, t, false); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// lapseWorldArc lapses a world arc's stages due by t, or every stage left
-// when all is set, as the close does.
-func (g *Game) lapseWorldArc(a *Arc, t int64, all bool) error {
-	for range len(a.Stages) {
-		if a.over() || a.Stage >= len(a.Stages) || !all && a.Stages[a.Stage].Due > t {
-			return nil
-		}
-		if err := g.endStage(a, "", t); err != nil {
+		if err := g.endDue(a, t, false); err != nil {
 			return err
 		}
 	}
@@ -361,11 +347,10 @@ func (g *Game) arcRow(id string) *sheets.ArcRow {
 	return nil
 }
 
-// seasonClose ends the season. Stages due today, ruins and today's city
-// keepers settle first, so they count toward the closing season. Then open
-// world arcs lapse, season.finale records the finale, guild votes, unkept
-// cities, the ring's tally and places' lost troubles reset, and the next
-// season begins. Goals and guild ranks turn over in their own day turns.
+// seasonClose ends the season and begins the next. What is due on the close
+// day (stages, ruins, cities' visitors) settles first, so it counts toward
+// the closing season; goals and guild ranks turn over in their own day
+// turns.
 func (g *Game) seasonClose(t int64) error {
 	c := *g.Story.Clock
 	day := t / sheets.TicksPerDay
@@ -383,7 +368,7 @@ func (g *Game) seasonClose(t int64) error {
 		}
 	}
 	for _, a := range g.openArcs(arc.ScopeWorld) {
-		if err := g.lapseWorldArc(a, t, true); err != nil {
+		if err := g.endDue(a, t, true); err != nil {
 			return err
 		}
 	}

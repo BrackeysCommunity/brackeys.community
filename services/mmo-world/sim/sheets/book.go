@@ -247,6 +247,20 @@ var idPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 // rows returns a sheet's rows as reflect values.
 func (b *Book) rows(d Def) reflect.Value { return reflect.ValueOf(b).Elem().Field(d.field) }
 
+// Changed names the sheets whose rows differ between two books. A sheet
+// that fails to marshal counts as changed.
+func Changed(a, b *Book) []string {
+	var out []string
+	for _, d := range Defs() {
+		ja, errA := json.Marshal(a.rows(d).Interface())
+		jb, errB := json.Marshal(b.rows(d).Interface())
+		if errA != nil || errB != nil || !bytes.Equal(ja, jb) {
+			out = append(out, d.Name)
+		}
+	}
+	return out
+}
+
 // Params returns a sheet's rows when it is a params sheet.
 func (b *Book) Params(d Def) ([]Param, bool) {
 	if d.Row != reflect.TypeFor[Param]() {

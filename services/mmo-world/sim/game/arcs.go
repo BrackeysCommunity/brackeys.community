@@ -181,10 +181,8 @@ func (g *Game) openArcs(scope string) []*Arc {
 	return out
 }
 
-// storyDay is the director's world day: the season and the stages due, then
-// each day's upkeep (troubles, cities, faction cities, patterns, fronts,
-// occasions, what is kept), then casting by scope: settlements, characters,
-// regions.
+// storyDay is the director's world day: what is due and each day's upkeep
+// settle first, then the scopes cast: settlements, characters, regions.
 func (g *Game) storyDay(t int64) error {
 	if g.Story == nil {
 		return nil
@@ -226,15 +224,31 @@ func (g *Game) storyTick(t int64) error {
 		return nil
 	}
 	for _, a := range g.openArcs("") {
-		if a.Stage >= len(a.Stages) || a.Stages[a.Stage].over() {
-			continue
-		}
-		won := g.stageWinner(a)
-		if won == "" && a.Stages[a.Stage].Due > t {
-			continue
-		}
-		if err := g.endStage(a, won, t); err != nil {
+		if err := g.endDue(a, t, false); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// endDue ends an arc's stages a side has met or whose time is up, won if a
+// side was met or its hunt fell; one that starts already due ends with it.
+// Under all the current stage lapses and ends the arc with it, so the
+// close mints no escrow only to refund it.
+func (g *Game) endDue(a *Arc, t int64, all bool) error {
+	for !a.over() && a.Stage < len(a.Stages) && !a.Stages[a.Stage].over() {
+		won := ""
+		if !all {
+			won = g.stageWinner(a)
+		}
+		if !all && won == "" && a.Stages[a.Stage].Due > t {
+			return nil
+		}
+		if err := g.endStageAt(a, won, t, all); err != nil {
+			return err
+		}
+		if all {
+			return nil
 		}
 	}
 	return nil
@@ -248,29 +262,29 @@ func (g *Game) stageWinner(a *Arc) string {
 			return sr.Side
 		}
 	}
-	if g.huntDown(a.Hunt) {
+	if g.huntDown(a) {
 		return sideHold
 	}
 	return ""
 }
 
 // huntDown reports whether a trouble's hunt was brought down.
-func (g *Game) huntDown(id string) bool {
-	if id == "" {
+func (g *Game) huntDown(a *Arc) bool {
+	if a.Hunt == "" {
 		return false
 	}
-	i := slices.IndexFunc(g.Hunts, func(x *Hunt) bool { return x.H.ID == id })
+	if a.HuntSlain {
+		return true
+	}
+	i := slices.IndexFunc(g.Hunts, func(x *Hunt) bool { return x.H.ID == a.Hunt })
 	return i >= 0 && g.Hunts[i].H.Slain
 }
 
-// stagesDue ends every stage whose time is up, won if a side was met or
-// its hunt fell meanwhile; one that starts already due lapses with it.
+// stagesDue ends every stage whose time is up or that a side has met.
 func (g *Game) stagesDue(t int64) error {
 	for _, a := range g.openArcs("") {
-		for !a.over() && a.Stage < len(a.Stages) && !a.Stages[a.Stage].over() && a.Stages[a.Stage].Due <= t {
-			if err := g.endStage(a, g.stageWinner(a), t); err != nil {
-				return err
-			}
+		if err := g.endDue(a, t, false); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -676,6 +690,7 @@ func (g *Game) castPersonal(w *storyView, t int64) error {
 		if tpl.Row.Scope != arc.Personal {
 			continue
 		}
+		kind, _ := arc.PendKind(tpl.Row.When)
 		for _, c := range tpl.When(w, tpl.Row, g.r.Story) {
 			if c.Char == "" || g.slotFree(arc.Personal, c) != nil {
 				continue
@@ -688,18 +703,19 @@ func (g *Game) castPersonal(w *storyView, t int64) error {
 				return err
 			}
 			if a != nil {
-				g.unpend(c)
+				g.unpend(c, kind)
 			}
 		}
 	}
 	return nil
 }
 
-// unpend takes the pending candidate a thread was cast from off the queue.
-func (g *Game) unpend(c arc.Candidate) {
+// unpend takes the pending candidate of kind ("" any) a thread was cast
+// from off the queue.
+func (g *Game) unpend(c arc.Candidate, kind string) {
 	s := g.Story
 	i := slices.IndexFunc(s.Pending, func(p arc.Pending) bool {
-		if p.Char != c.Char {
+		if p.Char != c.Char || kind != "" && p.Kind != kind {
 			return false
 		}
 		if p.Fact != 0 && slices.Contains(c.Causes, p.Fact) {
@@ -809,10 +825,7 @@ func (g *Game) startStage(a *Arc, t int64) error {
 		sponsor, opponent := g.sideFactions(a, sd)
 		at, condAt := g.sideAt(a, sd)
 		reward := g.sideReward(a, mark, g.unitWorth(sd), left)
-		spreadHeld(reward, from, budgets, left, -1)
-		for _, n := range from {
-			left[n] = max(left[n], 0)
-		}
+		takeHeld(reward, from, left, nil)
 		issuer := goal.Ref{Kind: goal.ByFaction, ID: strconv.Itoa(sponsor)}
 		x := &Goal{Title: a.Template + ": " + sd.ID, Issuer: issuer, Scope: scope, Members: members, Board: board, Reward: reward, Mode: goal.Pooled,
 			Lifetime: goal.Ephemeral, Turnover: goal.Expire, Posted: t, Expires: st.Due + 1, State: goal.Live,
@@ -938,9 +951,8 @@ func (g *Game) activeIn(regions []int, t int64) int64 {
 }
 
 // sideMark is a side's mark: per unit for each character active in the
-// arc's regions, never under the floor; a thread's for its one character
-// at thread-mark; a trouble's for the place's users, a raid's after its
-// wall's cut, less what its keepers and a stocked wall already count.
+// arc's regions, never under the floor; a thread's for its one character,
+// at thread-mark or a reach side's per.
 func (g *Game) sideMark(a *Arc, sd sheets.SideRow, users []int64, t int64) int64 {
 	p := g.r.Story
 	switch a.Scope {
@@ -956,6 +968,10 @@ func (g *Game) sideMark(a *Arc, sd sheets.SideRow, users []int64, t int64) int64
 	return arc.Mark(sd.Per, g.activeIn(a.Regions, t), p.MarkFloorCharacters)
 }
 
+// troubleMark is a trouble's mark: per unit for the place's users (a beats
+// trouble's: those active in its regions), a raid's after its wall's cut
+// and a stocked wall, less keeper-watch where keepers run the place; never
+// under 1.
 func (g *Game) troubleMark(a *Arc, sd sheets.SideRow, users []int64, t int64) int64 {
 	p := g.r.Story
 	n, ok := goal.SettlementOf(a.Place)
@@ -1265,12 +1281,17 @@ func (g *Game) heldFrom(a *Arc) []int {
 }
 
 // sideHelds is, per place, the escrow of the sides posted since the last
-// faction orders, each spread over the places it was held from by their
-// budgets, the rounding on the first.
+// faction orders, replaying how each was taken when it was posted: spread
+// over the places it was held from by what was left of their budgets past
+// bounties and the sides before it, the rounding on the first.
 func (g *Game) sideHelds(budgets []int64) []int64 {
 	out := make([]int64, len(g.Places))
 	if g.Story == nil {
 		return out
+	}
+	left := make([]int64, len(budgets))
+	for n := range left {
+		left[n] = max(budgets[n]-g.bountyHeld(n), 0)
 	}
 	t := g.Tick()
 	for _, x := range g.Goals {
@@ -1281,27 +1302,40 @@ func (g *Game) sideHelds(budgets []int64) []int64 {
 		if !ok {
 			continue
 		}
-		spreadHeld(x.Reward, g.heldFrom(s.a), budgets, out, 1)
+		takeHeld(x.Reward, g.heldFrom(s.a), left, out)
 	}
 	return out
 }
 
-// spreadHeld adds sign × reward to into over the places it is held from,
-// by their budgets (equal parts when they have none), the rounding on the
-// first.
-func spreadHeld(reward int64, from []int, budgets []int64, into []int64, sign int64) {
+// takeHeld takes a side's escrow out of left, split by what each place has
+// left and clamped at 0, adding the same split to held when given, so
+// posting and sideHelds' replay are one rule.
+func takeHeld(reward int64, from []int, left, held []int64) {
+	weights := slices.Clone(left)
+	if held != nil {
+		spreadHeld(reward, from, weights, held, 1)
+	}
+	spreadHeld(reward, from, weights, left, -1)
+	for _, n := range from {
+		left[n] = max(left[n], 0)
+	}
+}
+
+// spreadHeld adds sign × reward to into, split over the places in from by
+// their weights (equally when none has any), the rounding on the first.
+func spreadHeld(reward int64, from []int, weights []int64, into []int64, sign int64) {
 	if reward == 0 || len(from) == 0 {
 		return
 	}
 	var total int64
 	for _, n := range from {
-		total += budgets[n]
+		total += weights[n]
 	}
 	left := reward
 	for i, n := range from {
 		part := reward / int64(len(from))
 		if total > 0 {
-			part = arcShare(reward, budgets[n], total)
+			part = arcShare(reward, weights[n], total)
 		}
 		if i > 0 {
 			into[n] += sign * part
@@ -1318,12 +1352,19 @@ func arcShare(whole, part, total int64) int64 { return whole * part / total }
 // is closed (closeSide), then the fact, the effects and the rivals the winners
 // made; then the next stage, or the arc's end.
 func (g *Game) endStage(a *Arc, won string, t int64) error {
+	return g.endStageAt(a, won, t, false)
+}
+
+// endStageAt is endStage; with last set the arc ends with this stage,
+// lapsed unless it was the template's final one.
+func (g *Game) endStageAt(a *Arc, won string, t int64, last bool) error {
 	if a.over() || a.Stage >= len(a.Stages) || a.Stages[a.Stage].over() {
 		return nil
 	}
 	row, ok := g.stageRow(a, a.Stage)
 	if !ok {
-		return refuse(NoTemplate, "%s has no stage %d", a.Template, a.Stage)
+		// A template a later book dropped lapses rather than stop the world.
+		row = sheets.StageRow{}
 	}
 	sd, isSide := sideRow(row, won)
 	if !isSide {
@@ -1367,7 +1408,11 @@ func (g *Game) endStage(a *Arc, won string, t int64) error {
 	}
 	g.troubleEnded(a, won, t)
 	g.rivals(winner, f, t)
-	if a.Stage+1 < g.stages(a) {
+	final := a.Stage+1 >= g.stages(a)
+	if last && !final {
+		return g.endArc(a, "", f, t)
+	}
+	if !final {
 		a.Stage++
 		return g.startStage(a, t)
 	}
@@ -1460,8 +1505,9 @@ func (g *Game) troubleEnded(a *Arc, won string, t int64) {
 	}
 }
 
-// rivals queue the rival thread for each backer of a side that won against
-// a faction (GDD 12.8).
+// rivals queues the rival thread, once, for each living contributor to a
+// side that won against a faction who has no thread running, resting or
+// pending (GDD 12.8).
 func (g *Game) rivals(winner *SideRun, f fact.ID, t int64) {
 	if winner == nil || winner.Opponent < 0 || winner.Opponent == winner.Sponsor {
 		return

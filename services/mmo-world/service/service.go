@@ -4,14 +4,11 @@
 package service
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
-	"reflect"
 	"slices"
 	"strconv"
 	"sync"
@@ -302,24 +299,7 @@ func pendingEpoch(cfg Config) (*pending, error) {
 	if err != nil {
 		return nil, fmt.Errorf("service: the pending sheets under %s: %w", EnvSheetsNext, err)
 	}
-	return &pending{book: cfg.Next, rules: rules, from: from, to: to, changed: changedSheets(cfg.Book, cfg.Next)}, nil
-}
-
-// changedSheets counts the sheets two books differ in.
-func changedSheets(a, b *sheets.Book) int64 {
-	va, vb := reflect.ValueOf(a).Elem(), reflect.ValueOf(b).Elem()
-	var n int64
-	for i := range va.NumField() {
-		if f := va.Type().Field(i); !f.IsExported() || f.Tag.Get("json") == "-" {
-			continue
-		}
-		ja, errA := json.Marshal(va.Field(i).Interface())
-		jb, errB := json.Marshal(vb.Field(i).Interface())
-		if errA != nil || errB != nil || !bytes.Equal(ja, jb) {
-			n++
-		}
-	}
-	return n
+	return &pending{book: cfg.Next, rules: rules, from: from, to: to, changed: int64(len(sheets.Changed(cfg.Book, cfg.Next)))}, nil
 }
 
 // closes reports whether a tick's facts close a season.

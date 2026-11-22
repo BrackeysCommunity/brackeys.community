@@ -676,21 +676,17 @@ class Session {
   async stage(find: { arc?: string; goal?: string; trouble?: boolean }, notice?: string) {
     const [{ o, here }, arcs] = await Promise.all([this.load(), this.world.arcs(this.character)]);
     const all = [...arcs.open, ...arcs.ended];
-    const at = here.place.tile.hex;
     const a = all.find((x) =>
       find.arc
         ? x.id === find.arc
         : find.goal
           ? x.sides.some((s) => s.goal === find.goal)
-          : x.scope === "settlement" && !x.outcome && x.seat.q === at.q && x.seat.r === at.r,
+          : x.id === here.place.trouble?.arc,
     );
     if (!a) return this.where(notice ?? "That arc is over");
     const goods = a.sides.some((s) => s.wants === "goods" && !s.mine);
     const goals = goods ? await this.world.goals(this.character) : undefined;
-    const trouble =
-      a.scope === "settlement" && a.seat.q === at.q && a.seat.r === at.r
-        ? here.place.trouble
-        : undefined;
+    const trouble = here.place.trouble?.arc === a.id ? here.place.trouble : undefined;
     return this.done(
       stageCard(o, here, a, this.lex, {
         goals: goals?.ok ? [...goals.reply.board, ...goals.reply.mine] : undefined,

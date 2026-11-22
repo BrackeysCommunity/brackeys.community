@@ -6,10 +6,15 @@ import {
   type Row,
 } from "../../../../packages/discord-kit/src/index.ts";
 import {
+  arcName,
   castNames,
+  isLapsed,
   seasonLine,
-  sideLine,
+  sideDetail,
+  sideName,
   troubleBanner,
+  troubleName,
+  troubleUnit,
   wantUnit,
 } from "../../../../packages/mmo-words/src/index.ts";
 import type * as api from "../api.ts";
@@ -45,24 +50,19 @@ export const EVENTS_CHANNEL = "Events channel · everyone in the server can see 
 /** Where the chronicle channel's daily card appears and who sees it. */
 export const CHRONICLE_CHANNEL = "Chronicle channel · everyone in the server can see this";
 
-const TROUBLE_SHEET = "story.troubles";
-const ARC_SHEET = "story.arcs";
-const SIDE_SHEET = "story.sides";
-const LAPSED = "lapsed";
 /** The units field of the amount modal a goods side's Back opens. */
 export const UNITS_INPUT = "units";
 
 /** A side with a readable title where the world gave only its row id. */
 export function namedSide(s: api.Side, lex: Lexicon): api.Side {
-  return s.title && s.title !== s.id ? s : { ...s, title: lex.name(SIDE_SHEET, s.id) };
+  return s.title && s.title !== s.id ? s : { ...s, title: sideName(s.id, lex) };
 }
 
 /** An arc with readable titles, its own and its sides', where the world gave only row ids. */
 export function namedArc(a: api.Arc, lex: Lexicon): api.Arc {
-  const sheet = a.scope === "settlement" ? TROUBLE_SHEET : ARC_SHEET;
   return {
     ...a,
-    title: a.title && a.title !== a.template ? a.title : lex.name(sheet, a.template),
+    title: a.title && a.title !== a.template ? a.title : arcName(a.template, a.scope, lex),
     sides: a.sides.map((x) => namedSide(x, lex)),
   };
 }
@@ -74,8 +74,7 @@ export function seasonText(s: api.Season): string {
 
 /** A side as a field: its title, then what it wants, who backs it, what it pays and for whom. */
 function sideField(s: api.Side, lex: Lexicon): EmbedField {
-  const [, ...rest] = sideLine(s, lex).split(" · ");
-  return { name: s.title.slice(0, 256), value: capitalise(rest.join(" · ")), inline: true };
+  return { name: s.title.slice(0, 256), value: capitalise(sideDetail(s, lex)), inline: true };
 }
 
 /** The roles an arc's cast fills, by the names they go by. */
@@ -102,6 +101,23 @@ function scopeWord(a: api.Arc): string {
     default:
       return "a settlement's trouble";
   }
+}
+
+/** What every stage card shows of an arc: its cast and regions, its stage and sides, and its colour. */
+function stageParts(
+  a: api.Arc,
+  lex: Lexicon,
+): { description: string; fields: EmbedField[]; colour: number } {
+  return {
+    description: [castLine(a), a.regions.length ? `In ${a.regions.join(", ")}.` : ""]
+      .filter(Boolean)
+      .join("\n"),
+    fields: [
+      { name: "Stage", value: stageLine(a), inline: false },
+      ...a.sides.map((x) => sideField(x, lex)),
+    ],
+    colour: a.scope === "world" ? COLOUR.hazard : COLOUR.ash,
+  };
 }
 
 /** What a viewer brings to backing a side: where it stands, what it carries, and the side goals the board here serves. */
@@ -195,13 +211,13 @@ export function stageCard(
   a = namedArc(a, lex);
   const v = o.version;
   const t = opts.trouble;
-  const fields: EmbedField[] = [{ name: "Stage", value: stageLine(a), inline: false }];
+  const parts = stageParts(a, lex);
+  const fields = [...parts.fields];
   if (t)
-    fields.push({
+    fields.splice(1, 0, {
       name: "The trouble",
       value: troubleBanner(t, { place: here.name, now: o.tick, names: lex }),
     });
-  fields.push(...a.sides.map((x) => sideField(x, lex)));
   const buttons = backButtons(a, v, lex, { at: o.at, purse: o.purse, goals: opts.goals });
   const tail: Button[] = [btn("The chronicle", "chronicle", "", v), back(v)];
   if (t?.hunt) tail.unshift(btn("The raiders' hunt", "hunt", t.hunt, v, { style: "danger" }));
@@ -209,15 +225,13 @@ export function stageCard(
     context: PRIVATE,
     author: authorLine(t ? "Trouble" : "Arc", scopeWord(a)),
     title: opts.notice ?? a.title,
-    description: [castLine(a), a.regions.length ? `In ${a.regions.join(", ")}.` : ""]
-      .filter(Boolean)
-      .join("\n"),
+    description: parts.description,
     picture: banner(here, `; ${a.title}`),
     fields,
     footer:
       "Every side pays by what each backer put in; the first to meet its mark wins the stage.",
     rows: [...buttonRows(buttons.slice(0, ROW_MOST * 2)), { buttons: tail }],
-    colour: t ? COLOUR.rust : a.scope === "world" ? COLOUR.hazard : COLOUR.ash,
+    colour: t ? COLOUR.rust : parts.colour,
   };
 }
 
@@ -341,8 +355,11 @@ const NO_PICTURE: Picture | "form" = "form";
 const placeOf = (ev: api.StoryEvent) => ev.place || "a settlement";
 
 function troubleTitle(ev: api.StoryEvent, lex: Lexicon): string {
-  return ev.trouble?.title || lex.name(TROUBLE_SHEET, factStr(ev.fact, "template"));
+  return ev.trouble?.title || troubleName(factStr(ev.fact, "template"), lex);
 }
+
+/** The trouble's kind: the trouble's own, else the fact's template. */
+const troubleKind = (ev: api.StoryEvent) => ev.trouble?.kind || factStr(ev.fact, "template");
 
 function isRaid(ev: api.StoryEvent): boolean {
   return ev.alarm || ev.trouble?.kind === "raid" || factStr(ev.fact, "template") === "raid";
@@ -410,7 +427,7 @@ function troubleEndCard(ev: api.StoryEvent, lex: Lexicon): Card {
       },
       {
         name: raid ? "Defence" : "Put in",
-        value: amount(factNum(ev.fact, "units"), raid ? "defence" : "points"),
+        value: amount(factNum(ev.fact, "units"), raid ? "defence" : troubleUnit(troubleKind(ev))),
         inline: true,
       },
     ],
@@ -427,32 +444,34 @@ function stagePostCard(ev: api.StoryEvent, a: api.Arc, lex: Lexicon): Card {
     : a.sides.map((s) =>
         btn(buttonLabel(`Back: ${s.title}`), "s-back", s.goal, 0, { style: "primary" }),
       );
+  const parts = stageParts(a, lex);
   return {
     context: EVENTS_CHANNEL,
     author: authorLine("Arc", scopeWord(a), ev.fact.kind === "arc.cast" ? "cast" : "next stage"),
     title: a.title,
-    description: [castLine(a), a.regions.length ? `In ${a.regions.join(", ")}.` : ""]
-      .filter(Boolean)
-      .join("\n"),
+    description: parts.description,
     picture: NO_PICTURE,
-    fields: [
-      { name: "Stage", value: stageLine(a), inline: false },
-      ...a.sides.map((x) => sideField(x, lex)),
-    ],
+    fields: parts.fields,
     footer: "Back a side from your own card: goods where they land, beats in its regions.",
     rows: buttons.length ? buttonRows(buttons.slice(0, ROW_MOST)) : [],
-    colour: a.scope === "world" ? COLOUR.hazard : COLOUR.ash,
+    colour: parts.colour,
   };
+}
+
+/** An event's arc by its template name, where the world sent no arc. */
+function eventArcName(ev: api.StoryEvent, lex: Lexicon): string {
+  const scope = ev.arc?.scope ?? ev.fact.subjects.find((r) => r.kind === "scope")?.id ?? "";
+  return arcName(factStr(ev.fact, "template"), scope, lex);
 }
 
 /** A stage decided: the side that won it, or that it lapsed and what the world did. */
 function stageEndCard(ev: api.StoryEvent, lex: Lexicon): Card {
   const f = ev.fact;
   const side = factStr(f, "side");
-  const lapsed = factNum(f, "lapsed") > 0 || side === LAPSED;
-  const title = ev.arc?.title || lex.name(ARC_SHEET, factStr(f, "template"));
+  const lapsed = isLapsed(f);
+  const title = ev.arc?.title || eventArcName(ev, lex);
   const won = lapsed ? undefined : ev.arc?.sides.find((s) => s.id === side);
-  const winner = lapsed ? "" : (won?.title ?? lex.name(SIDE_SHEET, side));
+  const winner = lapsed ? "" : (won?.title ?? sideName(side, lex));
   const stage = factNum(f, "stage") + 1;
   return {
     context: EVENTS_CHANNEL,
@@ -487,14 +506,14 @@ function stageEndCard(ev: api.StoryEvent, lex: Lexicon): Card {
 function arcEndCard(ev: api.StoryEvent, lex: Lexicon): Card {
   const f = ev.fact;
   const outcome = factStr(f, "outcome");
-  const lapsed = factNum(f, "lapsed") > 0 || outcome === LAPSED;
-  const title = ev.arc?.title || lex.name(ARC_SHEET, factStr(f, "template"));
+  const lapsed = isLapsed(f);
+  const title = ev.arc?.title || eventArcName(ev, lex);
   return {
     context: EVENTS_CHANNEL,
     author: authorLine("Arc", "ended"),
     title: lapsed
       ? `${title} lapsed`
-      : `${title} ended: ${ev.arc?.sides.find((s) => s.id === outcome)?.title ?? lex.name(SIDE_SHEET, outcome)} won`,
+      : `${title} ended: ${ev.arc?.sides.find((s) => s.id === outcome)?.title ?? sideName(outcome, lex)} won`,
     description: `It ran ${plural(factNum(f, "stages"), "stage")}.`,
     picture: NO_PICTURE,
     fields: [{ name: "Told", value: storyLine(f, lex) }],

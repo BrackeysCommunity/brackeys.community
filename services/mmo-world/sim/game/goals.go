@@ -1156,7 +1156,7 @@ func (g *Game) creditGoals(from fact.ID, key string) error {
 			}
 		}
 	}
-	return nil
+	return g.tellMarked()
 }
 
 // payClaims moves claims out of a goal's escrow with the deliveries they

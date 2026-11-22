@@ -27,7 +27,7 @@ import (
 // applied the tick after, are checked against the sheet rows, and the
 // ledger audits clean.
 
-// The weights the design gives the director's own facts.
+// The weights the director's own facts carry.
 var tplWeights = map[string]int64{
 	"arc.cast": 60, "arc.stage-began": 40, "arc.stage-ended": 80, "arc.ended": 70,
 	"side.backed": 5, "character.marked": 20, "trouble.started": 65,

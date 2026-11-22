@@ -10,7 +10,7 @@ import (
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// The story.days bands for a 42-day season, as the design's day table sets them.
+// The story.days bands of a 42-day season.
 var days42 = []sheets.SeasonDay{
 	{ID: season.Opening, From: 1, To: 7},
 	{ID: season.Rising, From: 8, To: 28, Split: 18},

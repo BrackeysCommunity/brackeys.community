@@ -156,8 +156,8 @@ func TestVisitOutOfRangeWaitsForTheHub(t *testing.T) {
 	}
 }
 
-// TestVisitQueueKept: under a season a character has at most visit-kept
-// visits queued; a world without one queues as it always did.
+// TestVisitQueueKept checks that under a season a character has at most
+// visit-kept visits queued, and that a world without one has no cap.
 func TestVisitQueueKept(t *testing.T) {
 	for _, story := range []bool{true, false} {
 		g := guardGame(t)
@@ -167,6 +167,7 @@ func TestVisitQueueKept(t *testing.T) {
 		c, d := mustCreate(t, g, "wanted", "knife"), mustCreate(t, g, "also", "knife")
 		kept := g.r.NPC.Param("visit-kept")
 		home := g.SettlementHex(0)
+		var first *npc.NPC
 		for i := range kept + 1 {
 			n := g.NPCs.Save(npc.Stub{ID: fmt.Sprintf("v-%02d", i), Kind: npc.Wanderer, Role: "road-scout", Name: "x", Home: home}, 0)
 			e := npc.Entry{Kind: entryHelped, Player: c.C.ID, Weight: g.r.NPC.Param("visit-salience"), Tick: g.Tick()}
@@ -175,6 +176,7 @@ func TestVisitQueueKept(t *testing.T) {
 			}
 			e.Player = d.C.ID
 			if i == 0 {
+				first = n
 				if err := g.note(n, d, e, g.Tick()); err != nil {
 					t.Fatal(err)
 				}
@@ -187,12 +189,54 @@ func TestVisitQueueKept(t *testing.T) {
 		if got := int64(len(g.Visitors(c))); got != want {
 			t.Fatalf("story %v: %d visits queued, want %d", story, got, want)
 		}
-		if len(g.Visitors(d)) != 1 {
+		if queued := slices.Contains(g.Visitors(c), first); queued == story {
+			t.Fatalf("story %v: the first visit queued is %v", story, queued)
+		}
+		if !slices.Contains(g.Visitors(d), first) || len(g.Visitors(d)) != 1 {
 			t.Fatal("the cap is per character")
 		}
-		if story && int64(len(pendingOf(g, c, arc.PendDebt))) != kept {
-			t.Fatalf("%d debts pending for %d visits", len(pendingOf(g, c, arc.PendDebt)), kept)
+		if story && int64(len(pendingOf(g, c, arc.PendDebt))) != kept+1 {
+			t.Fatalf("%d debts pending for %d visits queued in turn", len(pendingOf(g, c, arc.PendDebt)), kept+1)
 		}
+	}
+}
+
+// TestVisitQueueDisplaces checks that a character whose queue is full of
+// NPCs it never meets still gets a new visit: the lowest-numbered visitor
+// gives way and is saved without it.
+func TestVisitQueueDisplaces(t *testing.T) {
+	g := guardGame(t)
+	c := mustCreate(t, g, "stale", "knife")
+	kept := g.r.NPC.Param("visit-kept")
+	home := g.SettlementHex(0)
+	stub := func(i int64) npc.Stub {
+		return npc.Stub{ID: fmt.Sprintf("s-%02d", i), Kind: npc.Wanderer, Role: "road-scout", Name: "x", Home: home}
+	}
+	for i := range kept {
+		g.NPCs.Queue(g.NPCs.Save(stub(i), 0), c.C.ID)
+	}
+	stale := g.Visitors(c)
+	if int64(len(stale)) != kept {
+		t.Fatalf("%d stale visits queued, want %d", len(stale), kept)
+	}
+	g.NPCs.Flush()
+	n := g.NPCs.Save(stub(kept), 0)
+	e := npc.Entry{Kind: entryHelped, Player: c.C.ID, Weight: g.r.NPC.Param("visit-salience"), Tick: g.Tick()}
+	if err := g.note(n, c, e, g.Tick()); err != nil {
+		t.Fatal(err)
+	}
+	now := g.Visitors(c)
+	if int64(len(now)) != kept || !slices.Contains(now, n) {
+		t.Fatalf("%d visits queued, the new one queued %v", len(now), slices.Contains(now, n))
+	}
+	if slices.Contains(now, stale[0]) || slices.Contains(stale[0].Visits, c.C.ID) {
+		t.Fatal("the lowest-numbered visitor was not displaced")
+	}
+	if !slices.Contains(g.NPCs.Flush(), stale[0]) {
+		t.Fatal("the displaced NPC is not saved")
+	}
+	if !slices.ContainsFunc(pendingOf(g, c, arc.PendDebt), func(p arc.Pending) bool { return p.Ref == npc.Ref(n.Stub.ID) }) {
+		t.Fatal("the new visit queued no debt thread")
 	}
 }
 

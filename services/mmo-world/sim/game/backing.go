@@ -65,7 +65,7 @@ func (g *Game) backSide(c *Char, cmd Command) error {
 	if !ok {
 		return refuse(NotASide, "%s is not an arc's side", x.ID)
 	}
-	if s.a.Scope == arc.Personal && s.a.Char != c.C.ID {
+	if !ArcVisible(s.a, c.C.ID) {
 		return refuse(NotASide, "%s is another character's thread", s.a.ID)
 	}
 	if !g.sideRunning(s) {
@@ -131,8 +131,24 @@ func (g *Game) enlisted(c *Char, s backed) error {
 	if !g.enlist(c, s) {
 		return nil
 	}
-	_, err := g.factWith(c, nil, "character.marked", g.Tick(), fact.S("arc", s.a.ID))
+	return g.writeMarked(c, s.a.ID)
+}
+
+func (g *Game) writeMarked(c *Char, arcID string) error {
+	_, err := g.factWith(c, nil, "character.marked", g.Tick(), fact.S("arc", arcID))
 	return err
+}
+
+// tellMarked writes the mark of each backer a credit pass enlisted.
+func (g *Game) tellMarked() error {
+	ms := g.marked
+	g.marked = nil
+	for _, m := range ms {
+		if err := g.writeMarked(m.c, m.arc); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // enlist records a backer once and marks it for a world arc, reporting
@@ -186,14 +202,12 @@ func (g *Game) sideOf(x *Goal) (backed, bool) {
 	if g.Story == nil || x.Cond.Verb != goal.Back {
 		return backed{}, false
 	}
-	arcID, rest, ok := strings.Cut(x.Cond.Side, "/")
-	num, side, ok2 := strings.Cut(rest, "/")
-	if !ok || !ok2 {
+	arcID, stage, side, ok := parseSideKey(x.Cond.Side)
+	if !ok {
 		return backed{}, false
 	}
-	stage, err := strconv.Atoi(num)
 	a := g.arcByID(arcID)
-	if err != nil || a == nil || stage < 0 || stage >= len(a.Stages) {
+	if a == nil || stage < 0 || stage >= len(a.Stages) {
 		return backed{}, false
 	}
 	sides := a.Stages[stage].Sides
@@ -203,6 +217,31 @@ func (g *Game) sideOf(x *Goal) (backed, bool) {
 	}
 	wants, tag, ok := g.sideWants(a, stage, side)
 	return backed{x: x, a: a, stage: stage, sr: &sides[j], wants: wants, tag: tag}, ok
+}
+
+// SideOf is the arc, stage and side a Back goal fills.
+func (g *Game) SideOf(x *Goal) (*Arc, int, SideRun, bool) {
+	s, ok := g.sideOf(x)
+	if !ok {
+		return nil, 0, SideRun{}, false
+	}
+	return s.a, s.stage, *s.sr, true
+}
+
+// SideKey names one side of one stage of an arc, as a Back goal's
+// condition carries it.
+func SideKey(arcID string, stage int, side string) string {
+	return arcID + sidePart + strconv.Itoa(stage) + sidePart + side
+}
+
+func parseSideKey(k string) (arcID string, stage int, side string, ok bool) {
+	arcID, rest, ok1 := strings.Cut(k, sidePart)
+	num, side, ok2 := strings.Cut(rest, sidePart)
+	n, err := strconv.Atoi(num)
+	if !ok1 || !ok2 || err != nil {
+		return "", 0, "", false
+	}
+	return arcID, n, side, true
 }
 
 func (g *Game) arcByID(id string) *Arc {
@@ -328,7 +367,7 @@ func (g *Game) backEvents(f fact.Fact) []goal.Event {
 	}
 	var out []goal.Event
 	for _, s := range g.runningSides() {
-		if s.a.Scope == arc.Personal && s.a.Char != c.C.ID {
+		if !ArcVisible(s.a, c.C.ID) {
 			continue
 		}
 		units, worth, implicit := g.counts(c, s, f)
@@ -444,7 +483,7 @@ func (g *Game) contribute(c *Char, s backed, f fact.Fact, units, worth int64, im
 	if slices.ContainsFunc(s.x.Facts, func(ci goal.Cite) bool { return ci.Fact == f.ID && ci.Who == who }) {
 		return goal.Event{}, false
 	}
-	if (s.a.Scope == arc.Personal && s.a.Char != who) || !s.x.May(who) {
+	if !ArcVisible(s.a, who) || !s.x.May(who) {
 		return goal.Event{}, false
 	}
 	if implicit {
@@ -456,8 +495,8 @@ func (g *Game) contribute(c *Char, s backed, f fact.Fact, units, worth int64, im
 	if counted <= 0 {
 		return goal.Event{}, false
 	}
-	if implicit {
-		g.enlist(c, s)
+	if implicit && g.enlist(c, s) {
+		g.marked = append(g.marked, markedBy{c, s.a.ID})
 	}
 	g.credit(c, s.sr.Sponsor, s.sr.Opponent, g.sideHex(s), worth*counted/units)
 	g.touchOnce(c)
@@ -557,7 +596,7 @@ func (g *Game) SidesFor(c *Char) []SideOption {
 	}
 	var out []SideOption
 	for _, s := range g.runningSides() {
-		if s.a.Scope == arc.Personal && s.a.Char != c.C.ID {
+		if !ArcVisible(s.a, c.C.ID) {
 			continue
 		}
 		b, backs := g.backingIn(c.C.ID, s.a.ID, s.stage)

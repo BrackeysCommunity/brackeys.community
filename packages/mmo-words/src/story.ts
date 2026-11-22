@@ -57,6 +57,39 @@ function readable(id: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/** A sheet row's name, or its id made readable; "" for no id. */
+function rowName(sheet: string, id: string, names?: Names): string {
+  if (!id) return "";
+  return names?.name(sheet, id) || readable(id);
+}
+
+/** The scope whose arcs are troubles, named from story.troubles. */
+const SETTLEMENT_SCOPE = "settlement";
+/** The side or outcome an older fact names for a lapse, before the lapsed datum. */
+const LAPSED = "lapsed";
+
+/** An arc template's name: a settlement's arc is a trouble, any other an arc. */
+export function arcName(template: string, scope: string, names?: Names): string {
+  return rowName(scope === SETTLEMENT_SCOPE ? "story.troubles" : "story.arcs", template, names);
+}
+
+/** A trouble's name by its kind. */
+export function troubleName(kind: string, names?: Names): string {
+  return rowName("story.troubles", kind, names);
+}
+
+/** A side's name by its row id. */
+export function sideName(id: string, names?: Names): string {
+  return rowName("story.sides", id, names);
+}
+
+/** Whether a fact tells of a stage, arc or thread that lapsed. */
+export function isLapsed(f: StoryFact): boolean {
+  const d = f.data.find((x) => x.k === "lapsed");
+  if (d) return !!d.n;
+  return f.data.some((x) => (x.k === "side" || x.k === "outcome") && x.s === LAPSED);
+}
+
 function capital(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
@@ -110,8 +143,7 @@ class Reading {
     return this.f.data.find((d) => d.k.startsWith(p))?.n ?? 0;
   }
   row(sheet: string, id: string): string {
-    if (!id) return "";
-    return this.names?.name(sheet, id) || readable(id);
+    return rowName(sheet, id, this.names);
   }
   /** A ref's name, "" when the world gives none. A character is never named. */
   known(r: Ref | undefined): string {
@@ -149,13 +181,14 @@ class Reading {
     return this.called(ref, "settlement");
   }
   template(): string {
-    return this.row("story.arcs", this.s("template")) || "An arc";
+    const scope = this.subjects("scope")[0]?.id ?? "";
+    return arcName(this.s("template"), scope, this.names) || "An arc";
   }
   trouble(): string {
-    return this.row("story.troubles", this.s("template")) || "trouble";
+    return troubleName(this.s("template"), this.names) || "trouble";
   }
   side(id = this.s("side")): string {
-    return this.row("story.sides", id) || "a side";
+    return sideName(id, this.names) || "a side";
   }
   stage(): string {
     return `Stage ${num(this.n("stage") + 1)}`;
@@ -205,6 +238,11 @@ const WANT_UNIT: Record<string, string> = {
   defence: "defence",
   sold: "coin",
 };
+
+/** The unit a trouble's mark counts in, by its kind. */
+export function troubleUnit(kind: string): string {
+  return TROUBLE_UNIT[kind] ?? "goods";
+}
 
 /** The unit a side's mark counts in, by what it wants. */
 export function wantUnit(wants: string): string {
@@ -270,13 +308,13 @@ const LINES: Record<string, Line> = {
   },
   "arc.stage-began": (r) => `${r.template()}${r.where()} moved on. ${r.stageNamed()}.`,
   "arc.stage-ended": (r) => {
-    if (r.n("lapsed") || r.s("side") === "lapsed")
+    if (isLapsed(r.f))
       return `${r.template()}${r.where()}, ${r.stage()}: it lapsed with no side's mark met.`;
     const backers = r.n("backers");
     return `${r.template()}${r.where()}, ${r.stage()}: ${lower(r.side())} carried it${backers ? `, with ${plural(backers, "backer")}` : ""}.`;
   },
   "arc.ended": (r) =>
-    r.n("lapsed") || r.s("outcome") === "lapsed"
+    isLapsed(r.f)
       ? `${r.template()} ended${r.where()}: it lapsed, and the world went its own way.`
       : `${r.template()} ended${r.where()}: ${lower(r.side(r.s("outcome")))} won.`,
   "side.backed": (r) => `${capital(r.side())} gained a backer.`,
@@ -287,14 +325,13 @@ const LINES: Record<string, Line> = {
     return `A personal thread began: ${lower(r.template())}${npc ? `, with ${npc}` : ""}.`;
   },
   "thread.ended": (r) =>
-    r.n("lapsed") || r.s("side") === "lapsed"
+    isLapsed(r.f)
       ? `A personal thread ended: ${lower(r.template())} lapsed.`
       : `A personal thread ended: ${lower(r.template())}, settled by ${lower(r.side())}.`,
 
   // Troubles and occasions.
   "trouble.started": (r) => {
-    const unit = TROUBLE_UNIT[r.s("template")] ?? "goods";
-    return `${capital(r.trouble())} at ${r.place()}: ${amount(r.prefixed("mark:"), unit)} to hold it off by the day's end.`;
+    return `${capital(r.trouble())} at ${r.place()}: ${amount(r.prefixed("mark:"), troubleUnit(r.s("template")))} to hold it off by the day's end.`;
   },
   "trouble.held": (r) => {
     const backers = r.n("backers");
@@ -355,7 +392,7 @@ const LINES: Record<string, Line> = {
     const outcome = r.s("outcome");
     const how = !outcome
       ? ""
-      : outcome === "lapsed"
+      : isLapsed(r.f)
         ? ", and it lapsed"
         : `, won by ${lower(r.side(outcome))}`;
     return `The finale of ${season}: ${lower(r.template())}${how}.`;
@@ -541,6 +578,11 @@ function wanted(s: StorySide, names?: Names): string {
  * Compact".
  */
 export function sideLine(s: StorySide, names?: Names): string {
+  return sideParts(s, names).join(" · ");
+}
+
+/** What sideLine joins, the side's title first. */
+export function sideParts(s: StorySide, names?: Names): string[] {
   const unit = s.wants === "goods" && s.tag === "provisions" ? "provisions" : wantUnit(s.wants);
   const parts = [
     s.title,
@@ -552,7 +594,12 @@ export function sideLine(s: StorySide, names?: Names): string {
   if (s.sponsor)
     parts.push(s.opponent ? `for ${s.sponsor}, against ${s.opponent}` : `for ${s.sponsor}`);
   if (s.mine) parts.push("you back it");
-  return parts.join(" · ");
+  return parts;
+}
+
+/** A side past its title: what it wants, who backs it, what it pays and for whom. */
+export function sideDetail(s: StorySide, names?: Names): string {
+  return sideParts(s, names).slice(1).join(" · ");
 }
 
 /** A trouble as the wire carries it (`api.Trouble`). */
@@ -573,7 +620,7 @@ export function troubleBanner(
   t: StoryTrouble,
   o: { place?: string; now?: number; names?: Names } = {},
 ): string {
-  const unit = TROUBLE_UNIT[t.kind] ?? "goods";
+  const unit = troubleUnit(t.kind);
   const parts = [
     `${t.title || readable(t.kind)}${o.place ? ` at ${o.place}` : ""}: ${outOf(Math.min(t.defence, t.mark), t.mark, unit)} to hold it off`,
   ];

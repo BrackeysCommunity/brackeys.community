@@ -222,23 +222,16 @@ func apiGoal(g *game.Game, x *game.Goal, c *game.Char) api.Goal {
 // goalSide is the arc side a Back goal fills, or nil once the arc is
 // forgotten or is someone else's personal thread.
 func goalSide(g *game.Game, id, viewer string) *api.Side {
-	if g.Story == nil {
+	x := g.GoalOf(id)
+	if x == nil {
 		return nil
 	}
-	for _, a := range g.Story.Arcs {
-		for i, st := range a.Stages {
-			for _, sr := range st.Sides {
-				if sr.Goal == id {
-					if !game.ArcVisible(a, viewer) {
-						return nil
-					}
-					sd := apiSide(g, a, i, sr, viewer)
-					return &sd
-				}
-			}
-		}
+	a, stage, sr, ok := g.SideOf(x)
+	if !ok || !game.ArcVisible(a, viewer) {
+		return nil
 	}
-	return nil
+	sd := apiSide(g, a, stage, sr, viewer)
+	return &sd
 }
 
 // issuerName names who issued a goal.

@@ -120,10 +120,10 @@ type Goal struct {
 	// withdraw it whatever has been claimed.
 	Evolved bool `json:"evolved,omitempty"`
 	// Takes are the goods the viewer carries that a Deliver, or a goods
-	// side's Back, still takes from it; Haul is whether the viewer may take its stock here, or
-	// deliver it here.
+	// side's Back, still takes from it.
 	Takes []Goods `json:"takes"`
-	Haul  string  `json:"haul,omitempty"` // take, deliver
+	// Haul is whether the viewer may take its stock here, or deliver it here.
+	Haul string `json:"haul,omitempty"` // take, deliver
 	// CanPledge: the goal takes pledges. CanWithdraw: the viewer may take
 	// it down now.
 	CanPledge   bool   `json:"canPledge"`

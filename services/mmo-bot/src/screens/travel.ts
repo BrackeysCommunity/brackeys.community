@@ -3,6 +3,7 @@ import {
   type EmbedField,
   SELECT_LABEL_MAX,
 } from "../../../../packages/discord-kit/src/index.ts";
+import { sideName } from "../../../../packages/mmo-words/src/index.ts";
 import type * as api from "../api.ts";
 import type { Card } from "../card.ts";
 import { encodeId, target } from "../ids.ts";
@@ -45,7 +46,7 @@ export function travelCard(
   const destinations = new Map<string, string>();
   for (const sd of o.sides ?? []) {
     if (sd.at.q === o.at.q && sd.at.r === o.at.r) continue;
-    const label = `To back ${lex.name("story.sides", sd.side).toLowerCase()}${sd.region ? `, in ${sd.region}` : ""}`;
+    const label = `To back ${sideName(sd.side, lex).toLowerCase()}${sd.region ? `, in ${sd.region}` : ""}`;
     const key = target(",", sd.at.q, sd.at.r);
     if (!destinations.has(key) && destinations.size < SIDES_SHOWN)
       destinations.set(key, label.slice(0, SELECT_LABEL_MAX));

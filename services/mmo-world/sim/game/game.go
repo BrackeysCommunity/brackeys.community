@@ -241,6 +241,14 @@ type Game struct {
 	// its own actor aside; seen those whose view it changed with no row.
 	touched []string
 	seen    []string
+	// marked are world-arc backers marked during a credit pass, told once
+	// it ends.
+	marked []markedBy
+}
+
+type markedBy struct {
+	c   *Char
+	arc string
 }
 
 // touch moves a character's row on behalf of someone else's command or a

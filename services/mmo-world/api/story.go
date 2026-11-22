@@ -123,6 +123,8 @@ type Arc struct {
 	Outcome  string    `json:"outcome,omitempty"`
 	Began    int64     `json:"began"` // tick
 	Lapsed   bool      `json:"lapsed,omitempty"`
+	// Trouble is a settlement arc's trouble as its place shows it.
+	Trouble *Trouble `json:"trouble,omitempty"`
 }
 
 // Arcs is /arcs for a character: the season, the arcs open and those ended
@@ -152,6 +154,7 @@ type SideOption struct {
 // from, Defence how much of the mark is held so far, Ends the tick it is
 // decided at, and Hunt a raid's hunt.
 type Trouble struct {
+	Arc     string `json:"arc"`
 	Kind    string `json:"kind"`
 	Title   string `json:"title"`
 	Banner  string `json:"banner"` // a media key

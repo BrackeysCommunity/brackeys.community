@@ -63,15 +63,20 @@ func (c *Char) calling(id string, h hex.Hex) bool {
 	return h == c.C.At && slices.ContainsFunc(c.Callers, func(x Caller) bool { return x.NPC == id && x.At == h })
 }
 
-// queueVisit queues an NPC's visit to a character, at most visit-kept
-// visits a character under a season; it reports whether the visit stands
-// queued.
-func (g *Game) queueVisit(n *npc.NPC, c *Char) bool {
-	if g.Story != nil && !slices.Contains(n.Visits, c.C.ID) && int64(len(g.NPCs.Visiting(c.C.ID))) >= g.r.NPC.Param("visit-kept") {
-		return false
+// queueVisit queues an NPC's visit to a character. Under a season at most
+// visit-kept stand queued, a new one displacing the lowest-numbered NPC
+// queued, since visits keep no tick to lapse by.
+func (g *Game) queueVisit(n *npc.NPC, c *Char) error {
+	if g.Story != nil && !slices.Contains(n.Visits, c.C.ID) {
+		if q := g.NPCs.Visiting(c.C.ID); len(q) > 0 && int64(len(q)) >= g.r.NPC.Param("visit-kept") {
+			g.NPCs.Visited(q[0], c.C.ID)
+			if err := g.NPCs.Touched(q[0]); err != nil {
+				return err
+			}
+		}
 	}
 	g.NPCs.Queue(n, c.C.ID)
-	return true
+	return nil
 }
 
 // dormant reports whether an NPC sleeps. Under a season clock it has not

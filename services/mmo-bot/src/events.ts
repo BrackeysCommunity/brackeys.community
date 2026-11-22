@@ -3,7 +3,7 @@ import type { Card } from "./card.ts";
 import type { ForumStore } from "./forum.ts";
 import { type ChannelSink, pollEvery } from "./hunts.ts";
 import type { Lexicon } from "./lexicon.ts";
-import { editDue, LiveCards } from "./live.ts";
+import { editDue, LiveCards, postOnce } from "./live.ts";
 import { factNum, factStr } from "./screens/common.ts";
 import { eventCard } from "./screens/story.ts";
 
@@ -62,17 +62,7 @@ function live(ev: api.StoryEvent): boolean {
 
 /** A live card's event with the arc as the world holds it now. */
 export function refreshed(ev: api.StoryEvent, a: api.Arc): api.StoryEvent {
-  if (!ev.trouble) return { ...ev, arc: a };
-  const sides = a.sides;
-  return {
-    ...ev,
-    trouble: {
-      ...ev.trouble,
-      mark: sides.reduce((n, s) => n + s.mark, 0),
-      defence: sides.reduce((n, s) => n + Math.min(s.filled, s.mark), 0),
-      ends: a.due,
-    },
-  };
+  return ev.trouble ? { ...ev, trouble: a.trouble ?? ev.trouble } : { ...ev, arc: a };
 }
 
 /** What a live card shows, so an unchanged one is not edited again. */
@@ -146,17 +136,20 @@ export class EventsPoster {
           this.log(`[events] ${ev.fact.kind} ${ev.fact.id}: ${String(e)}`);
           card = null;
         }
-        // The event is marked before it is posted: a crash or a failed
-        // write after the post must not post it twice in a public channel.
-        await this.store.set(this.lastKey, String(ev.fact.id));
         if (card) {
-          try {
-            await this.show(ev, card);
-          } catch (e) {
-            await this.store.set(this.lastKey, String(last));
-            throw e;
-          }
+          // Marked before it is posted: a crash after the post must not post
+          // it twice in a public channel.
+          const prev = String(last);
+          await postOnce(
+            this.store,
+            this.lastKey,
+            String(ev.fact.id),
+            () => this.show(ev, card),
+            () => this.store.set(this.lastKey, prev),
+          );
           posted++;
+        } else {
+          await this.store.set(this.lastKey, String(ev.fact.id));
         }
         last = ev.fact.id;
       }

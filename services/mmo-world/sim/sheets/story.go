@@ -168,7 +168,7 @@ type FactionCityRow struct {
 	Note    string `json:"note,omitempty" unit:"text"`
 }
 
-// Scopes and the roles every arc may name without casting them.
+// Names the story sheets share with the game: scopes, the roles every arc may name without casting them, the rising band and the provisions tag.
 const (
 	ScopeWorld    = "world"
 	ScopeRegion   = "region"

@@ -264,7 +264,7 @@ func (r *liveResult) fact(f api.Fact) {
 	case "arc.stage-ended", "trouble.held", "trouble.lost":
 		s.ended = f.Tick
 		won := datum(f, "side").S
-		if won == "" || won == outcomeLapsed {
+		if stageLapsed(sf) {
 			s.lapsed = true
 		} else {
 			s.won = won
@@ -384,11 +384,13 @@ func datum(f api.Fact, key string) api.Datum {
 	return d
 }
 
+// simFact sorts the data by key, as Get's search needs.
 func simFact(f api.Fact) fact.Fact {
 	out := fact.Fact{ID: fact.ID(f.ID), Tick: f.Tick, Kind: f.Kind, Region: f.Region, Weight: f.Weight}
 	for _, d := range f.Data {
 		out.Data = append(out.Data, fact.Datum{Key: d.Key, N: d.N, S: d.S})
 	}
+	slices.SortStableFunc(out.Data, func(a, b fact.Datum) int { return strings.Compare(a.Key, b.Key) })
 	return out
 }
 

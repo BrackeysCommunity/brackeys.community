@@ -93,11 +93,13 @@ function raidArc(defence: number, extra: Partial<api.Arc> = {}): api.Arc {
     stages: 1,
     due: 400,
     sides: [{ ...side("defend", defence, 7), wants: "defence", tag: "" }],
+    trouble: { ...raid, defence: Math.min(defence, 7), mark: 7, ends: 400 },
     ...extra,
   };
 }
 
 const raid: api.Trouble = {
+  arc: "arc-raid",
   kind: "raid",
   title: "A raid on Ashford",
   banner: "",

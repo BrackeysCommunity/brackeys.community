@@ -493,16 +493,20 @@ func (g *Game) bountyOpen(n int) bool {
 }
 
 // bountyHeld is what a settlement's faction holds out in bounties posted
-// today, taken from its faction orders' budget.
+// this world day so far, taken from its day budget.
 func (g *Game) bountyHeld(n int) int64 {
 	var out int64
+	t := g.Tick()
 	for _, x := range g.Goals {
-		if bounty(x, n) && x.Posted == g.Tick() {
+		if bounty(x, n) && postedToday(x, t) {
 			out += x.Reward
 		}
 	}
 	return out
 }
+
+// postedToday reports whether x was posted within the world day up to t.
+func postedToday(x *Goal, t int64) bool { return x.Posted <= t && x.Posted > t-sheets.TicksPerDay }
 
 // threatened is the region near a settlement with the most threat over
 // the ambush line, if any.

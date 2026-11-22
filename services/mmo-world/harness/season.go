@@ -342,7 +342,7 @@ func (r *seasonResult) observe(g *game.Game, seen map[string]*seasonArc) {
 	}
 	declared := map[string]int{}
 	for _, bk := range g.Story.Backers {
-		declared[sideKey(bk.Arc, bk.Stage, bk.Side)]++
+		declared[game.SideKey(bk.Arc, bk.Stage, bk.Side)]++
 	}
 	for _, a := range g.Story.Arcs {
 		l, ok := seen[a.ID]
@@ -365,7 +365,7 @@ func (r *seasonResult) observe(g *game.Game, seen map[string]*seasonArc) {
 			for j, sr := range st.Sides {
 				sd := &s.sides[j]
 				sd.side, sd.mark = sr.Side, sr.Mark
-				sd.declared = max(sd.declared, declared[sideKey(a.ID, i, sr.Side)])
+				sd.declared = max(sd.declared, declared[game.SideKey(a.ID, i, sr.Side)])
 				x := g.GoalOf(sr.Goal)
 				if x == nil {
 					continue
@@ -379,10 +379,6 @@ func (r *seasonResult) observe(g *game.Game, seen map[string]*seasonArc) {
 			}
 		}
 	}
-}
-
-func sideKey(arcID string, stage int, side string) string {
-	return arcID + "/" + strconv.Itoa(stage) + "/" + side
 }
 
 // troublesByPlace counts each place's troubles held and lost.

@@ -10,6 +10,7 @@ import (
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/goal"
+	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/settle"
 	"jams.team/mmo-world/sim/sheets"
@@ -657,4 +658,130 @@ func TestTroubleStakes(t *testing.T) {
 
 func settleScaled(lines []sheets.CostLine, pct int64) []sheets.CostLine {
 	return settle.Scaled(lines, pct)
+}
+
+// TestRaidSlainBeforeTheDayHolds: a raid's band slain on the tick before a
+// day tick still holds the raid, though the day forgets the closed hunt.
+func TestRaidSlainBeforeTheDayHolds(t *testing.T) {
+	g := guardGame(t)
+	lineOn(t, g, homeRegion(g), "threat-raid", 850)
+	a := castTrouble(t, g, "raid", 0)
+	c := dirChars(t, g, 1)[0]
+	for g.Tick() < sheets.TicksPerDay-1 {
+		dirTick(t, g)
+	}
+	i := slices.IndexFunc(g.Hunts, func(x *Hunt) bool { return x.H.ID == a.Hunt })
+	if a.Hunt == "" || i < 0 || a.over() {
+		t.Fatalf("the raid's hunt %q is not open a tick before the day", a.Hunt)
+	}
+	x := g.Hunts[i]
+	x.H.Over, x.H.Slain = true, true
+	if err := g.huntSlain(c, x, "slay", g.Tick()); err != nil {
+		t.Fatal(err)
+	}
+	dirTick(t, g)
+	if slices.ContainsFunc(g.Hunts, func(h *Hunt) bool { return h.H.ID == a.Hunt }) {
+		t.Fatal("the day kept the closed hunt, so this proves nothing")
+	}
+	if a.Outcome != sideHold || g.storyAt(0).Held != 1 || len(factsOf(g, "trouble.held")) != 1 {
+		t.Fatalf("a band slain before the day: %+v", a)
+	}
+	audit(t, g)
+}
+
+// TestDroppedTemplateLapses: a running arc whose template a later book
+// dropped lapses at its due, its escrow refunded, and the world goes on.
+func TestDroppedTemplateLapses(t *testing.T) {
+	g := guardGame(t)
+	tpl, _ := g.template("the-overrun")
+	a, err := g.castFrom(tpl, overrunAt(g, 1), ByDirector, g.Tick())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var goals []*Goal
+	for _, sr := range a.Stages[0].Sides {
+		goals = append(goals, g.GoalOf(sr.Goal))
+	}
+	b := *g.r.Book
+	b.Arcs = slices.DeleteFunc(slices.Clone(b.Arcs), func(r sheets.ArcRow) bool { return r.ID == "the-overrun" })
+	r, err := NewRules(&b, keys.Throwaway("guards"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.r = r
+	a.Stages[0].Due = g.Tick() + 1
+	dirTick(t, g)
+	dirTick(t, g)
+	if a.Outcome != outcomeLapsed || !a.Stages[0].Lapsed {
+		t.Fatalf("the dropped arc: %+v", a)
+	}
+	for _, x := range goals {
+		if x.Open() || g.Ledger.Of(goalPool(x.ID), ledger.Coin) != 0 {
+			t.Fatalf("side %s is %s holding %d", x.ID, x.State, g.Ledger.Of(goalPool(x.ID), ledger.Coin))
+		}
+	}
+	audit(t, g)
+}
+
+// TestUnpendTakesItsOwnKind: a return cast for a character who also owes
+// an oath on the same settlement takes the return off the queue, not the
+// oath.
+func TestUnpendTakesItsOwnKind(t *testing.T) {
+	g := guardGame(t)
+	c := mustCreate(t, g, "both", "knife")
+	g.pend(arc.Pending{Kind: arc.PendOath, Char: c.C.ID, Ref: arc.SettlementRef(0), Tick: g.Tick()})
+	g.pend(arc.Pending{Kind: arc.PendReturn, Char: c.C.ID, Ref: arc.SettlementRef(0), Tick: g.Tick()})
+	tpl, _ := g.template("the-return")
+	kind, ok := arc.PendKind(tpl.Row.When)
+	if !ok || kind != arc.PendReturn {
+		t.Fatalf("the return reads %q", kind)
+	}
+	cand := arc.Candidate{Char: c.C.ID, Place: -1, Cast: arc.Sorted(arc.Cast{{Role: "character", Ref: char.Ref(c.C.ID)},
+		{Role: "home", Ref: arc.SettlementRef(0)}, {Role: "elsewhere", Ref: arc.SettlementRef(1)}})}
+	g.unpend(cand, kind)
+	if len(g.Story.Pending) != 1 || g.Story.Pending[0].Kind != arc.PendOath {
+		t.Fatalf("pending after the return: %+v", g.Story.Pending)
+	}
+}
+
+// TestSideEscrowStaysInsideWhatIsLeft: sides held from a spent place and a
+// fresh one take their escrow where budget remains, so together they never
+// pass what was left.
+func TestSideEscrowStaysInsideWhatIsLeft(t *testing.T) {
+	g := guardGame(t)
+	p := g.r.Story
+	left := []int64{0, 1_000_000}
+	from := []int{0, 1}
+	whole := left[0] + left[1]
+	held := make([]int64, len(left))
+	var minted int64
+	for range 3 {
+		reward := arc.Reward(1_000_000, 1_000_000, p.SidePay, left[0]+left[1], p.SideBudgetShare)
+		takeHeld(reward, from, left, held)
+		minted += reward
+	}
+	if minted <= 0 || minted > whole || held[0] != 0 || held[1] != minted || left[1] != whole-minted {
+		t.Fatalf("minted %d of %d, held %v, left %v", minted, whole, held, left)
+	}
+}
+
+// TestCloseEndsWorldArcAtItsStage: the close lapses a world arc's running
+// stage and ends it there, starting none of the stages after.
+func TestCloseEndsWorldArcAtItsStage(t *testing.T) {
+	g := guardGame(t)
+	a := dirCast(t, g, "the-siege", siegeCast(t, g))
+	if g.stages(a) != 3 || a.Stage != 0 {
+		t.Fatalf("the siege runs %d stages, at %d", g.stages(a), a.Stage)
+	}
+	began := len(factsOf(g, "arc.stage-began"))
+	if err := g.endDue(a, g.Tick(), true); err != nil {
+		t.Fatal(err)
+	}
+	if a.Outcome != outcomeLapsed || len(a.Stages) != 1 || !a.Stages[0].Lapsed {
+		t.Fatalf("the closed siege: %+v", a)
+	}
+	if got := len(factsOf(g, "arc.stage-began")); got != began || len(factsOf(g, "arc.ended")) != 1 {
+		t.Fatalf("the close began %d stages", got-began)
+	}
+	audit(t, g)
 }

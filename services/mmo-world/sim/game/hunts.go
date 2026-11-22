@@ -212,6 +212,11 @@ func (g *Game) huntPress(c *Char, cmd Command) ([]fight.Pressed, error) {
 func (g *Game) huntSlain(c *Char, x *Hunt, key string, tick int64) error {
 	h := x.H
 	h.Closed = tick
+	for _, a := range g.openArcs("") {
+		if a.Hunt == h.ID {
+			a.HuntSlain = true
+		}
+	}
 	x.Rolled = g.r.Fight.Roll(h)
 	pool := ledger.HuntPool(h.ID)
 	for i, s := range x.Rolled {

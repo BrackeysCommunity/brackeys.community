@@ -149,8 +149,7 @@ type Pressure struct {
 	Score  int64
 }
 
-// Largest is the highest score; tie picks among the tied, given how many
-// tie, by their index in ps order. A nil tie takes the first.
+// Largest is the pressure LargestAt picks.
 func Largest(ps []Pressure, tie func(n int) int) (Pressure, bool) {
 	i, ok := LargestAt(ps, tie)
 	if !ok {
@@ -159,8 +158,9 @@ func Largest(ps []Pressure, tie func(n int) int) (Pressure, bool) {
 	return ps[i], true
 }
 
-// LargestAt is the index in ps of the pressure Largest picks. tie is
-// called only when more than one ties.
+// LargestAt is the index in ps of the highest score; with more than one
+// tied, tie(n) picks among the n tied in ps order, and a nil tie takes the
+// first.
 func LargestAt(ps []Pressure, tie func(n int) int) (int, bool) {
 	if len(ps) == 0 {
 		return 0, false

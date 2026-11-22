@@ -8,11 +8,34 @@ import (
 	"jams.team/mmo-world/sim/hex"
 )
 
+// structural: the personal predicates' names.
+const (
+	whenNPCOwed    = "npc-owed"
+	whenCameBack   = "came-back"
+	whenVowBroken  = "vow-broken"
+	whenLostToThem = "lost-to-them"
+)
+
 func init() {
-	Predicates["npc-owed"] = npcOwed
-	Predicates["came-back"] = cameBack
-	Predicates["vow-broken"] = vowBroken
-	Predicates["lost-to-them"] = lostToThem
+	Predicates[whenNPCOwed] = npcOwed
+	Predicates[whenCameBack] = cameBack
+	Predicates[whenVowBroken] = vowBroken
+	Predicates[whenLostToThem] = lostToThem
+}
+
+// PendKind is the pending kind a personal predicate casts from.
+func PendKind(when string) (string, bool) {
+	switch when {
+	case whenNPCOwed:
+		return PendDebt, true
+	case whenCameBack:
+		return PendReturn, true
+	case whenVowBroken:
+		return PendOath, true
+	case whenLostToThem:
+		return PendRival, true
+	}
+	return "", false
 }
 
 // queued is each character's oldest pending candidate of kind, by

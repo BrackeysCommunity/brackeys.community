@@ -2383,10 +2383,12 @@ export interface Goal {
   evolved?: boolean;
   /**
    * Takes are the goods the viewer carries that a Deliver, or a goods
-   * side's Back, still takes from it; Haul is whether the viewer may take its stock here, or
-   * deliver it here.
+   * side's Back, still takes from it.
    */
   takes: Goods[];
+  /**
+   * Haul is whether the viewer may take its stock here, or deliver it here.
+   */
   haul?: string; // take, deliver
   /**
    * CanPledge: the goal takes pledges. CanWithdraw: the viewer may take
@@ -3582,6 +3584,10 @@ export interface Arc {
   outcome?: string;
   began: number /* int64 */; // tick
   lapsed?: boolean;
+  /**
+   * Trouble is a settlement arc's trouble as its place shows it.
+   */
+  trouble?: Trouble;
 }
 /**
  * Arcs is /arcs for a character: the season, the arcs open and those ended
@@ -3614,6 +3620,7 @@ export interface SideOption {
  * decided at, and Hunt a raid's hunt.
  */
 export interface Trouble {
+  arc: string;
   kind: string;
   title: string;
   banner: string; // a media key

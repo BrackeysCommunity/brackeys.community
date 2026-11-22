@@ -103,6 +103,7 @@ export const raidCast = fact(
 );
 
 export const trouble: api.Trouble = {
+  arc: "a-8",
   kind: "raid",
   title: "Raid",
   banner: "Raiders on the road",
@@ -125,6 +126,7 @@ export const raidArc: api.Arc = {
   stages: 1,
   due: tick + 120,
   dueDay: 5,
+  trouble,
   sides: [
     {
       id: "hold-it-off",

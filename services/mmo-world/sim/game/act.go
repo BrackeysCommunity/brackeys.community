@@ -638,8 +638,9 @@ func (g *Game) pressOption(c *Char, key, pick string, tick int64, w *worked) ([]
 	}
 	if len(pressed) > 0 && pressed[0].Outcome.Success {
 		g.wonBeat(c, e)
-		// A side counts a solo fighter's beats as it counts a party's; a
-		// world from before arcs writes none, so its log stays as it was.
+		// A side counts a solo fighter's beats as it counts a party's; only
+		// a world with a director writes beat.won, so an older world
+		// replays to the same log.
 		if g.Story != nil {
 			if _, err := g.factWith(c, nil, "beat.won", tick, fact.S("encounter", e.ID), fact.N("beat", beat),
 				fact.S("option", pressed[0].Option.ID), fact.N("score", pressed[0].Option.Score)); err != nil {

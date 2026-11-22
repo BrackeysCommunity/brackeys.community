@@ -30,11 +30,16 @@ const (
 
 // NewBacker is a backer under the sheets' material tags.
 func NewBacker(b *sheets.Book) *Backer {
-	k := &Backer{Tags: map[string][]string{provisions: {provisions}}, Reach: backReach}
+	return &Backer{Tags: MaterialTags(b), Reach: backReach}
+}
+
+// MaterialTags is the tags each material holds, provisions holding its own.
+func MaterialTags(b *sheets.Book) map[string][]string {
+	tags := map[string][]string{provisions: {provisions}}
 	for _, m := range b.Materials {
-		k.Tags[m.ID] = m.Tags
+		tags[m.ID] = m.Tags
 	}
-	return k
+	return tags
 }
 
 // sides are the options an earner may serve: of each arc, the side it
@@ -87,7 +92,7 @@ func (e *Earner) spare(p api.Purse, tag string) (string, int64) {
 	var asset string
 	var most int64
 	for _, g := range p.Goods {
-		if tag != "" && !slices.Contains(e.Back.Tags[g.Material], tag) {
+		if tag != "" && g.Material != tag && !slices.Contains(e.Back.Tags[g.Material], tag) {
 			continue
 		}
 		units := g.Units

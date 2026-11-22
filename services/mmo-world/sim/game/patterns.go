@@ -237,9 +237,9 @@ func (g *Game) cluesAt(h hex.Hex) ([]*Board, []int) {
 }
 
 // clueCache holds, by chunk, the clue sites the scaffold's boards lay
-// there. They read the seed and the sheets alone, so a step learns at a
-// glance whether a clue lies under it; the cache is never saved, and a
-// change of rules starts it afresh.
+// there; they read the seed and the sheets alone, so a step learns at a
+// glance whether a clue lies under it. It is never saved, and is dropped
+// each world day and on a change of rules.
 type clueCache struct {
 	r     *Rules
 	tiles map[gen.ChunkCoord][]hex.Hex
@@ -719,8 +719,9 @@ func (g *Game) seamMaterial(h hex.Hex) (string, bool) {
 	return best, best != ""
 }
 
-// patternsDay lapses each open board's marks held longer than its row's
-// lapse days, and opens the core once every tower has fallen this season.
+// patternsDay drops the clue cache, lapses each open board's marks held
+// longer than its row's lapse days, and opens the core once every tower
+// has fallen this season.
 func (g *Game) patternsDay(day int64) error {
 	if g.Story == nil {
 		return nil

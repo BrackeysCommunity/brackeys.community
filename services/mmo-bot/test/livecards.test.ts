@@ -66,7 +66,15 @@ const raid: api.StoryEvent = {
       { k: "stage", n: 0 },
     ],
   },
-  trouble: { kind: "raid", title: "A raid", banner: "", mark: 7, defence: 0, ends: 400 },
+  trouble: {
+    arc: "arc-raid",
+    kind: "raid",
+    title: "A raid",
+    banner: "",
+    mark: 7,
+    defence: 0,
+    ends: 400,
+  },
   place: "Ashford",
   alarm: true,
 };
