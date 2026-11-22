@@ -92,6 +92,26 @@ export const UNITS = new Set([
   "levels",
   "floors",
   "score",
+  "stage",
+  "stages",
+  "season",
+  "seasons",
+  "side",
+  "sides",
+  "backer",
+  "backers",
+  "tower",
+  "towers",
+  "guardian",
+  "guardians",
+  "pylon",
+  "pylons",
+  "point",
+  "points",
+  "value",
+  "values",
+  "clue",
+  "clues",
   "%",
 ]);
 const CONNECTORS = new Set(["to", "of", "and", "or", "–", "-", "×", "+"]);
@@ -105,6 +125,9 @@ const UNIT_FIRST = new Set([
   "practice",
   "day",
   "tick",
+  "stage",
+  "season",
+  "value",
 ]);
 
 /**
