@@ -460,10 +460,10 @@ func apiGuild(g *game.Game, c *game.Char) api.Guild {
 func apiSettlement(g *game.Game, p *game.Place, here bool) api.Settlement {
 	r := g.Rules()
 	out := api.Settlement{N: p.N, Name: g.PlaceName(p.Hex), Treasury: g.Ledger.Of(game.TreasuryPool(p.N), ledger.Coin), Here: here, Structures: []api.Structure{},
-		ConditionMax: r.Settle.ConditionMax}
+		ConditionMax: r.Settle.ConditionMax, City: apiCity(g, p)}
 	for _, row := range r.Book.Structures {
 		st := p.Get(row.ID)
-		v := api.Structure{Kind: row.ID, Name: row.ID, MaxTier: settle.Cap(&row, r.Settle), Raising: g.Raising(p.N, row.ID)}
+		v := api.Structure{Kind: row.ID, Name: row.ID, MaxTier: g.StructureCap(p.N, &row), Raising: g.Raising(p.N, row.ID)}
 		if st != nil {
 			v.Stands, v.Tier, v.Condition, v.Closed = true, st.Tier, st.Condition, st.Closed()
 			// A part first, what reopening a closed structure buys, then all of it.

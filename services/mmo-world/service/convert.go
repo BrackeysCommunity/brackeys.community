@@ -1,11 +1,16 @@
 package service
 
 import (
+	"cmp"
+	"slices"
+
 	"jams.team/mmo-world/api"
+	"jams.team/mmo-world/sim/arc"
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fight"
 	"jams.team/mmo-world/sim/game"
+	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
@@ -166,6 +171,10 @@ func apiOptions(g *game.Game, c *game.Char) api.Options {
 	}
 	out.Fight = apiFight(g, c, ch.Fight)
 	out.Purse = apiPurse(g, c)
+	for _, s := range g.SidesFor(c) {
+		out.Sides = append(out.Sides, api.SideOption{Goal: s.Goal, Arc: s.Arc, Side: s.Side, Wants: s.Wants, Tag: s.Tag, Left: s.Left,
+			At: apiHex(s.At), Region: s.Region, Backed: s.Backed})
+	}
 	return out
 }
 
@@ -337,7 +346,128 @@ func placeView(g *game.Game, h hex.Hex) api.Place {
 			out.Here = append(out.Here, c.C.ID)
 		}
 	}
+	if n, ok := g.SettlementAt(h); ok {
+		p := g.Places[n]
+		city := apiCity(g, p)
+		out.City, out.Ruined = &city, p.Ruined != 0
+		out.Trouble, out.Occasion = apiTrouble(g, n), apiOccasion(g, n)
+	}
+	if st := g.Story; st != nil && st.Ring != nil && st.Ring.Open != 0 && st.Ring.Core == h {
+		out.Open = true
+	}
+	out.Pattern = apiPatternPoint(g, h)
 	return out
+}
+
+// apiPatternPoint is the pattern point on a tile: its board's progress and
+// the clues found, which are public, never the solution.
+func apiPatternPoint(g *game.Game, h hex.Hex) *api.PatternPoint {
+	pt := g.PatternAt(nil, h)
+	if pt == nil {
+		return nil
+	}
+	v := api.PatternPoint{Board: pt.Board, Kind: pt.Kind, Place: pt.Place, Family: pt.Family, Point: pt.Point, Points: pt.Points,
+		Values: pt.Values, Held: pt.Held, Solved: pt.Solved}
+	for _, id := range pt.Clues {
+		if f := storyFact(g, id); f != nil {
+			v.Clues = append(v.Clues, *f)
+		}
+	}
+	return &v
+}
+
+// apiCity is whether a place is a city, and while it is not, how it
+// stands on each of a city's needs. A faction's city is one from the day
+// it opens.
+func apiCity(g *game.Game, p *game.Place) api.CityState {
+	if p.City != nil {
+		out := api.CityState{City: true, Raised: p.City.Raised}
+		for _, h := range p.City.Tiles {
+			out.Tiles = append(out.Tiles, apiHex(h))
+		}
+		return out
+	}
+	if p.Faction != nil {
+		return api.CityState{City: true, Raised: p.Founded}
+	}
+	out := api.CityState{}
+	for _, n := range g.CityCheck(p.N) {
+		out.Needs = append(out.Needs, api.CityNeed{ID: n.ID, Have: n.Have, Need: n.Need, Unit: n.Unit, Met: n.Met})
+	}
+	return out
+}
+
+// apiTrouble is the trouble open at place n, if one is: its mark, the
+// defence held so far, when it is decided, and the fact it was cast from.
+func apiTrouble(g *game.Game, n int) *api.Trouble {
+	if g.Story == nil {
+		return nil
+	}
+	ref := goal.SettlementRef(n)
+	for _, a := range g.Story.Arcs {
+		if a.Scope != arc.Settlement || a.Place != ref || a.Outcome != "" || a.Stage < 0 || a.Stage >= len(a.Stages) {
+			continue
+		}
+		i := slices.IndexFunc(g.Rules().Book.Troubles, func(t sheets.TroubleRow) bool { return t.ID == a.Template })
+		if i < 0 {
+			continue
+		}
+		row := g.Rules().Book.Troubles[i]
+		st := a.Stages[a.Stage]
+		out := &api.Trouble{Kind: row.ID, Title: cmp.Or(g.Rules().Name("story.troubles:"+row.ID), row.ID), Banner: row.Banner, Ends: st.Due, Hunt: a.Hunt}
+		for _, side := range st.Sides {
+			out.Mark += side.Mark
+			if x := g.GoalOf(side.Goal); x != nil {
+				out.Defence += min(x.Total(), side.Mark)
+			}
+		}
+		if len(a.Cause) > 0 {
+			out.Why = storyFact(g, a.Cause[0])
+		}
+		return out
+	}
+	return nil
+}
+
+// apiOccasion is the occasion running at place n, if one is.
+func apiOccasion(g *game.Game, n int) *api.Occasion {
+	if g.Story == nil || n >= len(g.Story.At) {
+		return nil
+	}
+	o := g.Story.At[n].Occasion
+	if o == nil || o.Ends <= g.Tick() {
+		return nil
+	}
+	out := &api.Occasion{Kind: o.Kind, Ends: o.Ends}
+	if i := slices.IndexFunc(g.Rules().Book.Occasions, func(r sheets.OccasionRow) bool { return r.ID == o.Kind }); i >= 0 {
+		out.Banner = g.Rules().Book.Occasions[i].Banner
+	}
+	return out
+}
+
+// storyFact is a fact the story names, from the log's tail or, once that
+// is flushed, the story's memory of it; nil for one neither holds.
+func storyFact(g *game.Game, id fact.ID) *api.Fact {
+	if f, ok := g.Log.Get(id); ok {
+		out := apiFacts([]fact.Fact{f})[0]
+		return &out
+	}
+	if g.Story == nil {
+		return nil
+	}
+	i := slices.IndexFunc(g.Story.Memory, func(m arc.Memory) bool { return m.Fact == id })
+	if i < 0 {
+		return nil
+	}
+	m := g.Story.Memory[i]
+	out := api.Fact{ID: int64(m.Fact), Tick: m.Tick, Kind: m.Kind, Subjects: make([]api.Ref, len(m.Subjects)), Data: []api.Datum{}}
+	if m.Region >= 0 {
+		out.Region = world.RegionRef(m.Region)
+	}
+	for j, s := range m.Subjects {
+		out.Subjects[j] = api.Ref{Kind: s.Kind, ID: s.ID}
+	}
+	return &out
 }
 
 // apiOrders are the faction orders standing on a tile, priced for a

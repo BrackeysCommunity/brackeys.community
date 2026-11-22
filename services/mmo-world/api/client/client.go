@@ -90,6 +90,13 @@ func (h *HTTP) Guild(ctx context.Context, id string) (api.Guild, error) {
 	return out, Refused("guild of "+id, ref, err)
 }
 
+// Goals is a character's /goals page.
+func (h *HTTP) Goals(ctx context.Context, id string) (api.Goals, error) {
+	var out api.Goals
+	ref, err := h.Do(ctx, http.MethodGet, api.PathGoals+"?characterId="+url.QueryEscape(id), nil, &out)
+	return out, Refused("goals of "+id, ref, err)
+}
+
 // Classes is a character's /classes page.
 func (h *HTTP) Classes(ctx context.Context, id string) (api.Classes, error) {
 	var out api.Classes

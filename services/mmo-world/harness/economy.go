@@ -125,7 +125,7 @@ func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	p := doc.p
 	p("# Economy run")
 	p("")
-	p("Scripted players (`harness/agent.Earner`) in six roles: %s. They join over the first %d world days at the first starting settlement, which their server's guild runs; a second settlement is open from day 1 and nobody starts there. %d simulated world days; the band is read over days %d to %d.", roleList(), joinDays, days, economyWarmup, days)
+	p("Scripted players (`harness/agent.Earner`) in six roles: %s. They join over the first %d world days at the first starting settlement, which their server's guild runs and its admins work to make a city; a second settlement is open from day 1 and nobody starts there. With guilds on, %d%% of the players come from a quiet server instead: they arrive on the second day at the next starting settlement, which their guild takes, so a third is opened for nobody; they found, and stop playing once world day %d ends. Every player backs the arc sides it can serve (`agent.Backer`, within %d tiles). %d simulated world days; the band is read over days %d to %d.", roleList(), joinDays, quietShare, quietDays, agent.NewBacker(b).Reach, days, economyWarmup, days)
 	p("")
 	p("From %s players up the band must hold. Below that the run asks for drift: over the last two thirds coin per active character stays between %d%% of the band's floor and %d%% of its ceiling, and its mean distance to the band over the last third is no worse than over the middle third by more than %d%% of the band's width.", comma(bandFrom), runawayFloor, runawayCeil, driftSlackPct)
 	p("")
@@ -253,7 +253,8 @@ func bandOver(days []economyDay, lo, hi int64) (mn, mx int64, ok bool) {
 }
 
 // population is who a soak simulates: how many players in which roles,
-// under which key and guild plan, and when it may stop early.
+// under which key and guild plan, whether they back arc sides, and when
+// it may stop early.
 type population struct {
 	label  string
 	server string // the Discord server every player comes from, "" for none
@@ -262,19 +263,53 @@ type population struct {
 	plan   *agent.GuildPlan
 	admins int
 	join   int64 // world days over which the players arrive
+	back   *agent.Backer
+	quiet  quietServer
 	until  func(g *game.Game) bool
 }
 
+// quietServer is a second server's players, part of the soak's size, who
+// arrive on the second day, found, and stop playing once world day
+// quietDays ends: the guild that leaves its places to the troubles.
+type quietServer struct {
+	size int
+	plan *agent.GuildPlan
+}
+
+// structural: the quiet server's share of the soak and the world day it
+// goes idle, the day the founding target gives a guild to found by.
+const (
+	quietName  = "quiet"
+	quietShare = 5
+	quietDays  = 10
+)
+
 // soakers is the Economy run's population at a size: one server, whose
-// guild takes the first starting settlement. ECONOMY_GUILDS=off leaves
-// the players without a server, a guild or a class page, to read what
-// guilds and abilities move.
+// guild takes the first starting settlement, founds, and makes its home a
+// city, and a quiet server. Every player backs arc sides.
+// ECONOMY_GUILDS=off leaves the players without a server, a guild or a
+// class page, to read what guilds and abilities move.
 func soakers(b *sheets.Book, size int) population {
-	pop := population{label: "economy", size: size, roles: economyRoles, join: joinDays}
+	pop := population{label: "economy", size: size, roles: economyRoles, join: joinDays, back: agent.NewBacker(b)}
 	if os.Getenv("ECONOMY_GUILDS") != "off" {
 		pop.server, pop.plan, pop.admins = economyServer, guildPlan(b, guildGoods, guildTithe, false), economyAdmins
+		pop.plan.City = true
+		pop.quiet = quietServer{size: size * quietShare / 100, plan: guildPlan(b, foundersGive, foundersGive, true)}
 	}
 	return pop
+}
+
+// earners are a share of players in the population's roles, under a
+// plan, idle from a tick (0 for never), named from first on.
+func earners(pop population, plan *agent.GuildPlan, size, first int, idle int64, bands []string) []*agent.Player {
+	var out []*agent.Player
+	for _, ro := range pop.roles {
+		e := &agent.Earner{Role: ro.name, BandOrder: bands, Comfort: ro.comfort, Guild: plan, Back: pop.back, Idle: idle}
+		for range max(1, size*ro.share/100) {
+			out = append(out, &agent.Player{Discord: fmt.Sprintf("%s-%d", ro.name, first+len(out)), Start: "hook", Policy: e})
+		}
+	}
+	return out[:min(len(out), max(size, len(pop.roles)))]
 }
 
 func soak(b *sheets.Book, pop population, days int64) (economyResult, error) {
@@ -290,17 +325,33 @@ func soak(b *sheets.Book, pop population, days int64) (economyResult, error) {
 		return economyResult{}, err
 	}
 	g.World.OpenSettlement()
+	if pop.quiet.size > 0 {
+		// The quiet server's guild takes the second starting settlement,
+		// so a third stays unplayed.
+		g.World.OpenSettlement()
+	}
 	local := service.NewLocal(g)
 	bands := agent.Bands(b)
-	var players []*agent.Player
-	for _, ro := range pop.roles {
-		e := &agent.Earner{Role: ro.name, BandOrder: bands, Comfort: ro.comfort, Guild: pop.plan}
-		for range max(1, size*ro.share/100) {
-			players = append(players, &agent.Player{Discord: fmt.Sprintf("%s-%d", ro.name, len(players)), Start: "hook", Policy: e,
-				Server: pop.server, Admin: len(players) < pop.admins})
-		}
+	players := earners(pop, pop.plan, size-pop.quiet.size, 0, 0, bands)
+	main := len(players)
+	for i, p := range players {
+		p.Server, p.Admin = pop.server, i < pop.admins
 	}
-	players = players[:min(len(players), max(size, len(pop.roles)))]
+	arrive := make([]int64, 0, size)
+	join := pop.join * sheets.TicksPerDay
+	for i := range players {
+		arrive = append(arrive, int64(i)*join/int64(main))
+	}
+	if pop.quiet.size > 0 {
+		quiet := earners(pop, pop.quiet.plan, pop.quiet.size, main, quietDays*sheets.TicksPerDay, bands)
+		for j, p := range quiet {
+			p.Server, p.Admin = quietName, j < pop.admins
+			// Over the second day, once the starting settlements the soak
+			// asked for have opened.
+			arrive = append(arrive, sheets.TicksPerDay+int64(j)*sheets.TicksPerDay/int64(len(quiet)))
+		}
+		players = append(players, quiet...)
+	}
 	var client agent.Client = local
 	if pop.plan == nil {
 		// Hiding the pages leaves the players to the market alone.
@@ -309,15 +360,13 @@ func soak(b *sheets.Book, pop population, days int64) (economyResult, error) {
 	script := agent.NewScript(client, players, pop.label)
 	ctx := context.Background()
 	res := economyResult{size: size}
-	join := pop.join * sheets.TicksPerDay
 	end := days * sheets.TicksPerDay
 	var due []*agent.Player
 	stocked := map[string]int64{}
 	for t := int64(0); t < end; t++ {
 		due = due[:0]
 		for i, p := range players {
-			arrive := int64(i) * join / int64(len(players))
-			if t < arrive {
+			if t < arrive[i] || (i >= main && t >= quietDays*sheets.TicksPerDay) {
 				continue
 			}
 			if (t+int64(i))%workPeriod != 0 || (t+int64(i)*wakeSpread)%sheets.TicksPerDay >= awake {
@@ -344,7 +393,7 @@ func soak(b *sheets.Book, pop population, days int64) (economyResult, error) {
 		if g.Tick()%sheets.TicksPerDay == 0 {
 			local.Forget()
 			res.days = append(res.days, dayOf(g))
-			for _, bk := range g.BooksAt(1) {
+			for _, bk := range g.BooksAt(unplayed(g)) {
 				units, _ := bk.Traded(1, false)
 				res.second += units
 			}
@@ -371,6 +420,17 @@ func soak(b *sheets.Book, pop population, days int64) (economyResult, error) {
 	res.digest = sum.String()
 	res.elapsed = time.Since(start)
 	return res, nil
+}
+
+// unplayed is the last starting settlement no guild runs: the second
+// without a quiet server, the third with one; -1 for none.
+func unplayed(g *game.Game) int {
+	for i := len(g.Places) - 1; i >= 0; i-- {
+		if p := g.Places[i]; p.Lattice >= 0 && p.Guild == "" {
+			return i
+		}
+	}
+	return -1
 }
 
 func dayOf(g *game.Game) economyDay {

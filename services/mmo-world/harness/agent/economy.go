@@ -30,6 +30,11 @@ type Earner struct {
 	// Guild is how it serves its server's guild; nil for a player who
 	// leaves the guild alone.
 	Guild *GuildPlan
+	// Back is how it serves arc sides; nil for a player who leaves them
+	// alone.
+	Back *Backer
+	// Idle is the tick from which it does nothing at all; 0 for never.
+	Idle  int64
 	mu    sync.Mutex
 	trips map[string]*trip
 }
@@ -58,6 +63,12 @@ type trip struct {
 	asked string
 	had   int64
 	civic civic
+	// aims are the side goal it chose in each arc, backTo the settlement
+	// it asked a route to for one, and backWalk set once that route was
+	// refused and it walks.
+	aims     map[string]string
+	backTo   *api.Hex
+	backWalk bool
 }
 
 // structural: the shape of an earner's day.
@@ -75,6 +86,10 @@ const (
 
 func (e *Earner) Name() string { return "earner-" + e.Role }
 
+// idle reports whether a player who has stopped playing is past its last
+// turn.
+func (e *Earner) idle(o api.Options) bool { return e.Idle > 0 && o.Tick >= e.Idle }
+
 func (e *Earner) tripOf(o api.Options, d *Dice) *trip {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -90,6 +105,9 @@ func (e *Earner) tripOf(o api.Options, d *Dice) *trip {
 }
 
 func (e *Earner) Choose(o api.Options, d *Dice) (api.ActionRequest, bool) {
+	if e.idle(o) {
+		return api.ActionRequest{}, false
+	}
 	switch {
 	case o.Fight != nil:
 		if pick := best(o.Fight, e.BandOrder); pick != "" {
@@ -104,6 +122,9 @@ func (e *Earner) Choose(o api.Options, d *Dice) (api.ActionRequest, bool) {
 		return api.ActionRequest{Kind: api.ActRest}, true
 	}
 	t := e.tripOf(o, d)
+	if req, ok := e.back(o, t); ok {
+		return req, true
+	}
 	if o.Purse.Market {
 		if req, ok := e.atMarket(o, t, d); ok {
 			return req, true
@@ -270,7 +291,11 @@ func (e *Earner) away(o api.Options, t *trip, d *Dice) (api.ActionRequest, bool)
 		if len(p.Markets) == 0 {
 			return api.ActionRequest{}, false
 		}
+		// Home, where it set out from a market; else the first.
 		to := p.Markets[0]
+		if slices.Contains(p.Markets, t.home) {
+			to = t.home
+		}
 		if e.Role == Hauler && len(p.Markets) > 1 && (t.far || d.Percent(haulShare, "haul.where")) {
 			to, t.far = p.Markets[len(p.Markets)-1], true
 			if req, ok := toward(o, to); ok {

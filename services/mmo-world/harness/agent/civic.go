@@ -2,11 +2,13 @@ package agent
 
 import (
 	"cmp"
+	"context"
 	"maps"
 	"slices"
 	"sync"
 
 	"jams.team/mmo-world/api"
+	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/sheets"
 )
 
@@ -40,17 +42,36 @@ type GuildPlan struct {
 	Settlements int
 	// Distance is how far a new settlement stands from any other, in tiles.
 	Distance int64
+	// City has its admins raise the works a city needs at home and post
+	// the city project when they and its outer tiles stand (GDD 4.8); its
+	// members deliver to every raise and to the project.
+	City bool
+	city cityWorks
 
 	mu     sync.Mutex
 	boards map[string]*board
 }
 
+// cityWorks are the sheets' cells for what a city's works are and the
+// goods its project takes by tag.
+type cityWorks struct {
+	wallTier, stations, stationTier int64
+	station                         map[string]bool
+	goods                           map[string]int64
+}
+
 // NewGuildPlan is a plan under the sheets' material tags and founding
 // distance.
 func NewGuildPlan(b *sheets.Book) *GuildPlan {
-	g := &GuildPlan{Tags: map[string][]string{provisions: {provisions}}, Distance: sheets.IntParam(b.SettlementParams, "found-distance")}
+	sp := func(id string) int64 { return sheets.IntParam(b.SettlementParams, id) }
+	g := &GuildPlan{Tags: map[string][]string{provisions: {provisions}}, Distance: sp("found-distance"),
+		city: cityWorks{wallTier: sp("city-wall-tier"), stations: sp("city-stations"), stationTier: sp("city-station-tier"), station: map[string]bool{},
+			goods: map[string]int64{tagTimber: sp("city-timber"), tagStone: sp("city-stone"), tagMetal: sp("city-metal")}}}
 	for _, m := range b.Materials {
 		g.Tags[m.ID] = m.Tags
+	}
+	for _, s := range b.Structures {
+		g.city.station[s.ID] = s.Station
 	}
 	return g
 }
@@ -74,6 +95,24 @@ type board struct {
 	sources map[string][]source
 	// spent are the nodes a member found worked out.
 	spent map[node]bool
+	// build is what the raises open at home and the city project still
+	// take, by tag; cityDay is the world day an admin last posted the
+	// project.
+	build   map[string]int64
+	cityDay int64
+}
+
+// wants is what the guild is short of and what its projects take, by tag:
+// what members gather and go looking for.
+func (b *board) wants() map[string]int64 {
+	if len(b.build) == 0 {
+		return b.short
+	}
+	out := maps.Clone(b.build)
+	for tag, n := range b.short {
+		out[tag] += n
+	}
+	return out
 }
 
 // workSum is a work's stocked days and the coin value it consumed and
@@ -113,13 +152,25 @@ type node struct {
 const boardTicks = 6
 
 // structural: the assets a deposit names besides a material, the tags a
-// charter takes, and the tag a coin line carries.
+// charter and the city project take, and the tag a coin line carries.
 const (
 	provisions = "provisions"
 	coin       = "coin"
 	tagTimber  = "timber"
 	tagStone   = "stone"
+	tagMetal   = "metal"
 	tagCoin    = ""
+)
+
+// structural: the city's wall, the needs CityCheck names that the
+// project waits on and counts, and the days after which an admin posts a
+// project nobody has delivered to again, in case it lapsed.
+const (
+	cityWall      = "wall"
+	needWorks     = "works"
+	needTiles     = "tiles"
+	needResources = "resources"
+	cityRepost    = 3
 )
 
 func (g *GuildPlan) boardOf(server string) *board {
@@ -151,7 +202,58 @@ func (g *GuildPlan) read(b *board, tick int64, desk *Desk) error {
 	b.page, b.tick, b.fresh = page, tick, true
 	b.tally(page)
 	b.short = g.short(page, b.charter, b.dark)
+	b.build = g.building(page, b)
 	return nil
+}
+
+// home is the settlement the page's reader stands in.
+func home(page api.Guild) *api.Settlement {
+	for i := range page.Settlements {
+		if page.Settlements[i].Here {
+			return &page.Settlements[i]
+		}
+	}
+	return nil
+}
+
+// building is what the raises open at home take, and the city project's
+// goods once it is posted, by tag.
+func (g *GuildPlan) building(page api.Guild, b *board) map[string]int64 {
+	out := map[string]int64{}
+	s := home(page)
+	if s == nil {
+		return out
+	}
+	for _, st := range s.Structures {
+		if !st.Raising {
+			continue
+		}
+		for _, l := range st.Next {
+			if l.Tag != tagCoin {
+				out[l.Tag] += l.Quantity
+			}
+		}
+	}
+	res := cityNeed(s, needResources)
+	if s.City.City || b.cityDay == 0 || res.Met || res.Need <= 0 {
+		return out
+	}
+	// The project's goods are read as one need: each tag is taken to be
+	// as far along as the whole.
+	for tag, n := range g.city.goods {
+		out[tag] += n * (res.Need - res.Have) / res.Need
+	}
+	return out
+}
+
+// cityNeed is one of a settlement's city needs by id, zero when the page
+// shows none.
+func cityNeed(s *api.Settlement, id string) api.CityNeed {
+	i := slices.IndexFunc(s.City.Needs, func(n api.CityNeed) bool { return n.ID == id })
+	if i < 0 {
+		return api.CityNeed{}
+	}
+	return s.City.Needs[i]
 }
 
 // runnable reports whether a work does something yet and has the
@@ -238,8 +340,9 @@ func (g *GuildPlan) prefer(server string, materials []string, fallback string) s
 		return fallback
 	}
 	b := g.boardOf(server)
+	want := b.wants()
 	for _, m := range materials {
-		if _, ok := g.wanted(b.short, m); ok {
+		if _, ok := g.wanted(want, m); ok {
 			return m
 		}
 	}
@@ -302,10 +405,11 @@ func (g *GuildPlan) errandFor(server string, d *Dice) (to api.Hex, known, seek b
 		return api.Hex{}, false, false
 	}
 	b := g.boardOf(server)
+	want := b.wants()
 	var most int64
 	var from []source
-	for _, tag := range slices.Sorted(maps.Keys(b.short)) {
-		if tag == tagCoin || tag == provisions || b.short[tag] <= 0 {
+	for _, tag := range slices.Sorted(maps.Keys(want)) {
+		if tag == tagCoin || tag == provisions || want[tag] <= 0 {
 			continue
 		}
 		list := b.sources[tag]
@@ -313,8 +417,8 @@ func (g *GuildPlan) errandFor(server string, d *Dice) (to api.Hex, known, seek b
 			seek = true
 			continue
 		}
-		if b.short[tag] > most {
-			from, most = list, b.short[tag]
+		if want[tag] > most {
+			from, most = list, want[tag]
 		}
 	}
 	if len(from) == 0 {
@@ -336,6 +440,10 @@ type civic struct {
 	waited             int64 // the day it began waiting at a site for the treasury
 	// asked is what it has asked a second officer to approve, by tag.
 	asked map[string]int64
+	// read is set once it has read the goals board since it came home,
+	// and deliveries are what it then found to hand in.
+	read       bool
+	deliveries []api.ActionRequest
 }
 
 // The phases of a founder's errand.
@@ -356,6 +464,9 @@ const (
 // Civic takes an ability an open tier offers, and serves the guild: see
 // GuildPlan.
 func (e *Earner) Civic(o api.Options, desk *Desk, d *Dice) (api.ActionRequest, Verdict, error) {
+	if e.idle(o) {
+		return api.ActionRequest{}, Wait, nil
+	}
 	if o.Fight != nil || o.Long != nil || has(o.Conditions, api.CondDown) {
 		return api.ActionRequest{}, Pass, nil
 	}
@@ -380,7 +491,7 @@ func (e *Earner) Civic(o api.Options, desk *Desk, d *Dice) (api.ActionRequest, V
 		return e.errand(o, t, b, desk, d, day)
 	}
 	if !o.Purse.Market || o.At != t.home {
-		t.civic.gifts, t.civic.away = nil, true
+		t.civic.gifts, t.civic.deliveries, t.civic.away, t.civic.read = nil, nil, true, false
 		return api.ActionRequest{}, Pass, nil
 	}
 	if t.civic.away && e.Guild.Every {
@@ -399,6 +510,17 @@ func (e *Earner) Civic(o api.Options, desk *Desk, d *Dice) (api.ActionRequest, V
 		if t.civic.phase != atHome {
 			return api.ActionRequest{}, Wait, nil
 		}
+	}
+	if !t.civic.read {
+		t.civic.read = true
+		if err := e.deliveries(o, t, b, desk); err != nil {
+			return api.ActionRequest{}, Pass, err
+		}
+	}
+	if len(t.civic.deliveries) > 0 {
+		req := t.civic.deliveries[0]
+		t.civic.deliveries = t.civic.deliveries[1:]
+		return req, Act, nil
 	}
 	if t.civic.guildDay == day {
 		return api.ActionRequest{}, Pass, nil
@@ -421,6 +543,64 @@ func (e *Earner) Civic(o api.Options, desk *Desk, d *Dice) (api.ActionRequest, V
 		t.civic.guildDay = day
 	}
 	return req, Act, nil
+}
+
+// Boards serve a character's /goals page. A client without them leaves
+// its members' deliveries to raises and the city project undone.
+type Boards interface {
+	Goals(ctx context.Context, characterID string) (api.Goals, error)
+}
+
+// Goals is the player's /goals page now, false for a client that serves
+// none.
+func (k *Desk) Goals() (api.Goals, bool, error) {
+	bp, ok := k.pages.(Boards)
+	if !ok {
+		return api.Goals{}, false, nil
+	}
+	page, err := bp.Goals(k.ctx, k.player.Character)
+	return page, true, err
+}
+
+// deliveries are what a member come home hands in to the raises and the
+// city project there: what it carries that their goals take, keeping its
+// provisions floor and a crafter's working stock. It reads the board only
+// when it carries something they want.
+func (e *Earner) deliveries(o api.Options, t *trip, b *board, desk *Desk) error {
+	if err := e.Guild.read(b, o.Tick, desk); err != nil {
+		return err
+	}
+	p := o.Purse
+	left := map[string]int64{provisions: p.Provisions - provisionsFloor}
+	wanted := false
+	for _, s := range p.Goods {
+		left[s.Material] = s.Units
+		if e.Role == Crafter {
+			left[s.Material] -= craftQty
+		}
+		if _, ok := e.Guild.wanted(b.build, s.Material); ok && left[s.Material] > 0 {
+			wanted = true
+		}
+	}
+	if !wanted {
+		return nil
+	}
+	page, ok, err := desk.Goals()
+	if err != nil || !ok {
+		return err
+	}
+	for _, x := range page.Board {
+		if x.Issuer != goal.ByAdmin || x.Verb != goal.Deliver || x.State != goal.Live {
+			continue
+		}
+		for _, tk := range x.Takes {
+			if n := min(tk.Units, left[tk.Material]); n > 0 {
+				left[tk.Material] -= n
+				t.civic.deliveries = append(t.civic.deliveries, api.ActionRequest{Kind: api.ActDeliverGoal, Target: x.ID, Material: tk.Material, Units: n})
+			}
+		}
+	}
+	return nil
 }
 
 // classStep takes the first ability an open tier of an active class still
@@ -520,6 +700,11 @@ func (e *Earner) officer(o api.Options, t *trip, b *board, page api.Guild) (api.
 			return api.ActionRequest{Kind: api.ActWork, Option: w.ID, Units: 1}, true
 		}
 	}
+	if g.City {
+		if req, ok := g.cityStep(o, b, page); ok {
+			return req, true
+		}
+	}
 	if !founder || len(page.Settlements) >= g.Settlements || b.charter {
 		return api.ActionRequest{}, false
 	}
@@ -536,6 +721,65 @@ func (e *Earner) officer(o api.Options, t *trip, b *board, page api.Guild) (api.
 		t.civic.phase, b.charter = drawing, true
 	}
 	return api.ActionRequest{}, false
+}
+
+// cityStep is an admin's part in making its home a city (GDD 4.8): one
+// raise at a time toward the works, the wall first and then the stations
+// nearest the tier; then the project, once the works stand and CityCheck
+// finds the outer tiles free. Its goals carry no reward, so the treasury
+// keeps its coin for the city's own.
+func (g *GuildPlan) cityStep(o api.Options, b *board, page api.Guild) (api.ActionRequest, bool) {
+	s := home(page)
+	if s == nil || s.City.City {
+		return api.ActionRequest{}, false
+	}
+	w := g.city
+	raisable := func(st *api.Structure) bool { return st.CanRaise }
+	var wall, next *api.Structure
+	var stood int64
+	for i := range s.Structures {
+		st := &s.Structures[i]
+		if st.Raising {
+			return api.ActionRequest{}, false
+		}
+		switch {
+		case st.Kind == cityWall:
+			wall = st
+		case !w.station[st.Kind] || st.Closed:
+		case st.Tier >= w.stationTier:
+			stood++
+		case raisable(st) && (next == nil || st.Tier > next.Tier):
+			next = st
+		}
+	}
+	raise := func(st *api.Structure) (api.ActionRequest, bool) {
+		return api.ActionRequest{Kind: api.ActRaise, Slot: st.Kind}, true
+	}
+	switch {
+	case wall == nil:
+		return api.ActionRequest{}, false
+	case wall.Tier < w.wallTier:
+		if raisable(wall) {
+			return raise(wall)
+		}
+		return api.ActionRequest{}, false
+	case stood < w.stations:
+		if next != nil {
+			return raise(next)
+		}
+		return api.ActionRequest{}, false
+	case wall.Closed:
+		return api.ActionRequest{}, false
+	}
+	if !cityNeed(s, needWorks).Met || !cityNeed(s, needTiles).Met || cityNeed(s, needResources).Have > 0 {
+		return api.ActionRequest{}, false
+	}
+	day := o.Tick/sheets.TicksPerDay + 1
+	if b.cityDay != 0 && day-b.cityDay < cityRepost {
+		return api.ActionRequest{}, false
+	}
+	b.cityDay = day
+	return api.ActionRequest{Kind: api.ActCityRaise}, true
 }
 
 // carried is what a purse holds of a tag's goods.

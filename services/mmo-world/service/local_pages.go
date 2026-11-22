@@ -37,3 +37,25 @@ func (l *Local) Classes(_ context.Context, id string) (api.Classes, error) {
 	}
 	return apiClasses(l.G, c), nil
 }
+
+// Goals is a character's /goals page as a member reads it to hand goods
+// in: the board where it stands, without the forms, drafts or banner.
+func (l *Local) Goals(_ context.Context, id string) (api.Goals, error) {
+	c, err := l.char(id)
+	if err != nil {
+		return api.Goals{}, err
+	}
+	g := l.G
+	out := api.Goals{Settlement: -1, Name: g.PlaceName(c.C.At), Board: []api.Goal{}, At: apiHex(c.C.At), Coin: c.C.Coin}
+	n, ok := g.SettlementAt(c.C.At)
+	if !ok {
+		return out, nil
+	}
+	out.Settlement, out.Officer = n, g.OfficerHere(c)
+	for _, x := range g.Board(n) {
+		if x.May(c.C.ID) || x.Poster == c.C.ID {
+			out.Board = append(out.Board, apiGoal(g, x, c))
+		}
+	}
+	return out, nil
+}

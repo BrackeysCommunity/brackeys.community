@@ -18,6 +18,7 @@ var Runs = map[string]Run{
 	"puzzles":  PuzzlesRun,
 	"content":  ContentRun,
 	"activity": ActivityRun,
+	"season":   SeasonRun,
 	"spike-a":  spike(spikeA),
 	"spike-b":  spike(spikeB),
 	"spike-e":  spike(spikeE),

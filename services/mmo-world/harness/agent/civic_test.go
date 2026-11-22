@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"reflect"
+	"slices"
 	"testing"
 
 	"jams.team/mmo-world/api"
@@ -240,6 +241,7 @@ type fakeWorld struct {
 	options api.Options
 	guild   api.Guild
 	classes api.Classes
+	goals   api.Goals
 	acts    []api.ActionRequest
 	reads   int
 }
@@ -257,6 +259,8 @@ func (f *fakeWorld) Guild(context.Context, string) (api.Guild, error) {
 }
 
 func (f *fakeWorld) Classes(context.Context, string) (api.Classes, error) { return f.classes, nil }
+
+func (f *fakeWorld) Goals(context.Context, string) (api.Goals, error) { return f.goals, nil }
 
 func TestMemberGivesAtHomeOnceADay(t *testing.T) {
 	plan := testPlan()
@@ -362,5 +366,292 @@ func TestFounderDrawsWalksAndCharters(t *testing.T) {
 	w.guild.Settlements = append(w.guild.Settlements, api.Settlement{N: 2})
 	if _, v := step(); v != Pass || tr.civic.phase != atHome || b.charter {
 		t.Fatalf("founded: verdict %v, phase %d, charter out %v", v, tr.civic.phase, b.charter)
+	}
+}
+
+// sidesAt are two goods sides of one arc's stage, both served where the
+// earner stands, and a beats side of another arc in its region.
+func sidesAt(at api.Hex) []api.SideOption {
+	return []api.SideOption{
+		{Goal: "q-1", Arc: "arc-1", Side: "garrison", Wants: "goods", Tag: "timber", Left: 50, At: at},
+		{Goal: "q-2", Arc: "arc-1", Side: "raiders", Wants: "goods", Tag: "timber", Left: 50, At: at},
+		{Goal: "q-3", Arc: "arc-2", Side: "hold", Wants: "beats", Left: 50, At: at},
+	}
+}
+
+func testBacker() *Backer {
+	return &Backer{Tags: testPlan().Tags, Reach: backReach}
+}
+
+func TestEarnerBacksOneSideOnly(t *testing.T) {
+	at := api.Hex{Q: 3, R: -1}
+	w := &fakeWorld{options: api.Options{CharacterID: "c-1", At: at, Moves: []api.Move{{Dir: 0, Open: true}},
+		Purse: api.Purse{Market: true, Coin: 100, Provisions: provisionsFloor, Goods: []api.Goods{{Material: "heartwood", Units: 30}}}}}
+	p := &Player{Discord: "p", Policy: &Earner{Role: Gatherer, Comfort: 400, Back: testBacker()}}
+	s := NewScript(w, []*Player{p}, "civic-test")
+	ctx := context.Background()
+	backs := map[string]int{}
+	arcOf := map[string]string{}
+	for _, x := range sidesAt(at) {
+		arcOf[x.Goal] = x.Arc
+	}
+	// The world lists every side of a stage until the earner backs one,
+	// then that one alone; the first turn makes its character.
+	held := map[string]string{}
+	for tick := range int64(8) {
+		w.options.Tick, w.options.Sides = tick, nil
+		for _, x := range sidesAt(at) {
+			if goal, ok := held[x.Arc]; ok {
+				if goal != x.Goal {
+					continue
+				}
+				x.Backed = true
+			}
+			w.options.Sides = append(w.options.Sides, x)
+		}
+		if tick%2 == 1 {
+			slices.Reverse(w.options.Sides)
+		}
+		n := len(w.acts)
+		if err := s.Turn(ctx, tick); err != nil {
+			t.Fatal(err)
+		}
+		for _, a := range w.acts[n:] {
+			if a.Kind == api.ActBackSide {
+				backs[a.Target]++
+				if _, ok := held[arcOf[a.Target]]; !ok && a.Units > 0 {
+					// Goods in hand go once; the world holds no more.
+					w.options.Purse.Goods = nil
+				}
+				held[arcOf[a.Target]] = a.Target
+			}
+		}
+	}
+	if backs["q-2"] > 0 && backs["q-1"] > 0 {
+		t.Fatalf("backed both sides of one stage: %v", backs)
+	}
+	if backs["q-1"]+backs["q-2"] == 0 || backs["q-3"] != 1 {
+		t.Fatalf("backs = %v, want goods to one side of arc-1 and one declaration for arc-2", backs)
+	}
+	i := slices.IndexFunc(w.acts, func(a api.ActionRequest) bool { return a.Kind == api.ActBackSide && a.Units > 0 })
+	if got := w.acts[i]; got.Asset != "heartwood" || got.Units != 30 {
+		t.Fatalf("goods backed = %+v, want all its timber-tagged heartwood", got)
+	}
+	// Once the world counts it as backing raiders, only raiders is served.
+	e := p.Policy.(*Earner)
+	o := w.options
+	o.Purse.Goods = []api.Goods{{Material: "timber", Units: 12}}
+	o.Sides = []api.SideOption{{Goal: "q-2", Arc: "arc-1", Side: "raiders", Wants: "goods", Tag: "timber", Left: 50, At: at, Backed: true},
+		{Goal: "q-1", Arc: "arc-1", Side: "garrison", Wants: "goods", Tag: "timber", Left: 50, At: at}}
+	d := &Dice{d: drawerFor("civic-test"), player: "p"}
+	if req, ok := e.Choose(o, d); !ok || req.Kind != api.ActBackSide || req.Target != "q-2" {
+		t.Fatalf("with raiders backed: %+v %v", req, ok)
+	}
+	// Nothing to spare: no back, and provisions at the floor are kept.
+	o.Purse.Goods = nil
+	o.Sides[0].Tag = provisions
+	if req, ok := e.Choose(o, d); ok && req.Kind == api.ActBackSide {
+		t.Fatalf("backed with nothing to spare: %+v", req)
+	}
+}
+
+func TestEarnerGoesToASideWithinReach(t *testing.T) {
+	e := &Earner{Role: Gatherer, Comfort: 400, Back: testBacker()}
+	d := &Dice{d: drawerFor("civic-test"), player: "p"}
+	far := api.Hex{Q: 4}
+	o := api.Options{CharacterID: "c-1", Moves: []api.Move{{Dir: 0, To: api.Hex{Q: 1}, Open: true}, {Dir: 3, To: api.Hex{Q: -1}, Open: true}},
+		Purse: api.Purse{Provisions: 20, Load: api.Load{Capacity: 100, Carried: 10}},
+		Sides: []api.SideOption{{Goal: "q-3", Arc: "arc-2", Side: "hold", Wants: "beats", Left: 50, At: far}}}
+	if req, ok := e.back(o, e.tripOf(o, d)); !ok || req.Kind != api.ActStep || req.Dir != 0 {
+		t.Fatalf("a beats side 4 tiles off: %+v %v, want a step toward it", req, ok)
+	}
+	// A full pack presses: it goes home first.
+	o.Purse.Load.Carried = 90
+	if req, ok := e.back(o, e.tripOf(o, d)); ok {
+		t.Fatalf("laden: %+v", req)
+	}
+	// Out of reach, it is left alone.
+	o.Purse.Load.Carried = 10
+	o.Sides[0].At = api.Hex{Q: backReach + 1}
+	if req, ok := e.back(o, e.tripOf(o, d)); ok {
+		t.Fatalf("out of reach: %+v", req)
+	}
+	// A settlement side is reached by route, and walked to if the route
+	// was refused.
+	market := api.Hex{Q: 3}
+	o.Purse.Markets = []api.Hex{{}, market}
+	o.Purse.Goods = []api.Goods{{Material: "timber", Units: 9}}
+	o.Sides = []api.SideOption{{Goal: "q-1", Arc: "arc-1", Side: "garrison", Wants: "goods", Tag: "timber", Left: 50, At: market}}
+	if req, ok := e.back(o, e.tripOf(o, d)); !ok || req.Kind != api.ActTravel || *req.To != market {
+		t.Fatalf("a goods side at a market: %+v %v", req, ok)
+	}
+	if req, ok := e.back(o, e.tripOf(o, d)); !ok || req.Kind != api.ActStep {
+		t.Fatalf("after a refused route: %+v %v, want it to walk", req, ok)
+	}
+}
+
+// cityPlan is a plan for a guild that has founded what it means to and
+// makes its home a city.
+func cityPlan() *GuildPlan {
+	g := testPlan()
+	g.Settlements, g.City = 1, true
+	g.city = cityWorks{wallTier: 1, stations: 3, stationTier: 2,
+		station: map[string]bool{"forge": true, "bench": true, "still": true, "loom": true},
+		goods:   map[string]int64{"timber": 200, "stone": 150, "metal": 50}}
+	return g
+}
+
+// cityPage is a guild's page at a home that has none of a city's works.
+func cityPage() api.Guild {
+	page := homePage()
+	page.Officer = true
+	page.Members = []api.GuildMember{{ID: "c-1", Name: "Ash", Admin: true}}
+	page.Works = nil
+	st := func(kind string, tier int64) api.Structure {
+		return api.Structure{Kind: kind, Stands: tier > 0, Tier: tier, MaxTier: 3, CanRaise: true,
+			Next: []api.CostLine{{Tag: "timber", Quantity: 40}}}
+	}
+	page.Settlements[0].Structures = []api.Structure{st("forge", 1), st("bench", 1), st("still", 1), st("loom", 1), st("market", 1), st("wall", 0)}
+	page.Settlements[0].City = api.CityState{Needs: []api.CityNeed{{ID: needWorks, Need: 4}, {ID: needResources, Need: 400}, {ID: needTiles, Have: 6, Need: 6, Met: true}}}
+	return page
+}
+
+func TestOfficerPostsTheCityOnceReady(t *testing.T) {
+	e := &Earner{Guild: cityPlan()}
+	b := &board{}
+	o := api.Options{CharacterID: "c-1", Tick: 10 * 144}
+	page := cityPage()
+	s := &page.Settlements[0]
+	officer := func() (api.ActionRequest, bool) { return e.officer(o, &trip{}, b, page) }
+	if req, ok := officer(); !ok || req.Kind != api.ActRaise || req.Slot != "wall" || req.Price != 0 {
+		t.Fatalf("no works: %+v %v, want the wall raised first, for no reward", req, ok)
+	}
+	// One raise at a time.
+	s.Structures[5].Raising = true
+	if req, ok := officer(); ok {
+		t.Fatalf("with the wall going up: %+v", req)
+	}
+	s.Structures[5].Raising, s.Structures[5].Tier, s.Structures[5].Stands = false, 1, true
+	s.Structures[1].Tier = 2
+	if req, ok := officer(); !ok || req.Kind != api.ActRaise || req.Slot != "forge" {
+		t.Fatalf("the wall stands: %+v %v, want a station raised", req, ok)
+	}
+	// A station that cannot be raised is passed over; a closed one does
+	// not count.
+	s.Structures[0].CanRaise, s.Structures[3].Closed = false, true
+	if req, ok := officer(); !ok || req.Slot != "still" {
+		t.Fatalf("forge unraisable: %+v %v, want the still", req, ok)
+	}
+	s.Structures[0].Tier, s.Structures[2].Tier = 2, 2
+	// The works stand as the page counts them, but CityCheck has not
+	// found them yet: it waits.
+	if req, ok := officer(); ok {
+		t.Fatalf("works not met on the check: %+v", req)
+	}
+	s.City.Needs[0].Have, s.City.Needs[0].Met = 4, true
+	s.City.Needs[2].Met = false
+	if req, ok := officer(); ok {
+		t.Fatalf("an outer tile taken: %+v", req)
+	}
+	s.City.Needs[2].Met = true
+	req, ok := officer()
+	if !ok || req.Kind != api.ActCityRaise || req.Price != 0 {
+		t.Fatalf("ready: %+v %v, want the city project posted", req, ok)
+	}
+	if req, ok := officer(); ok {
+		t.Fatalf("posted twice in a day: %+v", req)
+	}
+	// Members now gather for the project.
+	if got := e.Guild.building(page, b); got["metal"] != 50 || got["stone"] != 150 {
+		t.Fatalf("the project's wants = %v", got)
+	}
+	// Nothing delivered after three days: it is posted again in case it
+	// lapsed; with goods in, it is left to run.
+	o.Tick += cityRepost * 144
+	s.City.Needs[1].Have = 100
+	if req, ok := officer(); ok {
+		t.Fatalf("a project with goods in posted again: %+v", req)
+	}
+	if got := e.Guild.building(page, b); got["timber"] != 150 {
+		t.Fatalf("a quarter delivered: %v, want three quarters of the timber", got)
+	}
+	s.City.Needs[1].Have = 0
+	if req, ok := officer(); !ok || req.Kind != api.ActCityRaise {
+		t.Fatalf("after %d days with nothing in: %+v %v", cityRepost, req, ok)
+	}
+	s.City = api.CityState{City: true}
+	if req, ok := officer(); ok {
+		t.Fatalf("already a city: %+v", req)
+	}
+	// A guild that does not pursue a city leaves it be.
+	e.Guild.City = false
+	s.City = api.CityState{}
+	if req, ok := officer(); ok {
+		t.Fatalf("no city plan: %+v", req)
+	}
+}
+
+func TestMembersDeliverToRaises(t *testing.T) {
+	plan := cityPlan()
+	page := cityPage()
+	page.Officer = false
+	page.Settlements[0].Structures[5].Raising = true
+	w := &fakeWorld{guild: page, options: api.Options{CharacterID: "c-1", Moves: []api.Move{{Dir: 0, Open: true}},
+		Purse: api.Purse{Market: true, Coin: 100, Provisions: provisionsFloor, Goods: []api.Goods{{Material: "timber", Units: 30}, {Material: "reedflax", Units: 4}}}}}
+	w.goals = api.Goals{Board: []api.Goal{
+		{ID: "q-7", Issuer: "character", Verb: "deliver", State: "live", Takes: []api.Goods{{Material: "timber", Units: 30}}},
+		{ID: "q-8", Issuer: "admin", Verb: "deliver", State: "live", Takes: []api.Goods{{Material: "timber", Units: 25}}},
+		{ID: "q-9", Issuer: "admin", Verb: "deliver", State: "live", Takes: []api.Goods{{Material: "timber", Units: 30}}},
+	}}
+	p := &Player{Discord: "p", Server: "s", Policy: &Earner{Role: Gatherer, Comfort: 400, Guild: plan}}
+	s := NewScript(w, []*Player{p}, "civic-test")
+	for tick := range int64(3) {
+		w.options.Tick = tick
+		if err := s.Turn(context.Background(), tick); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := []api.ActionRequest{
+		{Kind: api.ActDeliverGoal, Target: "q-8", Material: "timber", Units: 25},
+		{Kind: api.ActDeliverGoal, Target: "q-9", Material: "timber", Units: 5},
+	}
+	var got []api.ActionRequest
+	for _, a := range w.acts {
+		if a.Kind == api.ActDeliverGoal {
+			got = append(got, api.ActionRequest{Kind: a.Kind, Target: a.Target, Material: a.Material, Units: a.Units})
+		}
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("deliveries = %+v, want %+v", got, want)
+	}
+}
+
+func TestQuietPlayerStopsAfterDay10(t *testing.T) {
+	idle := int64(10 * 144)
+	w := &fakeWorld{guild: homePage(), options: api.Options{CharacterID: "c-1", Moves: []api.Move{{Dir: 0, Open: true}},
+		Purse: api.Purse{Market: true, Coin: 100, Provisions: provisionsFloor, Goods: []api.Goods{{Material: "timber", Units: 8}},
+			Quotes: []api.Quote{{Material: "timber", Bid: 3}}},
+		Sides: sidesAt(api.Hex{})}}
+	p := &Player{Discord: "p", Server: "quiet", Policy: &Earner{Role: Gatherer, Comfort: 400, Guild: testPlan(), Back: testBacker(), Idle: idle}}
+	s := NewScript(w, []*Player{p}, "civic-test")
+	ctx := context.Background()
+	for _, tick := range []int64{0, 1, idle - 2, idle - 1} {
+		w.options.Tick = tick
+		if err := s.Turn(ctx, tick); err != nil {
+			t.Fatal(err)
+		}
+	}
+	before := len(w.acts)
+	if before < 4 {
+		t.Fatalf("%d acts before day 10, want one a turn", before)
+	}
+	for tick := idle; tick < idle+3*144; tick += 7 {
+		w.options.Tick = tick
+		if err := s.Turn(ctx, tick); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(w.acts) != before {
+		t.Fatalf("acted after day 10: %+v", w.acts[before:])
 	}
 }
