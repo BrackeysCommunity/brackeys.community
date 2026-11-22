@@ -53,10 +53,12 @@ import {
   threadEndedCard,
   withThreadSoon,
 } from "../src/screens/party.ts";
+import { chronicleCard, eventCard, factCard, stageCard } from "../src/screens/story.ts";
 import { talkCard } from "../src/screens/talk.ts";
 import { travelCard } from "../src/screens/travel.ts";
 import * as mm8 from "./fixtures/mm8.ts";
 import * as mm8a from "./fixtures/mm8a.ts";
+import * as mm9 from "./fixtures/mm9.ts";
 import samples from "./fixtures/world.json";
 
 /** Every card the bot draws, from replies a scripted run recorded off a real world, keeps the card standard (card.ts problems()). */
@@ -146,6 +148,7 @@ const guild: api.Guild = {
   settlements: recordedGuild.settlements.map((s) => ({
     ...s,
     conditionMax: 100,
+    city: { city: false },
     structures: s.structures.map((x) => ({
       ...x,
       stands: x.tier > 0 || x.condition > 0 || x.closed,
@@ -1271,7 +1274,69 @@ const cards: [string, () => Card][] = [
         lex,
       ),
   ],
+  ...storyCards(),
 ];
+
+/** The story's cards: an arc's stage and a trouble, the chronicle, the events channel's, a city's needs and a pattern's point. */
+function storyCards(): [string, () => Card][] {
+  const sideGoal = (side: api.Side, mine = false) =>
+    goalAs({
+      id: side.goal,
+      verb: "back",
+      title: side.title,
+      what: `back ${side.title.toLowerCase()}`,
+      side: { ...side, mine },
+    });
+  return [
+    ["an arc's stage", () => stageCard(mm9.withSides, here, mm9.siege, lex)],
+    ["an arc's stage, backing one side", () => stageCard(mm9.withSides, here, mm9.backing, lex)],
+    [
+      "an arc's stage, its goods served elsewhere",
+      () => stageCard(mm9.withSides, here, mm9.elsewhere, lex),
+    ],
+    ["an arc ended", () => stageCard(o, here, mm9.ended, lex)],
+    [
+      "a raid at the settlement",
+      () => stageCard(o, mm9.raided, mm9.raidArc, lex, { trouble: mm9.trouble }),
+    ],
+    ["the hub with a raid at the settlement", () => hubCard(o, mm9.raided, sheet, lex)],
+    ["where, during a raid", () => whereCard(o, mm9.raided, lex)],
+    ["where, a caravan in and a caller come", () => whereCard(o, mm9.visited, lex)],
+    ["where, on a pattern's point", () => whereCard(o, mm9.onPoint, lex)],
+    ["where, on a solved beacon by the open core", () => whereCard(o, mm9.onSolved, lex)],
+    ["the chronicle", () => chronicleCard(mm9.chronicle, lex, o.version, false, mm9.arcs.open)],
+    ["the chronicle channel's card", () => chronicleCard(mm9.chronicle, lex, 0, true)],
+    ["the chronicle before any day closed", () => chronicleCard(mm9.unwritten, lex, o.version)],
+    ["a fact and its causes", () => factCard(mm9.causes, lex, o.version)],
+    ["a fact with no causes kept", () => factCard(mm9.uncaused, lex, o.version)],
+    ...mm9.events.map(([name, ev]): [string, () => Card] => [
+      `events channel: ${name}`,
+      () => eventCard(ev, lex)!,
+    ]),
+    [
+      "settlements, a city's needs to an officer",
+      () => placesCard(o, mm9.cityGuild(raisable(0), { city: false, needs: mm9.needs }), lex),
+    ],
+    [
+      "settlements, a city",
+      () => placesCard(o, mm9.cityGuild(raisable(0), { city: true, raised: 200 }), lex),
+    ],
+    ["a side's goal, goods", () => goalCard(mm9.withSides, goals, sideGoal(mm9.garrison), lex)],
+    ["a side's goal, beats", () => goalCard(mm9.withSides, goals, sideGoal(mm9.besiegers), lex)],
+    [
+      "a side's goal, backed",
+      () => goalCard(mm9.withSides, goals, sideGoal(mm9.besiegers, true), lex),
+    ],
+    [
+      "travel, with sides to back",
+      () => travelCard(mm9.withSides, w.map as api.MapView, here, lex, NUMBERS.ambushLine),
+    ],
+    [
+      "since you left, an arc ended and a trouble lost",
+      () => recapCard(o, here, mm9.recap, lex, new Map()),
+    ],
+  ];
+}
 
 test("a goal draft survives its custom id, and a bad one is refused", () => {
   const d = {
@@ -2133,6 +2198,7 @@ describe("every card that leads into the Activity carries its launch", () => {
         ),
     ],
     ["a hunt in reach", "hunt", () => huntCard(o, here, mm8.hunt, mm8.huntView, lex)],
+    ["the place card on a pattern's point", "where", () => whereCard(o, mm9.onPoint, lex)],
   ];
   for (const [name, from, make] of leading) {
     test(name, () => {
@@ -2216,4 +2282,16 @@ test("every fact a machine, a bench or a pouch writes reads as a line with its u
     expect(factLine(f, lex)).toBe(line);
     expect(bareNumbers(line, names)).toEqual([]);
   }
+});
+
+test("an arc and its sides the world names only by row id read as words", () => {
+  const raw = {
+    ...mm9.siege,
+    title: mm9.siege.template,
+    sides: mm9.siege.sides.map((s) => ({ ...s, title: s.id })),
+  };
+  const card = stageCard(mm9.withSides, here, raw, lex);
+  expect(card.title).toBe("The siege");
+  expect(card.fields?.map((f) => f.name)).toContain("Garrison");
+  expect(problems(card, names)).toEqual([]);
 });

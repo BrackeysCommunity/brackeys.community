@@ -73,6 +73,7 @@ import {
   partyMachineCard,
   scoresOf,
 } from "./screens/party.ts";
+import { chronicleCard, factCard, giveModal, stageCard, UNITS_INPUT } from "./screens/story.ts";
 import { talkCard } from "./screens/talk.ts";
 import { travelCard } from "./screens/travel.ts";
 import { amount } from "./units.ts";
@@ -146,6 +147,10 @@ export function modalFor(id: Id): Modal | null {
         : nameModal("gld-chart", id.version, "Name your settlement");
     case "d-name":
       return hexOf(id.target) ? dungeonNameModal(id.target, id.version) : null;
+    case "s-give": {
+      const f = fields(id.target, ":", 2);
+      return f ? giveModal(f[0]!, f[1]!, id.version) : null;
+    }
     default:
       return null;
   }
@@ -158,6 +163,14 @@ export function modalFor(id: Id): Modal | null {
  */
 export function launchFor(id: Id): Launch | null {
   return id.action === "launch" ? launchOf(id.target) : null;
+}
+
+/**
+ * The Discord role a press toggles on its presser, decided from its id
+ * alone: the adapter answers it before any world call.
+ */
+export function roleFor(id: Id): "alarm" | null {
+  return id.action === "alarm" ? "alarm" : null;
 }
 
 export interface Ctx {
@@ -280,6 +293,8 @@ class Session {
         return this.guild();
       case "party":
         return this.party();
+      case "chronicle":
+        return this.chronicle();
       case "play":
       default:
         return this.open();
@@ -628,6 +643,79 @@ class Session {
     }
   }
 
+  /** /chronicle and the hub's Chronicle: a closed world day, the last one unless day names another. */
+  async chronicle(day?: number, notice?: string): Promise<Answer> {
+    const [o, read, arcs] = await Promise.all([
+      this.world.options(this.character),
+      this.world.chronicle(this.character, day),
+      this.world.arcs(this.character),
+    ]);
+    const ch: api.Chronicle = read.ok
+      ? read.reply
+      : { season: arcs.season, day: -1, lines: [], more: 0, earlier: [] };
+    return this.retitled(
+      this.done(chronicleCard(ch, this.lex, o.version, false, arcs.open)),
+      notice ?? (read.ok || day === undefined ? undefined : capitalise(read.refusal.message)),
+    );
+  }
+
+  /** A chronicle line opened: the fact and its causes. */
+  async chronicleFact(id: number): Promise<Answer> {
+    const [o, read] = await Promise.all([
+      this.world.options(this.character),
+      this.world.chronicleFact(this.character, id),
+    ]);
+    if (!read.ok) return this.chronicle(undefined, "That fact is not kept");
+    return this.done(factCard(read.reply, this.lex, o.version));
+  }
+
+  /**
+   * An arc's stage card for this character: the arc named, the one a side
+   * goal belongs to, or the trouble at the place it stands in.
+   */
+  async stage(find: { arc?: string; goal?: string; trouble?: boolean }, notice?: string) {
+    const [{ o, here }, arcs] = await Promise.all([this.load(), this.world.arcs(this.character)]);
+    const all = [...arcs.open, ...arcs.ended];
+    const at = here.place.tile.hex;
+    const a = all.find((x) =>
+      find.arc
+        ? x.id === find.arc
+        : find.goal
+          ? x.sides.some((s) => s.goal === find.goal)
+          : x.scope === "settlement" && !x.outcome && x.seat.q === at.q && x.seat.r === at.r,
+    );
+    if (!a) return this.where(notice ?? "That arc is over");
+    const goods = a.sides.some((s) => s.wants === "goods" && !s.mine);
+    const goals = goods ? await this.world.goals(this.character) : undefined;
+    const trouble =
+      a.scope === "settlement" && a.seat.q === at.q && a.seat.r === at.r
+        ? here.place.trouble
+        : undefined;
+    return this.done(
+      stageCard(o, here, a, this.lex, {
+        goals: goals?.ok ? [...goals.reply.board, ...goals.reply.mine] : undefined,
+        trouble,
+        notice,
+      }),
+    );
+  }
+
+  /** Backs a side: goods given where they land, or a declaration for a side filled by deeds. */
+  private back(goal: string, v: number, goods?: { material: string; units: number }) {
+    const fields: Partial<api.ActionRequest> = goods
+      ? { target: goal, asset: goods.material, units: goods.units }
+      : { target: goal };
+    return this.write(api.ActBackSide, v, fields, (_, why) =>
+      this.stage(
+        { goal },
+        why ??
+          (goods
+            ? `Given: ${amount(goods.units, this.lex.material(goods.material).toLowerCase())}`
+            : "You back it: what you do in its regions now counts toward it"),
+      ),
+    );
+  }
+
   async where(notice?: string): Promise<Answer> {
     const { o, here } = await this.load();
     return this.retitled(this.done(whereCard(o, here, this.lex)), notice);
@@ -803,6 +891,55 @@ class Session {
         );
       case "recipes":
         return this.recipes();
+      case "chronicle": {
+        const day = integerTarget(value || id.target);
+        return this.chronicle(day !== undefined && day >= 0 ? day : undefined);
+      }
+      case "c-fact": {
+        const fact = integerTarget(value || id.target);
+        if (fact === undefined || fact <= 0) return backCards.unknown(this.character);
+        return this.chronicleFact(fact);
+      }
+      case "arc":
+        if (!(value || id.target)) return backCards.unknown(this.character);
+        return this.stage({ arc: value || id.target });
+      case "s-back":
+        if (!id.target) return backCards.unknown(this.character);
+        return this.stage({ goal: id.target });
+      case "trouble":
+        return this.stage({ trouble: true });
+      case "s-decl":
+        if (!id.target) return backCards.unknown(this.character);
+        return this.back(id.target, v);
+      case "s-give": {
+        const f = fields(id.target, ":", 2);
+        if (!f) return backCards.unknown(this.character);
+        return this.stage({ goal: f[0] });
+      }
+      case "s-gave": {
+        const f = fields(id.target, ":", 2);
+        const units = integerTarget((this.press.fields?.[UNITS_INPUT] ?? "").trim());
+        if (!f) return backCards.unknown(this.character);
+        if (units === undefined || units <= 0)
+          return this.stage({ goal: f[0] }, "Give a whole number of units, 1 or more");
+        return this.back(f[0]!, v, { material: f[1]!, units });
+      }
+      case "alarm":
+        return this.hub();
+      case "p-set": {
+        const units = integerTarget(value);
+        if (units === undefined || units < 0) return backCards.unknown(this.character);
+        const { o } = await this.load();
+        return this.write(api.ActPatternSet, v, { to: o.at, units }, (_, why) =>
+          this.where(why ?? "Set: the point holds it once its machine is solved"),
+        );
+      }
+      case "gld-city":
+        return this.write(api.ActCityRaise, v, {}, (_, why) =>
+          why
+            ? this.guild("places", why)
+            : this.goals(undefined, "The city project's goals are on the board"),
+        );
       case "recap": {
         const { o, here } = await this.load();
         const recap = await this.world.recap(this.character);

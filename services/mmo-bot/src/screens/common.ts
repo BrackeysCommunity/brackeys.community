@@ -7,6 +7,12 @@ import {
   type Select,
   SELECT_LABEL_MAX,
 } from "../../../../packages/discord-kit/src/index.ts";
+import {
+  chronicleKinds,
+  chronicleLine,
+  type Names,
+  refKey,
+} from "../../../../packages/mmo-words/src/index.ts";
 import type * as api from "../api.ts";
 import type { Picture } from "../card.ts";
 import { type Action, encodeId, type LaunchCard, launchTarget, target } from "../ids.ts";
@@ -315,9 +321,23 @@ export function factLine(f: api.Fact, lex: Lexicon): string {
     case "track.followed":
       return "Followed a fled creature's track.";
     default:
-      return capitalise(`${f.kind.replace(/[.-]/g, " ")}.`);
+      return CHRONICLED.has(f.kind)
+        ? chronicleLine(f, storyNames(lex))
+        : capitalise(`${f.kind.replace(/[.-]/g, " ")}.`);
   }
 }
+
+/** The names a story line is told with: the setting's rows, and the refs an arc's cast names. */
+export function storyNames(lex: Lexicon, refs: ReadonlyMap<string, string> = new Map()): Names {
+  return { name: (sheet, id) => lex.name(sheet, id), ref: (r) => refs.get(refKey(r)) };
+}
+
+/** A fact as the chronicle tells it, naming no character; a kind it has no line for as the hub does. */
+export function storyLine(f: api.Fact, lex: Lexicon, refs?: ReadonlyMap<string, string>): string {
+  return CHRONICLED.has(f.kind) ? chronicleLine(f, storyNames(lex, refs)) : factLine(f, lex);
+}
+
+const CHRONICLED = new Set(chronicleKinds());
 
 /** The gauges that matter most at a place, with their unit. */
 export function gauges(

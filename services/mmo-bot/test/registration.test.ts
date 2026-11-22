@@ -35,3 +35,13 @@ test("a failed command lookup propagates without overwriting the guild manifest"
   ).rejects.toThrow("unavailable");
   expect(rest.put).not.toHaveBeenCalled();
 });
+
+test("/chronicle is registered beside the others, each within what Discord takes", () => {
+  const names = MANIFEST.map((c) => c.name);
+  expect(names).toContain("chronicle");
+  expect(new Set(names).size).toBe(names.length);
+  for (const c of MANIFEST) {
+    expect(c.name).toMatch(/^[a-z]{1,32}$/);
+    expect(c.description.length).toBeLessThanOrEqual(100);
+  }
+});

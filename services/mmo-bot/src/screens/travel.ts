@@ -8,7 +8,18 @@ import type { Card } from "../card.ts";
 import { encodeId, target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
 import { amount, plural, ticks } from "../units.ts";
-import { back, btn, conditionsField, DIRECTIONS, PRIVATE, timeLeft } from "./common.ts";
+import {
+  back,
+  btn,
+  conditionsField,
+  DIRECTIONS,
+  PRIVATE,
+  SELECT_MOST,
+  timeLeft,
+} from "./common.ts";
+
+/** The most arc sides the go-to select offers before the sites seen. */
+const SIDES_SHOWN = 5;
 
 /** The map view and travel: a crop with fog and weather, six directions, go-to (GDD 6.1, 16.4). */
 export function travelCard(
@@ -30,19 +41,28 @@ export function travelCard(
       style: here.suggest?.dir === i ? "primary" : "secondary",
     });
   });
-  const sites = map.tiles
-    .filter((t) => t.site && !(t.hex.q === map.centre.q && t.hex.r === map.centre.r))
-    .slice(0, 25);
+  // Where an arc's sides are served comes first: goods land there and beats count round it.
+  const destinations = new Map<string, string>();
+  for (const sd of o.sides ?? []) {
+    if (sd.at.q === o.at.q && sd.at.r === o.at.r) continue;
+    const label = `To back ${lex.name("story.sides", sd.side).toLowerCase()}${sd.region ? `, in ${sd.region}` : ""}`;
+    const key = target(",", sd.at.q, sd.at.r);
+    if (!destinations.has(key) && destinations.size < SIDES_SHOWN)
+      destinations.set(key, label.slice(0, SELECT_LABEL_MAX));
+  }
+  for (const t of map.tiles) {
+    if (!t.site || (t.hex.q === map.centre.q && t.hex.r === map.centre.r)) continue;
+    const key = target(",", t.hex.q, t.hex.r);
+    if (!destinations.has(key) && destinations.size < SELECT_MOST)
+      destinations.set(key, siteLabel(t, lex));
+  }
   const rows: Card["rows"] = [{ buttons: moves.slice(0, 3) }, { buttons: moves.slice(3) }];
-  if (sites.length && !o.long && !o.fight) {
+  if (destinations.size && !o.long && !o.fight) {
     rows.push({
       select: {
         customId: encodeId("goto", "", v),
         placeholder: "Go to a place you have seen…",
-        options: sites.map((t) => ({
-          label: siteLabel(t, lex),
-          value: target(",", t.hex.q, t.hex.r),
-        })),
+        options: [...destinations].map(([value, label]) => ({ label, value })),
       },
     });
   }

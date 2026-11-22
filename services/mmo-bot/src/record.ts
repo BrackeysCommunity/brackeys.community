@@ -5,7 +5,8 @@ import type { World, WorldReply } from "./world.ts";
  * A World that keeps a sample of every read it passes on, for the card
  * test's fixtures: the latest of each, and of options also the latest
  * taken in a fight, on a machine beat, on the road and down, and of the
- * party read also the latest on a shared beat, at a fork and with none.
+ * party read also the latest on a shared beat, at a fork and with none;
+ * of the story reads only those with something in them.
  */
 export function recording(world: World, samples: Record<string, unknown>): World {
   const keep = <T>(name: string, v: T): T => {
@@ -80,6 +81,18 @@ export function recording(world: World, samples: Record<string, unknown>): World
       const b = await world.hunts();
       if (b.hunts.length) samples.hunts = b;
       return b;
+    },
+    chronicle: keepOk("chronicle", world.chronicle),
+    chronicleFact: keepOk("chronicleFact", world.chronicleFact),
+    arcs: async (id) => {
+      const a = await world.arcs(id);
+      if (a.open.length) samples.arcs = a;
+      return a;
+    },
+    storyEvents: async (after) => {
+      const e = await world.storyEvents(after);
+      if (e.events.length) samples.storyEvents = e;
+      return e;
     },
   };
 }

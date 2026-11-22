@@ -1,8 +1,9 @@
-import type { Button, EmbedField } from "../../../../packages/discord-kit/src/index.ts";
+import type { Button, EmbedField, Row } from "../../../../packages/discord-kit/src/index.ts";
 import { buttonRows } from "../../../../packages/discord-kit/src/index.ts";
+import { patternLine, troubleBanner } from "../../../../packages/mmo-words/src/index.ts";
 import * as api from "../api.ts";
 import { type Card, COLOUR } from "../card.ts";
-import { target } from "../ids.ts";
+import { encodeId, target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
 import { amount, outOf, ticks } from "../units.ts";
 import {
@@ -10,13 +11,17 @@ import {
   banner,
   benchLine,
   btn,
+  buttonLabel,
   conditionsField,
   downButtons,
   factLine,
   gauges,
   launch,
+  option,
   placedLine,
   PRIVATE,
+  SELECT_MOST,
+  storyLine,
   stationLine,
   timeLeft,
 } from "./common.ts";
@@ -83,7 +88,7 @@ export function hubCard(
     btn("Goals", "goals", "", v),
     btn("Guild", "guild", "", v),
     btn("Character", "character", "", v),
-    btn("Chronicle", "recap", "", v),
+    btn("Chronicle", "chronicle", "", v),
   ];
   const urgent: Button[] = [];
   if (o.fight) urgent.push(btn("Back to the fight", "fight", "", v, { style: "danger" }));
@@ -93,6 +98,11 @@ export function hubCard(
     urgent.push(btn("To the fork", "dungeon", "", v, { style: "primary" }));
   if (hunt && !o.fight)
     urgent.push(btn(`Hunt: ${hunt.name}`, "hunt", hunt.id, v, { style: "danger" }));
+  const trouble = here.place.trouble;
+  if (trouble && !o.fight)
+    urgent.push(
+      btn(buttonLabel(`Trouble: ${trouble.title}`), "trouble", "", v, { style: "danger" }),
+    );
   if (o.conditions.includes(api.CondDown)) urgent.push(...downButtons(o, v));
   if (o.long) urgent.push(btn("Stop", "cancel", "", v));
   return {
@@ -133,9 +143,20 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
       .slice(0, 5)
       .map((f) => `• ${factLine(f, lex)}`)
       .join("\n") || "Nothing heavy has happened here lately.";
-  const people = here.people.slice(0, 4);
+  // Those who came to meet the character on its road are spoken to first.
+  const people = [...here.people]
+    .sort((a, b) => Number(!!b.called) - Number(!!a.called))
+    .slice(0, 4);
   const buttons: Button[] = people.map((p) =>
-    btn(`Talk: ${p.name}${p.visit ? " (wants a word)" : ""}`, "talk", p.id, v),
+    btn(
+      buttonLabel(
+        `Talk: ${p.name}${p.called ? " (came to meet you)" : p.visit ? " (wants a word)" : ""}`,
+      ),
+      "talk",
+      p.id,
+      v,
+      p.called ? { style: "primary" } : {},
+    ),
   );
   const downed = here.downed.slice(0, 3);
   const floor = here.floor?.floor ?? 0;
@@ -158,7 +179,11 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
     more.push(btn(`Follow the trail`, "follow", target(",", t.now.q, t.now.r), v));
   if (here.search) more.push(btn("Search the cache", "search", "", v, { style: "success" }));
   if (here.place.rest) more.push(btn("Rest", "rest", "", v));
+  const point = here.place.pattern;
   if (here.bench) more.push(launch("Work at the bench", "where", v));
+  else if (point?.family && !point.solved) more.push(launch("Work the point", "where", v));
+  if (here.place.trouble)
+    more.push(btn("Hold off the trouble", "trouble", "", v, { style: "danger" }));
   if (here.floor) more.push(btn("The dungeon", "dungeon", "", v));
   more.push(back(v));
   const overrun = here.place.overrun;
@@ -183,10 +208,13 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
     });
   }
   if (here.bench) fields.push({ name: "Tinker's bench", value: benchLine(here.bench) });
+  fields.push(...storyFields(here, lex));
   if (people.length)
     fields.push({
       name: "People here",
-      value: people.map((p) => `${p.name}, ${p.role}`).join("\n"),
+      value: people
+        .map((p) => `${p.name}, ${p.role}${p.called ? ", came along the road to meet you" : ""}`)
+        .join("\n"),
     });
   if (downed.length)
     fields.push({
@@ -233,9 +261,84 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
     picture: banner(here),
     fields,
     footer: "Every heavy fact on this tile is kept in its record.",
-    rows: [...(buttons.length ? [{ buttons }] : []), ...buttonRows(more)],
+    rows: [
+      ...(buttons.length ? [{ buttons }] : []),
+      ...pointRows(point, v, lex),
+      ...buttonRows(more),
+    ],
     colour: overrun ? COLOUR.rust : COLOUR.ash,
   };
+}
+
+/** The story at a place: its trouble or occasion, its city or ruin, the core, and a pattern's point on the tile. */
+function storyFields(here: api.Here, lex: Lexicon): EmbedField[] {
+  const p = here.place;
+  const out: EmbedField[] = [];
+  if (p.trouble) {
+    out.push({
+      name: "Trouble here",
+      value: troubleBanner(p.trouble, { place: here.name, now: p.tick, names: lex }),
+    });
+  }
+  if (p.occasion)
+    out.push({
+      name: "Occasion",
+      value: `${p.occasion.banner}, for ${ticks(Math.max(0, p.occasion.ends - p.tick))}`,
+    });
+  if (p.ruined)
+    out.push({
+      name: "A ruin",
+      value: "Its structures stand closed; nothing is raised here.",
+      inline: true,
+    });
+  else if (p.city?.city)
+    out.push({ name: "A city", value: "Its stations rise to tier 3.", inline: true });
+  if (p.open)
+    out.push({
+      name: "The core",
+      value: "It stands open: step onto it to go through.",
+      inline: true,
+    });
+  const pt = p.pattern;
+  if (pt)
+    out.push({
+      name: "A pattern's point",
+      value: [
+        `${patternLine(pt, lex)}.`,
+        pt.solved
+          ? ""
+          : pt.family
+            ? `Set it below, then solve its ${lex.name("puzzles.families", pt.family)} in the Activity.`
+            : "Set it below: a beacon is lit by a delivery here.",
+        ...(pt.clues ?? []).slice(0, 3).map((f) => `• ${storyLine(f, lex)}`),
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    });
+  return out;
+}
+
+/** The select that sets the pattern point stood on, one option a value. */
+function pointRows(pt: api.PatternPoint | undefined, v: number, lex: Lexicon): Row[] {
+  if (!pt || pt.solved || pt.values < 1) return [];
+  const values = Array.from({ length: Math.min(pt.values, SELECT_MOST) }, (_, i) => i);
+  return [
+    {
+      select: {
+        customId: encodeId("p-set", "", v),
+        placeholder: "Set this point…",
+        options: values.map((n) =>
+          option(
+            `Set it to value ${n + 1}${pt.held === n ? " (held now)" : ""}`,
+            String(n),
+            pt.family
+              ? `Arms a ${lex.name("puzzles.families", pt.family)} to solve in the Activity`
+              : "Lit by a delivery here",
+          ),
+        ),
+      },
+    },
+  ];
 }
 
 /** Since you left: the recap, a short list and then how many more (GDD 3.3). */
@@ -248,6 +351,8 @@ export function recapCard(
 ): Card {
   const lines = recap.lines.map((l) => {
     if (l.npc) return `• ${people.get(l.npc) ?? "Someone"} wants a word with you.`;
+    if (l.kind === api.RecapArc || l.kind === api.RecapTrouble)
+      return `• ${storyLine(l.fact!, lex)}`;
     return `• ${factLine(l.fact!, lex)}`;
   });
   if (recap.more) lines.push(`…and ${amount(recap.more, "more lines")}`);

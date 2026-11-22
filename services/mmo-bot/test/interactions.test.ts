@@ -14,11 +14,12 @@ import {
 import * as api from "../src/api.ts";
 import type { Card } from "../src/card.ts";
 import { localBudget } from "../src/cooldown.ts";
-import { answer, launchFor, modalFor } from "../src/flow.ts";
+import { answer, launchFor, modalFor, roleFor } from "../src/flow.ts";
 import { decodeId, encodeId, type Id, launchTarget } from "../src/ids.ts";
 import { Lexicon } from "../src/lexicon.ts";
 import { BLANK, goalDraftId, specOf } from "../src/screens/goals.ts";
 import { httpWorld } from "../src/world.ts";
+import * as mm9 from "./fixtures/mm9.ts";
 import samples from "./fixtures/world.json";
 
 const GOALS_SINCE = {
@@ -57,6 +58,7 @@ const GUILD_SINCE = {
   settlements: samples.guild.settlements.map((s, i) => ({
     ...s,
     here: i === 0,
+    city: { city: false },
     structures: s.structures.map((x, j) => ({ ...x, canRaise: j === 0, rewardMost: 30 })),
   })),
 };
@@ -69,7 +71,12 @@ const UNRECORDED = new Set<string>([
   api.ActRaise,
   api.ActDeliverGoal,
   api.ActJoin,
+  api.ActBackSide,
+  api.ActPatternSet,
+  api.ActCityRaise,
 ]);
+/** The reads that name no character: the bot's own, world-wide. */
+const WORLD_WIDE = new Set<string>([api.PathHunts, api.PathParties, api.PathStoryEvents]);
 
 function setup({
   player = "c-1",
@@ -82,9 +89,12 @@ function setup({
   sheet = samples.sheet as api.Sheet,
   goals = {} as Partial<api.Goals>,
   guild = {} as Partial<api.Guild>,
+  arcs = mm9.arcs,
+  missing = [] as string[],
 } = {}) {
   const writes: api.ActionRequest[] = [];
   const reads: string[] = [];
+  const queries: URLSearchParams[] = [];
   const appraisals: api.AppraiseRequest[] = [];
   const routes = new Map<string, unknown>([
     [api.PathPlayer, { characterId: player }],
@@ -101,6 +111,10 @@ function setup({
     [api.PathClasses, samples.classes],
     [api.PathHunts, { tick: 0, every: 1, hunts: [] }],
     [api.PathParties, { tick: 0, parties: [] }],
+    [api.PathChronicle, mm9.chronicle],
+    [api.PathChronicleFact, mm9.causes],
+    [api.PathArcs, arcs],
+    [api.PathStoryEvents, { events: [], last: 0 }],
     [
       api.PathParty,
       { tick: 0, characterId: player, version: options.version, reach: [], invites: [] },
@@ -126,12 +140,17 @@ function setup({
         return Response.json(samples.appraise);
       }
       reads.push(url.pathname);
-      // The world-wide reads name no character.
-      if (url.pathname !== api.PathHunts && url.pathname !== api.PathParties)
+      queries.push(url.searchParams);
+      if (!WORLD_WIDE.has(url.pathname))
         expect(
           url.searchParams.get(url.pathname === api.PathPlayer ? "discordId" : "characterId"),
         ).toBe(url.pathname === api.PathPlayer ? "someone" : "c-1");
       if (!routes.has(url.pathname)) throw new Error("unexpected path " + url.pathname);
+      if (missing.includes(url.pathname))
+        return Response.json(
+          { code: api.CodeNotFound, message: "world day 0 has not closed" },
+          { status: 404 },
+        );
       return Response.json(routes.get(url.pathname));
     },
     { preconnect: () => {} },
@@ -159,7 +178,7 @@ function setup({
   const ctx = { world, lex, threatLine: 600 };
   const press = (id: Id, values?: string[]) =>
     answer(ctx, { id, values, user: "someone", guild: "guild", interaction: "event" });
-  return { writes, reads, appraisals, ctx, press };
+  return { writes, reads, queries, appraisals, ctx, press };
 }
 
 test("a new player's starter selection binds their Discord account and guild", async () => {
@@ -914,4 +933,167 @@ test("a machine's option pressed from an old card is refused by the world and th
     .map((b) => (b.kind === "page" ? decodeId(b.customId) : null));
   expect(ids.some((id) => id?.action === "launch")).toBe(true);
   expect(ids.some((id) => id?.action === "press" && id.target === "hack")).toBe(false);
+});
+
+/** The ids a card offers, by action. */
+const offers = (card: Card) =>
+  card.rows.flatMap((r) =>
+    "select" in r
+      ? [decodeId(r.select.customId)!]
+      : r.buttons.flatMap((b) => (b.kind === "page" ? [decodeId(b.customId)!] : [])),
+  );
+
+test("/chronicle and the hub's Chronicle open the last closed day, and since you left is one press away", async () => {
+  const { ctx, press, reads, writes } = setup();
+  const opened = await answer(ctx, {
+    user: "someone",
+    interaction: "command",
+    command: "chronicle",
+  });
+  expect(opened.card.title).toBe("The chronicle of world day 3");
+  expect(reads).toEqual(expect.arrayContaining([api.PathChronicle, api.PathArcs]));
+  const hub = await press({ action: "hub", target: "", version: 1 });
+  const chronicle = offers(hub.card).find((id) => id.action === "chronicle")!;
+  expect((await press(chronicle)).card.author).toBe("Chronicle · the world");
+  const recap = offers(opened.card).find((id) => id.action === "recap")!;
+  expect((await press(recap)).card.author).toBe("Chronicle · since you left");
+  expect(writes).toEqual([]);
+});
+
+test("an earlier day and a line's causes are read by what the selects carry", async () => {
+  const { press, queries, writes } = setup();
+  await press({ action: "chronicle", target: "", version: 2 }, ["1"]);
+  expect(queries.find((q) => q.has("day"))?.get("day")).toBe("1");
+  const fact = await press({ action: "c-fact", target: "", version: 2 }, ["903"]);
+  expect(fact.card.author).toBe("Chronicle · a fact and its causes");
+  expect(queries.find((q) => q.has("id"))?.get("id")).toBe("903");
+  expect((await press({ action: "c-fact", target: "", version: 2 }, ["x"])).card.author).toBe(
+    "An old button",
+  );
+  expect(writes).toEqual([]);
+});
+
+test("before any world day closes the chronicle says so, and still lists the arcs running", async () => {
+  const { ctx } = setup({ missing: [api.PathChronicle] });
+  const a = await answer(ctx, { user: "someone", interaction: "command", command: "chronicle" });
+  expect(a.card.title).toBe("No world day has closed yet");
+  expect(offers(a.card).some((id) => id.action === "arc")).toBe(true);
+});
+
+test("a posted stage's Back opens the presser's own stage card without a write", async () => {
+  const { press, writes } = setup({ options: mm9.withSides });
+  const stage = await press({ action: "s-back", target: mm9.besiegers.goal, version: 0 });
+  expect(stage.card.title).toBe(mm9.siege.title);
+  expect(stage.card.context).toContain("only you");
+  const ids = offers(stage.card);
+  expect(ids).toContainEqual({ action: "s-decl", target: mm9.besiegers.goal, version: 49 });
+  expect(ids).toContainEqual({
+    action: "s-give",
+    target: `${mm9.garrison.goal}:provisions`,
+    version: 49,
+  });
+  expect(writes).toEqual([]);
+});
+
+test("declaring for a beats side sends the side's goal and no goods", async () => {
+  const { press, writes } = setup({ options: mm9.withSides });
+  const a = await press({ action: "s-decl", target: mm9.besiegers.goal, version: 7 });
+  expect(writes).toEqual([
+    {
+      interactionId: "event",
+      characterId: "c-1",
+      version: 7,
+      kind: api.ActBackSide,
+      server: "guild",
+      target: mm9.besiegers.goal,
+    },
+  ]);
+  expect(a.card.title).toStartWith("You back it");
+});
+
+test("a goods side's Back opens an amount modal, and its submit gives that many", async () => {
+  const { ctx, writes } = setup({ options: mm9.withSides });
+  const give = { action: "s-give", target: `${mm9.garrison.goal}:provisions`, version: 7 } as const;
+  const modal = modalFor(give)!;
+  expect(modal.customId).toBe(encodeId("s-gave", give.target, 7));
+  const submit = (units: string) =>
+    answer(ctx, {
+      id: decodeId(modal.customId)!,
+      fields: { units },
+      user: "someone",
+      guild: "guild",
+      interaction: "event",
+    });
+  const refused = await submit("lots");
+  expect(refused.card.title).toBe("Give a whole number of units, 1 or more");
+  expect(writes).toEqual([]);
+  const given = await submit(" 5 ");
+  expect(writes).toEqual([
+    {
+      interactionId: "event",
+      characterId: "c-1",
+      version: 7,
+      kind: api.ActBackSide,
+      server: "guild",
+      target: mm9.garrison.goal,
+      asset: "provisions",
+      units: 5,
+    },
+  ]);
+  expect(given.card.title).toBe("Given: 5 provisions");
+  expect(modalFor({ action: "s-give", target: mm9.garrison.goal, version: 7 })).toBeNull();
+});
+
+test("the trouble at the place opens from the hub's urgent row, with its hunt", async () => {
+  const { press, writes } = setup({ here: mm9.raided });
+  const hub = await press({ action: "hub", target: "", version: 1 });
+  const trouble = offers(hub.card).find((id) => id.action === "trouble")!;
+  const card = (await press(trouble)).card;
+  expect(card.author).toStartWith("Trouble");
+  expect(offers(card)).toContainEqual({ action: "hunt", target: mm9.trouble.hunt!, version: 49 });
+  expect(writes).toEqual([]);
+});
+
+test("an arc that is over, or none at all, lands on the place card", async () => {
+  const { press } = setup({ arcs: { ...mm9.arcs, open: [], ended: [] } });
+  const a = await press({ action: "arc", target: "a-99", version: 1 });
+  expect(a.card.title).toBe("That arc is over");
+});
+
+test("a pattern's point is set from the place card's select, at the tile stood on", async () => {
+  const { press, writes } = setup({ here: mm9.onPoint });
+  const where = await press({ action: "where", target: "", version: 1 });
+  const set = offers(where.card).find((id) => id.action === "p-set")!;
+  await press(set, ["2"]);
+  expect(writes).toEqual([
+    {
+      interactionId: "event",
+      characterId: "c-1",
+      version: 49,
+      kind: api.ActPatternSet,
+      server: "guild",
+      to: (samples.options as api.Options).at,
+      units: 2,
+    },
+  ]);
+  expect((await press(set, ["-1"])).card.author).toBe("An old button");
+  expect(writes).toHaveLength(1);
+});
+
+test("Raise to a city posts the city project, and the raid alarm is the adapter's to answer", async () => {
+  const { press, writes } = setup();
+  await press({ action: "gld-city", target: "", version: 4 });
+  expect(writes).toEqual([
+    {
+      interactionId: "event",
+      characterId: "c-1",
+      version: 4,
+      kind: api.ActCityRaise,
+      server: "guild",
+    },
+  ]);
+  expect(roleFor({ action: "alarm", target: "", version: 0 })).toBe("alarm");
+  expect(roleFor({ action: "hub", target: "", version: 0 })).toBeNull();
+  expect((await press({ action: "alarm", target: "", version: 0 })).card.author).toStartWith("Hub");
+  expect(writes).toHaveLength(1);
 });

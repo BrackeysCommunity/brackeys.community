@@ -5,6 +5,7 @@ import {
   type Modal,
   type Row,
 } from "../../../../packages/discord-kit/src/index.ts";
+import { sideLine } from "../../../../packages/mmo-words/src/index.ts";
 import * as api from "../api.ts";
 import { authorLine, type Card, COLOUR } from "../card.ts";
 import { type Action, encodeId, fields, integerTarget, target } from "../ids.ts";
@@ -22,6 +23,7 @@ import {
   ROW_MOST,
   SELECT_MOST,
 } from "./common.ts";
+import { backMaterial, namedSide } from "./story.ts";
 
 /**
  * /goals (GDD 11, 17): the notice board of the settlement you stand in,
@@ -565,6 +567,27 @@ export function goalCard(
     acts.push(
       btn("Deliver the haul", "g-deliver", target(":", x.id, "haul", 1), v, { style: "success" }),
     );
+  const side = x.side && namedSide(x.side, lex);
+  if (side && x.state === "live" && side.filled < side.mark) {
+    if (side.wants !== "goods") {
+      if (!side.mine)
+        acts.push(btn(buttonLabel(`Back: ${side.title}`), "s-decl", x.id, v, { style: "success" }));
+    } else {
+      const material = backMaterial(side, { at: o.at, purse: o.purse, goals: [x] }, lex);
+      const there = !side.atHex || (side.atHex.q === o.at.q && side.atHex.r === o.at.r);
+      if (material && there)
+        acts.push(
+          btn(
+            buttonLabel(`Back: give ${lex.material(material).toLowerCase()}`),
+            "s-give",
+            target(":", x.id, material),
+            v,
+            { style: "success" },
+          ),
+        );
+    }
+  }
+  if (side) acts.push(btn("The arc", "s-back", x.id, v));
   if (x.canPledge)
     for (const c of [10, 100])
       if (o.purse.coin >= c)
@@ -583,7 +606,18 @@ export function goalCard(
     ]
       .filter(Boolean)
       .join("\n"),
-    fields: goalFields(x, lex),
+    fields: [
+      ...goalFields(x, lex),
+      ...(side
+        ? [
+            {
+              name: `A side of an arc: ${side.title}${side.mine ? " (you back it)" : ""}`,
+              value: `${sideLine(side, lex)}; it pays by what each put in.`,
+              inline: false,
+            },
+          ]
+        : []),
+    ],
     footer: "Met by recorded facts; the claim cites them, and nobody judges.",
     rows,
   };

@@ -78,6 +78,21 @@ function fakeWorld(state: {
     party: async () => state.party ?? mm8.alone,
     parties: async () => state.parties ?? { tick: 13, parties: [mm8.board] },
     hunts: async () => state.hunts ?? { tick: 13, every: 1, hunts: [] },
+    chronicle: async () => ({
+      ok: false as const,
+      refusal: { code: api.CodeNotFound, message: "no day has closed" },
+    }),
+    chronicleFact: async () => ({
+      ok: false as const,
+      refusal: { code: api.CodeNotFound, message: "no fact" },
+    }),
+    arcs: async () => ({
+      season: { n: 0, day: 0, days: 0, band: "", ends: 0 },
+      open: [],
+      ended: [],
+      backing: [],
+    }),
+    storyEvents: async () => ({ events: [], last: 0 }),
   };
   const ctx: Ctx = { world, lex, threatLine: 600 };
   const press = (id: Id, extra: { values?: string[]; fields?: Record<string, string> } = {}) =>

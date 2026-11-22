@@ -632,7 +632,8 @@ export function placesCard(
         },
       });
   }
-  rows.push({ buttons: [...tabs(g, "places", v), back(v)] });
+  const city = here && g.officer && !here.city.city ? cityButton(here, v) : undefined;
+  rows.push({ buttons: [...(city ? [city] : []), ...tabs(g, "places", v), back(v)] });
   // What cannot be raised yet because nothing reads it: shown, not offered.
   const later = (here ?? g.settlements[0])?.structures.filter((x) => x.waits) ?? [];
   const lines = g.settlements.flatMap((s) =>
@@ -663,6 +664,7 @@ export function placesCard(
         value: `Treasury ${amount(s.treasury, "coin")}`,
         inline: true,
       })),
+      ...cityFields(g.settlements, here),
       ...(later.length
         ? [
             {
@@ -689,6 +691,59 @@ export function placesCard(
     footer: `A charter takes ${cost(charterCost(g.charter))}.`,
     rows,
   };
+}
+
+/** What each city need is called on the card, and the unit its count is read in. */
+const CITY_NEEDS: Record<string, { name: string; unit?: string }> = {
+  size: { name: "Characters active and visiting" },
+  standing: { name: "Days of prosperity running" },
+  works: { name: "A wall and raised stations", unit: "done" },
+  resources: { name: "Goods to the city project" },
+  coin: { name: "Coin from the treasury" },
+  tiles: { name: "Free tiles round it" },
+};
+
+/** One city need as a line: met or not, and how far along. */
+function needLine(n: api.CityNeed): string {
+  const shown = CITY_NEEDS[n.id];
+  const unit = shown?.unit ?? n.unit;
+  return `${n.met ? "✓" : "✗"} ${shown?.name ?? capitalise(n.id)}: ${num(Math.min(n.have, n.need))} of ${amount(n.need, unit)}`;
+}
+
+/**
+ * The city state of the settlement stood in, or of the first one run:
+ * a city, or what raising it still takes (GDD 4.8). Every need must hold
+ * on one world day; the project's goods and the coin are read when it lands.
+ */
+function cityFields(all: readonly api.Settlement[], here?: api.Settlement) {
+  const s = here ?? all[0];
+  if (!s) return [];
+  if (s.city.city)
+    return [
+      {
+        name: `${s.name} is a city`,
+        value:
+          "Its stations rise to tier 3, its market holds more and caravans come without a road.",
+        inline: false,
+      },
+    ];
+  const needs = s.city.needs ?? [];
+  if (!needs.length) return [];
+  return [
+    {
+      name: `Raising ${s.name} to a city`,
+      value: needs.map(needLine).join("\n"),
+      inline: false,
+    },
+  ];
+}
+
+/** Raise to a city: offered to an officer where it stands, once the works and the free tiles hold. */
+function cityButton(s: api.Settlement, v: number): Button | undefined {
+  const needs = s.city.needs ?? [];
+  if (!needs.length) return undefined;
+  const ready = needs.filter((n) => n.id === "works" || n.id === "tiles").every((n) => n.met);
+  return btn("Raise to a city", "gld-city", "", v, { style: "success", disabled: !ready });
 }
 
 function worksCard(o: api.Options, g: api.Guild, lex: Lexicon, notice?: string): Card {

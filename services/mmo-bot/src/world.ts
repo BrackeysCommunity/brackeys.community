@@ -30,6 +30,17 @@ export interface World {
   /** Every open party, and those ended lately: the bot's own read, for the threads. */
   parties(): Promise<api.Parties>;
   hunts(): Promise<api.HuntBoard>;
+  /** A closed world day's chronicle; day omitted is the last one closed. With no character, server picks whose places come first. */
+  chronicle(
+    characterId: string | undefined,
+    day?: number,
+    server?: string,
+  ): Promise<WorldReply<api.Chronicle>>;
+  chronicleFact(characterId: string, id: number): Promise<WorldReply<api.FactCauses>>;
+  /** The arcs open and lately ended; with no character, only those everyone may see. */
+  arcs(characterId: string): Promise<api.Arcs>;
+  /** The events channel's facts after a fact id: the bot's own read. */
+  storyEvents(after: number): Promise<api.StoryEvents>;
 }
 
 /**
@@ -116,6 +127,12 @@ export function httpWorld(base: string, token: string, fetcher: typeof fetch = f
     party: (id) => get(api.PathParty + q({ characterId: id })),
     parties: () => get(api.PathParties),
     hunts: () => get(api.PathHunts),
+    chronicle: (id, day, server) =>
+      read("GET", api.PathChronicle + q({ characterId: id || undefined, day, server })),
+    chronicleFact: (id, fact) =>
+      read("GET", api.PathChronicleFact + q({ characterId: id, id: fact })),
+    arcs: (id) => get(api.PathArcs + q({ characterId: id || undefined })),
+    storyEvents: (after) => get(api.PathStoryEvents + q({ after })),
     async media(key) {
       const res = await send("GET", `${api.PathMedia}${encodeURIComponent(key)}.png`);
       if (!res.ok) throw new WorldRequestError(res.status, (await res.json()) as api.Refusal);

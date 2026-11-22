@@ -16,7 +16,8 @@ import { httpWorld, type World } from "./world.ts";
  * The scripted client: one player through the first sitting (GDD 3.1),
  * pressing only what the bot's cards offer through the same handlers
  * Discord drives; every card is checked against the card standard and the
- * conservation audit runs at the end.
+ * conservation audit runs at the end. With --season it then opens an
+ * arc's stage card and backs a side through its buttons.
  */
 
 export interface Run {
@@ -35,13 +36,16 @@ export interface Run {
   guild: string;
   /** The cards whose Activity launch was pressed: a launch is Discord's to answer, so none is sent on. */
   launches: string[];
+  /** With --season: the arc whose stage card was opened, and the side backed through its buttons. */
+  arc: string;
+  backed: string;
   audit: string[];
   log: string[];
 }
 
 export async function scripted(
   ctx: Ctx,
-  opts: { operator?: { url: string; token: string }; user?: string } = {},
+  opts: { operator?: { url: string; token: string }; user?: string; season?: boolean } = {},
 ): Promise<Run> {
   const world = ctx.world;
   const user = opts.user ?? `scripted-${Date.now()}`;
@@ -60,6 +64,8 @@ export async function scripted(
     withdrawn: false,
     guild: "",
     launches: [],
+    arc: "",
+    backed: "",
     audit: [],
     log: [],
   };
@@ -156,6 +162,60 @@ export async function scripted(
       if (!o.long) return o;
       await Bun.sleep(500);
     }
+  };
+
+  /**
+   * Season zero's path through the cards: an arc's stage opened from the
+   * chronicle's select, and one of its sides backed by the stage card's
+   * own button, a declaration or an amount given through its modal. With
+   * an operator token and no arc running yet, an overrun is cast on the
+   * home region so there is a stage to back.
+   */
+  const backASide = async () => {
+    const open = async () =>
+      (await world.arcs(id)).open.filter((a) => a.scope !== "personal" && !a.outcome);
+    if (!(await open()).length && opts.operator) {
+      const board = await world.goals(id);
+      const region = (await world.here(id)).place.tile.region;
+      if (board.ok && board.reply.settlement >= 0 && region) {
+        const res = await operate(opts.operator, {
+          interactionId: `scripted-season-${user}`,
+          characterId: "",
+          kind: api.OpArcCast,
+          note: "The scripted season run.",
+          arc: {
+            template: "the-overrun",
+            cast: [
+              { role: "front", kind: "region", id: region },
+              { role: "seat", kind: "settlement", id: String(board.reply.settlement) },
+            ],
+          },
+        });
+        if (!res.ok) note(`arc-cast refused: ${await res.text()}`);
+      }
+    }
+    let arcs = await open();
+    for (let i = 0; i < 20 && !arcs.length; i++) {
+      await Bun.sleep(3_000);
+      arcs = await open();
+    }
+    if (!arcs.length) throw new Error("no arc is running to back");
+    await command("chronicle");
+    const arc = arcs[0]!;
+    await press("arc", undefined, arc.id);
+    run.arc = card.title;
+    if (has("s-decl")) await press("s-decl");
+    else if (has("s-give")) await submit("s-give", { units: "1" });
+    else if (has("goto")) {
+      await press("goto");
+      await waitIdle();
+      await command("chronicle");
+      await press("arc", undefined, arc.id);
+      if (has("s-give")) await submit("s-give", { units: "1" });
+    }
+    const now = (await world.arcs(id)).open.find((a) => a.id === arc.id);
+    run.backed = now?.sides.find((x) => x.mine)?.title ?? "";
+    if (!run.backed) note(`no side was backed: ${card.title}`);
   };
 
   await openHub();
@@ -369,6 +429,7 @@ export async function scripted(
   await command("map");
   await press("why", "moves");
   await openHub();
+  await press("chronicle");
   await press("recap");
   await openHub();
   await press("where");
@@ -388,6 +449,8 @@ export async function scripted(
     }
   }
 
+  if (opts.season) await backASide();
+
   run.ticks = (await world.options(id)).tick - t0;
   if (opts.operator) {
     const res = await fetch(`${opts.operator.url}/v1/operator/audit`, {
@@ -396,6 +459,15 @@ export async function scripted(
     run.audit = ((await res.json()) as api.Audit).discrepancies ?? [];
   }
   return run;
+}
+
+/** An operator request, as the scripted runs send one. */
+function operate(op: { url: string; token: string }, req: api.OperatorRequest): Promise<Response> {
+  return fetch(`${op.url}${api.PathOperator}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${op.token}`, "content-type": "application/json" },
+    body: JSON.stringify(req),
+  });
 }
 
 /** What the two-player party run did. */
@@ -621,20 +693,13 @@ export async function partyRun(
   // A hunt beside them, for the game channel's card.
   if (opts.operator) {
     const here = (await world.options(a.id)).at;
-    const res = await fetch(`${opts.operator.url}${api.PathOperator}`, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${opts.operator.token}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        interactionId: `scripted-hunt-${stamp}`,
-        characterId: "",
-        kind: api.OpHuntStart,
-        asset: "dust-runner-migration",
-        to: here,
-        note: "The scripted party run.",
-      }),
+    const res = await operate(opts.operator, {
+      interactionId: `scripted-hunt-${stamp}`,
+      characterId: "",
+      kind: api.OpHuntStart,
+      asset: "dust-runner-migration",
+      to: here,
+      note: "The scripted party run.",
     });
     if (!res.ok) note(`hunt-start refused: ${await res.text()}`);
     const hunts = new HuntPoster(world, ctx.lex, memoryStore(), {
@@ -685,9 +750,10 @@ if (import.meta.main && process.env.SCRIPTED !== "party") {
   const world = process.env.RECORD ? recording(base, samples) : base;
   const lex = new Lexicon(await world.lexicon());
   const started = Date.now();
+  const season = process.argv.includes("--season");
   const r = await scripted(
     { world, lex, threatLine: lex.numbers.ambushLine },
-    { operator: { url, token: process.env.MMO_OPERATOR_TOKEN ?? "local-operator" } },
+    { operator: { url, token: process.env.MMO_OPERATOR_TOKEN ?? "local-operator" }, season },
   ).catch((e: unknown) => {
     console.error(e);
     process.exit(2);
@@ -705,7 +771,8 @@ if (import.meta.main && process.env.SCRIPTED !== "party") {
       r.sold === 0 ||
       !r.posted ||
       !r.withdrawn ||
-      !r.guild
+      !r.guild ||
+      (season && !r.backed)
       ? 1
       : 0,
   );
