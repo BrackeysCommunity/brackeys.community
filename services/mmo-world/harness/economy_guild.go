@@ -8,6 +8,7 @@ import (
 	"jams.team/mmo-world/harness/agent"
 	"jams.team/mmo-world/sim/class"
 	"jams.team/mmo-world/sim/game"
+	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/sheets"
 )
@@ -47,19 +48,26 @@ func guildPlan(b *sheets.Book, goods, tithe int64, rush bool) *agent.GuildPlan {
 func founders(b *sheets.Book) population {
 	return population{label: "economy-founding", server: economyServer, size: int(sheets.IntParam(b.SettlementParams, "guild-least")),
 		roles: []role{{agent.Gatherer, 100, foundersComfort}}, plan: guildPlan(b, foundersGive, foundersGive, true), admins: economyAdmins, join: 0,
-		until: func(g *game.Game) bool { return foundedDay(g) > 0 }}
+		until: func(g *game.Game) bool { return foundedDay(g, economyServer) > 0 }}
 }
 
-// foundedDay is how many world days had begun when the first settlement
-// was founded; 0 for none yet.
-func foundedDay(g *game.Game) int64 {
+// foundedDay is how many world days had begun when a server's guild
+// founded its first settlement; 0 for none yet.
+func foundedDay(g *game.Game, server string) int64 {
+	gd := g.ServerGuild(server)
+	if gd == nil {
+		return 0
+	}
 	for _, p := range g.Places {
-		if p.Lattice < 0 {
-			return p.Founded/sheets.TicksPerDay + 1
+		if p.Chartered() && p.Guild == gd.G.ID {
+			return dayOfTick(p.Founded)
 		}
 	}
 	return 0
 }
+
+// dayOfTick is how many world days had begun at a tick.
+func dayOfTick(t int64) int64 { return t/sheets.TicksPerDay + 1 }
 
 // workLine is one guild work over a soak: the world days it was stocked,
 // and the coin value it consumed and gave back.
@@ -81,6 +89,177 @@ type guildResult struct {
 	founded  int64 // the world day it founded a settlement; 0 for never
 	works    []workLine
 	days     []guildDay
+	city     cityResult
+	quiet    quietResult
+}
+
+// structural: a city project's goals are named for it.
+const cityProjectPrefix = "city-"
+
+// cityResult is the server guild's pursuit of a city: the places it ran,
+// the world days its project was first posted and its first city landed
+// (0 for never), and, when none landed, where its home stood on a city's
+// needs at the end.
+type cityResult struct {
+	ran            []int
+	posted, raised int64
+	place          int
+	needs          []game.CityNeed
+}
+
+func (c *cityResult) day(g *game.Game, gd *game.Guild) {
+	for n, p := range g.Places {
+		if p.Guild == gd.G.ID && !slices.Contains(c.ran, n) {
+			c.ran = append(c.ran, n)
+		}
+	}
+	if c.posted == 0 {
+		for _, x := range g.Goals {
+			if x.Build != nil && x.Build.Structure == "" && strings.HasPrefix(x.Build.Project, cityProjectPrefix) && slices.Contains(c.ran, x.Build.Settlement) {
+				c.posted = dayOfTick(x.Posted)
+				break
+			}
+		}
+	}
+	if c.raised != 0 {
+		return
+	}
+	for _, n := range c.ran {
+		if p := g.Places[n]; p.City != nil && (c.raised == 0 || dayOfTick(p.City.Raised) < c.raised) {
+			c.raised, c.place = dayOfTick(p.City.Raised), n
+		}
+	}
+}
+
+// close reads the needs at the guild's home, its first starting
+// settlement, when no city landed.
+func (c *cityResult) close(g *game.Game) {
+	if c.raised != 0 || len(c.ran) == 0 {
+		return
+	}
+	c.place = c.ran[0]
+	if i := slices.IndexFunc(c.ran, func(n int) bool { return !g.Places[n].Chartered() }); i >= 0 {
+		c.place = c.ran[i]
+	}
+	c.needs = g.CityCheck(c.place)
+}
+
+// quietPlace is one place the quiet server's guild ran: its troubles held
+// and lost, and its ruin. treasury is the coin its treasury held at the
+// last read before the ruin, pool the guild's pool coin at that read and
+// at the read that found the ruin, and left what the ruin did not return.
+type quietPlace struct {
+	n          int
+	name       string
+	held, lost int
+	ruined     int64 // the world day, 0 for standing
+	treasury   int64
+	pool       [2]int64
+	left       []string
+	audit      []string
+}
+
+// quietResult is the quiet server's guild over a soak.
+type quietResult struct {
+	members int
+	founded int64
+	places  []quietPlace
+	counted map[string]bool // trouble arcs already counted
+	pool    int64           // the guild's pool coin at the last read
+}
+
+func (q *quietResult) day(g *game.Game) {
+	gd := g.ServerGuild(quietName)
+	if gd == nil {
+		return
+	}
+	for n, p := range g.Places {
+		if p.Guild == gd.G.ID && !slices.ContainsFunc(q.places, func(qp quietPlace) bool { return qp.n == n }) {
+			q.places = append(q.places, quietPlace{n: n, name: cmpName(p.Name, g.PlaceName(p.Hex))})
+		}
+	}
+	if q.founded == 0 {
+		q.founded = foundedDay(g, quietName)
+	}
+	q.troubles(g)
+	pool := g.Ledger.Of(gd.Pool(), ledger.Coin)
+	for i := range q.places {
+		qp := &q.places[i]
+		p := g.Places[qp.n]
+		if p.Ruined == 0 {
+			qp.treasury = g.Ledger.Of(game.TreasuryPool(qp.n), ledger.Coin)
+			continue
+		}
+		if qp.ruined != 0 {
+			continue
+		}
+		qp.ruined, qp.pool = dayOfTick(p.Ruined), [2]int64{q.pool, pool}
+		qp.left = ruinLeft(g, qp.n)
+		qp.audit = ledger.Audit(g.Ledger.Balances, g.Holdings())
+	}
+	q.pool = pool
+}
+
+// troubles counts each trouble that ended at a quiet place, once: held
+// when a side won it, lost when it lapsed. An ended arc stays in the
+// story for kept-arc-days, so a daily read sees every one.
+func (q *quietResult) troubles(g *game.Game) {
+	if g.Story == nil {
+		return
+	}
+	if q.counted == nil {
+		q.counted = map[string]bool{}
+	}
+	book := g.Rules().Book
+	for _, a := range g.Story.Arcs {
+		if a.Ended == 0 || q.counted[a.ID] || !slices.ContainsFunc(book.Troubles, func(t sheets.TroubleRow) bool { return t.ID == a.Template }) {
+			continue
+		}
+		n, ok := goal.SettlementOf(a.Place)
+		i := slices.IndexFunc(q.places, func(qp quietPlace) bool { return qp.n == n })
+		if !ok || i < 0 {
+			continue
+		}
+		q.counted[a.ID] = true
+		if a.Outcome == troubleLapsed {
+			q.places[i].lost++
+		} else {
+			q.places[i].held++
+		}
+	}
+}
+
+// structural: an arc's outcome when its last stage lapsed.
+const troubleLapsed = "lapsed"
+
+// ruinLeft is what a ruined place still holds that the ruin should have
+// returned: its treasury, an open goal on its board other than an arc
+// side's, a player's order or listing at its market.
+func ruinLeft(g *game.Game, n int) []string {
+	var left []string
+	for _, h := range g.Ledger.Held(game.TreasuryPool(n)) {
+		left = append(left, fmt.Sprintf("its treasury holds %d %s", h.Units, h.Asset))
+	}
+	for _, x := range g.Goals {
+		if x.Board == n && x.Open() && x.Cond.Verb != goal.Back {
+			left = append(left, "goal "+x.ID+" is open")
+		}
+	}
+	for _, bk := range g.BooksAt(n) {
+		for o := range bk.Orders() {
+			if o.Faction == nil && len(g.Ledger.Held(ledger.EscrowPool(o.ID))) > 0 {
+				left = append(left, "order "+o.ID+" holds escrow")
+			}
+		}
+	}
+	if g.Market != nil {
+		for _, l := range g.Market.Listings {
+			if l.Settlement == n {
+				left = append(left, "listing "+l.ID+" is up")
+			}
+		}
+	}
+	return left
 }
 
 // day notes which works were stocked today and what the guild holds.
@@ -92,11 +271,20 @@ func (r *guildResult) day(g *game.Game, plan *agent.GuildPlan, stocked map[strin
 		}
 		stocked["used/"+row.ID] = used
 	}
-	if len(g.Guilds) == 0 || plan == nil {
+	if plan == nil {
 		return
 	}
+	r.quiet.day(g)
+	gd := g.ServerGuild(economyServer)
+	if gd == nil {
+		return
+	}
+	if r.founded == 0 {
+		r.founded = foundedDay(g, economyServer)
+	}
+	r.city.day(g, gd)
 	d := guildDay{day: g.World.Day}
-	for _, h := range g.Ledger.Held(g.Guilds[0].Pool()) {
+	for _, h := range g.Ledger.Held(gd.Pool()) {
 		if h.Asset == ledger.Coin {
 			d.treasury = h.Units
 		}
@@ -112,14 +300,20 @@ func (r *guildResult) day(g *game.Game, plan *agent.GuildPlan, stocked map[strin
 }
 
 func (r *guildResult) close(g *game.Game, stocked map[string]int64) {
-	r.founded = foundedDay(g)
+	if r.founded == 0 {
+		r.founded = foundedDay(g, economyServer)
+	}
 	for _, row := range g.Rules().Book.GuildWorks {
 		r.works = append(r.works, workLine{id: row.ID, days: stocked[row.ID], used: g.WorkLedger.Used.Get(row.ID), gave: g.WorkLedger.Gave.Get(row.ID)})
 	}
-	if len(g.Guilds) == 0 {
+	if q := g.ServerGuild(quietName); q != nil {
+		r.quiet.members = len(q.G.Members)
+	}
+	gd := g.ServerGuild(economyServer)
+	if gd == nil {
 		return
 	}
-	gd := g.Guilds[0]
+	r.city.close(g)
 	r.members = len(gd.G.Members)
 	for _, m := range gd.G.Members {
 		r.put += m.Put
@@ -188,7 +382,7 @@ func guildSections(p func(string, ...any), b *sheets.Book, results []economyResu
 
 	p("## Guilds")
 	p("")
-	p("Every player comes from one Discord server, so its guild takes the first starting settlement and half of each market fee paid there. Each world day at home a member gives %d%% of any stack it carries that the guild is short of, %d%% of its provisions over its floor and %d%% of its coin over its comfort; the guild is short of whatever keeps each work it can run stocked for %d world days, and of a charter until it has founded. Its %d admins switch a work on once the bank holds %d days of its stock, switch off for good one that after %d stocked days has spared under %d%% of what it consumed (a patrol's eased threat has no coin value and is never judged), approve each other's payments, and one of them carries the charter out and founds.", guildGoods, guildGoods, guildTithe, guildStock, economyAdmins, guildStart, guildReview, guildKeep)
+	p("Every player but the quiet server's comes from one Discord server, so its guild takes the first starting settlement and half of each market fee paid there. Each world day at home a member gives %d%% of any stack it carries that the guild is short of, %d%% of its provisions over its floor and %d%% of its coin over its comfort; the guild is short of whatever keeps each work it can run stocked for %d world days, and of a charter until it has founded. Its %d admins switch a work on once the bank holds %d days of its stock, switch off for good one that after %d stocked days has spared under %d%% of what it consumed (a patrol's eased threat has no coin value and is never judged), approve each other's payments, and one of them carries the charter out and founds.", guildGoods, guildGoods, guildTithe, guildStock, economyAdmins, guildStart, guildReview, guildKeep)
 	p("")
 	p("| Players | Members | Given (coin value) | Treasury at the end | Founded a settlement |")
 	p("| --- | --- | --- | --- | --- |")
@@ -245,6 +439,9 @@ func guildSections(p func(string, ...any), b *sheets.Book, results []economyResu
 	readings := []Measured{works}
 	if len(results) == 0 {
 		readings = nil
+	} else {
+		readings = append(readings, citySection(p, b, results, days))
+		quietSection(p, b, results)
 	}
 
 	most := sp("found-days-max")
@@ -266,7 +463,6 @@ func guildSections(p func(string, ...any), b *sheets.Book, results []economyResu
 		p("**Not founded in %d world days.**", foundersDays)
 		found.Value = fmt.Sprintf("a guild of %d had not founded in %d world days", fr.size, foundersDays)
 	}
-	found.Value += "; a city is not in the sim, so its half is not measured"
 	for _, a := range fr.audit {
 		p("- %s", a)
 	}
@@ -302,4 +498,102 @@ func guildSections(p func(string, ...any), b *sheets.Book, results []economyResu
 		return append(readings, found)
 	}
 	return append([]Measured{class}, append(readings, found)...)
+}
+
+// structural: the population city-takes-season is read from, the design's
+// n; a smaller soak's server is too few to make a city.
+const cityFrom = 1000
+
+// citySection writes the server guild's city and returns the
+// city-takes-season reading: the first city landed within the later half
+// of a season of story season-days, at every size from cityFrom up.
+func citySection(p func(string, ...any), b *sheets.Book, results []economyResult, days int64) Measured {
+	sp := func(id string) int64 { return sheets.IntParam(b.SettlementParams, id) }
+	most := sheets.IntParam(b.StoryParams, "season-days")
+	lo := most/2 + 1
+	p("## A city")
+	p("")
+	p("The server guild's admins raise the wall and the stations a city needs at home, post the city project once those works and the six outer tiles stand, and members deliver to it as to a raise. It lands on the first world day all five needs hold (GDD 4.8): %d active characters who visited within %d days, %d days of prosperity in its region, the works, the project's %s timber, %s stone and %s metal, and %s coin from the treasury. The target is the first city between world day %d and %d, read from %s players.", sp("city-users"), sp("city-user-days"), sp("city-prosperity-days"), comma(sp("city-timber")), comma(sp("city-stone")), comma(sp("city-metal")), comma(sp("city-coin")), lo, most, comma(cityFrom))
+	p("")
+	p("| Players | Members | Project posted | First city | Short at the end |")
+	p("| --- | --- | --- | --- | --- |")
+	var got, small []string
+	ok, measured := true, false
+	for _, r := range results {
+		c := r.guild.city
+		landed := fmt.Sprintf("none in %d days", days)
+		if c.raised > 0 {
+			landed = fmt.Sprintf("day %d", c.raised)
+		}
+		p("| %s | %s | %s | %s | %s |", comma(int64(r.size)), comma(int64(r.guild.members)), either(c.posted > 0, fmt.Sprintf("day %d", c.posted), "never"), landed, either(len(c.needs) > 0, shortOf(c.needs), "–"))
+		if r.size < cityFrom {
+			why := landed
+			if users := sp("city-users"); int64(r.guild.members) < users {
+				why = fmt.Sprintf("%d members, under the %d active characters a city needs", r.guild.members, users)
+			}
+			small = append(small, fmt.Sprintf("%s players: %s", comma(int64(r.size)), why))
+			continue
+		}
+		measured = true
+		ok = ok && c.raised >= lo && c.raised <= most
+		got = append(got, fmt.Sprintf("%s players: %s", comma(int64(r.size)), landed))
+	}
+	p("")
+	if !measured {
+		return notMeasured("city-takes-season", fmt.Sprintf("read from %s players; %s", comma(cityFrom), strings.Join(small, "; ")))
+	}
+	return Measured{Target: "city-takes-season", Value: "the first city, " + strings.Join(got, "; "), Holds: ok}
+}
+
+// shortOf lists the city needs not met.
+func shortOf(needs []game.CityNeed) string {
+	var out []string
+	for _, n := range needs {
+		if !n.Met {
+			out = append(out, fmt.Sprintf("%s %s of %s %s", n.ID, comma(n.Have), comma(n.Need), n.Unit))
+		}
+	}
+	if len(out) == 0 {
+		return "nothing"
+	}
+	return strings.Join(out, ", ")
+}
+
+// quietSection writes the quiet server: the troubles its places held and
+// lost once nobody played there, and what a ruin did with its escrows and
+// treasury.
+func quietSection(p func(string, ...any), b *sheets.Book, results []economyResult) {
+	p("## The quiet server")
+	p("")
+	p("The quiet server's guild takes the second starting settlement, founds, and from world day %d nobody plays there, so its places meet their troubles with no one to hold them off. A place a guild founded that loses %d troubles in one season falls to ruin: its orders and goals return their escrow, its treasury goes to the guild's pool, and nothing it held is left at the place. The ledger is audited at the world day the ruin is found.", quietDays, sheets.IntParam(b.StoryParams, "ruin-troubles"))
+	p("")
+	p("| Players | Quiet players | Founded | Place | Troubles held | Troubles lost | Ruin | Through the ruin |")
+	p("| --- | --- | --- | --- | --- | --- | --- | --- |")
+	for _, r := range results {
+		q := r.guild.quiet
+		if len(q.places) == 0 {
+			p("| %s | %d | – | – | – | – | – | no quiet guild (%d%% of %s players) |", comma(int64(r.size)), q.members, quietShare, comma(int64(r.size)))
+			continue
+		}
+		for _, qp := range q.places {
+			ruin, through := "standing", "–"
+			if qp.ruined > 0 {
+				ruin = fmt.Sprintf("day %d", qp.ruined)
+				through = fmt.Sprintf("treasury %s coin to the guild's pool (%s → %s)", comma(qp.treasury), comma(qp.pool[0]), comma(qp.pool[1]))
+				if len(qp.left) > 0 {
+					through += "; **left: " + strings.Join(qp.left, ", ") + "**"
+				}
+				through += "; audit " + either(len(qp.audit) == 0, "clean", fmt.Sprintf("**%d discrepancies**", len(qp.audit)))
+			}
+			p("| %s | %d | %s | %s | %d | %d | %s | %s |", comma(int64(r.size)), q.members, either(q.founded > 0, fmt.Sprintf("day %d", q.founded), "no"), qp.name, qp.held, qp.lost, ruin, through)
+		}
+	}
+	p("")
+	for _, r := range results {
+		for _, qp := range r.guild.quiet.places {
+			for _, a := range qp.audit {
+				p("- %s players, the ruin of %s: %s", comma(int64(r.size)), qp.name, a)
+			}
+		}
+	}
 }

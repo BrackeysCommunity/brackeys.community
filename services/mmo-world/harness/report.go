@@ -15,6 +15,15 @@ type Measured struct {
 	Holds  bool
 }
 
+// unmeasured opens the reading of a target a run could not measure at its
+// size; the report shows its reason and no mark.
+const unmeasured = "– "
+
+// notMeasured is a target's reading with the reason it was not measured.
+func notMeasured(target, why string) Measured {
+	return Measured{Target: target, Value: unmeasured + why}
+}
+
 // spikeETargets are the scaffold targets spike E checks seed by seed in
 // its own report; pins and content draws leave them untouched.
 var spikeETargets = map[string]bool{
@@ -44,6 +53,9 @@ func Report(w io.Writer, b *sheets.Book, readings []Measured) {
 		if m, ok := got[t.ID]; ok {
 			reading = m.Value
 			mark = holds(m.Holds)
+			if strings.HasPrefix(m.Value, unmeasured) {
+				mark = "–"
+			}
 		}
 		fmt.Fprintf(w, "| %s | %s | %s | %s | %s |\n", t.Text, t.HoldsFrom, t.Runs, reading, mark)
 	}
