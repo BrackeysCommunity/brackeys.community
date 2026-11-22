@@ -120,6 +120,16 @@ func (g *Game) HasStructure(h hex.Hex, kind string) bool {
 // TreasuryPool is the ledger pool a settlement's treasury is.
 func TreasuryPool(n int) string { return ledger.TreasuryPool(n) }
 
+// marketFee is the fee on a sale of coin at a settlement: the market's,
+// raised while a raid's stake runs there, never more than the sale.
+func (g *Game) marketFee(settlement int, coin int64) int64 {
+	fee := g.r.Values.Fee(coin)
+	if g.Story != nil && settlement >= 0 && settlement < len(g.Places) {
+		fee = min(fixed.PercentFloor(fee, g.feeShare(settlement, g.Tick())), coin)
+	}
+	return fee
+}
+
 // feeLegs sinks a seller's market fee; a guild's settlement keeps its
 // share in the treasury (GDD 4.8).
 func (g *Game) feeLegs(settlement int, seller string, fee int64) []ledger.Leg {
@@ -397,7 +407,7 @@ func (g *Game) mend(c *Char, cmd Command) error {
 	if points <= 0 {
 		return refuse(BadArgs, "the %s needs no repair", cmd.Slot)
 	}
-	if err := g.payLines(c, cmd.Key, "repair", settle.Repair(row, *st, points, g.r.Settle), ledger.ToBuild); err != nil {
+	if err := g.payLines(c, cmd.Key, "repair", g.repairCost(p, row, *st, points), ledger.ToBuild); err != nil {
 		return err
 	}
 	p.Mend(cmd.Slot, points, g.r.Settle)
@@ -411,7 +421,20 @@ func (g *Game) StructureRepair(p *Place, kind string, points int64) []sheets.Cos
 	if st == nil || row == nil {
 		return nil
 	}
-	return settle.Repair(row, *st, points, g.r.Settle)
+	return g.repairCost(p, row, *st, points)
+}
+
+// repairCost is what a repair takes at a settlement: sickness there makes
+// it dearer (GDD 12.5).
+func (g *Game) repairCost(p *Place, row *sheets.Structure, st settle.Structure, points int64) []sheets.CostLine {
+	lines := settle.Repair(row, st, points, g.r.Settle)
+	if g.Story == nil {
+		return lines
+	}
+	if share := g.sickShare(p.N, g.Tick()); share != fixed.Hundredths {
+		lines = settle.Scaled(lines, share)
+	}
+	return lines
 }
 
 // placesTurn is the settlements' world day: neglect wears what nobody
@@ -457,7 +480,8 @@ var uses = map[string][]string{
 	Buy: {structureMarket, structureStable}, Feed: {structureStable},
 	Rest:     {structureGranary},
 	PostGoal: {structureBoard}, Pledge: {structureBoard}, DeliverGoal: {structureBoard}, TakeHaul: {structureBoard}, Raise: {structureBoard},
-	Deposit: {structureStorehouse}, Draw: {structureStorehouse}, Work: {structureStorehouse},
+	BackSide: {structureBoard},
+	Deposit:  {structureStorehouse}, Draw: {structureStorehouse}, Work: {structureStorehouse},
 	BenchSolve: {structureTinker}, BenchLesson: {structureTinker},
 }
 

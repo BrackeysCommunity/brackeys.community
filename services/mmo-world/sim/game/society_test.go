@@ -201,6 +201,8 @@ func TestACallOutlastsTheCarry(t *testing.T) {
 // shut; a settlement no guild runs is kept by its keepers.
 func TestNeglect(t *testing.T) {
 	g, ts := society(t, 2)
+	// Neglect alone: troubles would damage the market nobody defends.
+	g.Story = nil
 	a, b := ts[0], ts[1]
 	price := g.Rules().Values.Asset(mat)
 	p := sheets.IntParam(g.Rules().Book.SettlementParams, "condition-max") + sheets.IntParam(g.Rules().Book.SettlementParams, "neglect-days") + 1

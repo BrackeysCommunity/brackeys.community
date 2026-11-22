@@ -604,7 +604,7 @@ type sale struct {
 // settleSale posts a sale less the seller's fee, writes its fact and
 // books it.
 func (g *Game) settleSale(s sale, key string) (fact.ID, int64, error) {
-	fee := g.r.Values.Fee(s.coin)
+	fee := g.marketFee(s.settlement, s.coin)
 	if c := g.charOf(s.seller); c != nil && s.settlement >= 0 && s.settlement < len(g.Places) {
 		if row, w := g.workAt(s.settlement, guild.GivesMarketFee, c); w != nil {
 			saved := min(fee, spared(row, w, s.coin))
@@ -802,11 +802,13 @@ func (g *Game) postFactionOrders(t int64) error {
 		shares[i] = faucet.Share{Urgency: w.Urgency, Price: w.Price}
 	}
 	m.Trader = make([]int64, len(g.Places))
+	held := g.sideHelds(budgets)
 	for n, h := range g.Settlements() {
-		if !g.HasStructure(h, structureMarket) {
+		if !g.HasStructure(h, structureMarket) || g.ordersStopped(n, t) {
 			continue
 		}
-		budget := budgets[n] - g.bountyHeld(n)
+		budget := max(budgets[n]-g.bountyHeld(n)-held[n], 0)
+		price := g.priceShare(n, t)
 		trader := fixed.PercentFloor(budget, g.mp("trader-share"))
 		m.Trader[n] = trader
 		qty := faucet.Plan(budget-trader, shares)
@@ -821,7 +823,11 @@ func (g *Game) postFactionOrders(t int64) error {
 			}
 			id, seq := g.nextID("f-")
 			b := g.Book(n, w.Material)
-			b.Add(market.Order{ID: id, Owner: owner, Side: market.Bid, Price: w.Price, Qty: qty[i], Placed: t, Expires: t + sheets.TicksPerDay, Seq: seq, Faction: &fi})
+			bid := w.Price
+			if price != fixed.Hundredths {
+				bid = max(fixed.PercentFloor(bid, price), 1)
+			}
+			b.Add(market.Order{ID: id, Owner: owner, Side: market.Bid, Price: bid, Qty: qty[i], Placed: t, Expires: t + sheets.TicksPerDay, Seq: seq, Faction: &fi})
 			m.opened(owner, 1)
 			if err := g.match(b, ledger.SubKey("day", strconv.FormatInt(t/sheets.TicksPerDay, decimal), strconv.Itoa(n), w.Material)); err != nil {
 				return err
