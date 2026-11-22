@@ -823,9 +823,11 @@ func TestPinFactsUnread(t *testing.T) {
 }
 
 func TestPlayerFacts(t *testing.T) {
-	in := []api.Fact{{Kind: "a"}, {Kind: "pin.landed"}, {Kind: "b"}}
+	own := []api.Ref{{Kind: "character", ID: "c-1"}}
+	in := []api.Fact{{Kind: "a"}, {Kind: "pin.landed"}, {Kind: "b"}, {Kind: "thread.cast", Subjects: own}, {Kind: "thread.ended", Subjects: own},
+		{Kind: "arc.ended"}, {Kind: "threads.c"}}
 	out := service.PlayerFacts(in)
-	if len(out) != 2 || out[0].Kind != "a" || out[1].Kind != "b" {
+	if len(out) != 4 || out[0].Kind != "a" || out[1].Kind != "b" || out[2].Kind != "arc.ended" || out[3].Kind != "threads.c" {
 		t.Errorf("got %+v", out)
 	}
 	if out := service.PlayerFacts(nil); out == nil || len(out) != 0 {

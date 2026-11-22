@@ -492,6 +492,12 @@ func (g *Gateway) intent(ctx context.Context, s *Seat, c *conn, msg api.ClientMe
 		c.send(refusal(msg.Seq, in.ID, api.CodeForbidden, "that is done in chat"))
 		return
 	}
+	// An intent carries no value, so a pattern's point is armed in chat,
+	// where a pattern-set names it; the Activity solves what that armed.
+	if in.Kind == api.ActMachineArm && in.Machine != nil && in.Machine.Source == api.MachinePattern {
+		c.send(refusal(msg.Seq, in.ID, api.CodeForbidden, "a pattern's point is set in chat, with its value"))
+		return
+	}
 	s.who.mu.Lock()
 	defer s.who.mu.Unlock()
 	if !s.who.recent.take(g.clock.Now(), maxIntents) {

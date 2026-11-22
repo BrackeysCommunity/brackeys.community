@@ -12,6 +12,8 @@ import (
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/internal/testkit"
 	"jams.team/mmo-world/service"
+	"jams.team/mmo-world/sim/arc"
+	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
@@ -35,6 +37,7 @@ func TestNothingUnseen(t *testing.T) {
 	t.Run("solo", nothingUnseenSolo)
 	t.Run("party", nothingUnseenParty)
 	t.Run("pin", nothingUnseenPin)
+	t.Run("story", nothingUnseenStory)
 }
 
 // structural: how far from the character the pin stands, and how far it
@@ -535,6 +538,237 @@ func nothingUnseenParty(t *testing.T) {
 		for _, s := range []string{`"tile:`, `"floor:`, `"spec"`, `"attempt"`, `"picks"`} {
 			if strings.Contains(tape, s) {
 				t.Errorf("a seat was sent %s", s)
+			}
+		}
+	}
+}
+
+// structural: the world ticks a step onto a tile may take.
+const stepTicks = 64
+
+// walkOnto steps a character onto h from a passable neighbour, as a
+// player does, so its arrival finds what stands there.
+func (w *world) walkOnto(c *game.Char, h hex.Hex) {
+	w.t.Helper()
+	dir := -1
+	w.do(func() {
+		gen := w.g.Rules().Gen
+		for d := range hex.Directions {
+			if n := h.Neighbour(d); gen.Passable(gen.Baseline(n).Terrain) {
+				if err := w.g.Teleport(c, n); err != nil {
+					w.t.Fatal(err)
+				}
+				dir = (d + hex.Directions/2) % hex.Directions
+				return
+			}
+		}
+	})
+	if dir < 0 {
+		w.t.Fatalf("no passable tile beside %s", h.Ref())
+	}
+	var version int64
+	w.do(func() { version = c.Version })
+	w.act(c, "walk-"+c.C.ID+"-"+itoa(version), api.ActionRequest{Kind: api.ActStep, Dir: dir})
+	for range stepTicks {
+		if w.at(c) == h {
+			return
+		}
+		w.tick()
+	}
+	w.t.Fatalf("%s never reached %s", c.C.ID, h.Ref())
+}
+
+func (w *world) at(c *game.Char) hex.Hex {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return c.C.At
+}
+
+// setPoint arms the point c stands on from chat, as the bot's pattern-set
+// does, and solves its machine past the gateway.
+func (w *world) setPoint(c *game.Char, key string, value int64) {
+	w.t.Helper()
+	w.act(c, key, api.ActionRequest{Kind: api.ActPatternSet, Units: value})
+	var log *api.PuzzleLog
+	w.do(func() {
+		rig, ok := w.g.Rig(c, game.Viewer{})
+		if !ok || rig.Source != game.MachinePattern {
+			w.t.Fatalf("%s armed no pattern machine", c.C.ID)
+		}
+		log = service.LogOf(w.g.Puzzles().Solve(rig.Layout))
+	})
+	w.clock.Advance(time.Duration(max(log.End, log.Moves[len(log.Moves)-1].At)+150) * time.Millisecond)
+	if rep := w.act(c, key+"-solve", api.ActionRequest{Kind: api.ActMachineSolve, Machine: &api.MachineIntent{Log: log}}); rep.Machine == nil || !rep.Machine.Solved {
+		w.t.Fatalf("%s's point solve: %+v", c.C.ID, rep.Machine)
+	}
+}
+
+// nothingUnseenStory serves a world with a story: one character holds a
+// personal thread, another finds a pattern board's clues and sets one of
+// its points, and a third arms another point from chat and solves it in
+// the Activity. Each is shown the point it stands on, with its own value
+// and the clues naming no other finder; nobody is sent another's thread,
+// another point's mark, or anything of the board's solution.
+func nothingUnseenStory(t *testing.T) {
+	w := newWorld(t)
+	g := w.g
+	owner, finder, setter := w.create("u-owner"), w.create("u-finder"), w.create("u-setter")
+	in, ok := g.Rules().Gen.OriginInstance("triangle-of-pylons")
+	if !ok {
+		t.Fatal("no triangle of pylons")
+	}
+	var pylons []hex.Hex
+	for _, p := range in.Points {
+		if p.Place == "pylon" {
+			pylons = append(pylons, p.Hex)
+		}
+	}
+	if len(pylons) < 2 {
+		t.Fatalf("the triangle has %d pylons", len(pylons))
+	}
+	var thread *game.Arc
+	w.do(func() {
+		a, err := g.CastArc("the-oath", arc.Cast{{Role: "character", Ref: char.Ref(owner.C.ID)}, {Role: "board", Ref: arc.SettlementRef(0)}},
+			g.SettlementHex(0), game.ByOperator, g.Tick())
+		if err != nil {
+			t.Fatal(err)
+		}
+		thread = a
+		f, ok := g.Log.Get(a.Fact)
+		if !ok || !game.ThreadFact(f.Kind) || !slices.Contains(f.Subjects, char.Ref(owner.C.ID)) {
+			t.Fatalf("the owner's thread was cast with %+v", f)
+		}
+	})
+
+	w.walkOnto(finder, pylons[1])
+	var board *game.Board
+	w.do(func() {
+		for _, b := range g.Story.Patterns {
+			if slices.Contains(b.Points, pylons[1]) {
+				board = b
+			}
+		}
+	})
+	if board == nil || len(board.Clues) == 0 {
+		t.Fatalf("reaching a pylon stored no board with clues: %+v", board)
+	}
+	for _, h := range board.Clues {
+		w.walkOnto(finder, h)
+	}
+	w.walkOnto(finder, pylons[1])
+	const finderValue, setterValue = 1, 2
+	w.setPoint(finder, "finder-set", finderValue)
+	w.do(func() {
+		if err := g.Teleport(setter, pylons[0]); err != nil {
+			t.Fatal(err)
+		}
+	})
+	w.serve(nil)
+
+	sv := w.join("u-setter", "i-story", api.Viewer{}, nil)
+	first := sv.state()
+	if p := first.Pattern; p == nil || p.Point != 0 || p.Held != nil || p.Solved || len(p.Clues) != len(board.Clues) || first.Machine != nil {
+		t.Fatalf("the setter's first state: machine %+v, pattern %+v", first.Machine, first.Pattern)
+	}
+	fv := w.join("u-finder", "i-story", api.Viewer{}, nil)
+	if p := fv.state().Pattern; p == nil || p.Point != 1 || p.Held == nil || *p.Held != finderValue {
+		t.Fatalf("the finder's point: %+v", p)
+	}
+	ov := w.join("u-owner", "i-story", api.Viewer{}, nil)
+	if st := ov.state(); st.Pattern != nil || st.Context.ID != owner.C.ID {
+		t.Fatalf("the thread's owner off any point: %+v", st)
+	}
+
+	// The Activity arms no point; chat does, and the Activity solves it.
+	before := w.digest()
+	sv.seq++
+	sv.send(api.ClientMessage{T: "intent", Seq: sv.seq, Intent: &api.Intent{ID: "setter-arm-1", Version: first.Character.Version, Kind: api.ActMachineArm,
+		Machine: &api.MachineIntent{Source: api.MachinePattern}}})
+	if r := sv.reply(); r.OK || r.Refusal == nil || r.Refusal.Code != api.CodeForbidden {
+		t.Fatalf("a pattern arm from the Activity: %+v", r)
+	}
+	if w.digest() != before {
+		t.Fatal("a refused pattern arm changed the game")
+	}
+	w.act(setter, "setter-set", api.ActionRequest{Kind: api.ActPatternSet, Units: setterValue})
+	armed := sv.state()
+	if m := armed.Machine; m == nil || !m.Armed || m.Source != api.MachinePattern || armed.Pattern == nil || armed.Pattern.Point != 0 || armed.Pattern.Held != nil {
+		t.Fatalf("the armed point: machine %+v, pattern %+v", armed.Machine, armed.Pattern)
+	}
+	var log *api.PuzzleLog
+	w.do(func() {
+		rig, _ := g.Rig(setter, game.Viewer{})
+		log = service.LogOf(g.Puzzles().Solve(rig.Layout))
+	})
+	w.clock.Advance(time.Duration(max(log.End, log.Moves[len(log.Moves)-1].At)+150) * time.Millisecond)
+	done, after := sv.intent(api.Intent{ID: "setter-solve-1", Version: armed.Character.Version, Kind: api.ActMachineSolve, Machine: &api.MachineIntent{Log: log}})
+	if !done.OK || done.Machine == nil || !done.Machine.Solved || after.Last == nil || after.Last.Source != api.MachinePattern {
+		t.Fatalf("the point's solve over the socket: %+v, last %+v", done, after.Last)
+	}
+	if p := after.Pattern; p == nil || p.Held == nil || *p.Held != setterValue || p.Solved {
+		t.Fatalf("the point after its solve: %+v", p)
+	}
+	for range 2 {
+		w.tick()
+		for _, v := range []*viewer{sv, fv, ov} {
+			v.state()
+		}
+	}
+	for _, v := range []*viewer{sv, fv, ov} {
+		v.quiet()
+	}
+	w.stop()
+	for _, v := range []*viewer{sv, fv, ov} {
+		v.ended()
+	}
+
+	for _, view := range []struct {
+		who   string
+		v     *viewer
+		self  *game.Char
+		point int64
+		held  int64
+	}{
+		{"the setter", sv, setter, 0, setterValue},
+		{"the finder", fv, finder, 1, finderValue},
+		{"the owner", ov, owner, -1, 0},
+	} {
+		tape := view.v.tape.all()
+		for _, id := range characterID.FindAllString(tape, -1) {
+			if id != `"`+view.self.C.ID+`"` {
+				t.Errorf("%s was sent the character id %s", view.who, id)
+				break
+			}
+		}
+		for _, s := range []string{`"thread.`, thread.ID, `"solution"`, "u-owner", "u-finder", "u-setter"} {
+			if strings.Contains(tape, s) {
+				t.Errorf("%s was sent %s", view.who, s)
+			}
+		}
+		for _, needle := range w.needles {
+			if strings.Contains(tape, needle) {
+				t.Errorf("%s was sent a key", view.who)
+			}
+		}
+		view.v.tape.mu.Lock()
+		frames := slices.Clone(view.v.tape.frames)
+		view.v.tape.mu.Unlock()
+		for _, frame := range frames {
+			var msg api.ServerMessage
+			if err := json.Unmarshal(frame, &msg); err != nil {
+				t.Fatal(err)
+			}
+			if msg.State == nil || msg.State.Pattern == nil {
+				continue
+			}
+			p := msg.State.Pattern
+			if p.Point != view.point || (p.Held != nil && *p.Held != view.held) {
+				t.Errorf("%s was shown point %d holding %v, not its own", view.who, p.Point, p.Held)
+			}
+			for _, f := range p.Clues {
+				if f.Kind != "pattern.clue" {
+					t.Errorf("%s was shown a clue of kind %s", view.who, f.Kind)
+				}
 			}
 		}
 	}

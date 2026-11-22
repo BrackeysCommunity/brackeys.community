@@ -1,13 +1,15 @@
 package service
 
 import (
+	"slices"
+	"strings"
 	"time"
 
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/puzzle"
-	"jams.team/mmo-world/sim/sheets"
+	"jams.team/mmo-world/store"
 )
 
 // Sees reports whether a viewer may be shown a tile at all: the one it
@@ -25,7 +27,8 @@ func found(g *game.Game, h hex.Hex) bool {
 // for what a viewer sees, for the Activity and for the map. It names no
 // other character but its party's members, a hunt's pressers and those
 // down on its floor, and nothing a machine is generated from: no place,
-// no attempt, no key, no other seat's part and no other member's pick.
+// no attempt, no key, no other seat's part and no other member's pick,
+// no pattern's solution and no other character's personal thread.
 // passed is the armedAt of the machine whose move the viewer already
 // passed on.
 func Filter(g *game.Game, c *game.Char, v api.Viewer, passed int64, now time.Time) api.ActivityState {
@@ -61,30 +64,49 @@ func Filter(g *game.Game, c *game.Char, v api.Viewer, passed int64, now time.Tim
 	if l := c.LastMachine; l != nil {
 		st.Last = &api.MachineDone{Source: l.Source, Family: l.Family, Level: l.Level, Tick: l.Tick, Result: *apiResult(&l.Result)}
 	}
+	if c.Fight == nil && (st.Machine == nil || st.Machine.Source == api.MachinePattern) {
+		st.Pattern = seenPattern(g, c)
+	}
 	return st
 }
 
-// SeenFacts are a reply's facts as one viewer may read them: each fact
-// stays, and the other characters it names go.
+// seenPattern is the pattern point a character stands on: its own held
+// value and the clues found, as the character may read them.
+func seenPattern(g *game.Game, c *game.Char) *api.PatternPoint {
+	p := apiPatternPoint(g, c.C.At)
+	if p != nil && len(p.Clues) > 0 {
+		p.Clues = SeenFacts(c.C.ID, p.Clues)
+	}
+	return p
+}
+
+// SeenFacts are facts as one viewer may read them: another character's
+// personal thread goes, and of the rest, the other characters each names.
 func SeenFacts(viewer string, facts []api.Fact) []api.Fact {
-	out := make([]api.Fact, len(facts))
-	for i, f := range facts {
-		out[i] = f
-		out[i].Subjects = []api.Ref{}
+	out := make([]api.Fact, 0, len(facts))
+	for _, f := range facts {
+		if game.ThreadFact(f.Kind) && !slices.Contains(f.Subjects, api.Ref{Kind: "character", ID: viewer}) {
+			continue
+		}
+		seen := f
+		seen.Subjects = []api.Ref{}
 		for _, s := range f.Subjects {
 			if s.Kind != "character" || s.ID == viewer {
-				out[i].Subjects = append(out[i].Subjects, s)
+				seen.Subjects = append(seen.Subjects, s)
 			}
 		}
+		out = append(out, seen)
 	}
 	return out
 }
 
-// playerFacts drops the pin facts: no player read names a pin (GDD 14.5).
+// playerFacts drops the kinds no public read returns: pins, which no
+// player read names (GDD 14.5), and personal threads, which their
+// character reads in its recap (GDD 12.8).
 func playerFacts(fs []api.Fact) []api.Fact {
 	out := make([]api.Fact, 0, len(fs))
 	for _, f := range fs {
-		if !sheets.PinFact(f.Kind) {
+		if !slices.ContainsFunc(store.Hidden, func(p string) bool { return strings.HasPrefix(f.Kind, p) }) {
 			out = append(out, f)
 		}
 	}

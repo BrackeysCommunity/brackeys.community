@@ -354,6 +354,34 @@ func TestSocketRules(t *testing.T) {
 			t.Fatalf("write %d was %+v, want %+v", i, req, want)
 		}
 	}
+	// A pattern's point is armed in chat, which names its value; the
+	// Activity is shown the point and solves the machine that armed.
+	refused(`{"t":"intent","seq":%d,"intent":{"id":"pattern-arm","kind":"machine-arm","machine":{"source":"pattern"}}}`, api.CodeForbidden)
+	if len(h.acts) != 11 {
+		t.Fatalf("a pattern arm from the Activity reached the world: %+v", h.acts[11:])
+	}
+	held := int64(2)
+	point := &api.PatternPoint{Board: "triangle-of-pylons@0,0", Kind: "state", Place: "pylon", Family: "circuit", Point: 1, Points: 3, Values: 4,
+		Held: &held}
+	h.set(func() {
+		st := solo("c-1")
+		st.Machine = &api.MachineView{Source: api.MachinePattern, Family: "circuit", Armed: true, ArmedAt: 1}
+		st.Pattern = point
+		h.states["c-1"] = st
+	}, []string{"c-1"})
+	if st := v.state(); st.Pattern == nil || *st.Pattern.Held != held || st.Pattern.Point != point.Point || st.Machine.Source != api.MachinePattern {
+		t.Fatalf("a pattern machine's state: %+v, %+v", st.Machine, st.Pattern)
+	}
+	w.clock.Advance(time.Second)
+	solve := &api.MachineIntent{Log: &api.PuzzleLog{Moves: []api.PuzzleMove{{At: 10}}, End: 20}}
+	if r, _ := v.intent(api.Intent{ID: "pattern-solve", Version: 7, Kind: api.ActMachineSolve, Machine: solve}); !r.OK {
+		t.Fatalf("a pattern machine's solve: %+v", r)
+	}
+	if got := h.acts[len(h.acts)-1]; len(h.acts) != 12 || got.Kind != api.ActMachineSolve || got.Machine == nil || got.Machine.Log == nil ||
+		len(got.Machine.Log.Moves) != 1 || got.CharacterID != "c-1" || got.Units != 0 {
+		t.Fatalf("the pattern solve reached the world as %+v", got)
+	}
+
 	// A reading socket outlives many pings.
 	time.Sleep(600 * time.Millisecond)
 	v.quiet()
