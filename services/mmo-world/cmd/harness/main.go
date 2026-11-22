@@ -12,6 +12,9 @@
 //	harness delve -out DIR   the delve run: a party of four down the nearest first-tier dungeon and ten at a hunt, on a live disposable world
 //	                         (MMO_URL, MMO_ACTIVITY_URL, MMO_OPERATOR_TOKEN; the world's keys from MMO_MASTER_SECRET or the local world's)
 //	harness content -out DIR the content run: four histories, content from history, pins, the pin sweep and the busy world (-n seeds per history)
+//	harness season -out DIR  season zero headless: 20 scripted players over 15 world days (-n seeds)
+//	harness season -live URL -out DIR
+//	                         season zero over HTTP on a live disposable world at URL (MMO_OPERATOR_TOKEN; -n ignored)
 //	harness spike-a|b|e -out DIR
 //
 // -cpuprofile FILE writes a CPU profile of any of them.
@@ -28,6 +31,7 @@ import (
 
 	"jams.team/mmo-world/harness"
 	"jams.team/mmo-world/sheetfs"
+	"jams.team/mmo-world/sim/sheets"
 )
 
 func main() {
@@ -41,6 +45,7 @@ func main() {
 	n := fs.Int("n", 0, "sample size (0 = the spike's own)")
 	skipLint := fs.Bool("skip-lint", false, "check: leave the sim analyzers to simlint")
 	cpuProfile := fs.String("cpuprofile", "", "write a CPU profile to this file")
+	live := fs.String("live", "", "season: play season zero over HTTP on the live world at this URL")
 	_ = fs.Parse(args)
 	if *cpuProfile != "" {
 		f, err := os.Create(*cpuProfile)
@@ -77,6 +82,11 @@ func main() {
 		b, err := sheetfs.LoadBook(root)
 		exitOn(err)
 		exitOn(os.MkdirAll(*out, 0o755))
+		if cmd == "season" && *live != "" {
+			run = func(b *sheets.Book, out string, _ int) ([]harness.Measured, error) {
+				return harness.SeasonLive(b, *live, out)
+			}
+		}
 		readings, err := run(b, *out, *n)
 		exitOn(err)
 		if readings != nil {
@@ -87,7 +97,7 @@ func main() {
 
 func usage() {
 	cmds := append([]string{"check", "report", "schema"}, slices.Sorted(maps.Keys(harness.Runs))...)
-	fmt.Fprintf(os.Stderr, "usage: harness %s [-out DIR] [-n N]\n", strings.Join(cmds, "|"))
+	fmt.Fprintf(os.Stderr, "usage: harness %s [-out DIR] [-n N] [-live URL]\n", strings.Join(cmds, "|"))
 	os.Exit(2)
 }
 

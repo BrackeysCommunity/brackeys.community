@@ -1,5 +1,6 @@
 // Command op is the operator CLI: inspect, correct, grant, ban, audit, economy,
-// stand a character before a machine, pin content, reset and replay a world.
+// stand a character before a machine, pin content, start a season, cast an
+// arc, read the story, reset and replay a world.
 //
 // Writes go through the running service's operator API, so the service
 // stays the only writer and every correction replays. replay reads the
@@ -48,11 +49,16 @@ const usage = `op [-id <interaction id>] <command>
       fields: site, landmark, site-kind, dungeon, floors, lead, stock
   pins                            the live pins
   freeze-content [note...]        store the seed's content on a world from before history
+  season-start [note...]          give a world from before seasons the season it is in
+  arc-cast <template> <role>=<kind>:<id>... [seat=q,r]
+                                  cast an arc with its cast bound by hand
+      kinds: faction f-N, region r-N, holding r-N, settlement N, tile q,r, notable, npc, character
+  story                           the season, the arcs, the ring and the pattern boards
   audit                           the conservation check
   economy                         the faucet, and characters flagged for review
   digest                          the world's tick and digest
   reset <world> [-direct]         wipe a disposable test world and found it again
-  replay [-from N] [-to N]        re-run ticks against their recorded digests`
+  replay [-from N] [-to N]        re-run ticks against their recorded digests, inside one rules epoch`
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -210,6 +216,19 @@ func run(args []string) error {
 		return shown(cli().Pins(context.Background()))
 	case "freeze-content":
 		return operate(api.OperatorRequest{InteractionID: *id, Kind: api.OpContentFreeze, Note: strings.Join(rest, " ")})
+	case api.OpSeasonStart:
+		return operate(api.OperatorRequest{InteractionID: *id, Kind: cmd, Note: strings.Join(rest, " ")})
+	case api.OpArcCast:
+		o, err := arcOrder(rest)
+		if err != nil {
+			return err
+		}
+		return operate(api.OperatorRequest{InteractionID: *id, Kind: cmd, Arc: &o})
+	case "story":
+		if len(rest) != 0 {
+			return errors.New(usage)
+		}
+		return shown(story(context.Background(), cli()))
 	case "audit":
 		return shown(cli().Audit(context.Background()))
 	case "economy":
@@ -269,10 +288,15 @@ func reset(args []string) error {
 // recorded actions, and fails on the first tick whose digest differs.
 // With no range it replays the last world day.
 func replayCmd(args []string) error {
-	fs := flag.NewFlagSet("replay", flag.ExitOnError)
+	fs := flag.NewFlagSet("replay", flag.ContinueOnError)
 	from := fs.Int64("from", -1, "the first tick (default: a world day before -to)")
 	to := fs.Int64("to", -1, "the last tick (default: the world's tick)")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 || (*from >= 0 && *to >= 0 && *from > *to) {
+		return errors.New(usage)
+	}
 	sec, err := service.SecretsFromEnv()
 	if err != nil {
 		return err
@@ -303,9 +327,22 @@ func replayCmd(args []string) error {
 	if *from < 0 {
 		*from = max(0, *to-sheets.TicksPerDay)
 	}
+	epochs, err := epochFacts(ctx, st)
+	if err != nil {
+		return err
+	}
+	// The replay starts from the snapshot at or before -from, which a world
+	// takes at each day's turn.
+	start := *from - *from%sheets.TicksPerDay
+	if e, ok := crossed(epochs, start, *to); ok {
+		return crossesEpoch(e, start, *to)
+	}
 	rep, err := replay.Run(ctx, st, rules, *from, *to)
 	if err != nil {
 		return err
+	}
+	if e, ok := crossed(epochs, rep.From, *to); ok {
+		return crossesEpoch(e, rep.From, *to)
 	}
 	if err := show(rep); err != nil {
 		return err
