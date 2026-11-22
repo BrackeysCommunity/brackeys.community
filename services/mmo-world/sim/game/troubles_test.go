@@ -178,6 +178,13 @@ var troubleKinds = []troubleKind{
 			}
 		}
 		g.World.Regions[r].Holder = 0
+		// Down to one holding after losing one: a fall names its holder last.
+		id, err := g.worldFact(g.regionHex(r), "holding.fell", []fact.Ref{arc.FactionRef(1), arc.FactionRef(0)}, nil, fact.S("cause", "raid"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		f, _ := g.Log.Get(id)
+		g.Story.Memory = append(g.Story.Memory, g.memoryOf(f))
 	}},
 }
 

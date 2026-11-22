@@ -124,6 +124,10 @@ func TestFactionCollapsing(t *testing.T) {
 	w.factions[0].StarvingDays = 0
 	w.factions[0].Holdings = []int{2}
 	w.regions[0].holder = -1
+	none(t, run(t, w, "faction-collapsing", troubleRow("panic")))
+	w.remember(memHoldingFell, 1, 0, FactionRef(0), FactionRef(1))
+	none(t, run(t, w, "faction-collapsing", troubleRow("panic")))
+	w.remember(memHoldingFell, 1, 0, FactionRef(1), FactionRef(0))
 	one(t, run(t, w, "faction-collapsing", troubleRow("panic")))
 	skipsFallenAndBusy(t, "faction-collapsing", w)
 

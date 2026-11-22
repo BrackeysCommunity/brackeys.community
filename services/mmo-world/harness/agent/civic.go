@@ -162,15 +162,17 @@ const (
 	tagCoin    = ""
 )
 
-// structural: the city's wall, the needs CityCheck names that the
-// project waits on and counts, and the days after which an admin posts a
-// project nobody has delivered to again, in case it lapsed.
+// structural: the city's wall, the market an admin mends first, the needs
+// CityCheck names that the project waits on and counts, and the days after
+// which an admin posts a project nobody has delivered to again, in case it
+// lapsed.
 const (
-	cityWall      = "wall"
-	needWorks     = "works"
-	needTiles     = "tiles"
-	needResources = "resources"
-	cityRepost    = 3
+	cityWall        = "wall"
+	structureMarket = "market"
+	needWorks       = "works"
+	needTiles       = "tiles"
+	needResources   = "resources"
+	cityRepost      = 3
 )
 
 func (g *GuildPlan) boardOf(server string) *board {
@@ -296,10 +298,20 @@ func (g *GuildPlan) wasteful(w api.GuildWork, s workSum) bool {
 }
 
 // short is what the guild's runnable works take in StockDays, leaving
-// out the ones it gave up, and its next charter unless that is already
-// out, less what it holds, by tag.
+// out the ones it gave up, the least repair of what needs mending at home,
+// and its next charter unless that is already out, less what it holds, by
+// tag.
 func (g *GuildPlan) short(page api.Guild, charterOut bool, dark map[string]bool) map[string]int64 {
 	want := map[string]int64{}
+	if s := home(page); s != nil {
+		for _, st := range s.Structures {
+			if mending(st, s.ConditionMax) {
+				for _, l := range st.Repairs[0].Cost {
+					want[l.Tag] += l.Quantity
+				}
+			}
+		}
+	}
 	for _, w := range page.Works {
 		if !g.Works || dark[w.ID] || !runnable(w, page) {
 			continue
@@ -492,6 +504,16 @@ func (e *Earner) Civic(o api.Options, desk *Desk, d *Dice) (api.ActionRequest, V
 	}
 	if !o.Purse.Market || o.At != t.home {
 		t.civic.gifts, t.civic.deliveries, t.civic.away, t.civic.read = nil, nil, true, false
+		if o.At == t.home && desk.Admin() {
+			page, err := desk.Guild()
+			if err != nil {
+				return api.ActionRequest{}, Pass, err
+			}
+			if req, ok := e.Guild.mendStep(o, page); ok && page.Officer {
+				b.fresh = false
+				return req, Act, nil
+			}
+		}
 		return api.ActionRequest{}, Pass, nil
 	}
 	if t.civic.away && e.Guild.Every {
@@ -683,6 +705,9 @@ func (e *Earner) officer(o api.Options, t *trip, b *board, page api.Guild) (api.
 			return api.ActionRequest{Kind: api.ActApprove, Option: a.ID}, true
 		}
 	}
+	if req, ok := g.mendStep(o, page); ok {
+		return req, true
+	}
 	for _, w := range page.Works {
 		if b.dark[w.ID] || !g.wasteful(w, b.past[w.ID].plus(b.lit[w.ID])) {
 			continue
@@ -719,6 +744,99 @@ func (e *Earner) officer(o api.Options, t *trip, b *board, page api.Guild) (api.
 	}
 	if have[tagTimber] >= c.Timber && have[tagStone] >= c.Stone && have[tagCoin] >= c.Coin+keep {
 		t.civic.phase, b.charter = drawing, true
+	}
+	return api.ActionRequest{}, false
+}
+
+// mendStep is an admin's repair at home (GDD 4.16): the market first,
+// since nobody trades at a shut one, then a closed structure, then one
+// worn to half, by the largest step its purse covers, getting what it
+// lacks of the least step. Troubles wear what neglect never would at a
+// busy place.
+func (g *GuildPlan) mendStep(o api.Options, page api.Guild) (api.ActionRequest, bool) {
+	s := home(page)
+	if s == nil {
+		return api.ActionRequest{}, false
+	}
+	var due []api.Structure
+	for _, st := range s.Structures {
+		if mending(st, s.ConditionMax) {
+			due = append(due, st)
+		}
+	}
+	rank := func(st api.Structure) int {
+		switch {
+		case st.Kind == structureMarket:
+			return 0
+		case st.Closed:
+			return 1
+		}
+		return 2
+	}
+	slices.SortStableFunc(due, func(a, b api.Structure) int { return cmp.Compare(rank(a), rank(b)) })
+	for _, st := range due {
+		steps := st.Repairs
+		if st.Closed {
+			steps = steps[:1]
+		}
+		for i := len(steps) - 1; i >= 0; i-- {
+			if g.lacks(o.Purse, steps[i].Cost) == nil {
+				return api.ActionRequest{Kind: api.ActMend, Slot: st.Kind, Units: steps[i].Points}, true
+			}
+		}
+		if req, ok := g.draw(o, page, *g.lacks(o.Purse, steps[0].Cost)); ok {
+			return req, true
+		}
+	}
+	return api.ActionRequest{}, false
+}
+
+// mending reports whether a structure is closed or worn to half.
+func mending(st api.Structure, most int64) bool {
+	return st.Stands && len(st.Repairs) > 0 && (st.Closed || st.Condition*2 <= most)
+}
+
+// lacks is the first cost line a purse does not cover, with what it
+// lacks of it, or nil.
+func (g *GuildPlan) lacks(p api.Purse, lines []api.CostLine) *api.CostLine {
+	for _, l := range lines {
+		have := g.carried(p, l.Tag)
+		if l.Tag == tagCoin {
+			have = p.Coin
+		}
+		if have < l.Quantity {
+			return &api.CostLine{Tag: l.Tag, Quantity: l.Quantity - have}
+		}
+	}
+	return nil
+}
+
+// draw gets an admin what it lacks of a line: bought off the book where
+// it stands, with its own coin, else paid it out of the bank inside what
+// it may spend today.
+func (g *GuildPlan) draw(o api.Options, page api.Guild, line api.CostLine) (api.ActionRequest, bool) {
+	if line.Tag == tagCoin {
+		return api.ActionRequest{}, false
+	}
+	for _, q := range o.Purse.Quotes {
+		if q.Ask > 0 && q.Ask*line.Quantity <= o.Purse.Coin && slices.Contains(g.Tags[q.Material], line.Tag) {
+			return api.ActionRequest{Kind: api.ActTake, Material: q.Material, Units: line.Quantity, Price: q.Ask}, true
+		}
+	}
+	if page.Spend <= 0 {
+		return api.ActionRequest{}, false
+	}
+	for _, s := range page.Bank {
+		if s.Units <= 0 || !slices.Contains(g.Tags[s.Material], line.Tag) {
+			continue
+		}
+		units := min(line.Quantity, s.Units)
+		if v := quote(o.Purse, s.Material).Value; v > 0 {
+			units = min(units, page.Spend/v)
+		}
+		if units > 0 {
+			return api.ActionRequest{Kind: api.ActPay, Target: o.CharacterID, Asset: s.Material, Units: units, Note: "repair"}, true
+		}
 	}
 	return api.ActionRequest{}, false
 }

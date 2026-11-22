@@ -21,8 +21,12 @@ type Backer struct {
 	Reach int64
 }
 
-// structural: how far an earner goes out of its way for a side.
-const backReach = 6
+// structural: how far an earner goes out of its way for a side, and how
+// many encounters a trip it seeks for a beats side it backs.
+const (
+	backReach  = 6
+	backFights = 3
+)
 
 // NewBacker is a backer under the sheets' material tags.
 func NewBacker(b *sheets.Book) *Backer {
@@ -130,6 +134,11 @@ func (e *Earner) back(o api.Options, t *trip) (api.ActionRequest, bool) {
 			if !s.Backed {
 				t.aim(s)
 				return api.ActionRequest{Kind: api.ActBackSide, Target: s.Goal}, true
+			}
+			// Beats count only when won, so a declared backer seeks them.
+			if o.Explore && t.fights < backFights && !has(o.Conditions, api.CondWounded) {
+				t.fights++
+				return api.ActionRequest{Kind: api.ActExplore}, true
 			}
 		}
 	}

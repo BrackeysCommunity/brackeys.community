@@ -147,8 +147,8 @@ func wetAndScarce(w World, row Row, p Params) []Candidate {
 }
 
 // factionCollapsing is the panic: the holder of the place's region, or of
-// an awake neighbour, holds at most one region or has starved
-// panic-starving-days running. The weakest such faction is bound.
+// an awake neighbour, is down to one region after losing one, or has
+// starved panic-starving-days running. The weakest such faction is bound.
 func factionCollapsing(w World, row Row, p Params) []Candidate {
 	fs := w.Factions()
 	return eachPlace(w, row, func(pl PlaceView) (Candidate, bool) {
@@ -156,7 +156,7 @@ func factionCollapsing(w World, row Row, p Params) []Candidate {
 		got := false
 		for _, r := range ownFirst(w, pl.Region) {
 			f, ok := faction(fs, w.Holder(r))
-			if !ok || (len(f.Holdings) > 1 && f.StarvingDays < p.PanicStarvingDays) {
+			if !ok || f.StarvingDays < p.PanicStarvingDays && (len(f.Holdings) > 1 || !lostHolding(w, p, FactionRef(f.ID))) {
 				continue
 			}
 			if !got || larger(hit, f) {
@@ -170,6 +170,15 @@ func factionCollapsing(w World, row Row, p Params) []Candidate {
 		causes := recalled(w, p.MemoryDays, []string{memStarving, memHoldingFell}, func(m Memory) bool { return names(m, ref) })
 		return atPlace(pl, []int{pl.Region}, hit.StarvingDays, causes, bind(roleFaction, ref)), true
 	})
+}
+
+// lostHolding reports whether the ring recalls a holding of a faction's
+// falling: one holding is collapsing only once it was more, since every
+// faction starts on one. A fall names its holder last.
+func lostHolding(w World, p Params, ref fact.Ref) bool {
+	return len(recalled(w, p.MemoryDays, []string{memHoldingFell}, func(m Memory) bool {
+		return len(m.Subjects) > 0 && m.Subjects[len(m.Subjects)-1] == ref
+	})) > 0
 }
 
 // prospersRoad is the caravan: prosperity's caravan line on the place's

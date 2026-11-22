@@ -69,6 +69,8 @@ type trip struct {
 	aims     map[string]string
 	backTo   *api.Hex
 	backWalk bool
+	// fights are the encounters it sought this trip for a beats side.
+	fights int
 }
 
 // structural: the shape of an earner's day.
@@ -131,7 +133,7 @@ func (e *Earner) Choose(o api.Options, d *Dice) (api.ActionRequest, bool) {
 		}
 		t.walk = t.sent
 		refused := t.target
-		t.out, t.worked, t.forages, t.far, t.sent, t.seek, t.errand, t.target = 0, 0, 0, false, false, false, false, nil
+		t.out, t.worked, t.forages, t.far, t.sent, t.seek, t.errand, t.target, t.fights = 0, 0, 0, false, false, false, false, nil, 0
 		t.dir = d.Below(len(o.Moves), "earn.dir")
 		if e.Guild != nil {
 			// A route to an errand's tile that was refused is walked.

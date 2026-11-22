@@ -655,3 +655,55 @@ func TestQuietPlayerStopsAfterDay10(t *testing.T) {
 		t.Fatalf("acted after day 10: %+v", w.acts[before:])
 	}
 }
+
+func TestOfficerMendsTheMarketFirst(t *testing.T) {
+	g := testPlan()
+	page := homePage()
+	page.Spend = 500
+	repair := func(points int64) []api.Repair {
+		return []api.Repair{{Points: points, Cost: []api.CostLine{{Tag: "timber", Quantity: 40}}}}
+	}
+	page.Settlements[0].ConditionMax = 100
+	page.Settlements[0].Structures = []api.Structure{
+		{Kind: "forge", Stands: true, Closed: true, Repairs: repair(25)},
+		{Kind: "bench", Stands: true, Condition: 80, Repairs: repair(20)},
+		{Kind: "market", Stands: true, Condition: 50, Repairs: repair(25)},
+	}
+	o := api.Options{CharacterID: "c-1", Purse: api.Purse{Goods: []api.Goods{{Material: "heartwood", Units: 40}}}}
+	if req, ok := g.mendStep(o, page); !ok || req.Kind != api.ActMend || req.Slot != "market" || req.Units != 25 {
+		t.Fatalf("a worn market and a closed forge: %+v %v, want the market mended", req, ok)
+	}
+	page.Settlements[0].Structures[2].Condition = 75
+	if req, ok := g.mendStep(o, page); !ok || req.Slot != "forge" {
+		t.Fatalf("the market past half: %+v %v, want the closed forge", req, ok)
+	}
+	// Short of timber, it buys off the book before it draws on the bank.
+	o.Purse = api.Purse{Coin: 400, Quotes: []api.Quote{{Material: "timber", Ask: 5}}}
+	if req, ok := g.mendStep(o, page); !ok || req.Kind != api.ActTake || req.Material != "timber" || req.Units != 40 {
+		t.Fatalf("with coin and no timber: %+v %v, want 40 timber taken", req, ok)
+	}
+	o.Purse = api.Purse{}
+	if req, ok := g.mendStep(o, page); !ok || req.Kind != api.ActPay || req.Target != "c-1" || req.Asset != "timber" || req.Units != 30 {
+		t.Fatalf("with nothing: %+v %v, want the bank's timber paid out", req, ok)
+	}
+	page.Bank = nil
+	if want := g.short(page, true, nil)["timber"]; want < 40 {
+		t.Fatalf("with an empty bank the guild is short %d timber, under the forge's repair", want)
+	}
+}
+
+func TestBeatsBackerSeeksEncounters(t *testing.T) {
+	at := api.Hex{Q: 2}
+	e := &Earner{Role: Gatherer, Back: testBacker()}
+	o := api.Options{CharacterID: "c-1", At: at, Explore: true,
+		Sides: []api.SideOption{{Goal: "g-1", Arc: "arc-1", Side: "besiegers", Wants: "beats", Left: 50, At: at, Backed: true}}}
+	tr := &trip{}
+	for i := range backFights {
+		if req, ok := e.back(o, tr); !ok || req.Kind != api.ActExplore {
+			t.Fatalf("encounter %d: %+v %v, want an explore", i, req, ok)
+		}
+	}
+	if req, ok := e.back(o, tr); ok && req.Kind == api.ActExplore {
+		t.Fatalf("past %d encounters a trip it still explores", backFights)
+	}
+}
