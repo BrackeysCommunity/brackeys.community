@@ -417,7 +417,7 @@ func TestRests(t *testing.T) {
 	for _, x := range []*Arc{a, thread, raid} {
 		x.Stages[0].Due = now
 	}
-	if err := g.stagesDue(now); err != nil {
+	if err := g.stagesDue("", now); err != nil {
 		t.Fatal(err)
 	}
 	w := g.storyView()
@@ -730,15 +730,11 @@ func TestUnpendTakesItsOwnKind(t *testing.T) {
 	g := guardGame(t)
 	c := mustCreate(t, g, "both", "knife")
 	g.pend(arc.Pending{Kind: arc.PendOath, Char: c.C.ID, Ref: arc.SettlementRef(0), Tick: g.Tick()})
-	g.pend(arc.Pending{Kind: arc.PendReturn, Char: c.C.ID, Ref: arc.SettlementRef(0), Tick: g.Tick()})
-	tpl, _ := g.template("the-return")
-	kind, ok := arc.PendKind(tpl.Row.When)
-	if !ok || kind != arc.PendReturn {
-		t.Fatalf("the return reads %q", kind)
-	}
-	cand := arc.Candidate{Char: c.C.ID, Place: -1, Cast: arc.Sorted(arc.Cast{{Role: "character", Ref: char.Ref(c.C.ID)},
+	ret := arc.Pending{Kind: arc.PendReturn, Char: c.C.ID, Ref: arc.SettlementRef(0), Tick: g.Tick()}
+	g.pend(ret)
+	cand := arc.Candidate{Char: c.C.ID, Place: -1, From: &ret, Cast: arc.Sorted(arc.Cast{{Role: "character", Ref: char.Ref(c.C.ID)},
 		{Role: "home", Ref: arc.SettlementRef(0)}, {Role: "elsewhere", Ref: arc.SettlementRef(1)}})}
-	g.unpend(cand, kind)
+	g.unpend(cand)
 	if len(g.Story.Pending) != 1 || g.Story.Pending[0].Kind != arc.PendOath {
 		t.Fatalf("pending after the return: %+v", g.Story.Pending)
 	}
@@ -774,7 +770,7 @@ func TestCloseEndsWorldArcAtItsStage(t *testing.T) {
 		t.Fatalf("the siege runs %d stages, at %d", g.stages(a), a.Stage)
 	}
 	began := len(factsOf(g, "arc.stage-began"))
-	if err := g.endDue(a, g.Tick(), true); err != nil {
+	if err := g.closeArc(a, g.Tick()); err != nil {
 		t.Fatal(err)
 	}
 	if a.Outcome != outcomeLapsed || len(a.Stages) != 1 || !a.Stages[0].Lapsed {

@@ -194,24 +194,14 @@ func (g *Game) seasonDay(t int64) error {
 	switch {
 	case sd == tb.FinaleFrom():
 		before := fact.ID(g.Log.Len())
-		if err := g.worldStagesDue(t); err != nil {
+		// A world stage ends on its band's end, the day the next band casts,
+		// so it ends before anything is cast in its slot.
+		if err := g.stagesDue(arc.ScopeWorld, t); err != nil {
 			return err
 		}
 		return g.castFinale(t, g.Log.Since(before))
 	case span.Band == season.Rising:
 		return g.castWorldArc(c, t)
-	}
-	return nil
-}
-
-// worldStagesDue ends the world stages due by t before anything is cast in
-// the slot they hold: a world stage ends on its band's end, which is the
-// day the next band's casting runs.
-func (g *Game) worldStagesDue(t int64) error {
-	for _, a := range g.openArcs(arc.ScopeWorld) {
-		if err := g.endDue(a, t, false); err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -246,8 +236,7 @@ func (g *Game) castWorldArc(c season.Clock, t int64) error {
 	var opts []option
 	var ps []season.Pressure
 	for _, tpl := range g.r.Templates {
-		row := g.arcRow(tpl.Row.ID)
-		if tpl.Row.Scope != arc.ScopeWorld || row == nil || row.Finale {
+		if tpl.Row.Scope != arc.ScopeWorld || tpl.Row.Arc == nil || tpl.Row.Arc.Finale {
 			continue
 		}
 		cand, ok := arc.Pick(tpl.When(w, tpl.Row, g.r.Story), g.r.draw, tpl.Row.ID, arc.ScopeWorld, day)
@@ -293,8 +282,7 @@ func (g *Game) castFinale(t int64, fresh []fact.Fact) error {
 	var opts []option
 	var ps []season.Pressure
 	for _, tpl := range g.r.Templates {
-		row := g.arcRow(tpl.Row.ID)
-		if row == nil || !row.Finale {
+		if tpl.Row.Arc == nil || !tpl.Row.Arc.Finale {
 			continue
 		}
 		for _, cand := range arc.Ordered(tpl.When(w, tpl.Row, g.r.Story)) {
@@ -337,16 +325,6 @@ func (v freshView) Recall(kind string, within int64) []arc.Memory {
 	return out
 }
 
-// arcRow is a story.arcs row by id, or nil.
-func (g *Game) arcRow(id string) *sheets.ArcRow {
-	for i := range g.r.Book.Arcs {
-		if g.r.Book.Arcs[i].ID == id {
-			return &g.r.Book.Arcs[i]
-		}
-	}
-	return nil
-}
-
 // seasonClose ends the season and begins the next. What is due on the close
 // day (stages, ruins, cities' visitors) settles first, so it counts toward
 // the closing season; goals and guild ranks turn over in their own day
@@ -354,7 +332,7 @@ func (g *Game) arcRow(id string) *sheets.ArcRow {
 func (g *Game) seasonClose(t int64) error {
 	c := *g.Story.Clock
 	day := t / sheets.TicksPerDay
-	if err := g.stagesDue(t); err != nil {
+	if err := g.stagesDue("", t); err != nil {
 		return err
 	}
 	if err := g.ruinsDay(t); err != nil {
@@ -368,7 +346,7 @@ func (g *Game) seasonClose(t int64) error {
 		}
 	}
 	for _, a := range g.openArcs(arc.ScopeWorld) {
-		if err := g.endDue(a, t, true); err != nil {
+		if err := g.closeArc(a, t); err != nil {
 			return err
 		}
 	}

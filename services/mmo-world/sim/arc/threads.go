@@ -23,21 +23,6 @@ func init() {
 	Predicates[whenLostToThem] = lostToThem
 }
 
-// PendKind is the pending kind a personal predicate casts from.
-func PendKind(when string) (string, bool) {
-	switch when {
-	case whenNPCOwed:
-		return PendDebt, true
-	case whenCameBack:
-		return PendReturn, true
-	case whenVowBroken:
-		return PendOath, true
-	case whenLostToThem:
-		return PendRival, true
-	}
-	return "", false
-}
-
 // queued is each character's oldest pending candidate of kind, by
 // character; personal threads cast only from these.
 func queued(w World, kind string) []Pending {
@@ -56,7 +41,7 @@ func thread(w World, pd Pending, seat hex.Hex, regions []int, cast ...Binding) C
 		causes = []fact.ID{pd.Fact}
 	}
 	cast = append(cast, bind("character", fact.Ref{Kind: kindCharacter, ID: pd.Char}))
-	return Candidate{Cast: cast, Regions: regions, Seat: seat, Causes: causes, Pressure: max(w.Day()-dayOf(pd.Tick), 0), Char: pd.Char, Place: -1}
+	return Candidate{Cast: cast, Regions: regions, Seat: seat, Causes: causes, Pressure: max(w.Day()-dayOf(pd.Tick), 0), Char: pd.Char, Place: -1, From: &pd}
 }
 
 // npcOwed is the debt: an NPC queued a visit about something it owes or

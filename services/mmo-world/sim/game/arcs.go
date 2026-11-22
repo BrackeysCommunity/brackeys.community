@@ -119,8 +119,8 @@ func (g *Game) stages(a *Arc) int {
 	if a.Scope == arc.Settlement {
 		return 1
 	}
-	if row := g.arcRow(a.Template); row != nil {
-		return len(row.Stages)
+	if tpl, ok := g.template(a.Template); ok {
+		return len(tpl.Row.Stages)
 	}
 	return 0
 }
@@ -133,11 +133,11 @@ func (g *Game) stageRow(a *Arc, stage int) (sheets.StageRow, bool) {
 		return sheets.StageRow{ID: tr.ID, Lapse: tr.Lost, Sides: []sheets.SideRow{
 			{ID: sideHold, Wants: tr.Wants, Tag: tr.Tag, Per: tr.Per, At: rolePlace, Won: tr.Held}}}, true
 	}
-	row := g.arcRow(a.Template)
-	if row == nil || stage < 0 || stage >= len(row.Stages) {
+	tpl, ok := g.template(a.Template)
+	if !ok || stage < 0 || stage >= len(tpl.Row.Stages) {
 		return sheets.StageRow{}, false
 	}
-	return row.Stages[stage], true
+	return tpl.Row.Stages[stage], true
 }
 
 // sideRow is one side of a stage row.
@@ -192,7 +192,7 @@ func (g *Game) storyDay(t int64) error {
 	if err := g.seasonDay(t); err != nil {
 		return err
 	}
-	if err := g.stagesDue(t); err != nil {
+	if err := g.stagesDue("", t); err != nil {
 		return err
 	}
 	for _, daily := range []func(int64) error{g.troubleDay, g.citiesDay, g.factionCitiesDay, g.patternsDay} {
@@ -217,42 +217,39 @@ func (g *Game) storyDay(t int64) error {
 	return g.castRegions(w, t)
 }
 
-// storyTick ends each stage a side has met, a raid whose hunt was slain,
-// and any stage past its time.
-func (g *Game) storyTick(t int64) error {
+// stagesDue ends, in every open arc of scope ("" for all), each stage a
+// side has met, a raid whose hunt was slain, and any stage past its time.
+func (g *Game) stagesDue(scope string, t int64) error {
 	if g.Story == nil {
 		return nil
 	}
-	for _, a := range g.openArcs("") {
-		if err := g.endDue(a, t, false); err != nil {
+	for _, a := range g.openArcs(scope) {
+		if err := g.endDue(a, t); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// endDue ends an arc's stages a side has met or whose time is up, won if a
-// side was met or its hunt fell; one that starts already due ends with it.
-// Under all the current stage lapses and ends the arc with it, so the
-// close mints no escrow only to refund it.
-func (g *Game) endDue(a *Arc, t int64, all bool) error {
+// endDue ends an arc's current stage once a side has met it, its hunt has
+// fallen or its time is up, and goes on through any next stage that starts
+// already due.
+func (g *Game) endDue(a *Arc, t int64) error {
 	for !a.over() && a.Stage < len(a.Stages) && !a.Stages[a.Stage].over() {
-		won := ""
-		if !all {
-			won = g.stageWinner(a)
-		}
-		if !all && won == "" && a.Stages[a.Stage].Due > t {
+		won := g.stageWinner(a)
+		if won == "" && a.Stages[a.Stage].Due > t {
 			return nil
 		}
-		if err := g.endStageAt(a, won, t, all); err != nil {
+		if err := g.endStage(a, won, t); err != nil {
 			return err
-		}
-		if all {
-			return nil
 		}
 	}
 	return nil
 }
+
+// closeArc ends an arc at the season close: its current stage lapses and
+// the arc ends there, so no later stage mints escrow only to refund it.
+func (g *Game) closeArc(a *Arc, t int64) error { return g.endStageAt(a, "", t, true) }
 
 // stageWinner is the side that has won an arc's current stage: the one
 // whose goal is met, else the hold when its raid's hunt was slain.
@@ -278,16 +275,6 @@ func (g *Game) huntDown(a *Arc) bool {
 	}
 	i := slices.IndexFunc(g.Hunts, func(x *Hunt) bool { return x.H.ID == a.Hunt })
 	return i >= 0 && g.Hunts[i].H.Slain
-}
-
-// stagesDue ends every stage whose time is up or that a side has met.
-func (g *Game) stagesDue(t int64) error {
-	for _, a := range g.openArcs("") {
-		if err := g.endDue(a, t, false); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // storyKept forgets rests run out and arcs ended more than kept-arc-days
@@ -451,9 +438,8 @@ func (g *Game) candidateFor(tpl arc.Template, cast arc.Cast, seat hex.Hex) arc.C
 	return c
 }
 
-// castFrom casts a candidate: the arc opens and its first stage starts.
-// A world arc with fewer of the season's stage bands left than it has
-// stages, or a slot its scope has no room in, is refused first.
+// castFrom casts a candidate: the arc opens and its first stage starts,
+// unless bandsLeft or slotFree refuses it first.
 func (g *Game) castFrom(tpl arc.Template, c arc.Candidate, by string, t int64) (*Arc, error) {
 	scope := tpl.Row.Scope
 	if scope == arc.ScopeWorld {
@@ -497,7 +483,7 @@ func (g *Game) castFrom(tpl arc.Template, c arc.Candidate, by string, t int64) (
 // the season's stage bands ahead than it has stages.
 func (g *Game) bandsLeft(tpl arc.Template, t int64) error {
 	c, tb, ok := g.Season()
-	if row := g.arcRow(tpl.Row.ID); !ok || row == nil || row.Finale {
+	if !ok || tpl.Row.Arc == nil || tpl.Row.Arc.Finale {
 		return nil
 	}
 	ahead := 0
@@ -690,7 +676,6 @@ func (g *Game) castPersonal(w *storyView, t int64) error {
 		if tpl.Row.Scope != arc.Personal {
 			continue
 		}
-		kind, _ := arc.PendKind(tpl.Row.When)
 		for _, c := range tpl.When(w, tpl.Row, g.r.Story) {
 			if c.Char == "" || g.slotFree(arc.Personal, c) != nil {
 				continue
@@ -703,27 +688,21 @@ func (g *Game) castPersonal(w *storyView, t int64) error {
 				return err
 			}
 			if a != nil {
-				g.unpend(c, kind)
+				g.unpend(c)
 			}
 		}
 	}
 	return nil
 }
 
-// unpend takes the pending candidate of kind ("" any) a thread was cast
-// from off the queue.
-func (g *Game) unpend(c arc.Candidate, kind string) {
+// unpend removes from the queue the pending candidate a thread was cast
+// from.
+func (g *Game) unpend(c arc.Candidate) {
+	if c.From == nil {
+		return
+	}
 	s := g.Story
-	i := slices.IndexFunc(s.Pending, func(p arc.Pending) bool {
-		if p.Char != c.Char || kind != "" && p.Kind != kind {
-			return false
-		}
-		if p.Fact != 0 && slices.Contains(c.Causes, p.Fact) {
-			return true
-		}
-		return slices.ContainsFunc(c.Cast, func(b arc.Binding) bool { return b.Ref == p.Ref })
-	})
-	if i >= 0 {
+	if i := slices.Index(s.Pending, *c.From); i >= 0 {
 		s.Pending = slices.Delete(s.Pending, i, i+1)
 	}
 }
@@ -780,7 +759,7 @@ func (g *Game) worldDue(a *Arc, t int64) int64 {
 		return t + sheets.TicksPerDay
 	}
 	closes := (c.Start + c.Days) * sheets.TicksPerDay
-	if row := g.arcRow(a.Template); row == nil || row.Finale {
+	if tpl, ok := g.template(a.Template); !ok || tpl.Row.Arc == nil || tpl.Row.Arc.Finale {
 		return max(closes, t+1)
 	}
 	for stage := a.Stage; ; stage++ {
@@ -1280,10 +1259,10 @@ func (g *Game) heldFrom(a *Arc) []int {
 	return out
 }
 
-// sideHelds is, per place, the escrow of the sides posted since the last
-// faction orders, replaying how each was taken when it was posted: spread
-// over the places it was held from by what was left of their budgets past
-// bounties and the sides before it, the rounding on the first.
+// sideHelds is, per place, the escrow of the side goals posted this world
+// day, replayed through takeHeld in the order they were posted. The split
+// is taken over today's places, so a place ruined since passes its share
+// to the others; the total is what was held.
 func (g *Game) sideHelds(budgets []int64) []int64 {
 	out := make([]int64, len(g.Places))
 	if g.Story == nil {
@@ -1295,7 +1274,7 @@ func (g *Game) sideHelds(budgets []int64) []int64 {
 	}
 	t := g.Tick()
 	for _, x := range g.Goals {
-		if x.Cond.Verb != goal.Back || x.Reward <= 0 || x.Posted > t || x.Posted <= t-sheets.TicksPerDay {
+		if x.Cond.Verb != goal.Back || x.Reward <= 0 || !postedToday(x, t) {
 			continue
 		}
 		s, ok := g.sideOf(x)
@@ -1348,15 +1327,15 @@ func spreadHeld(reward int64, from []int, weights []int64, into []int64, sign in
 // arcShare is floor(whole × part / total).
 func arcShare(whole, part, total int64) int64 { return whole * part / total }
 
-// endStage ends an arc's current stage, won by a side or lapsed (""): each side
-// is closed (closeSide), then the fact, the effects and the rivals the winners
-// made; then the next stage, or the arc's end.
+// endStage ends an arc's current stage, won by side won or lapsed when
+// won is "", then starts the next stage or ends the arc.
 func (g *Game) endStage(a *Arc, won string, t int64) error {
 	return g.endStageAt(a, won, t, false)
 }
 
-// endStageAt is endStage; with last set the arc ends with this stage,
-// lapsed unless it was the template's final one.
+// endStageAt is endStage; with last set no further stage starts, and the
+// arc ends lapsed unless this was its final stage, when it ends as the
+// stage did.
 func (g *Game) endStageAt(a *Arc, won string, t int64, last bool) error {
 	if a.over() || a.Stage >= len(a.Stages) || a.Stages[a.Stage].over() {
 		return nil
@@ -1505,9 +1484,9 @@ func (g *Game) troubleEnded(a *Arc, won string, t int64) {
 	}
 }
 
-// rivals queues the rival thread, once, for each living contributor to a
-// side that won against a faction who has no thread running, resting or
-// pending (GDD 12.8).
+// rivals queues, once, a rival thread against the losing faction for each
+// living contributor to the winning side who has no thread running,
+// resting or pending (GDD 12.8).
 func (g *Game) rivals(winner *SideRun, f fact.ID, t int64) {
 	if winner == nil || winner.Opponent < 0 || winner.Opponent == winner.Sponsor {
 		return

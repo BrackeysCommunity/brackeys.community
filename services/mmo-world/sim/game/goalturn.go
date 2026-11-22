@@ -20,7 +20,8 @@ import (
 )
 
 // see reads a fact as goal events: what a character did, to what, where,
-// and then what it counts toward the sides of arcs.
+// and then what it counts toward the sides of arcs. The backing events
+// apply their standing and marks as they are read.
 func (g *Game) see(f fact.Fact) []goal.Event {
 	return append(g.seeOwn(f), g.backEvents(f)...)
 }
@@ -486,26 +487,33 @@ func bounty(x *Goal, n int) bool {
 	return x.Board == n && x.Issuer.Kind == goal.ByFaction && x.State == goal.Live && x.Cond.Verb != goal.Back
 }
 
+// bountyPosted reports whether a goal is a faction bounty on a
+// settlement's board, live or not: its reward left the day budget when it
+// was posted.
+func bountyPosted(x *Goal, n int) bool {
+	return x.Board == n && x.Issuer.Kind == goal.ByFaction && x.Cond.Verb != goal.Back && x.Reward > 0
+}
+
 // bountyOpen reports whether a settlement's board still shows a live
 // faction bounty.
 func (g *Game) bountyOpen(n int) bool {
 	return slices.ContainsFunc(g.Goals, func(x *Goal) bool { return bounty(x, n) })
 }
 
-// bountyHeld is what a settlement's faction holds out in bounties posted
-// this world day so far, taken from its day budget.
+// bountyHeld is what a settlement's faction holds out in every bounty
+// posted this world day so far, met or not, taken from its day budget.
 func (g *Game) bountyHeld(n int) int64 {
 	var out int64
 	t := g.Tick()
 	for _, x := range g.Goals {
-		if bounty(x, n) && postedToday(x, t) {
+		if bountyPosted(x, n) && postedToday(x, t) {
 			out += x.Reward
 		}
 	}
 	return out
 }
 
-// postedToday reports whether x was posted within the world day up to t.
+// postedToday reports whether x was posted in the TicksPerDay ticks up to t.
 func postedToday(x *Goal, t int64) bool { return x.Posted <= t && x.Posted > t-sheets.TicksPerDay }
 
 // threatened is the region near a settlement with the most threat over

@@ -84,11 +84,10 @@ func apiArc(g *game.Game, a *game.Arc, viewer string) api.Arc {
 	for _, r := range a.Regions {
 		out.Regions = append(out.Regions, world.RegionRef(r))
 	}
-	if len(a.Stages) == 0 {
+	i, st, ok := currentStage(a)
+	if !ok {
 		return out
 	}
-	i := min(max(a.Stage, 0), len(a.Stages)-1)
-	st := a.Stages[i]
 	out.Stage, out.Due = int64(i), st.Due
 	if c, _, ok := g.Season(); ok {
 		out.DueDay = c.Day(st.Due / sheets.TicksPerDay)
@@ -109,6 +108,15 @@ func arcTitle(g *game.Game, a *game.Arc) string {
 		sheet = "story.troubles:"
 	}
 	return cmp.Or(g.Rules().Name(sheet+a.Template), a.Template)
+}
+
+// currentStage is the stage an arc stands at or ended on.
+func currentStage(a *game.Arc) (int, game.StageRun, bool) {
+	if len(a.Stages) == 0 {
+		return 0, game.StageRun{}, false
+	}
+	i := min(max(a.Stage, 0), len(a.Stages)-1)
+	return i, a.Stages[i], true
 }
 
 // apiSide is one side of a stage: how full its mark is, who backs it, and

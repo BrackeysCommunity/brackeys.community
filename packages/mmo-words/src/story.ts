@@ -65,12 +65,18 @@ function rowName(sheet: string, id: string, names?: Names): string {
 
 /** The scope whose arcs are troubles, named from story.troubles. */
 const SETTLEMENT_SCOPE = "settlement";
-/** The side or outcome an older fact names for a lapse, before the lapsed datum. */
+/** The side or outcome a lapsed stage or arc names. */
 const LAPSED = "lapsed";
 
 /** An arc template's name: a settlement's arc is a trouble, any other an arc. */
 export function arcName(template: string, scope: string, names?: Names): string {
   return rowName(scope === SETTLEMENT_SCOPE ? "story.troubles" : "story.arcs", template, names);
+}
+
+/** A fact's arc by its template name, named by the scope it carries. */
+export function factArcName(f: StoryFact, names?: Names): string {
+  const scope = f.subjects.find((r) => r.kind === "scope")?.id ?? "";
+  return arcName(f.data.find((d) => d.k === "template")?.s ?? "", scope, names);
 }
 
 /** A trouble's name by its kind. */
@@ -181,8 +187,7 @@ class Reading {
     return this.called(ref, "settlement");
   }
   template(): string {
-    const scope = this.subjects("scope")[0]?.id ?? "";
-    return arcName(this.s("template"), scope, this.names) || "An arc";
+    return factArcName(this.f, this.names) || "An arc";
   }
   trouble(): string {
     return troubleName(this.s("template"), this.names) || "trouble";

@@ -19,6 +19,7 @@ import (
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/season"
 	"jams.team/mmo-world/sim/sheets"
+	"jams.team/mmo-world/sim/world"
 )
 
 // structural: the live season's pacing. A world that does not tick for
@@ -303,7 +304,7 @@ func (r *liveResult) observe(v api.StoryView) {
 		l := r.arc(a.ID, a.Template, a.Scope)
 		if len(l.regions) == 0 {
 			for _, id := range a.Regions {
-				if n, err := strconv.Atoi(strings.TrimPrefix(id, "r-")); err == nil {
+				if n, ok := world.ParseRegionRef(id); ok {
 					l.regions = append(l.regions, n)
 				}
 			}
@@ -354,8 +355,7 @@ func (r *liveResult) arc(id, template, scope string) *seasonArc {
 	if a, ok := r.arcs[id]; ok {
 		return a
 	}
-	n, _ := strconv.ParseInt(strings.TrimPrefix(id, "arc-"), 10, 64)
-	a := &seasonArc{n: n, id: id, template: template, scope: scope}
+	a := &seasonArc{n: arcNumber(id), id: id, template: template, scope: scope}
 	r.arcs[id] = a
 	return a
 }
@@ -384,7 +384,7 @@ func datum(f api.Fact, key string) api.Datum {
 	return d
 }
 
-// simFact sorts the data by key, as Get's search needs.
+// simFact is f as a sim fact, its data sorted by key as Get's search needs.
 func simFact(f api.Fact) fact.Fact {
 	out := fact.Fact{ID: fact.ID(f.ID), Tick: f.Tick, Kind: f.Kind, Region: f.Region, Weight: f.Weight}
 	for _, d := range f.Data {
@@ -444,10 +444,7 @@ func liveDoc(b *sheets.Book, base string, r liveResult, m Measured) *lineDoc {
 	p("Season zero on the live world at %s (GDD 12.6): %d scripted players (`harness/agent.Earner`: %s) from one server, whose guild plays the Economy run's plan and who back the sides they can serve, over the service's HTTP API. They join over the first world day and take one turn per service tick until the world writes `season.closed` (season 0 is %d world days). Arcs and sides are read from `GET %s` after each turn, stage outcomes from `GET %s`.",
 		base, seasonPlayers, roleList(), arc.ParamsOf(b).SeasonZeroDays, api.PathOperatorStory, api.PathStoryEvents)
 	p("")
-	p("A stage is decided by players when a side won with its mark met by %d or more distinct characters. The row holds when the world has such a stage and a stage that lapsed, writes `season.finale` and `season.closed`, and keeps the ledger clean. One world cannot be played twice, so the live row has no repeat.", decidedBackers)
-	p("")
-	p("**season-zero:** %s. Holds: %s.", m.Value, holds(m.Holds))
-	p("")
+	seasonRule(p, m, false)
 	lead := fmt.Sprintf("Ticks %d to %d in %s; %d ticks ran while the players were a tick behind; %d turns failed in transport. ",
 		r.start, r.end, r.elapsed.Round(time.Second), r.lagged, r.failed)
 	seasonBody(p, r.seasonResult, lead, fmt.Sprintf(" Actions %d, refused %d.", r.actions, r.refuse), "Sides: units / mark, backers", liveSides)

@@ -26,7 +26,8 @@ func TestFactionCityReadsAsCity(t *testing.T) {
 	}
 }
 
-// A bounty posted at the day tick holds its reward from the day budget all that day, and not past the next day tick.
+// TestBountyHeldAllDay: a bounty posted at the day tick holds its reward
+// from the day budget all that day, and not past the next day tick.
 func TestBountyHeldAllDay(t *testing.T) {
 	g := storyGame(t)
 	day := g.Tick()/sheets.TicksPerDay + 1
@@ -44,5 +45,24 @@ func TestBountyHeldAllDay(t *testing.T) {
 	g.World.Tick = (day + 1) * sheets.TicksPerDay
 	if got := g.bountyHeld(0); got != 0 {
 		t.Errorf("after the next day tick bountyHeld still holds %d of it", got)
+	}
+}
+
+// TestBountyHeldOnceMet: a bounty met mid-day still holds its reward from
+// the day budget for a stage started later that day.
+func TestBountyHeldOnceMet(t *testing.T) {
+	g := storyGame(t)
+	g.World.Tick = (g.Tick()/sheets.TicksPerDay + 1) * sheets.TicksPerDay
+	const reward = 7
+	x := &Goal{ID: "g-review-bounty", Board: 0, Issuer: goal.Ref{Kind: goal.ByFaction, ID: "0"}, State: goal.Live,
+		Cond: goal.Condition{Verb: goal.Reach, Count: 1}, Reward: reward, Posted: g.Tick()}
+	g.Goals = []*Goal{x}
+	x.State = goal.Done
+	g.World.Tick += 3
+	if got := g.bountyHeld(0); got != reward {
+		t.Errorf("a bounty met earlier today holds %d, want %d", got, reward)
+	}
+	if g.bountyOpen(0) {
+		t.Error("a met bounty still shows as open")
 	}
 }

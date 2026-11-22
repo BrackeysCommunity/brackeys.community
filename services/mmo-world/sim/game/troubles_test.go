@@ -369,7 +369,7 @@ func TestTroubleRaidHeldWhenItsBandIsSlain(t *testing.T) {
 		t.Fatalf("the raid opened no raid-band hunt: %q", a.Hunt)
 	}
 	g.Hunts[i].H.Slain = true
-	if err := g.storyTick(g.Tick()); err != nil {
+	if err := g.stagesDue("", g.Tick()); err != nil {
 		t.Fatal(err)
 	}
 	if a.Outcome != sideHold || g.storyAt(0).Held != 1 || g.storyAt(0).Followed != 0 {

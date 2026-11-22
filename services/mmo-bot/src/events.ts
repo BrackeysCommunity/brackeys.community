@@ -60,7 +60,7 @@ function live(ev: api.StoryEvent): boolean {
   );
 }
 
-/** A live card's event with the arc as the world holds it now. */
+/** A live card's event with its arc, or for a trouble its trouble, as the world holds it now. */
 export function refreshed(ev: api.StoryEvent, a: api.Arc): api.StoryEvent {
   return ev.trouble ? { ...ev, trouble: a.trouble ?? ev.trouble } : { ...ev, arc: a };
 }
@@ -137,8 +137,6 @@ export class EventsPoster {
           card = null;
         }
         if (card) {
-          // Marked before it is posted: a crash after the post must not post
-          // it twice in a public channel.
           const prev = String(last);
           await postOnce(
             this.store,

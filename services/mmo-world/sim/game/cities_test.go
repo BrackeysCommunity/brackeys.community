@@ -418,7 +418,8 @@ func TestCityFallsBack(t *testing.T) {
 	audit(t, g)
 }
 
-// TestCityKeptOnTheCloseDay: a city whose visitors keep it on the season's last day is kept at that close.
+// TestCityKeptOnTheCloseDay: a city whose visitors keep it on the season's
+// last day is kept at that close.
 func TestCityKeptOnTheCloseDay(t *testing.T) {
 	g, _, p, project := readyCity(t)
 	n := p.N

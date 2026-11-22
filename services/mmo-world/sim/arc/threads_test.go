@@ -24,6 +24,17 @@ func pend(w *fake, kind, char string, ref fact.Ref, day int64) fact.ID {
 
 func npcRef(id string) fact.Ref { return fact.Ref{Kind: kindNPC, ID: id} }
 
+// castFrom checks the candidate names the pending entry it was cast from.
+func castFrom(t *testing.T, c Candidate, want Pending) {
+	t.Helper()
+	if c.From == nil {
+		t.Fatalf("cast from nil, want %+v", want)
+	}
+	if *c.From != want {
+		t.Fatalf("cast from %+v, want %+v", *c.From, want)
+	}
+}
+
 func TestDebt(t *testing.T) {
 	w := newFake(3)
 	w.place(0, nearSettlement)
@@ -34,6 +45,7 @@ func TestDebt(t *testing.T) {
 	older := pend(w, PendDebt, "c-1", npcRef("npc-1"), 12)
 	pend(w, PendDebt, "c-1", npcRef("npc-2"), 15)
 	c := one(t, run(t, w, "npc-owed", debtRow))
+	castFrom(t, c, w.pending[0])
 	bound(t, c, "character", charRef("c-1"))
 	bound(t, c, "npc", npcRef("npc-1"))
 	bound(t, c, "seat", SettlementRef(1))
@@ -52,6 +64,7 @@ func TestReturn(t *testing.T) {
 	w.place(2, nearSettlement)
 	pend(w, PendReturn, "c-2", SettlementRef(1), 19)
 	c := one(t, run(t, w, "came-back", returnRow))
+	castFrom(t, c, w.pending[0])
 	bound(t, c, "home", SettlementRef(1))
 	bound(t, c, "elsewhere", SettlementRef(0))
 	if c.Seat != w.places[1].Hex || !slices.Equal(c.Regions, []int{0, 2}) {
@@ -69,6 +82,7 @@ func TestOath(t *testing.T) {
 	w.place(1, nearSettlement)
 	broke := pend(w, PendOath, "c-3", SettlementRef(0), 18)
 	c := one(t, run(t, w, "vow-broken", oathRow))
+	castFrom(t, c, w.pending[0])
 	bound(t, c, "board", SettlementRef(0))
 	bound(t, c, "character", charRef("c-3"))
 	if !slices.Equal(c.Causes, []fact.ID{broke}) || !slices.Equal(c.Regions, []int{1}) {

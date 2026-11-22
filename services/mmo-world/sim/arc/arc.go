@@ -88,9 +88,10 @@ type Candidate struct {
 	Regions  []int   // sorted; where active characters count and beats are read
 	Seat     hex.Hex // where its facts are located and goods land by default
 	Causes   []fact.ID
-	Pressure int64  // orders candidates; scores a finale
-	Char     string // personal: whose thread
-	Place    int    // settlement scope: the place; -1 otherwise
+	Pressure int64    // orders candidates; scores a finale
+	Char     string   // personal: whose thread
+	Place    int      // settlement scope: the place; -1 otherwise
+	From     *Pending // personal: the pending candidate it was cast from
 }
 
 // World is what predicates read. Every method costs at most the regions,
@@ -176,12 +177,14 @@ type Pending struct {
 // Predicate finds the casts a template could take today.
 type Predicate func(w World, row Row, p Params) []Candidate
 
-// Row is a template's sheet row: an arc, a trouble or an occasion.
+// Row is a template's sheet row; exactly one of Arc, Trouble and Occasion
+// is set, by the sheet it came from.
 type Row struct {
 	ID, Scope, When string
 	Chance          int64
 	Cast            []sheets.CastRow
 	Stages          []sheets.StageRow
+	Arc             *sheets.ArcRow
 	Trouble         *sheets.TroubleRow
 	Occasion        *sheets.OccasionRow
 }

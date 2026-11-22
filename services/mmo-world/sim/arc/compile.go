@@ -20,7 +20,7 @@ func Compile(b *sheets.Book) ([]Template, error) {
 	}
 	for i := range b.Arcs {
 		a := &b.Arcs[i]
-		if err := add("story.arcs", Row{ID: a.ID, Scope: a.Scope, When: a.When, Chance: a.Chance, Cast: a.Cast, Stages: a.Stages}); err != nil {
+		if err := add("story.arcs", Row{ID: a.ID, Scope: a.Scope, When: a.When, Chance: a.Chance, Cast: a.Cast, Stages: a.Stages, Arc: a}); err != nil {
 			return nil, err
 		}
 	}

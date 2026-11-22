@@ -8,6 +8,7 @@ import {
 import {
   arcName,
   castNames,
+  factArcName,
   isLapsed,
   seasonLine,
   sideDetail,
@@ -103,19 +104,17 @@ function scopeWord(a: api.Arc): string {
   }
 }
 
-/** What every stage card shows of an arc: its cast and regions, its stage and sides, and its colour. */
+/** What every stage card shows of an arc: its cast and regions, the Stage field, a field per side, and its colour. */
 function stageParts(
   a: api.Arc,
   lex: Lexicon,
-): { description: string; fields: EmbedField[]; colour: number } {
+): { description: string; stage: EmbedField; sides: EmbedField[]; colour: number } {
   return {
     description: [castLine(a), a.regions.length ? `In ${a.regions.join(", ")}.` : ""]
       .filter(Boolean)
       .join("\n"),
-    fields: [
-      { name: "Stage", value: stageLine(a), inline: false },
-      ...a.sides.map((x) => sideField(x, lex)),
-    ],
+    stage: { name: "Stage", value: stageLine(a), inline: false },
+    sides: a.sides.map((x) => sideField(x, lex)),
     colour: a.scope === "world" ? COLOUR.hazard : COLOUR.ash,
   };
 }
@@ -212,12 +211,18 @@ export function stageCard(
   const v = o.version;
   const t = opts.trouble;
   const parts = stageParts(a, lex);
-  const fields = [...parts.fields];
-  if (t)
-    fields.splice(1, 0, {
-      name: "The trouble",
-      value: troubleBanner(t, { place: here.name, now: o.tick, names: lex }),
-    });
+  const fields = [
+    parts.stage,
+    ...(t
+      ? [
+          {
+            name: "The trouble",
+            value: troubleBanner(t, { place: here.name, now: o.tick, names: lex }),
+          },
+        ]
+      : []),
+    ...parts.sides,
+  ];
   const buttons = backButtons(a, v, lex, { at: o.at, purse: o.purse, goals: opts.goals });
   const tail: Button[] = [btn("The chronicle", "chronicle", "", v), back(v)];
   if (t?.hunt) tail.unshift(btn("The raiders' hunt", "hunt", t.hunt, v, { style: "danger" }));
@@ -362,7 +367,7 @@ function troubleTitle(ev: api.StoryEvent, lex: Lexicon): string {
 const troubleKind = (ev: api.StoryEvent) => ev.trouble?.kind || factStr(ev.fact, "template");
 
 function isRaid(ev: api.StoryEvent): boolean {
-  return ev.alarm || ev.trouble?.kind === "raid" || factStr(ev.fact, "template") === "raid";
+  return ev.alarm || troubleKind(ev) === "raid";
 }
 
 /** A trouble starting: the raid alarm, or another trouble at a place. */
@@ -451,7 +456,7 @@ function stagePostCard(ev: api.StoryEvent, a: api.Arc, lex: Lexicon): Card {
     title: a.title,
     description: parts.description,
     picture: NO_PICTURE,
-    fields: parts.fields,
+    fields: [parts.stage, ...parts.sides],
     footer: "Back a side from your own card: goods where they land, beats in its regions.",
     rows: buttons.length ? buttonRows(buttons.slice(0, ROW_MOST)) : [],
     colour: parts.colour,
@@ -460,8 +465,14 @@ function stagePostCard(ev: api.StoryEvent, a: api.Arc, lex: Lexicon): Card {
 
 /** An event's arc by its template name, where the world sent no arc. */
 function eventArcName(ev: api.StoryEvent, lex: Lexicon): string {
-  const scope = ev.arc?.scope ?? ev.fact.subjects.find((r) => r.kind === "scope")?.id ?? "";
-  return arcName(factStr(ev.fact, "template"), scope, lex);
+  return ev.arc?.scope
+    ? arcName(factStr(ev.fact, "template"), ev.arc.scope, lex)
+    : factArcName(ev.fact, lex);
+}
+
+/** A side's title as the arc gives it, else its row name. */
+function sideTitle(ev: api.StoryEvent, id: string, lex: Lexicon): string {
+  return ev.arc?.sides.find((s) => s.id === id)?.title ?? sideName(id, lex);
 }
 
 /** A stage decided: the side that won it, or that it lapsed and what the world did. */
@@ -471,7 +482,7 @@ function stageEndCard(ev: api.StoryEvent, lex: Lexicon): Card {
   const lapsed = isLapsed(f);
   const title = ev.arc?.title || eventArcName(ev, lex);
   const won = lapsed ? undefined : ev.arc?.sides.find((s) => s.id === side);
-  const winner = lapsed ? "" : (won?.title ?? sideName(side, lex));
+  const winner = lapsed ? "" : sideTitle(ev, side, lex);
   const stage = factNum(f, "stage") + 1;
   return {
     context: EVENTS_CHANNEL,
@@ -511,9 +522,7 @@ function arcEndCard(ev: api.StoryEvent, lex: Lexicon): Card {
   return {
     context: EVENTS_CHANNEL,
     author: authorLine("Arc", "ended"),
-    title: lapsed
-      ? `${title} lapsed`
-      : `${title} ended: ${ev.arc?.sides.find((s) => s.id === outcome)?.title ?? sideName(outcome, lex)} won`,
+    title: lapsed ? `${title} lapsed` : `${title} ended: ${sideTitle(ev, outcome, lex)} won`,
     description: `It ran ${plural(factNum(f, "stages"), "stage")}.`,
     picture: NO_PICTURE,
     fields: [{ name: "Told", value: storyLine(f, lex) }],

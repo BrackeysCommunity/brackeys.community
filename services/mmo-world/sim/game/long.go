@@ -352,7 +352,7 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 		return nil, err
 	}
 	if g.Story != nil {
-		if err := g.storyTick(t); err != nil {
+		if err := g.stagesDue("", t); err != nil {
 			return nil, err
 		}
 	}

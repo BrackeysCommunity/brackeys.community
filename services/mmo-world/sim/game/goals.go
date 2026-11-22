@@ -1144,6 +1144,7 @@ func (g *Game) season() int64 {
 // creditGoals reads the facts written since from as events and counts
 // them toward every live goal; claims are paid at once.
 func (g *Game) creditGoals(from fact.ID, key string) error {
+	g.marked = nil
 	for _, f := range g.Log.Since(from) {
 		for _, e := range g.see(f) {
 			for _, x := range g.Goals {

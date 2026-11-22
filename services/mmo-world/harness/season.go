@@ -347,8 +347,7 @@ func (r *seasonResult) observe(g *game.Game, seen map[string]*seasonArc) {
 	for _, a := range g.Story.Arcs {
 		l, ok := seen[a.ID]
 		if !ok {
-			n, _ := strconv.ParseInt(strings.TrimPrefix(a.ID, "arc-"), 10, 64)
-			l = &seasonArc{n: n, id: a.ID, template: a.Template, scope: a.Scope, by: a.By, place: a.Place, regions: slices.Clone(a.Regions), began: a.Began}
+			l = &seasonArc{n: arcNumber(a.ID), id: a.ID, template: a.Template, scope: a.Scope, by: a.By, place: a.Place, regions: slices.Clone(a.Regions), began: a.Began}
 			seen[a.ID] = l
 			r.arcs = append(r.arcs, l)
 		}
@@ -473,10 +472,7 @@ func seasonDoc(b *sheets.Book, runs []seasonResult, again seasonResult, m Measur
 	p("Season zero headless (GDD 12.6): on each seed a fresh world (`game.New`, season 0 of %d world days) with its second settlement open, and %d scripted players (`harness/agent.Earner`: %s) from one server, whose guild plays the Economy run's plan and who back the sides they can serve. They join over the first world day and play %d world days, through the close and into season 1.",
 		zero, seasonPlayers, roleList(), seasonDays)
 	p("")
-	p("A stage is decided by players when a side won with its mark met by %d or more distinct characters. The row holds when every seed has such a stage and a stage that lapsed, writes `season.finale` and `season.closed`, and keeps the ledger clean, and seed \"\" played a second time gives the same digest.", decidedBackers)
-	p("")
-	p("**season-zero:** %s. Holds: %s.", m.Value, holds(m.Holds))
-	p("")
+	seasonRule(p, m, true)
 	p("| Seed | Arcs | Stages | Decided by players | Lapsed | Finale | Closed (tick) | Clock after | Troubles held / lost | Ledger | Actions / refused | Digest | Time | Holds |")
 	p("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
 	for _, r := range runs {
@@ -544,6 +540,28 @@ func seasonBody(p func(string, ...any), r seasonResult, lead, backing, sidesHead
 	if len(r.audit) > 0 {
 		p("")
 	}
+}
+
+// seasonRule writes the row's definition and verdict; repeat is whether the
+// run replays a seed.
+func seasonRule(p func(string, ...any), m Measured, repeat bool) {
+	holdsWhen := "the world has such a stage and a stage that lapsed, writes `season.finale` and `season.closed`, and keeps the ledger clean. One world cannot be played twice, so the live row has no repeat."
+	if repeat {
+		holdsWhen = "every seed has such a stage and a stage that lapsed, writes `season.finale` and `season.closed`, and keeps the ledger clean, and seed \"\" played a second time gives the same digest."
+	}
+	p("A stage is decided by players when a side won with its mark met by %d or more distinct characters. The row holds when %s", decidedBackers, holdsWhen)
+	p("")
+	p("**season-zero:** %s. Holds: %s.", m.Value, holds(m.Holds))
+	p("")
+}
+
+// structural: mirrors the game's arc ids.
+const arcIDPrefix = "arc-"
+
+// arcNumber is the number in an arc id.
+func arcNumber(id string) int64 {
+	n, _ := strconv.ParseInt(strings.TrimPrefix(id, arcIDPrefix), 10, 64)
+	return n
 }
 
 func finaleCell(r seasonResult) string {

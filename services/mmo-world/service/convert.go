@@ -1,7 +1,6 @@
 package service
 
 import (
-	"cmp"
 	"slices"
 
 	"jams.team/mmo-world/api"
@@ -416,11 +415,11 @@ func apiTrouble(g *game.Game, n int) *api.Trouble {
 // stage it stands at or ended on.
 func troubleView(g *game.Game, a *game.Arc) *api.Trouble {
 	row := g.TroubleRow(a)
-	if row == nil || len(a.Stages) == 0 {
+	_, st, ok := currentStage(a)
+	if row == nil || !ok {
 		return nil
 	}
-	st := a.Stages[min(max(a.Stage, 0), len(a.Stages)-1)]
-	out := &api.Trouble{Arc: a.ID, Kind: row.ID, Title: cmp.Or(g.Rules().Name("story.troubles:"+row.ID), row.ID), Banner: row.Banner, Ends: st.Due, Hunt: a.Hunt}
+	out := &api.Trouble{Arc: a.ID, Kind: row.ID, Title: arcTitle(g, a), Banner: row.Banner, Ends: st.Due, Hunt: a.Hunt}
 	for _, side := range st.Sides {
 		out.Mark += side.Mark
 		if x := g.GoalOf(side.Goal); x != nil {

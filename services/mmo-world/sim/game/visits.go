@@ -58,7 +58,7 @@ func nearRoute(n *npc.NPC, h hex.Hex, reach int64) bool {
 	return slices.ContainsFunc(n.Route, func(s hex.Hex) bool { return hex.Distance(s, h) <= reach })
 }
 
-// calling is the NPC calling on a character at h, if one is.
+// calling reports whether NPC id is calling on the character at h.
 func (c *Char) calling(id string, h hex.Hex) bool {
 	return h == c.C.At && slices.ContainsFunc(c.Callers, func(x Caller) bool { return x.NPC == id && x.At == h })
 }
