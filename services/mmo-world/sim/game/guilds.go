@@ -795,7 +795,7 @@ func (g *Game) workGave(w *guild.Work, saved int64) {
 // leader.
 func (g *Game) guildsTurn(t int64) error {
 	day := t / sheets.TicksPerDay
-	closing := day%g.r.wp("season-days") == 0
+	closing, _ := g.seasonCloses(day)
 	for _, gd := range g.Guilds {
 		if closing {
 			gd.G.NewSeason()

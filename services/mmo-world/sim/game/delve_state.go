@@ -88,6 +88,12 @@ func worldCommand(kind string) func(*Game, Command) error {
 		return (*Game).pinWithdraw
 	case ContentFreeze:
 		return (*Game).freezeCommand
+	case SeasonStart:
+		return (*Game).seasonStart
+	case SeasonEpoch:
+		return (*Game).seasonEpoch
+	case ArcCast:
+		return (*Game).arcCast
 	}
 	return nil
 }

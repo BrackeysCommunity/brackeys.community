@@ -1132,8 +1132,14 @@ func (g *Game) blocked(text string) string {
 	return ""
 }
 
-// season is the world's season number.
-func (g *Game) season() int64 { return g.World.Day / g.r.wp("season-days") }
+// season is the world's season number: the clock's, or on a world without
+// one the weather's count of seasons.
+func (g *Game) season() int64 {
+	if c, ok := g.clock(); ok {
+		return c.N
+	}
+	return g.World.Day / g.r.wp("season-days")
+}
 
 // creditGoals reads the facts written since from as events and counts
 // them toward every live goal; claims are paid at once.
@@ -1177,9 +1183,13 @@ func (g *Game) payClaims(x *Goal, claims []goal.Claim, key string) error {
 				c.C.Deeds.Bump(DeedForOthers, 1)
 				c.C.Practise(practiceGoals, 1, g.r.Growth.Params())
 			}
+			// A fact holds each datum once: the first cite, and how many more.
 			data := []fact.Datum{fact.N("coin", cl.Coin), fact.N("units", cl.Units)}
-			for _, f := range cl.Facts {
-				data = append(data, fact.N("fact", int64(f)))
+			if len(cl.Facts) > 0 {
+				data = append(data, fact.N("fact", int64(cl.Facts[0])))
+			}
+			if len(cl.Facts) > 1 {
+				data = append(data, fact.N("facts", int64(len(cl.Facts))))
 			}
 			if _, err := g.factWith(c, []fact.Ref{goalRef(x.ID)}, "goal.claimed", g.Tick(), data...); err != nil {
 				return err

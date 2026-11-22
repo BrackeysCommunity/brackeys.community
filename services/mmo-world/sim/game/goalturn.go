@@ -19,10 +19,15 @@ import (
 	"jams.team/mmo-world/sim/world"
 )
 
-// see reads a fact as goal events: what a character did, to what, where.
-// Facts no verb counts read as nothing; a first step onto a tile is both a
-// Reach and a Discover.
+// see reads a fact as goal events: what a character did, to what, where,
+// and then what it counts toward the sides of arcs.
 func (g *Game) see(f fact.Fact) []goal.Event {
+	return append(g.seeOwn(f), g.backEvents(f)...)
+}
+
+// seeOwn is a fact's own events. Facts no verb counts read as nothing; a
+// first step onto a tile is both a Reach and a Discover.
+func (g *Game) seeOwn(f fact.Fact) []goal.Event {
 	e, ok := g.event(f)
 	if !ok {
 		return nil
@@ -327,13 +332,13 @@ func (g *Game) goalsTurn(t int64) error {
 	if err := g.creditGoals(first, key); err != nil {
 		return err
 	}
-	closing := day%g.r.wp("season-days") == 0
+	closing, next := g.seasonCloses(day)
 	for _, x := range g.Goals {
 		if !x.Open() {
 			continue
 		}
 		due := x.Due(t)
-		if closing && x.Turn(day/g.r.wp("season-days"), day, g.seasonRatio(), g.rebind) {
+		if closing && x.Turn(next, day, g.seasonRatio(), g.rebind) {
 			due = true
 		}
 		if !due {
@@ -465,7 +470,7 @@ func (g *Game) bounties(t int64, key string) error {
 // bounty reports whether a goal is a live faction bounty on a
 // settlement's board.
 func bounty(x *Goal, n int) bool {
-	return x.Board == n && x.Issuer.Kind == goal.ByFaction && x.State == goal.Live
+	return x.Board == n && x.Issuer.Kind == goal.ByFaction && x.State == goal.Live && x.Cond.Verb != goal.Back
 }
 
 // bountyOpen reports whether a settlement's board still shows a live
