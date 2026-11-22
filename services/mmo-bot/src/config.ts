@@ -17,8 +17,14 @@ export interface Config {
   marketForum?: string;
   /** The notice-board forum channel (GDD 17.2); no posts when unset. */
   goalsForum?: string;
-  /** The game channel the hunt cards are posted in (GDD 7.6); no cards when unset. */
+  /** The game channel the hunt cards are posted in (GDD 7.6), unless the events channel is set. */
   gameChannel?: string;
+  /** The events channel (GDD 17.2): troubles, arc stages, seasons and cities, and the hunt cards. */
+  eventsChannel?: string;
+  /** The chronicle channel (GDD 12.7): one post per closed world day. */
+  chronicleChannel?: string;
+  /** The opt-in role a raid's start mentions; it must exist and sit below the bot's own role. */
+  eventsAlarmRole?: string;
 }
 
 function integer(name: string): number | undefined {
@@ -42,5 +48,8 @@ export function loadConfig(): Config {
     marketForum: process.env.MMO_MARKET_FORUM?.trim() || undefined,
     goalsForum: process.env.MMO_GOALS_FORUM?.trim() || undefined,
     gameChannel: process.env.MMO_GAME_CHANNEL?.trim() || undefined,
+    eventsChannel: process.env.MMO_EVENTS_CHANNEL?.trim() || undefined,
+    chronicleChannel: process.env.MMO_CHRONICLE_CHANNEL?.trim() || undefined,
+    eventsAlarmRole: process.env.MMO_EVENTS_ALARM_ROLE?.trim() || undefined,
   };
 }

@@ -3,8 +3,11 @@ import IORedis from "ioredis";
 
 import { describe } from "../../../packages/discord-kit/src/index.ts";
 import { channelSink, createHandler, forumSink, threadSink } from "./adapter.ts";
+import * as api from "./api.ts";
+import { ChroniclePoster } from "./chronicle.ts";
 import { loadConfig } from "./config.ts";
 import { localBudget, redisBudget } from "./cooldown.ts";
+import { EventsPoster } from "./events.ts";
 import { BoardPoster, ForumPoster, type ForumStore, memoryStore } from "./forum.ts";
 import { HuntPoster } from "./hunts.ts";
 import { Lexicon } from "./lexicon.ts";
@@ -13,13 +16,16 @@ import { Notifier } from "./notify.ts";
 import { PartyPoster } from "./party.ts";
 import { ThreadBudget } from "./publish.ts";
 import { registerCommands } from "./register.ts";
+import { EVENTS_CHANNEL } from "./screens/story.ts";
 import { httpWorld } from "./world.ts";
 
 /**
  * The MMO bot: one gateway connection with the Guilds intent only (no
  * privileged intents; the game reads no messages), answering interactions,
- * keeping party threads, and posting the market and notice-board forums and
- * the game channel's hunts from the world service's API.
+ * keeping party threads, and posting the market and notice-board forums,
+ * the events channel (with the hunts, which stay in the game channel when
+ * there is no events channel) and the chronicle channel from the world
+ * service's API.
  */
 process.on("unhandledRejection", (e) => console.error(`[unhandled] ${describe(e)}`));
 const config = loadConfig();
@@ -57,6 +63,7 @@ const handle = createHandler({
   media: (key) => media.get(key),
   onLong: (user, character) => notifier.watch(user, character),
   onParty: (note) => parties.note(note),
+  alarmRole: config.eventsAlarmRole,
 });
 
 client.on(Events.InteractionCreate, (i) => {
@@ -67,21 +74,55 @@ client.once(Events.ClientReady, async (c) => {
   await registerCommands(config).catch((e: unknown) => console.error(`[register] ${describe(e)}`));
   notifier.start();
   parties.start();
-  if (!config.marketForum && !config.goalsForum && !config.gameChannel) return;
+  const { marketForum, goalsForum, gameChannel, eventsChannel, chronicleChannel } = config;
+  if (!marketForum && !goalsForum && !gameChannel && !eventsChannel && !chronicleChannel) return;
   if (!redis) {
     // Without a durable store every restart would open the posts again.
-    console.warn("[forum] a forum or game channel is set but REDIS_URL is not; nothing is posted");
+    console.warn("[forum] a forum or channel is set but REDIS_URL is not; nothing is posted");
     return;
   }
-  if (config.gameChannel)
+  const channel = (id: string) => channelSink(client, id, (k) => media.get(k));
+  const huntChannel = eventsChannel ?? gameChannel;
+  if (huntChannel)
     new HuntPoster(
       world,
       lex,
       store,
-      channelSink(client, config.gameChannel, (k) => media.get(k)),
+      channel(huntChannel),
+      undefined,
+      undefined,
+      eventsChannel ? EVENTS_CHANNEL : undefined,
     ).start();
-  const sink = (channel: string) => forumSink(client, channel, (k) => media.get(k));
-  if (config.marketForum) new ForumPoster(world, lex, store, sink(config.marketForum)).start();
-  if (config.goalsForum) new BoardPoster(world, lex, store, sink(config.goalsForum)).start();
+  if (eventsChannel)
+    new EventsPoster(
+      {
+        storyEvents: (after) => world.storyEvents(after),
+        arcs: () => world.arcs(""),
+        hunts: () => world.hunts(),
+      },
+      lex,
+      store,
+      channel(eventsChannel),
+      config.eventsAlarmRole,
+    ).start();
+  if (chronicleChannel)
+    new ChroniclePoster(
+      {
+        async chronicle(server) {
+          const r = await world.chronicle("", undefined, server);
+          if (r.ok) return r.reply;
+          // Not found: no world day has closed yet.
+          if (r.refusal.code === api.CodeNotFound) return null;
+          throw new Error(`chronicle refused: ${r.refusal.code} ${r.refusal.message ?? ""}`);
+        },
+      },
+      lex,
+      store,
+      channel(chronicleChannel),
+      config.guildId,
+    ).start();
+  const sink = (id: string) => forumSink(client, id, (k) => media.get(k));
+  if (marketForum) new ForumPoster(world, lex, store, sink(marketForum)).start();
+  if (goalsForum) new BoardPoster(world, lex, store, sink(goalsForum)).start();
 });
 await client.login(config.token);

@@ -6,19 +6,46 @@ import { huntClosedCard, huntPostCard } from "./screens/hunt.ts";
 import type { HuntPost } from "./world.ts";
 
 /**
- * The hunt cards in the game channel (GDD 7.6): one a hunt, posted when
- * it opens, edited on a timer at most once a world tick, and closed with
- * its spoils table. With no game channel set, nothing is posted.
+ * The hunt cards (GDD 7.6) in the events channel, or the game channel
+ * where no events channel is set: one a hunt, posted when it opens, edited
+ * on a timer at most once a world tick, and closed with its spoils table.
+ * With neither channel set, nothing is posted.
  */
 
 export const HUNT_POLL_MS = 10_000;
 
-/** A channel as a sink for cards: posted and edited in place. */
+/**
+ * A channel as a sink for cards: posted and edited in place. A post naming
+ * a role mentions it and pings it alone; an edit shows the mention without
+ * pinging anyone again.
+ */
 export interface ChannelSink {
   /** Posts a card; returns its message's id. */
-  post(card: Card): Promise<string>;
+  post(card: Card, mentionRole?: string): Promise<string>;
   /** Replaces a posted card; false when its message is gone. */
-  edit(message: string, card: Card): Promise<boolean>;
+  edit(message: string, card: Card, mentionRole?: string): Promise<boolean>;
+}
+
+/** Runs poll again a fixed wait after each run ends, until stopped. */
+export function pollEvery(
+  ms: number,
+  poll: () => Promise<unknown>,
+  log: (line: string) => void,
+  tag: string,
+): () => void {
+  let stopped = false;
+  let t: ReturnType<typeof setTimeout>;
+  const next = () => {
+    t = setTimeout(async () => {
+      await poll().catch((e: unknown) => log(`[${tag}] ${String(e)}`));
+      if (!stopped) next();
+    }, ms);
+  };
+  next();
+  return () => {
+    stopped = true;
+    clearTimeout(t);
+  };
 }
 
 interface Posted {
@@ -41,8 +68,10 @@ export function huntShown(h: api.HuntCard): string {
   ]);
 }
 
-export function huntCardOf(h: HuntPost, lex: Lexicon): Card {
-  return h.closed ? huntClosedCard(h, lex) : huntPostCard(h, lex);
+/** A hunt's card; context names the channel it is posted in where that is not the game channel. */
+export function huntCardOf(h: HuntPost, lex: Lexicon, context?: string): Card {
+  const card = h.closed ? huntClosedCard(h, lex) : huntPostCard(h, lex);
+  return context ? { ...card, context } : card;
 }
 
 export class HuntPoster {
@@ -53,6 +82,7 @@ export class HuntPoster {
     private readonly sink: ChannelSink,
     private readonly prefix = "mmo-bot:hunt:",
     private readonly log: (line: string) => void = console.log,
+    private readonly context?: string,
   ) {}
 
   private async posted(id: string): Promise<Posted | null> {
@@ -85,7 +115,7 @@ export class HuntPoster {
     const key = this.prefix + h.id;
     const was = await this.posted(h.id);
     const shown = huntShown(h);
-    const card = huntCardOf(h, this.lex);
+    const card = huntCardOf(h, this.lex, this.context);
     if (!was) {
       // Marked posting first: a crash or a failed write after the post
       // must not post it twice in a public channel.
@@ -114,18 +144,6 @@ export class HuntPoster {
   }
 
   start(): () => void {
-    let stopped = false;
-    let t: ReturnType<typeof setTimeout>;
-    const next = () => {
-      t = setTimeout(async () => {
-        await this.poll().catch((e: unknown) => this.log(`[hunts] ${String(e)}`));
-        if (!stopped) next();
-      }, HUNT_POLL_MS);
-    };
-    next();
-    return () => {
-      stopped = true;
-      clearTimeout(t);
-    };
+    return pollEvery(HUNT_POLL_MS, () => this.poll(), this.log, "hunts");
   }
 }

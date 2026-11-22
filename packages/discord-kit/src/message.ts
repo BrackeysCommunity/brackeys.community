@@ -28,6 +28,8 @@ export interface Message {
   embeds: Embed[];
   rows: Row[];
   files?: Attachment[];
+  /** The only role ids the message may ping; it pings nobody else. */
+  mentionRoles?: string[];
 }
 
 const STYLE = { primary: 1, secondary: 2, success: 3, danger: 4, link: 5 } as const;
@@ -43,7 +45,7 @@ export interface MessageJson {
   embeds: Record<string, unknown>[];
   components: Record<string, unknown>[];
   files?: { name: string; attachment: Buffer; description?: string }[];
-  allowedMentions: { parse: [] };
+  allowedMentions: { parse: []; roles?: string[] };
 }
 
 /** Buttons as rows of five, as Message rows. */
@@ -118,8 +120,11 @@ export function toMessage(message: Message): MessageJson {
     content: message.content ?? "",
     embeds: message.embeds.map(toApiEmbed),
     components,
-    // Never ping anyone from a bot answer, whatever a title contains.
-    allowedMentions: { parse: [] },
+    // Never ping anyone from a bot answer, whatever a title contains, but
+    // the roles it names.
+    allowedMentions: message.mentionRoles?.length
+      ? { parse: [], roles: [...new Set(message.mentionRoles)] }
+      : { parse: [] },
   };
   if (message.files?.length) {
     out.files = message.files.map((f) => ({

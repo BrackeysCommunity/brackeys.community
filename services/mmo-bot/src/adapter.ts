@@ -4,6 +4,7 @@ import {
   type ChatInputCommandInteraction,
   type Client,
   DiscordAPIError,
+  type GuildMemberRoleManager,
   type Interaction,
   type InteractionEditReplyOptions,
   MessageFlags,
@@ -19,7 +20,7 @@ import {
 import { describe, toMessage, toModal } from "../../../packages/discord-kit/src/index.ts";
 import { type Card, render } from "./card.ts";
 import type { Budget } from "./cooldown.ts";
-import { answer, type Answer, type Ctx, launchFor, modalFor, type Press } from "./flow.ts";
+import { answer, type Answer, type Ctx, launchFor, modalFor, type Press, roleFor } from "./flow.ts";
 import type { ForumSink } from "./forum.ts";
 import type { ChannelSink } from "./hunts.ts";
 import { decodeId } from "./ids.ts";
@@ -38,7 +39,8 @@ import { WorldUnavailableError } from "./world.ts";
  * with the launch, which like a modal must be the first response. A press
  * on a card everyone sees, a party thread's or the game channel's, is
  * answered with a card of the presser's own, never by editing the shared
- * one.
+ * one. The Raid alarms button toggles the alarm role on its presser and
+ * is answered here, never by the flow.
  */
 
 export const STALE_LINE =
@@ -50,6 +52,12 @@ export const LAUNCH_LINE = "The Activity would not open just now. Try again in a
 export const DOWN_LINE =
   "The world service is not answering just now. Your last action is safe; try again in a minute.";
 export const HUB_TTL_MS = 14 * 60_000;
+export const ALARM_ON =
+  "Raid alarms are on: a raid's start in the events channel mentions you. Press again to turn them off.";
+export const ALARM_OFF = "Raid alarms are off. Press again to turn them back on.";
+export const ALARM_NONE = "Raid alarms are not set up on this server.";
+export const ALARM_FAILED =
+  "Your Raid alarms role could not be changed just now. An admin may need to give the bot Manage Roles.";
 
 export interface AdapterOptions {
   ctx: Ctx;
@@ -60,12 +68,23 @@ export interface AdapterOptions {
   onLong?: (user: string, character: string) => void;
   /** Told of a press about a party, for its thread; says whether the party plays there yet. */
   onParty?: (note: PartyNote) => Promise<PartyMode>;
+  /** The role the Raid alarms button toggles (MMO_EVENTS_ALARM_ROLE). */
+  alarmRole?: string;
   log?: (line: string) => void;
   now?: () => number;
 }
 
 export function createHandler(opts: AdapterOptions) {
-  const { ctx, budget, media, onLong, onParty, log = console.log, now = Date.now } = opts;
+  const {
+    ctx,
+    budget,
+    media,
+    onLong,
+    onParty,
+    alarmRole,
+    log = console.log,
+    now = Date.now,
+  } = opts;
 
   const messageOf = (a: Answer) => cardMessage(a.card, media, log);
 
@@ -99,6 +118,21 @@ export function createHandler(opts: AdapterOptions) {
     return messageOf(a);
   }
 
+  /** Toggles a role on the presser and says which way it went. */
+  async function toggleRole(i: ButtonInteraction, role: string | undefined) {
+    if (!role || !i.guildId) return say(i, ALARM_NONE);
+    try {
+      await i.deferReply({ flags: MessageFlags.Ephemeral });
+      const roles = await rolesOf(i);
+      const had = roles.cache.has(role);
+      await (had ? roles.remove(role) : roles.add(role));
+      await i.editReply({ content: had ? ALARM_OFF : ALARM_ON });
+    } catch (e) {
+      log(`[role] ${role} for ${i.user.id} failed: ${describe(e)}`);
+      await i.editReply({ content: ALARM_FAILED }).catch(() => {});
+    }
+  }
+
   const failureText = (error: unknown) =>
     error instanceof WorldUnavailableError ? DOWN_LINE : `Something went wrong: ${describe(error)}`;
 
@@ -130,6 +164,7 @@ export function createHandler(opts: AdapterOptions) {
     if (!id) return say(i, STALE_LINE);
     const gate = await budget.take(i.user.id);
     if (!gate.allowed) return say(i, SLOW_LINE);
+    if (i.isButton() && roleFor(id) === "alarm") return toggleRole(i, alarmRole);
     if (i.isButton() && launchFor(id)) return launch(i, i.customId);
     const modal = i.isButton() ? modalFor(id) : null;
     if (modal && !i.isModalSubmit())
@@ -203,6 +238,14 @@ function who(
   };
 }
 
+/** The presser's roles; a member the interaction carries only as raw JSON is fetched. */
+async function rolesOf(i: ButtonInteraction): Promise<GuildMemberRoleManager> {
+  const m = i.member;
+  if (m && !Array.isArray(m.roles)) return m.roles;
+  const guild = i.guild ?? (await i.client.guilds.fetch(i.guildId!));
+  return (await guild.members.fetch(i.user.id)).roles;
+}
+
 /** Whether a press came from a message everyone in its channel sees, rather than the presser's own ephemeral card. */
 function shared(i: Pressed): boolean {
   const flags = i.message?.flags;
@@ -217,11 +260,18 @@ function textOf(i: ModalSubmitInteraction): Record<string, string> {
   return out;
 }
 
+/** A role mentioned at a message's head; ping says whether this send may notify it. */
+interface Mention {
+  role: string;
+  ping: boolean;
+}
+
 /** A card as a message. A picture the world no longer holds drops out rather than failing the card. */
 async function cardMessage(
   card: Card,
   media: (key: string) => Promise<Uint8Array>,
   log: (line: string) => void,
+  mention?: Mention,
 ): Promise<InteractionEditReplyOptions> {
   const r = render(card);
   const files = await Promise.all(
@@ -242,7 +292,14 @@ async function cardMessage(
     image: e.image && missing.has(e.image) ? undefined : e.image,
     thumbnail: e.thumbnail && missing.has(e.thumbnail) ? undefined : e.thumbnail,
   }));
-  return toMessage({ ...r.message, embeds, files: got }) as unknown as InteractionEditReplyOptions;
+  const content = mention ? `<@&${mention.role}>\n${r.message.content ?? ""}` : r.message.content;
+  return toMessage({
+    ...r.message,
+    content,
+    embeds,
+    files: got,
+    mentionRoles: mention?.ping ? [mention.role] : undefined,
+  }) as unknown as InteractionEditReplyOptions;
 }
 
 /** Errors that mean a forum post can no longer take replies, so a new one is opened. */
@@ -402,7 +459,7 @@ export function threadSink(
   };
 }
 
-/** A text channel as the hunt poster's sink (GDD 7.6): cards posted and edited in place. */
+/** A text channel as a poster's sink (GDD 7.6, 17.2): cards posted and edited in place. */
 export function channelSink(
   client: Client,
   channelId: string,
@@ -416,14 +473,18 @@ export function channelSink(
     return ch;
   };
   return {
-    async post(card) {
-      const msg = await (await channel()).send((await cardMessage(card, media, log)) as never);
+    async post(card, mentionRole) {
+      const mention = mentionRole ? { role: mentionRole, ping: true } : undefined;
+      const msg = await (
+        await channel()
+      ).send((await cardMessage(card, media, log, mention)) as never);
       return msg.id;
     },
-    async edit(message, card) {
+    async edit(message, card, mentionRole) {
+      const mention = mentionRole ? { role: mentionRole, ping: false } : undefined;
       try {
         const msg = await (await channel()).messages.fetch(message);
-        await msg.edit((await cardMessage(card, media, log)) as never);
+        await msg.edit((await cardMessage(card, media, log, mention)) as never);
       } catch (e) {
         if (postGone(e)) return false;
         throw e;
