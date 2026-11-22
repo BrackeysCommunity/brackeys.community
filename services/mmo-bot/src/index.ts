@@ -23,9 +23,8 @@ import { httpWorld } from "./world.ts";
  * The MMO bot: one gateway connection with the Guilds intent only (no
  * privileged intents; the game reads no messages), answering interactions,
  * keeping party threads, and posting the market and notice-board forums,
- * the events channel (with the hunts, which stay in the game channel when
- * there is no events channel) and the chronicle channel from the world
- * service's API.
+ * the events or game channel's hunts, the events channel and the chronicle
+ * channel from the world service's API.
  */
 process.on("unhandledRejection", (e) => console.error(`[unhandled] ${describe(e)}`));
 const config = loadConfig();

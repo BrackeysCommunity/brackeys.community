@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"jams.team/mmo-world/harness/agent"
+	"jams.team/mmo-world/sim/arc"
 	"jams.team/mmo-world/sim/class"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/goal"
@@ -144,19 +145,16 @@ func (c *cityResult) close(g *game.Game) {
 	c.needs = g.CityCheck(c.place)
 }
 
-// quietPlace is one place the quiet server's guild ran: its troubles held
-// and lost, and its ruin. treasury is the coin its treasury held at the
-// last read before the ruin, pool the guild's pool coin at that read and
-// at the read that found the ruin, and left what the ruin did not return.
+// quietPlace is one place the quiet server's guild ran: its troubles and its ruin.
 type quietPlace struct {
 	n          int
 	name       string
 	held, lost int
-	ruined     int64 // the world day, 0 for standing
-	treasury   int64
-	pool       [2]int64
-	left       []string
-	audit      []string
+	ruined     int64    // the world day, 0 for standing
+	treasury   int64    // at the last read before the ruin
+	pool       [2]int64 // guild pool coin then and at the read that found the ruin
+	left       []string // what the ruin should have returned
+	audit      []string // ledger discrepancies
 }
 
 // quietResult is the quiet server's guild over a soak.
@@ -509,7 +507,7 @@ const cityFrom = 1000
 // of a season of story season-days, at every size from cityFrom up.
 func citySection(p func(string, ...any), b *sheets.Book, results []economyResult, days int64) Measured {
 	sp := func(id string) int64 { return sheets.IntParam(b.SettlementParams, id) }
-	most := sheets.IntParam(b.StoryParams, "season-days")
+	most := arc.ParamsOf(b).SeasonDays
 	lo := most/2 + 1
 	p("## A city")
 	p("")
@@ -565,7 +563,7 @@ func shortOf(needs []game.CityNeed) string {
 func quietSection(p func(string, ...any), b *sheets.Book, results []economyResult) {
 	p("## The quiet server")
 	p("")
-	p("The quiet server's guild takes the second starting settlement, founds, and from world day %d nobody plays there, so its places meet their troubles with no one to hold them off. A place a guild founded that loses %d troubles in one season falls to ruin: its orders and goals return their escrow, its treasury goes to the guild's pool, and nothing it held is left at the place. The ledger is audited at the world day the ruin is found.", quietDays, sheets.IntParam(b.StoryParams, "ruin-troubles"))
+	p("The quiet server's guild takes the second starting settlement, founds, and from world day %d nobody plays there, so its places meet their troubles with no one to hold them off. A place a guild founded that loses %d troubles in one season falls to ruin: its orders and goals return their escrow, its treasury goes to the guild's pool, and nothing it held is left at the place. The ledger is audited at the world day the ruin is found.", quietDays, arc.ParamsOf(b).RuinTroubles)
 	p("")
 	p("| Players | Quiet players | Founded | Place | Troubles held | Troubles lost | Ruin | Through the ruin |")
 	p("| --- | --- | --- | --- | --- | --- | --- | --- |")

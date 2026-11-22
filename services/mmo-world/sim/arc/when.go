@@ -94,6 +94,14 @@ const (
 	scopeSubject = "scope"
 )
 
+// Remembered are the memory kinds the predicates recall: the ring keeps
+// them whatever their weight, and only age takes them out.
+var Remembered = []string{
+	memNotableDied, memBetrayed, memRaided, memBesieged, memHoldingFell, memStarving,
+	memSeasonTurned, memSeasonBegan, memCoreOpened, memArcCast, memArcEnded, memTroubleLost,
+	memSurge, memRaids, memUnrest, memOverrun, memCorruption, memStructure,
+}
+
 // structural: an arc.ended memory's N says whether it lapsed; a midpoint
 // halves a sum; a succession and a betrayal each take two.
 const (

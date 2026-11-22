@@ -10,6 +10,7 @@ import {
   seasonLine,
   sideLine,
   troubleBanner,
+  wantUnit,
 } from "../../../../packages/mmo-words/src/index.ts";
 import type * as api from "../api.ts";
 import { authorLine, type Card, COLOUR, type Picture } from "../card.ts";
@@ -47,14 +48,6 @@ export const CHRONICLE_CHANNEL = "Chronicle channel · everyone in the server ca
 const TROUBLE_SHEET = "story.troubles";
 const ARC_SHEET = "story.arcs";
 const SIDE_SHEET = "story.sides";
-/** The unit a side's mark counts in, by what it wants. */
-const WANT_UNIT: Record<string, string> = {
-  goods: "goods",
-  beats: "pts",
-  reach: "characters",
-  defence: "defence",
-  sold: "coin",
-};
 const LAPSED = "lapsed";
 /** The units field of the amount modal a goods side's Back opens. */
 export const UNITS_INPUT = "units";
@@ -136,43 +129,57 @@ export function backMaterial(s: api.Side, b: Backing, lex: Lexicon): string | un
 
 const sameHex = (a: api.Hex | undefined, b: api.Hex) => !!a && a.q === b.q && a.r === b.r;
 
+/**
+ * The way one viewer backs a side: a declaration for a side filled by
+ * deeds, else a give of what it takes where it lands, or the way there.
+ */
+export function sideButtons(s: api.Side, v: number, lex: Lexicon, b: Backing): Button[] {
+  const left = s.filled < s.mark;
+  if (s.wants !== "goods")
+    return s.mine
+      ? []
+      : [
+          btn(buttonLabel(`Back: ${s.title}`), "s-decl", s.goal, v, {
+            style: "primary",
+            disabled: !left,
+          }),
+        ];
+  if (s.atHex && !sameHex(s.atHex, b.at))
+    return [
+      btn(
+        buttonLabel(`Go to ${s.at || "where it lands"}`),
+        "goto",
+        target(",", s.atHex.q, s.atHex.r),
+        v,
+      ),
+    ];
+  const material = backMaterial(s, b, lex);
+  if (!material) return [];
+  return [
+    btn(
+      buttonLabel(`Back ${s.title}: give ${lex.material(material).toLowerCase()}`),
+      "s-give",
+      target(":", s.goal, material),
+      v,
+      { style: "success", disabled: !left },
+    ),
+  ];
+}
+
 /** The buttons that back an open stage's sides, for one viewer. */
 function backButtons(a: api.Arc, v: number, lex: Lexicon, b: Backing): Button[] {
   if (a.outcome) return [];
   const mine = a.sides.find((s) => s.mine);
   const out: Button[] = [];
-  const goes = new Set<string>();
+  const ids = new Set<string>();
   for (const s of a.sides) {
     if (mine && mine.id !== s.id) continue;
-    const left = s.filled < s.mark;
-    if (s.wants !== "goods") {
-      if (!s.mine)
-        out.push(
-          btn(buttonLabel(`Back: ${s.title}`), "s-decl", s.goal, v, {
-            style: "primary",
-            disabled: !left,
-          }),
-        );
-      continue;
+    // Two sides landing in one place share their way there.
+    for (const button of sideButtons(s, v, lex, b)) {
+      if (button.kind === "page" && ids.has(button.customId)) continue;
+      if (button.kind === "page") ids.add(button.customId);
+      out.push(button);
     }
-    if (s.atHex && !sameHex(s.atHex, b.at)) {
-      const to = target(",", s.atHex.q, s.atHex.r);
-      if (!goes.has(to))
-        out.push(btn(buttonLabel(`Go to ${s.at || "where it lands"}`), "goto", to, v));
-      goes.add(to);
-      continue;
-    }
-    const material = backMaterial(s, b, lex);
-    if (material)
-      out.push(
-        btn(
-          buttonLabel(`Back ${s.title}: give ${lex.material(material).toLowerCase()}`),
-          "s-give",
-          target(":", s.goal, material),
-          v,
-          { style: "success", disabled: !left },
-        ),
-      );
   }
   return out;
 }
@@ -393,7 +400,7 @@ function troubleEndCard(ev: api.StoryEvent, lex: Lexicon): Card {
     title,
     description: held
       ? "Its backers are paid by what each put in."
-      : "The place takes the damage its kind does; three lost in a season ruin a guild's settlement.",
+      : `The place takes the damage its kind does; a guild's settlement that loses ${plural(lex.numbers.ruinTroubles, "time")} in a season is ruined.`,
     picture: NO_PICTURE,
     fields: [
       {
@@ -403,7 +410,7 @@ function troubleEndCard(ev: api.StoryEvent, lex: Lexicon): Card {
       },
       {
         name: raid ? "Defence" : "Put in",
-        value: amount(factNum(ev.fact, "units"), raid ? "defence" : "pts"),
+        value: amount(factNum(ev.fact, "units"), raid ? "defence" : "points"),
         inline: true,
       },
     ],
@@ -462,7 +469,7 @@ function stageEndCard(ev: api.StoryEvent, lex: Lexicon): Card {
         : [
             {
               name: "Put in",
-              value: amount(factNum(f, "units"), WANT_UNIT[won?.wants ?? ""] ?? "goods"),
+              value: amount(factNum(f, "units"), wantUnit(won?.wants ?? "")),
               inline: true,
             },
           ]),

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -687,8 +688,8 @@ func TestPatternFrontierStarAcrossServers(t *testing.T) {
 	patNoSolution(t, g)
 }
 
-// TestPatternFrontierScatterConstellation: the hidden relay shows only
-// once enough are found; a wrong activation haywires, the hidden one opens
+// TestPatternFrontierScatterConstellation: the hidden relay looks and is
+// found like any other; a wrong activation haywires, the hidden one opens
 // the relay vault.
 func TestPatternFrontierScatterConstellation(t *testing.T) {
 	g := guardGame(t)
@@ -696,22 +697,30 @@ func TestPatternFrontierScatterConstellation(t *testing.T) {
 	b := patBoard(t, g, in.Points[0].Hex)
 	hidden := int(patSolution(t, g, b)[0])
 	seer := patChar(t, g, "s-a", b.Points[hidden])
-	if g.PatternAt(seer, b.Points[hidden]) != nil {
-		t.Fatal("the hidden relay shows before it is found")
-	}
-	patRefused(t, g, "finding the hidden relay", NoPattern,
-		Command{Key: "pat-hidden", Char: seer.C.ID, Kind: MachineArm, Machine: &MachineCmd{Source: MachinePattern}, Units: pattern.Find})
 	var others []int
 	for i := range b.Points {
 		if i != hidden {
 			others = append(others, i)
 		}
 	}
+	look := func(i int) PatternPoint {
+		pp := g.PatternAt(seer, b.Points[i])
+		if pp == nil {
+			t.Fatalf("point %d does not show", i)
+		}
+		out := *pp
+		out.Point, out.Place, out.Family = 0, "", ""
+		return out
+	}
+	if !reflect.DeepEqual(look(hidden), look(others[0])) {
+		t.Fatal("the hidden relay looks unlike an unfound one")
+	}
+	patSet(t, g, seer, pattern.Find)
 	for _, i := range others {
 		patSet(t, g, patChar(t, g, "s-a", b.Points[i]), pattern.Find)
 	}
-	if g.PatternAt(seer, b.Points[hidden]) == nil {
-		t.Fatal("the hidden relay does not show once enough are found")
+	if !reflect.DeepEqual(look(hidden), look(others[0])) {
+		t.Fatal("the found hidden relay looks unlike another found one")
 	}
 	fs := patSet(t, g, patChar(t, g, "s-a", b.Points[others[0]]), pattern.Activate)
 	if len(patKinds(fs, "pattern.haywire")) != 1 {

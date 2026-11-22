@@ -1,5 +1,6 @@
 import { names } from "virtual:pack";
 
+import { clueLine as storyClue } from "../../../packages/mmo-words/src/story.ts";
 import {
   UnitBeats,
   UnitEncounter,
@@ -26,6 +27,7 @@ import {
 
 export { riskLine } from "../../../packages/mmo-words/src/risk.ts";
 export { placedLine } from "../../../packages/mmo-words/src/placed.ts";
+export { heldLine, patternKind } from "../../../packages/mmo-words/src/story.ts";
 
 /** What the pack calls a row; an id it does not name is shown as written. */
 export function name(sheet: string, id: string): string {
@@ -201,26 +203,6 @@ export function valueTag(v: number): string {
   return `#${num(v)}`;
 }
 
-/** What a point holds, by its pattern's kind: "holds setting #2", "is raised". */
-export function heldLine(kind: string, v: number): string {
-  switch (kind) {
-    case "state":
-      return `holds setting ${valueTag(v)}`;
-    case "alignment":
-      return `faces ${valueTag(v)}`;
-    case "order":
-      return "is woken this round";
-    case "connection":
-      return "is repaired";
-    case "completion":
-      return "is raised";
-    case "constellation":
-      return v === 0 ? "is found" : "is activated";
-    default:
-      return `holds ${valueTag(v)}`;
-  }
-}
-
 // How far an alignment's signal leads from the first point.
 function reachLine(reach: number): string {
   return reach > 0
@@ -228,38 +210,7 @@ function reachLine(reach: number): string {
     : "The signal stops at point A.";
 }
 
-/**
- * What a pattern.clue fact says, in the board's point letters. `points`
- * bounds a range that would run past the last point.
- */
-export function clueLine(f: Fact, points?: number): string {
-  const n = (key: string) => Number(datum(f, key) ?? 0);
-  const a = pointName(n("point"));
-  const b = pointName(n("other"));
-  switch (datum(f, "says")) {
-    case "after":
-      return `Point ${a} comes before point ${b}.`;
-    case "offset":
-      return n("n") === 0
-        ? `Point ${b} holds the same setting as point ${a}.`
-        : `Point ${b}'s setting is point ${a}'s turned on ${plural(n("n"), "time")}, round past the last back to ${valueTag(0)}.`;
-    case "facing":
-      return `Point ${a} faces ${valueTag(n("n"))}.`;
-    case "live":
-      return n("n") ? `Point ${a}'s run is live.` : `Point ${a}'s run is dead.`;
-    case "missing":
-      return a === b
-        ? `The missing one is point ${a}.`
-        : `The missing one lies from point ${a} to point ${b}.`;
-    case "near": {
-      const last = points === undefined ? Infinity : points - 1;
-      const from = Math.max(0, n("point") - n("n"));
-      const to = Math.min(last, n("point") + n("n"));
-      return from === to
-        ? `The hidden one is point ${pointName(from)}.`
-        : `The hidden one lies from point ${pointName(from)} to point ${pointName(to)}.`;
-    }
-    default:
-      return "A clue whose words are not known here.";
-  }
+/** What a pattern.clue fact says, in the board's point letters. */
+export function clueLine(f: Fact): string {
+  return `${sentence(storyClue(f, (i) => `point ${pointName(i)}`))}.`;
 }

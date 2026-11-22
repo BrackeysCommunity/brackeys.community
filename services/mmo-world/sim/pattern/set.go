@@ -99,15 +99,13 @@ func (p *Progress) setConnection(b Board, s Solution, m Mark) Result {
 	return p.right(b, m.Day, Result{})
 }
 
-// setConstellation finds points until the hidden one shows; an
+// setConstellation finds points until the hidden one shows; a find at
+// the hidden point counts like any other, so finding tells nothing. An
 // activation is the attempt, and may land on the hidden one early from
 // the clues alone.
 func (p *Progress) setConstellation(b Board, s Solution, m Mark) Result {
 	hidden := int(s[0])
 	if m.Value == Find {
-		if m.Point == hidden {
-			return Result{}
-		}
 		if i, ok := slices.BinarySearch(p.Found, m.Point); !ok {
 			p.Found = slices.Insert(p.Found, i, m.Point)
 		}

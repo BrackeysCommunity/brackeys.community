@@ -18,13 +18,13 @@ const ThreadKinds = "thread."
 // ThreadFact reports whether a fact kind is a personal thread's.
 func ThreadFact(kind string) bool { return strings.HasPrefix(kind, ThreadKinds) }
 
-// SeesFact reports whether a character may read a fact: a thread's facts
-// are its own character's alone.
+// SeesFact reports whether a character may read a fact, as Visible rules.
 func SeesFact(c *Char, f fact.Fact) bool {
-	if !ThreadFact(f.Kind) {
-		return true
+	viewer := ""
+	if c != nil {
+		viewer = c.C.ID
 	}
-	return c != nil && slices.Contains(f.Subjects, char.Ref(c.C.ID))
+	return Visible(viewer, f.Kind, f.Subjects)
 }
 
 // debtKinds are the memories an NPC wants settled: a visit it queues about

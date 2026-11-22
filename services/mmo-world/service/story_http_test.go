@@ -593,8 +593,8 @@ func TestSeasonEpoch(t *testing.T) {
 	ctx := context.Background()
 	pool := pgtest.Pool(t)
 	book, next := shortSeasons(t), shortSeasons(t)
-	least := sheets.IntParam(book.StoryParams, "chronicle-min-weight")
-	setParam(t, next.StoryParams, "chronicle-min-weight", least+1)
+	ruin := sheets.IntParam(book.StoryParams, "ruin-troubles")
+	setParam(t, next.StoryParams, "ruin-troubles", ruin+1)
 	from, err := book.Digest()
 	if err != nil {
 		t.Fatal(err)
@@ -607,7 +607,7 @@ func TestSeasonEpoch(t *testing.T) {
 	var logs bytes.Buffer
 	r := startOn(t, pool, &logs, staged)
 	lexicon := func(r *running) api.Lexicon { return read[api.Lexicon](t, r, true, api.PathLexicon, 200) }
-	if lexicon(r).Numbers.ChronicleMin != least {
+	if lexicon(r).Numbers.RuinTroubles != ruin {
 		t.Fatal("the pending book is read before its epoch")
 	}
 	refusedOp(t, r, api.OperatorRequest{InteractionID: "early", Kind: api.OpSeasonEpoch, Epoch: &api.Epoch{From: from, To: to, Sheets: 1}}, api.CodeNotAtBoundary)
@@ -639,7 +639,7 @@ func TestSeasonEpoch(t *testing.T) {
 	if d, _ := got.Get("sheets"); d.N != 1 {
 		t.Fatalf("season.epoch counts %d sheets changed", d.N)
 	}
-	if lexicon(r).Numbers.ChronicleMin != least+1 {
+	if lexicon(r).Numbers.RuinTroubles != ruin+1 {
 		t.Fatal("the service does not run on the new book after the epoch")
 	}
 	sv := read[api.StoryView](t, r, false, api.PathOperatorStory, 200)
@@ -659,7 +659,7 @@ func TestSeasonEpoch(t *testing.T) {
 	if _, d := digest2(t, back); d != live {
 		t.Fatalf("restarted at %s, closed at %s", d, live)
 	}
-	if lexicon(back).Numbers.ChronicleMin != least+1 {
+	if lexicon(back).Numbers.RuinTroubles != ruin+1 {
 		t.Fatal("a restart after the epoch runs on the old book")
 	}
 	advance(t, ctx, back, end+2)
@@ -667,7 +667,7 @@ func TestSeasonEpoch(t *testing.T) {
 	back.halt()
 	logs.Reset()
 	moved := startOn(t, pool, &logs, func(c *service.Config) { c.Disposable, c.Book = false, next })
-	if strings.Contains(logs.String(), "EPOCH TAKEN") || lexicon(moved).Numbers.ChronicleMin != least+1 {
+	if strings.Contains(logs.String(), "EPOCH TAKEN") || lexicon(moved).Numbers.RuinTroubles != ruin+1 {
 		t.Fatalf("the root moved to the new book:\n%s", logs.String())
 	}
 

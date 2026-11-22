@@ -81,23 +81,28 @@ func (g *Game) migrationDay(t int64) error {
 	}
 	day := t / sheets.TicksPerDay
 	for _, tpl := range g.r.Templates {
-		row := tpl.Row.Occasion
-		if row == nil || tpl.Row.When != seasonTurnWhen {
+		if tpl.Row.Occasion == nil || tpl.Row.When != seasonTurnWhen {
 			continue
 		}
 		for _, c := range tpl.When(w, tpl.Row, g.r.Story) {
-			if c.Place < 0 || c.Place >= len(g.Places) || g.Places[c.Place].Ruined != 0 || g.placeTaken(c.Place) {
-				continue
-			}
-			if !g.r.draw.Percent(row.Chance, occasionDraw, draw.Int(int64(c.Place)), draw.Str(row.ID), draw.Int(day)) {
-				continue
-			}
-			if err := g.beginOccasion(tpl, c, t); err != nil {
+			if _, err := g.tryOccasion(tpl, c, day, t); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+// tryOccasion begins an occasion at a standing place with room when its
+// day's occasion.start draw passes, and reports whether it did.
+func (g *Game) tryOccasion(tpl arc.Template, c arc.Candidate, day, t int64) (bool, error) {
+	if c.Place < 0 || c.Place >= len(g.Places) || g.Places[c.Place].Ruined != 0 || g.placeTaken(c.Place) {
+		return false, nil
+	}
+	if !g.r.draw.Percent(tpl.Row.Chance, occasionDraw, draw.Int(int64(c.Place)), draw.Str(tpl.Row.ID), draw.Int(day)) {
+		return false, nil
+	}
+	return true, g.beginOccasion(tpl, c, t)
 }
 
 // factsToday are the facts of a kind written at tick t, read back from the

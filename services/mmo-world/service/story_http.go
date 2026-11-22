@@ -62,21 +62,6 @@ func (s *Server) viewerOf(w http.ResponseWriter, r *http.Request) (*game.Char, b
 	return c, c != nil
 }
 
-// sideMark is the units a goods or beats side asks per active character,
-// as the side rows set it.
-func sideMark(b *sheets.Book) int64 {
-	for _, row := range b.Arcs {
-		for _, st := range row.Stages {
-			for _, sd := range st.Sides {
-				if sd.Wants == arc.WantGoods || sd.Wants == arc.WantBeats {
-					return sd.Per
-				}
-			}
-		}
-	}
-	return 0
-}
-
 // apiSeason is where the world stands in its season; a world keeping no
 // season gives the zero value.
 func apiSeason(g *game.Game) api.Season {
@@ -86,12 +71,6 @@ func apiSeason(g *game.Game) api.Season {
 	}
 	day := c.Day(g.Tick() / sheets.TicksPerDay)
 	return api.Season{N: c.N, Day: day, Days: c.Days, Band: tb.At(day).Band, Ends: (c.Start + c.Days) * sheets.TicksPerDay}
-}
-
-// shown reports whether a viewer may see an arc: a personal thread is its
-// own character's alone.
-func shown(a *game.Arc, viewer string) bool {
-	return a.Scope != arc.Personal || viewer != "" && a.Char == viewer
 }
 
 // apiArc is an arc as a viewer sees it, at the stage it stands at or
@@ -132,8 +111,8 @@ func arcTitle(g *game.Game, a *game.Arc) string {
 // apiSide is one side of a stage: how full its mark is, who backs it, and
 // what it pays.
 func apiSide(g *game.Game, a *game.Arc, stage int, sr game.SideRun, viewer string) api.Side {
-	wants, tag := sideWants(g, a, stage, sr.Side)
-	out := api.Side{ID: sr.Side, Title: cmp.Or(g.Rules().Name("story.sides:"+sr.Side), sr.Side), Wants: wants, Tag: tag, Goal: sr.Goal,
+	row, _ := g.SideRow(a, stage, sr.Side)
+	out := api.Side{ID: sr.Side, Title: cmp.Or(g.Rules().Name("story.sides:"+sr.Side), sr.Side), Wants: row.Wants, Tag: row.Tag, Goal: sr.Goal,
 		Mark: sr.Mark, Sponsor: factionName(g, sr.Sponsor)}
 	if sr.Opponent >= 0 && sr.Opponent != sr.Sponsor {
 		out.Opponent = factionName(g, sr.Opponent)
@@ -150,6 +129,7 @@ func apiSide(g *game.Game, a *game.Arc, stage int, sr game.SideRun, viewer strin
 		for _, p := range x.Progress {
 			if p.N > 0 && g.Char(p.Key) != nil {
 				backers[p.Key] = true
+				out.Contributors++
 			}
 		}
 	}
@@ -165,40 +145,12 @@ func factionName(g *game.Game, i int) string {
 	return g.FactionName(i)
 }
 
-// sideWants is what a side asks for and of which tag, from its row.
-func sideWants(g *game.Game, a *game.Arc, stage int, side string) (wants, tag string) {
-	b := g.Rules().Book
-	if a.Scope == arc.Settlement {
-		if i := slices.IndexFunc(b.Troubles, func(t sheets.TroubleRow) bool { return t.ID == a.Template }); i >= 0 {
-			return b.Troubles[i].Wants, b.Troubles[i].Tag
-		}
-		return "", ""
-	}
-	i := slices.IndexFunc(b.Arcs, func(r sheets.ArcRow) bool { return r.ID == a.Template })
-	if i < 0 || stage >= len(b.Arcs[i].Stages) {
-		return "", ""
-	}
-	for _, sd := range b.Arcs[i].Stages[stage].Sides {
-		if sd.ID == side {
-			return sd.Wants, sd.Tag
-		}
-	}
-	return "", ""
-}
-
 // sideAtName is where a side is served, by name, and its tile when it
 // is one place: a settlement, a tile, or the regions beats count in.
 func sideAtName(g *game.Game, at string) (string, *api.Hex) {
-	if n, ok := goal.SettlementOf(at); ok && n < len(g.Places) {
-		h := g.SettlementHex(n)
+	if h, ok := g.RefHex(at); ok {
 		ah := apiHex(h)
 		return g.PlaceName(h), &ah
-	}
-	if kind, id, ok := goal.ParseRef(at); ok && kind == goal.PlaceTile {
-		if h, ok := hex.ParseRef(id); ok {
-			ah := apiHex(h)
-			return g.PlaceName(h), &ah
-		}
 	}
 	var names []string
 	for _, part := range strings.Split(at, ",") {
@@ -235,13 +187,7 @@ func castName(g *game.Game, ref fact.Ref, viewer string) string {
 			return g.PlaceName(h)
 		}
 	case kindNotable:
-		for _, f := range g.World.Factions {
-			for _, n := range f.Notables {
-				if "n-"+strconv.Itoa(n.ID) == ref.ID {
-					return strings.TrimSpace(n.Given + " " + n.Family)
-				}
-			}
-		}
+		return g.NotableName(ref.ID)
 	case kindNPC:
 		if n := g.NPCs.Get(ref.ID); n != nil {
 			return n.Stub.Name
@@ -252,18 +198,6 @@ func castName(g *game.Game, ref fact.Ref, viewer string) string {
 		}
 	}
 	return ""
-}
-
-// arcByID is an arc the story still holds.
-func arcByID(g *game.Game, id string) *game.Arc {
-	if g.Story == nil {
-		return nil
-	}
-	i := slices.IndexFunc(g.Story.Arcs, func(a *game.Arc) bool { return a.ID == id })
-	if i < 0 {
-		return nil
-	}
-	return g.Story.Arcs[i]
 }
 
 // arcs are the open and lately ended arcs, the season, and the side goals
@@ -289,7 +223,7 @@ func (s *Server) arcs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, a := range g.Story.Arcs {
-		if !shown(a, viewer) {
+		if !game.ArcVisible(a, viewer) {
 			continue
 		}
 		if a.Outcome == "" {
@@ -299,7 +233,7 @@ func (s *Server) arcs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	for _, bk := range g.Story.Backers {
-		if a := arcByID(g, bk.Arc); viewer != "" && bk.Char == viewer && a != nil && a.Outcome == "" && !slices.Contains(out.Backing, bk.Goal) {
+		if a := g.ArcByID(bk.Arc); viewer != "" && bk.Char == viewer && a != nil && a.Outcome == "" && !slices.Contains(out.Backing, bk.Goal) {
 			out.Backing = append(out.Backing, bk.Goal)
 		}
 	}
@@ -390,23 +324,6 @@ func (ps places) touches(f fact.Fact) bool {
 	return ok && slices.Contains(ps.hex, h)
 }
 
-// unseen reports whether a fact is kept from a viewer: a pin's, or
-// another character's thread.
-func unseen(f fact.Fact, viewer string) bool {
-	if sheets.PinFact(f.Kind) {
-		return true
-	}
-	return game.ThreadFact(f.Kind) && (viewer == "" || !slices.Contains(f.Subjects, char.Ref(viewer)))
-}
-
-// scrub is a fact as a viewer may read it, under the lock: the other
-// characters it names go, from its subjects and from its data.
-func scrub(g *game.Game, viewer string, f fact.Fact) api.Fact {
-	out := SeenFacts(viewer, apiFacts([]fact.Fact{f}))[0]
-	out.Data = slices.DeleteFunc(out.Data, func(d api.Datum) bool { return d.S != "" && d.S != viewer && g.Char(d.S) != nil })
-	return out
-}
-
 // chronicle is one closed world day for a server (GDD 12.7): the heaviest
 // facts, those touching its guild places first, then by weight, then the
 // newest, cut at chronicle-lines with how many more there were. A line
@@ -430,8 +347,7 @@ func (s *Server) chronicle(w http.ResponseWriter, r *http.Request) {
 	}
 	g := s.g
 	cur, season, ps = g.Tick()/sheets.TicksPerDay, apiSeason(g), serverPlaces(g, server)
-	weight = sheets.IntParam(g.Rules().Book.StoryParams, "chronicle-min-weight")
-	most = sheets.IntParam(g.Rules().Book.StoryParams, "chronicle-lines")
+	weight, most = g.Rules().Story.ChronicleMinWeight, g.Rules().Story.ChronicleLines
 	unlock()
 
 	day := cur - 1
@@ -452,7 +368,7 @@ func (s *Server) chronicle(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, err)
 		return
 	}
-	facts = slices.DeleteFunc(facts, func(f fact.Fact) bool { return unseen(f, "") })
+	facts = slices.DeleteFunc(facts, func(f fact.Fact) bool { return !game.Visible("", f.Kind, f.Subjects) })
 	here := make(map[fact.ID]bool, len(facts))
 	for _, f := range facts {
 		here[f.ID] = ps.touches(f)
@@ -476,7 +392,8 @@ func (s *Server) chronicle(w http.ResponseWriter, r *http.Request) {
 	}
 	defer unlock()
 	for _, f := range facts {
-		out.Lines = append(out.Lines, api.ChronicleLine{Fact: scrub(s.g, "", f), Here: here[f.ID], Causes: int64(len(f.Causes))})
+		v, _ := seen(s.g, "", apiFact(f))
+		out.Lines = append(out.Lines, api.ChronicleLine{Fact: v, Here: here[f.ID], Causes: int64(len(f.Causes))})
 	}
 	reply(w, http.StatusOK, out)
 }
@@ -503,7 +420,7 @@ func (s *Server) chronicleFact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f, causes, err := s.st.FactCauses(r.Context(), fact.ID(id))
-	if errors.Is(err, store.ErrNoFact) || err == nil && unseen(f, viewer) {
+	if errors.Is(err, store.ErrNoFact) || err == nil && !game.Visible(viewer, f.Kind, f.Subjects) {
 		refuse(w, http.StatusNotFound, api.Refusal{Code: api.CodeNotFound, Message: fmt.Sprintf("no fact %d", id)})
 		return
 	}
@@ -515,10 +432,11 @@ func (s *Server) chronicleFact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer unlock()
-	out := api.FactCauses{Fact: scrub(s.g, viewer, f), Causes: []api.Fact{}}
+	top, _ := seen(s.g, viewer, apiFact(f))
+	out := api.FactCauses{Fact: top, Causes: []api.Fact{}}
 	for _, x := range causes {
-		if !unseen(x, viewer) {
-			out.Causes = append(out.Causes, scrub(s.g, viewer, x))
+		if v, ok := seen(s.g, viewer, apiFact(x)); ok {
+			out.Causes = append(out.Causes, v)
 		}
 	}
 	reply(w, http.StatusOK, out)
@@ -551,24 +469,28 @@ func (s *Server) storyEvents(w http.ResponseWriter, r *http.Request) {
 	out := api.StoryEvents{Events: []api.StoryEvent{}, Last: after}
 	for _, f := range facts {
 		out.Last = max(out.Last, int64(f.ID))
-		if unseen(f, "") {
-			continue
+		if ev, ok := storyEvent(g, f); ok {
+			out.Events = append(out.Events, ev)
 		}
-		out.Events = append(out.Events, storyEvent(g, f))
 	}
 	reply(w, http.StatusOK, out)
 }
 
 // storyEvent is one fact for the events channel with its snapshot: a
-// trouble's, or an arc's that is not a personal thread.
-func storyEvent(g *game.Game, f fact.Fact) api.StoryEvent {
-	ev := api.StoryEvent{Fact: scrub(g, "", f)}
+// trouble's, or an arc's that is not a personal thread. False for a fact
+// the public may not read.
+func storyEvent(g *game.Game, f fact.Fact) (api.StoryEvent, bool) {
+	v, ok := seen(g, "", apiFact(f))
+	if !ok {
+		return api.StoryEvent{}, false
+	}
+	ev := api.StoryEvent{Fact: v}
 	if d, ok := f.Get("arc"); ok {
-		if a := arcByID(g, d.S); a != nil && a.Scope == arc.Settlement {
+		if a := g.ArcByID(d.S); a != nil && a.Scope == arc.Settlement {
 			ev.Trouble = troubleView(g, a)
-			wants, _ := sideWants(g, a, 0, "")
-			ev.Alarm = f.Kind == "trouble.started" && wants == arc.WantDefence
-		} else if a != nil && shown(a, "") {
+			tr := g.TroubleRow(a)
+			ev.Alarm = f.Kind == "trouble.started" && tr != nil && tr.Wants == arc.WantDefence
+		} else if a != nil && game.ArcVisible(a, "") {
 			v := apiArc(g, a, "")
 			ev.Arc = &v
 		}
@@ -585,5 +507,5 @@ func storyEvent(g *game.Game, f fact.Fact) api.StoryEvent {
 	if n >= 0 && n < int64(len(g.Places)) {
 		ev.Place = g.PlaceName(g.SettlementHex(int(n)))
 	}
-	return ev
+	return ev, true
 }

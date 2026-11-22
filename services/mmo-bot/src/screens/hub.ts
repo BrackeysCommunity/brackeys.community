@@ -270,6 +270,11 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
   };
 }
 
+/** The tier a city's stations rise to, from the sheet. */
+export function cityStations(lex: Lexicon): string {
+  return `Its stations rise to tier ${lex.numbers.cityStationCap}`;
+}
+
 /** The story at a place: its trouble or occasion, its city or ruin, the core, and a pattern's point on the tile. */
 function storyFields(here: api.Here, lex: Lexicon): EmbedField[] {
   const p = here.place;
@@ -291,8 +296,7 @@ function storyFields(here: api.Here, lex: Lexicon): EmbedField[] {
       value: "Its structures stand closed; nothing is raised here.",
       inline: true,
     });
-  else if (p.city?.city)
-    out.push({ name: "A city", value: "Its stations rise to tier 3.", inline: true });
+  else if (p.city?.city) out.push({ name: "A city", value: `${cityStations(lex)}.`, inline: true });
   if (p.open)
     out.push({
       name: "The core",

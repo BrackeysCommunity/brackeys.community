@@ -582,8 +582,8 @@ func (s *Server) lexicon(w http.ResponseWriter, _ *http.Request) {
 	n := rules.CardNumbers()
 	out := api.Lexicon{Names: map[string]string{}, Bands: sheets.BandsByRank(b), Starts: make([]string, 0, len(b.Starts)), Numbers: api.Numbers{AmbushLine: n.AmbushLine, OverrunLine: n.OverrunLine,
 		CrawlTicks: n.CrawlTicks, WoundedTicks: n.WoundedTicks, FreeTicks: n.FreeTicks, StepMin: n.StepMin, StepMax: n.StepMax,
-		BeatsMin: n.FirstBeatsMin, BeatsMax: n.FirstBeatsMax, SideMark: sideMark(b), RaidMark: sheets.IntParam(b.StoryParams, "raid-mark"),
-		ChronicleMin: sheets.IntParam(b.StoryParams, "chronicle-min-weight"), SeasonDays: sheets.IntParam(b.StoryParams, "season-days")}}
+		BeatsMin: n.FirstBeatsMin, BeatsMax: n.FirstBeatsMax, RuinTroubles: rules.Story.RuinTroubles,
+		CityStationCap: sheets.IntParam(b.SettlementParams, "city-station-cap")}}
 	for _, n := range b.Names {
 		out.Names[n.Ref] = n.Name
 	}

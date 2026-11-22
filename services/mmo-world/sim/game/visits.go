@@ -99,9 +99,8 @@ func (g *Game) dormantFrom() (int64, bool) {
 }
 
 // wake wakes a dormant NPC and reports whether it slept. Under a season it
-// keeps its oldest dormant-summary entries listed, tallies the rest and
-// writes npc.woke; without one it folds its memory as it always did. The
-// caller chains the NPC.
+// keeps its oldest dormant-summary entries, tallies the rest and writes
+// npc.woke; without one it folds its memory. The caller chains the NPC.
 func (g *Game) wake(n *npc.NPC, t int64) (bool, error) {
 	if !g.dormant(n, t) {
 		return false, nil

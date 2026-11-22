@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"net/http"
 	"os"
 	"slices"
 	"strconv"
@@ -107,7 +106,7 @@ func playLive(ctx context.Context, b *sheets.Book, w liveSeason) (liveResult, er
 	if err != nil {
 		return res, err
 	}
-	view, err := operatorStory(ctx, w.op)
+	view, err := w.op.OperatorStory(ctx)
 	if err != nil {
 		return res, err
 	}
@@ -116,17 +115,14 @@ func playLive(ctx context.Context, b *sheets.Book, w liveSeason) (liveResult, er
 	}
 	res.start, res.seed = hl.Tick, "live"
 	run := fmt.Sprintf("season-live-%d", hl.Tick)
-	lc := &liveClient{HTTP: w.api, res: &res.seasonResult, busy: map[string]int64{}}
-	plan := guildPlan(b, guildGoods, guildTithe, false)
-	plan.City = true
-	pop := population{roles: economyRoles, back: agent.NewBacker(b)}
-	players := earners(pop, plan, seasonPlayers, 0, 0, agent.Bands(b))
-	for i, p := range players {
-		p.Discord, p.Server, p.Admin = run+"-"+p.Discord, run, i < economyAdmins
+	lc := &liveClient{counting: counting{w.api, &res.seasonResult}, busy: map[string]int64{}}
+	players := seasonRoster(b, run)
+	for _, p := range players {
+		p.Discord = run + "-" + p.Discord
 	}
 	script := agent.NewScript(lc, players, run)
 	var last int64
-	var due []*agent.Player
+	var playing []*agent.Player
 	// turn is one tick's play: the events so far, the turns of the players
 	// due, and the story view once they have acted, before the next tick
 	// can end a stage they filled.
@@ -135,11 +131,11 @@ func playLive(ctx context.Context, b *sheets.Book, w liveSeason) (liveResult, er
 		if last, err = res.events(ctx, w.api, last); err != nil {
 			return err
 		}
-		due = liveDue(lc, players, t-res.start, t, due[:0])
-		if err := script.TurnFor(ctx, t, due); err != nil {
+		playing = liveDue(lc, players, t-res.start, t, playing[:0])
+		if err := script.TurnFor(ctx, t, playing); err != nil {
 			return err
 		}
-		if view, err = operatorStory(ctx, w.op); err != nil {
+		if view, err = w.op.OperatorStory(ctx); err != nil {
 			return err
 		}
 		res.observe(view)
@@ -178,7 +174,7 @@ func playLive(ctx context.Context, b *sheets.Book, w liveSeason) (liveResult, er
 
 // finish reads the world's state at the run's end into the result.
 func (r *liveResult) finish(ctx context.Context, w liveSeason, players []*agent.Player, begin time.Time) error {
-	view, err := operatorStory(ctx, w.op)
+	view, err := w.op.OperatorStory(ctx)
 	if err != nil {
 		return err
 	}
@@ -215,19 +211,12 @@ func seasonClock(s api.Season) season.Clock {
 	return season.Clock{N: s.N, Start: s.Ends/sheets.TicksPerDay - s.Days, Days: s.Days}
 }
 
-func operatorStory(ctx context.Context, c *client.HTTP) (api.StoryView, error) {
-	var out api.StoryView
-	ref, err := c.Do(ctx, http.MethodGet, api.PathOperatorStory, nil, &out)
-	return out, client.Refused("operator story", ref, err)
-}
-
 // events reads the story's events after a fact id and returns the last id
 // read.
 func (r *liveResult) events(ctx context.Context, c *client.HTTP, after int64) (int64, error) {
 	for {
-		var page api.StoryEvents
-		ref, err := c.Do(ctx, http.MethodGet, api.PathStoryEvents+"?after="+strconv.FormatInt(after, 10), nil, &page)
-		if err := client.Refused("story events", ref, err); err != nil {
+		page, err := c.StoryEvents(ctx, after)
+		if err != nil {
 			return after, err
 		}
 		for _, e := range page.Events {
@@ -306,7 +295,9 @@ func (r *liveResult) fact(f api.Fact) {
 }
 
 // observe copies each arc's running stage from the story view: its sides'
-// marks, units and backers, which only grow while the stage runs.
+// marks, units and contributors, which only grow while the stage runs. A
+// backer who only declared does not count toward a stage decided by
+// players.
 func (r *liveResult) observe(v api.StoryView) {
 	for _, a := range v.Arcs {
 		l := r.arc(a.ID, a.Template, a.Scope)
@@ -340,8 +331,8 @@ func (r *liveResult) observe(v api.StoryView) {
 			o := sideOf(s, sd.ID)
 			o.mark = max(o.mark, sd.Mark)
 			o.units = max(o.units, sd.Filled)
-			if int(sd.Backers) > len(o.backers) {
-				o.backers = make([]string, sd.Backers)
+			if int(sd.Contributors) > len(o.backers) {
+				o.backers = make([]string, sd.Contributors)
 			}
 		}
 		if a.Outcome == "" {
@@ -401,22 +392,17 @@ func simFact(f api.Fact) fact.Fact {
 	return out
 }
 
-// liveClient is the world over HTTP, counting the sides players were
-// offered and the backs they sent, and keeping when each character's long
-// action ends.
+// liveClient is the world over HTTP, counted, keeping when each
+// character's long action ends.
 type liveClient struct {
-	*client.HTTP
-	res  *seasonResult
+	counting
 	busy map[string]int64
 }
 
 func (c *liveClient) Options(ctx context.Context, id string) (api.Options, error) {
-	o, err := c.HTTP.Options(ctx, id)
+	o, err := c.counting.Options(ctx, id)
 	if err != nil {
 		return o, err
-	}
-	if len(o.Sides) > 0 {
-		c.res.offered++
 	}
 	delete(c.busy, id)
 	if o.Long != nil && o.Fight == nil {
@@ -425,35 +411,17 @@ func (c *liveClient) Options(ctx context.Context, id string) (api.Options, error
 	return o, nil
 }
 
-func (c *liveClient) Act(ctx context.Context, req api.ActionRequest) (api.ActionReply, *api.Refusal, error) {
-	rep, ref, err := c.HTTP.Act(ctx, req)
-	if req.Kind == api.ActBackSide && err == nil {
-		c.res.backs++
-		c.res.backRefused += btoi(ref != nil)
-	}
-	return rep, ref, err
-}
-
 // liveDue is who plays at world tick t, rel ticks into the run: the
 // headless run's arrivals and hours, less a character whose long action
 // runs on.
-func liveDue(c *liveClient, players []*agent.Player, rel, t int64, due []*agent.Player) []*agent.Player {
+func liveDue(c *liveClient, players []*agent.Player, rel, t int64, out []*agent.Player) []*agent.Player {
+	busy := func(p *agent.Player) bool { return p.Character != "" && c.busy[p.Character] > t }
 	for i, p := range players {
-		if rel < int64(i)*sheets.TicksPerDay/int64(len(players)) {
-			continue
+		if joined(i, rel, len(players)) && due(i, rel, p, busy) {
+			out = append(out, p)
 		}
-		if (rel+int64(i))%workPeriod != 0 || (rel+int64(i)*wakeSpread)%sheets.TicksPerDay >= awake {
-			continue
-		}
-		if e, ok := p.Policy.(*agent.Earner); ok && e.Role == agent.Casual && (rel+int64(i)*casualSpread)%casualEvery >= casualSession {
-			continue
-		}
-		if p.Character != "" && c.busy[p.Character] > t {
-			continue
-		}
-		due = append(due, p)
 	}
-	return due
+	return out
 }
 
 // liveReading is the season-zero row on the live world: the headless
@@ -472,53 +440,20 @@ func liveDoc(b *sheets.Book, base string, r liveResult, m Measured) *lineDoc {
 	p("# Season run, live")
 	p("")
 	p("Season zero on the live world at %s (GDD 12.6): %d scripted players (`harness/agent.Earner`: %s) from one server, whose guild plays the Economy run's plan and who back the sides they can serve, over the service's HTTP API. They join over the first world day and take one turn per service tick until the world writes `season.closed` (season 0 is %d world days). Arcs and sides are read from `GET %s` after each turn, stage outcomes from `GET %s`.",
-		base, seasonPlayers, roleList(), sheets.IntParam(b.StoryParams, "season-zero-days"), api.PathOperatorStory, api.PathStoryEvents)
+		base, seasonPlayers, roleList(), arc.ParamsOf(b).SeasonZeroDays, api.PathOperatorStory, api.PathStoryEvents)
 	p("")
 	p("A stage is decided by players when a side won with its mark met by %d or more distinct characters. The row holds when the world has such a stage and a stage that lapsed, writes `season.finale` and `season.closed`, and keeps the ledger clean. One world cannot be played twice, so the live row has no repeat.", decidedBackers)
 	p("")
 	p("**season-zero:** %s. Holds: %s.", m.Value, holds(m.Holds))
 	p("")
-	p("Ticks %d to %d in %s; %d ticks ran while the players were a tick behind; %d turns failed in transport. Finale: %s. Close: %s; the clock after is %s.",
-		r.start, r.end, r.elapsed.Round(time.Second), r.lagged, r.failed, finaleCell(r.seasonResult),
-		either(r.closed, fmt.Sprintf("`season.closed` at tick %d (world day %d)", r.closedTick, r.closedTick/sheets.TicksPerDay), "**not written**"), clockCell(r.clock))
-	p("")
-	p("Backing: sides listed in %d option reads; %d `goal-back` presses, %d refused. Actions %d, refused %d.", r.offered, r.backs, r.backRefused, r.actions, r.refuse)
-	p("")
-	if !r.holds() {
-		p("Does not hold: %s.", r.why())
-		p("")
-	}
-	if len(r.seasonResult.arcs) == 0 {
-		p("No arc was cast.")
-		p("")
-	} else {
-		p("| Arc | Template | Scope | Regions | By | Stage | Due (day) | Outcome | Sides: units / mark, backers | Decided by players |")
-		p("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
-		for _, a := range r.seasonResult.arcs {
-			for i, s := range a.stages {
-				p("| %s | %s | %s | %s | %s | %d | %d | %s | %s | %s |", a.id, a.template, a.scope, regionList(a.regions), a.by, i+1, s.due/sheets.TicksPerDay,
-					stageOutcome(s), liveSides(s), either(s.decided(), "yes", "no"))
-			}
-		}
-		p("")
-	}
-	if len(r.seasonResult.troubles) > 0 {
-		p("| Place | Troubles held | Troubles lost |")
-		p("| --- | --- | --- |")
-		for _, pl := range r.seasonResult.troubles {
-			p("| %s | %d | %d |", pl.name, pl.held, pl.lost)
-		}
-		p("")
-	}
-	p("Ledger: %s. Digest %s.", auditCell(r.audit), r.digest)
-	for _, a := range r.audit {
-		p("- %s", a)
-	}
+	lead := fmt.Sprintf("Ticks %d to %d in %s; %d ticks ran while the players were a tick behind; %d turns failed in transport. ",
+		r.start, r.end, r.elapsed.Round(time.Second), r.lagged, r.failed)
+	seasonBody(p, r.seasonResult, lead, fmt.Sprintf(" Actions %d, refused %d.", r.actions, r.refuse), "Sides: units / mark, backers", liveSides)
 	return &doc
 }
 
 // liveSides is a stage's sides as the view showed them; the view counts
-// backers but does not name them, nor those who only declared.
+// the characters who put units in but does not name them.
 func liveSides(s seasonStage) string {
 	var out []string
 	for _, sd := range s.sides {

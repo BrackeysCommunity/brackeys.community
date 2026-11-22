@@ -134,6 +134,21 @@ func (h *HTTP) Health(ctx context.Context) (api.Health, error) {
 	return out, Refused("health", ref, err)
 }
 
+// OperatorStory is the operator's view of the story: the season, the
+// arcs, the ring and the pattern boards.
+func (h *HTTP) OperatorStory(ctx context.Context) (api.StoryView, error) {
+	var out api.StoryView
+	ref, err := h.Do(ctx, http.MethodGet, api.PathOperatorStory, nil, &out)
+	return out, Refused("operator story", ref, err)
+}
+
+// StoryEvents is a page of the story's events after a fact id.
+func (h *HTTP) StoryEvents(ctx context.Context, after int64) (api.StoryEvents, error) {
+	var out api.StoryEvents
+	ref, err := h.Do(ctx, http.MethodGet, api.PathStoryEvents+"?after="+strconv.FormatInt(after, 10), nil, &out)
+	return out, Refused("story events", ref, err)
+}
+
 // Refused turns a refusal into an error, for calls that expect none.
 func Refused(what string, ref *api.Refusal, err error) error {
 	if err == nil && ref != nil {

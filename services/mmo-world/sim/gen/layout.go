@@ -7,12 +7,10 @@ import (
 )
 
 // Layout lays a map.shapes row of a size round a centre, turned rot
-// sixths, as a rule's instance is laid: the tiles a part standing on its
-// corners, edges, every point, the centre, or spaced (as many as the shape
-// has corners, evenly round the outline) takes. who keys a shape that
-// draws, such as a scatter. It reads the sheets alone and stores nothing,
-// so a pattern the world places later is laid like the scaffold's without
-// moving them.
+// sixths, as a rule's instance is laid. at picks corners, edges, every,
+// centre or spaced (one per corner, evenly round the outline); who keys a
+// shape that draws. It reads the sheets alone, so a pattern placed later
+// never moves the scaffold.
 func (g *Gen) Layout(shape string, size int64, at string, centre Hex, rot int64, who ...draw.Part) ([]Hex, bool) {
 	sh, ok := g.shapes[shape]
 	if !ok || size < 1 {

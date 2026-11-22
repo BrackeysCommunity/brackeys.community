@@ -3375,10 +3375,8 @@ export interface Numbers {
   stepMax: number /* int64 */; // ticks a tile
   beatsMin: number /* int64 */; // beats in a first-tier encounter
   beatsMax: number /* int64 */; // beats in a first-tier encounter
-  sideMark: number /* int64 */; // units a goods or beats side asks per active character
-  raidMark: number /* int64 */; // defence a raid needs per active character
-  chronicleMin: number /* int64 */; // the least weight a chronicle line has
-  seasonDays: number /* int64 */; // world days a season lasts after season zero
+  ruinTroubles: number /* int64 */; // troubles lost in a season that ruin a guild's settlement
+  cityStationCap: number /* int64 */; // the tier a city's stations rise to
 }
 
 //////////
@@ -3551,6 +3549,11 @@ export interface Side {
   mark: number /* int64 */;
   filled: number /* int64 */;
   backers: number /* int64 */;
+  /**
+   * Contributors are characters who put units in; Backers also counts
+   * declared backers who have not.
+   */
+  contributors?: number /* int64 */;
   pay: number /* int64 */; // coin
   at: string;
   atHex?: Hex;

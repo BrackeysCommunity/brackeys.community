@@ -6,7 +6,6 @@ import (
 
 	"jams.team/mmo-world/sim/arc"
 	"jams.team/mmo-world/sim/char"
-	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/goal"
@@ -414,20 +413,26 @@ func (x effect) cache() error {
 		}
 	}
 	pool := ledger.CachePool(x.a.ID + sidePart + itoa(x.a.Stage) + sidePart + x.e.Ref)
+	return g.openCache(g.r.Book.Caches[i].Goods, pool, w.Progress, at, ledger.SubKey(x.key, "cache"), "cache", x.cause, x.t)
+}
+
+// openCache mints cache lines into a pool, splits each among by by share,
+// hands the shares on at at, and has each taker await the goods there.
+func (g *Game) openCache(lines []sheets.CacheLine, pool string, by tally.Tally, at hex.Hex, key, kind string, cause fact.ID, t int64) error {
 	var legs []ledger.Leg
-	for _, line := range g.r.Book.Caches[i].Goods {
+	for _, line := range lines {
 		asset := ledger.Goods(line.Material)
 		legs = append(legs, ledger.Pair(ledger.FromCache, pool, asset, line.Quantity)...)
-		for j, part := range splitUnits(line.Quantity, w.Progress) {
+		for j, part := range splitUnits(line.Quantity, by) {
 			if part > 0 {
-				legs = append(legs, ledger.Pair(pool, g.handTo(w.Progress[j].Key, at), asset, part)...)
+				legs = append(legs, ledger.Pair(pool, g.handTo(by[j].Key, at), asset, part)...)
 			}
 		}
 	}
-	if err := g.postAll(ledger.Txn{Key: ledger.SubKey(x.key, "cache"), Kind: "cache", Tick: x.t, Fact: x.cause, Legs: ledger.Merge(legs)}); err != nil {
+	if err := g.postAll(ledger.Txn{Key: key, Kind: kind, Tick: t, Fact: cause, Legs: ledger.Merge(legs)}); err != nil {
 		return err
 	}
-	for _, p := range w.Progress {
+	for _, p := range by {
 		if p.N > 0 {
 			g.awaits(p.Key, at)
 		}
@@ -504,10 +509,8 @@ func (x effect) standing() {
 		fi = -1
 	}
 	key := standingKey(fi, h)
-	gp := g.r.Growth.Params()
-	lo, hi := sheets.IntParam(gp, "standing-min"), sheets.IntParam(gp, "standing-max")
 	for _, c := range x.whom() {
-		c.C.AdjustStanding(key, x.e.Amount, lo, hi)
+		g.adjustStanding(c, key, x.e.Amount)
 		g.touchOnce(c)
 	}
 }
@@ -639,16 +642,9 @@ func (x effect) damage() error {
 		}
 	}
 	if kind == "" {
-		var open []string
-		for _, st := range p.Structures {
-			if row := g.r.structures[st.Kind]; row != nil && row.Station && !st.Closed() {
-				open = append(open, st.Kind)
-			}
-		}
-		if len(open) == 0 {
+		if kind = g.openStation(p, x.t); kind == "" {
 			return nil
 		}
-		kind = open[g.r.draw.Below(uint64(len(open)), structureDraw, draw.Int(int64(p.N)), draw.Int(x.t/sheets.TicksPerDay))]
 	}
 	if g.stewarded(p) {
 		return nil
@@ -657,12 +653,7 @@ func (x effect) damage() error {
 	if points <= 0 {
 		points = g.r.Settle.TroubleDamage
 	}
-	closed := p.Damage(kind, points)
-	st := p.Get(kind)
-	_, err := g.worldFact(p.Hex, "structure.damaged", []fact.Ref{arcRef(x.a.ID), arc.SettlementRef(p.N)}, []fact.ID{x.cause},
-		append([]fact.Datum{fact.S("structure", kind), fact.N("points", points), fact.N("condition", st.Condition), fact.B("closed", closed),
-			fact.N("settlement", int64(p.N))}, fact.At(p.Hex)...)...)
-	return err
+	return g.damaged(p, kind, points, x.a.Template, []fact.ID{x.cause}, arcRef(x.a.ID))
 }
 
 // stewarded reports whether a member of the guild running a place is a

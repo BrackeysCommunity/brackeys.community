@@ -57,8 +57,8 @@ test("the strip draws the fixture's point: the board's points, the mark here, th
     "It is set in chat, and its Circuit machine commits it here.",
     "What a point holds lapses after 3 world days unless the pattern is solved.",
     "Clues found",
-    "Point B's setting is point A's turned on 2 times, round past the last back to #0.",
-    "Point C holds the same setting as point B.",
+    "Point B is set 2 values past point A.",
+    "Point C holds the same value as point B.",
   ]);
 });
 
@@ -125,7 +125,7 @@ test("a pattern's facts read as lines, each number with its unit", () => {
     "Point B of the pattern now holds #0. The signal stops at point A.",
     "The pattern answered wrong: +340 threat surged around it.",
     "The pattern is solved.",
-    "Clue found: Point C's setting is point A's turned on 1 time, round past the last back to #0.",
+    "Clue found: Point C is set 1 value past point A.",
   ]);
   for (const t of lines) expect(bareNumbers(t), t).toEqual([]);
 });
@@ -138,22 +138,18 @@ test("every clue a board can give reads in its point letters", () => {
     clueLine(clue("live", 1, 0, 1)),
     clueLine(clue("live", 2, 0, 0)),
     clueLine(clue("missing", 1, 3, 0)),
-    clueLine(clue("missing", 2, 2, 0)),
-    clueLine(clue("near", 1, 0, 2), 6),
-    clueLine(clue("near", 5, 0, 1), 6),
-    clueLine(clue("near", 3, 0, 0), 6),
+    clueLine(clue("near", 1, 0, 2)),
+    clueLine(clue("other", 1, 0, 2)),
   ];
   expect(lines).toEqual([
     "Point C comes before point A.",
-    "Point C holds the same setting as point B.",
-    "Point D faces #5.",
+    "Point C holds the same value as point B.",
+    "Point D faces south-east (#5).",
     "Point B's run is live.",
     "Point C's run is dead.",
-    "The missing one lies from point B to point D.",
-    "The missing one is point C.",
-    "The hidden one lies from point A to point D.",
-    "The hidden one lies from point E to point F.",
-    "The hidden one is point D.",
+    "The gap lies from point B to point D.",
+    "The hidden point is within 2 points of point B.",
+    "It says something of the pattern.",
   ]);
   for (const t of lines) expect(bareNumbers(t), t).toEqual([]);
 });
@@ -169,7 +165,7 @@ test("points are lettered A onward, and a held value reads by its kind", () => {
     "BA",
   ]);
   expect(heldLine("state", 2)).toBe("holds setting #2");
-  expect(heldLine("alignment", 4)).toBe("faces #4");
+  expect(heldLine("alignment", 4)).toBe("faces south-west (#4)");
   expect(heldLine("completion", 1)).toBe("is raised");
   expect(heldLine("constellation", 0)).toBe("is found");
   expect(heldLine("constellation", 1)).toBe("is activated");

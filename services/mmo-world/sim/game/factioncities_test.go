@@ -1,6 +1,7 @@
 package game
 
 import (
+	"slices"
 	"testing"
 
 	"jams.team/mmo-world/sim/craft"
@@ -11,8 +12,8 @@ import (
 )
 
 // readyHolding makes faction fi's seat a holding that may become its city:
-// defended, prosperous long enough and a faction stocked to build it. It
-// returns the region.
+// defended, prosperous long enough, held long enough and a faction stocked
+// to build it. It returns the region.
 func readyHolding(t *testing.T, g *Game, fi int) int {
 	t.Helper()
 	f := &g.World.Factions[fi]
@@ -23,7 +24,18 @@ func readyHolding(t *testing.T, g *Game, fi int) int {
 	g.World.Regions[r].Defence = g.fcp("faction-city-defence")
 	f.Stock = g.fcp("faction-city-stock")
 	setProsper(g, r, g.sp("city-prosperity-days"))
+	holdFor(g, r, fi, g.fcp("faction-city-days"))
 	return r
+}
+
+// holdFor sets how many days faction fi has held region r.
+func holdFor(g *Game, r, fi int, days int64) {
+	i, ok := slices.BinarySearchFunc(g.Story.Streaks, r, streakRegion)
+	if !ok {
+		g.Story.Streaks = slices.Insert(g.Story.Streaks, i, Streak{Region: r})
+	}
+	g.Story.Streaks[i].Holder = fi
+	g.Story.Streaks[i].Held = days
 }
 
 // TestFactionCityOncePerFaction: a holding held long enough, defended,
@@ -38,10 +50,12 @@ func TestFactionCityOncePerFaction(t *testing.T) {
 	g.World.Factions[fi].Archetype = "guild"
 	r := readyHolding(t, g, fi)
 	days := g.fcp("faction-city-days")
+	holdFor(g, r, fi, days-1)
 	if err := g.factionCitiesDay(days - 1); err != nil || len(g.Story.Cities) != 0 {
 		t.Fatalf("a holding too young opened a city: %v", err)
 	}
 	places := len(g.Places)
+	holdFor(g, r, fi, days)
 	if err := g.factionCitiesDay(days); err != nil {
 		t.Fatal(err)
 	}

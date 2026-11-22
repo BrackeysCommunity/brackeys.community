@@ -2,6 +2,7 @@ import type * as api from "./api.ts";
 import type { Card } from "./card.ts";
 import type { ForumStore } from "./forum.ts";
 import type { Lexicon } from "./lexicon.ts";
+import { editDue, LiveCards } from "./live.ts";
 import { huntClosedCard, huntPostCard } from "./screens/hunt.ts";
 import type { HuntPost } from "./world.ts";
 
@@ -75,26 +76,24 @@ export function huntCardOf(h: HuntPost, lex: Lexicon, context?: string): Card {
 }
 
 export class HuntPoster {
+  private readonly cards: LiveCards<Posted>;
+
   constructor(
     private readonly world: { hunts(): Promise<api.HuntBoard> },
     private readonly lex: Lexicon,
-    private readonly store: ForumStore,
-    private readonly sink: ChannelSink,
+    store: ForumStore,
+    sink: ChannelSink,
     private readonly prefix = "mmo-bot:hunt:",
     private readonly log: (line: string) => void = console.log,
     private readonly context?: string,
-  ) {}
-
-  private async posted(id: string): Promise<Posted | null> {
-    const raw = await this.store.get(this.prefix + id);
-    return raw ? (JSON.parse(raw) as Posted) : null;
+  ) {
+    this.cards = new LiveCards(store, sink, `${prefix}open`, log, "hunts");
   }
 
   /** Brings the channel level with the world's hunts; returns how many cards it posted or edited. */
   async poll(): Promise<number> {
     const b = await this.world.hunts();
-    const openKey = `${this.prefix}open`;
-    const before: string[] = JSON.parse((await this.store.get(openKey)) ?? "[]");
+    const before = await this.cards.open();
     const still = new Set<string>();
     let changed = 0;
     for (const h of b.hunts as HuntPost[]) {
@@ -106,41 +105,24 @@ export class HuntPoster {
       }
     }
     // A hunt cleared from the world keeps its card as last edited.
-    for (const id of before) if (!still.has(id)) await this.store.del(this.prefix + id);
-    await this.store.set(openKey, JSON.stringify([...still].sort()));
+    for (const id of before) if (!still.has(id)) await this.cards.drop(this.prefix + id);
+    await this.cards.setOpen(still);
     return changed;
   }
 
   private async show(h: HuntPost, b: api.HuntBoard): Promise<boolean> {
     const key = this.prefix + h.id;
-    const was = await this.posted(h.id);
+    const was = await this.cards.get(key);
     const shown = huntShown(h);
     const card = huntCardOf(h, this.lex, this.context);
+    const next: Posted = { message: was?.message ?? "", tick: b.tick, shown, closed: h.closed };
     if (!was) {
-      // Marked posting first: a crash or a failed write after the post
-      // must not post it twice in a public channel.
-      await this.store.set(key, JSON.stringify({ message: "", tick: b.tick, shown }));
-      let message: string;
-      try {
-        message = await this.sink.post(card);
-      } catch (e) {
-        await this.store.del(key);
-        throw e;
-      }
-      await this.store.set(key, JSON.stringify({ message, tick: b.tick, shown, closed: h.closed }));
+      await this.cards.post(key, next, card);
       return true;
     }
     if (!was.message || was.closed || was.shown === shown) return false;
-    if (b.tick - was.tick < Math.max(1, b.every)) return false;
-    if (!(await this.sink.edit(was.message, card))) {
-      await this.store.set(key, JSON.stringify({ ...was, closed: true }));
-      return false;
-    }
-    await this.store.set(
-      key,
-      JSON.stringify({ message: was.message, tick: b.tick, shown, closed: h.closed }),
-    );
-    return true;
+    if (!editDue(was.tick, b.tick, b.every)) return false;
+    return this.cards.edit(key, was.message, card, next, undefined, { ...was, closed: true });
   }
 
   start(): () => void {

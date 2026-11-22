@@ -239,16 +239,20 @@ func TestFilter(t *testing.T) {
 	if service.Sees(g, novice, far) || !service.Sees(g, novice, novice.C.At) || !service.Sees(g, master, away) {
 		t.Fatal("what a viewer may be shown of the map")
 	}
-	facts := service.SeenFacts(novice.C.ID, []api.Fact{{Kind: "lesson.taken", Subjects: []api.Ref{{Kind: "character", ID: novice.C.ID}, {Kind: "character", ID: master.C.ID}, {Kind: "guild", ID: "g-1"}}}})
+	facts := service.SeenFacts(g, novice.C.ID, []api.Fact{{Kind: "lesson.taken", Subjects: []api.Ref{{Kind: "character", ID: novice.C.ID}, {Kind: "character", ID: master.C.ID}, {Kind: "guild", ID: "g-1"}}}})
 	if len(facts) != 1 || len(facts[0].Subjects) != 2 || facts[0].Subjects[0].ID != novice.C.ID || facts[0].Subjects[1].Kind != "guild" {
 		t.Fatalf("a fact as its viewer may read it: %+v", facts)
 	}
 	thread := func(owner string) api.Fact {
 		return api.Fact{Kind: "thread.cast", Subjects: []api.Ref{{Kind: "arc", ID: "a-1"}, {Kind: "character", ID: owner}}}
 	}
-	facts = service.SeenFacts(novice.C.ID, []api.Fact{thread(master.C.ID), thread(novice.C.ID), {Kind: "arc.ended"}})
+	facts = service.SeenFacts(g, novice.C.ID, []api.Fact{thread(master.C.ID), thread(novice.C.ID), {Kind: "arc.ended"}})
 	if len(facts) != 2 || facts[0].Kind != "thread.cast" || facts[0].Subjects[1].ID != novice.C.ID || facts[1].Kind != "arc.ended" {
 		t.Fatalf("threads as a viewer may read them: %+v", facts)
+	}
+	facts = service.SeenFacts(g, novice.C.ID, []api.Fact{{Kind: "lesson.taken", Data: []api.Datum{{Key: "master", S: master.C.ID}, {Key: "novice", S: novice.C.ID}, {Key: "skill", S: "herbalism"}}}})
+	if len(facts) != 1 || len(facts[0].Data) != 2 || facts[0].Data[0].Key != "novice" || facts[0].Data[1].Key != "skill" {
+		t.Fatalf("a fact's data as its viewer may read it: %+v", facts)
 	}
 }
 

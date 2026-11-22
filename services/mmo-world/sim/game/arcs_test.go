@@ -138,7 +138,7 @@ func pending(g *Game, kind string) []world.Action {
 // holder's budget, held out of the day's faction orders, filled by
 // deliveries at the seat and paid to the deliverers by what they gave;
 // the besiegers' unfilled escrow goes back, the walls begin and the
-// garrison's win fortifies the holding (MM6's example goal, GDD 12.2).
+// garrison's win fortifies the holding (GDD 12.2).
 func TestSupplyTheGarrison(t *testing.T) {
 	g := guardGame(t)
 	a := dirCast(t, g, "the-siege", siegeCast(t, g))

@@ -120,8 +120,7 @@ export function toMessage(message: Message): MessageJson {
     content: message.content ?? "",
     embeds: message.embeds.map(toApiEmbed),
     components,
-    // Never ping anyone from a bot answer, whatever a title contains, but
-    // the roles it names.
+    // Ping nobody from a bot answer, whatever its text contains, except mentionRoles.
     allowedMentions: message.mentionRoles?.length
       ? { parse: [], roles: [...new Set(message.mentionRoles)] }
       : { parse: [] },

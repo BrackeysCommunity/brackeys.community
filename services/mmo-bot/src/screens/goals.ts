@@ -23,7 +23,7 @@ import {
   ROW_MOST,
   SELECT_MOST,
 } from "./common.ts";
-import { backMaterial, namedSide } from "./story.ts";
+import { namedSide, sideButtons } from "./story.ts";
 
 /**
  * /goals (GDD 11, 17): the notice board of the settlement you stand in,
@@ -568,25 +568,8 @@ export function goalCard(
       btn("Deliver the haul", "g-deliver", target(":", x.id, "haul", 1), v, { style: "success" }),
     );
   const side = x.side && namedSide(x.side, lex);
-  if (side && x.state === "live" && side.filled < side.mark) {
-    if (side.wants !== "goods") {
-      if (!side.mine)
-        acts.push(btn(buttonLabel(`Back: ${side.title}`), "s-decl", x.id, v, { style: "success" }));
-    } else {
-      const material = backMaterial(side, { at: o.at, purse: o.purse, goals: [x] }, lex);
-      const there = !side.atHex || (side.atHex.q === o.at.q && side.atHex.r === o.at.r);
-      if (material && there)
-        acts.push(
-          btn(
-            buttonLabel(`Back: give ${lex.material(material).toLowerCase()}`),
-            "s-give",
-            target(":", x.id, material),
-            v,
-            { style: "success" },
-          ),
-        );
-    }
-  }
+  if (side && x.state === "live" && side.filled < side.mark)
+    acts.push(...sideButtons(side, v, lex, { at: o.at, purse: o.purse, goals: [x] }));
   if (side) acts.push(btn("The arc", "s-back", x.id, v));
   if (x.canPledge)
     for (const c of [10, 100])

@@ -206,13 +206,13 @@ func actOn(ctx context.Context, d doer, req api.ActionRequest, check bool,
 // hostAct is a write from the Activity, with the reply's facts as its
 // character may read them. A pick window is closed only by the gateway's
 // clock, which names no row version.
-func hostAct(ctx context.Context, d doer, req api.ActionRequest, check bool) (api.ActionReply, *api.Refusal, error) {
+func hostAct(ctx context.Context, d doer, w held, req api.ActionRequest, check bool) (api.ActionReply, *api.Refusal, error) {
 	if check && req.Kind == api.ActPartyWindow {
 		return api.ActionReply{}, clockOnly, nil
 	}
 	rep, ref, err := actOn(ctx, d, req, check, playerCommand)
 	if err == nil && ref == nil {
-		rep.Facts = SeenFacts(rep.Character.ID, rep.Facts)
+		err = hold(ctx, w, func(g *game.Game) { rep.Facts = SeenFacts(g, rep.Character.ID, rep.Facts) })
 	}
 	return rep, ref, err
 }
@@ -222,7 +222,7 @@ func hostAct(ctx context.Context, d doer, req api.ActionRequest, check bool) (ap
 // check is false only for a write the service itself makes for a
 // character, which names no row version.
 func (s *Server) Act(ctx context.Context, req api.ActionRequest, check bool) (api.ActionReply, *api.Refusal, error) {
-	return hostAct(ctx, s, req, check)
+	return hostAct(ctx, s, s, req, check)
 }
 
 // Armed are the countdowns running, for whoever must end them.
@@ -254,7 +254,7 @@ func (h LocalHost) View(ctx context.Context, characterID string, v api.Viewer, p
 }
 
 func (h LocalHost) Act(ctx context.Context, req api.ActionRequest, check bool) (api.ActionReply, *api.Refusal, error) {
-	return hostAct(ctx, h.l, req, check)
+	return hostAct(ctx, h.l, h, req, check)
 }
 
 func (h LocalHost) Armed(ctx context.Context) ([]api.ArmedMachine, error) { return armedIn(ctx, h) }

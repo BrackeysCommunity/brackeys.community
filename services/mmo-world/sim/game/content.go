@@ -244,6 +244,8 @@ func (g *Game) Teleport(c *Char, h hex.Hex) error {
 		return err
 	}
 	c.C.At = h
+	// Callers stand on the tile left behind.
+	c.Callers = nil
 	g.Pending = append(g.Pending, world.Action{Kind: world.ActDiscover, Hex: h, By: char.Ref(c.C.ID)})
 	return nil
 }

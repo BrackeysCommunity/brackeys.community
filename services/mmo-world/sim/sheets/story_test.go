@@ -40,7 +40,7 @@ func TestStorySheets(t *testing.T) {
 		"raid-mark": 7, "standing-for": 20, "standing-against": 60, "shunned-below": -50,
 		"memory-kept": 512, "stocked-wall-defence": 20, "chronicle-min-weight": 60,
 	} {
-		if got := b.StoryParam(id); got != want {
+		if got := sheets.IntParam(b.StoryParams, id); got != want {
 			t.Errorf("story.params %s is %d, want %d", id, got, want)
 		}
 	}

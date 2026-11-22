@@ -383,17 +383,15 @@ type Lexicon struct {
 // Numbers are sheet values the cards state, so a retuned sheet never
 // leaves a card saying the old number.
 type Numbers struct {
-	AmbushLine   int64 `json:"ambushLine"`   // threat
-	OverrunLine  int64 `json:"overrunLine"`  // threat
-	CrawlTicks   int64 `json:"crawlTicks"`   // ticks
-	WoundedTicks int64 `json:"woundedTicks"` // ticks a wound adds to a long action
-	FreeTicks    int64 `json:"freeTicks"`    // journey ticks before provisions are eaten
-	StepMin      int64 `json:"stepMin"`      // ticks a tile
-	StepMax      int64 `json:"stepMax"`      // ticks a tile
-	BeatsMin     int64 `json:"beatsMin"`     // beats in a first-tier encounter
-	BeatsMax     int64 `json:"beatsMax"`     // beats in a first-tier encounter
-	SideMark     int64 `json:"sideMark"`     // units a goods or beats side asks per active character
-	RaidMark     int64 `json:"raidMark"`     // defence a raid needs per active character
-	ChronicleMin int64 `json:"chronicleMin"` // the least weight a chronicle line has
-	SeasonDays   int64 `json:"seasonDays"`   // world days a season lasts after season zero
+	AmbushLine     int64 `json:"ambushLine"`     // threat
+	OverrunLine    int64 `json:"overrunLine"`    // threat
+	CrawlTicks     int64 `json:"crawlTicks"`     // ticks
+	WoundedTicks   int64 `json:"woundedTicks"`   // ticks a wound adds to a long action
+	FreeTicks      int64 `json:"freeTicks"`      // journey ticks before provisions are eaten
+	StepMin        int64 `json:"stepMin"`        // ticks a tile
+	StepMax        int64 `json:"stepMax"`        // ticks a tile
+	BeatsMin       int64 `json:"beatsMin"`       // beats in a first-tier encounter
+	BeatsMax       int64 `json:"beatsMax"`       // beats in a first-tier encounter
+	RuinTroubles   int64 `json:"ruinTroubles"`   // troubles lost in a season that ruin a guild's settlement
+	CityStationCap int64 `json:"cityStationCap"` // the tier a city's stations rise to
 }

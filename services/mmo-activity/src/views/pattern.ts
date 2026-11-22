@@ -2,16 +2,7 @@ import "./pattern.css";
 import type { PatternPoint } from "../api.ts";
 import { el, lines } from "../dom.ts";
 import { plural } from "../units.ts";
-import { clueLine, heldLine, name, pointName, sentence } from "../words.ts";
-
-const KINDS: Record<string, string> = {
-  order: "an order",
-  state: "settings",
-  alignment: "facings",
-  connection: "live runs",
-  completion: "the missing one",
-  constellation: "the hidden one",
-};
+import { clueLine, heldLine, name, patternKind, pointName } from "../words.ts";
 
 /**
  * The strip over a pattern's point (GDD 4.13): the board's points, what
@@ -28,12 +19,7 @@ export function patternParts(p: PatternPoint, open: boolean): HTMLDetailsElement
     if (i === p.point) pip.setAttribute("aria-current", "location");
     pips.append(pip);
   }
-  const summary = el(
-    "summary",
-    {},
-    el("h2", { text: `Pattern: ${KINDS[p.kind] ?? sentence(p.kind)}` }),
-    pips,
-  );
+  const summary = el("summary", {}, el("h2", { text: `Pattern: ${patternKind(p.kind)}` }), pips);
   const which =
     p.points > 1
       ? `This ${place} is point ${here} of points A to ${pointName(p.points - 1)}.`
@@ -50,7 +36,7 @@ export function patternParts(p: PatternPoint, open: boolean): HTMLDetailsElement
     : "";
   const clues = p.clues ?? [];
   const found = clues.length
-    ? el("ul", { class: "why" }, ...clues.map((f) => el("li", { text: clueLine(f, p.points) })))
+    ? el("ul", { class: "why" }, ...clues.map((f) => el("li", { text: clueLine(f) })))
     : el("p", { class: "muted", text: "None yet. They lie on tiles about the pattern." });
   const details = el(
     "details",

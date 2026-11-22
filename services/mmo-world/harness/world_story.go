@@ -15,16 +15,9 @@ import (
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// The World run with the director on (GDD 18.4, 12.4): the World run's
-// worlds as games nobody plays, left alone for worldDays, so every arc
-// and trouble the director casts goes unbacked. The World run's own rows
-// are measured on worlds without it.
+// The World run with the director on (GDD 18.4, 12.4): unplayed worlds left for worldDays, so every arc and trouble goes unbacked.
 //
-// structural: measurements, not rules. The director's day is timed over
-// weeks of storyWeek day turns, each turn the least of storyReps copies
-// after one that warms the generator: a single day reads whatever was cast
-// or ended on it. The row compares the last week with the week the memory
-// ring has filled, since the first week reads a ring that is nearly empty.
+// structural: measurements. The director's day is timed per storyWeek of day turns, each the least of storyReps copies after a warm-up; the last week is compared with the first week the memory ring is full.
 const (
 	storyWeek = 7
 	storyReps = 5

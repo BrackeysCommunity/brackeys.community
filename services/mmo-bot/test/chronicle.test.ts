@@ -21,10 +21,8 @@ const lex = new Lexicon({
     stepMax: 3,
     beatsMin: 3,
     beatsMax: 6,
-    sideMark: 25,
-    raidMark: 7,
-    chronicleMin: 60,
-    seasonDays: 42,
+    ruinTroubles: 3,
+    cityStationCap: 3,
   },
 });
 const names = lex.goodsNames();

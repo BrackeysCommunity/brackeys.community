@@ -58,6 +58,12 @@ func (g *Game) raidTarget(p *Place, t int64) string {
 	if p.Open(structureWall) {
 		return structureWall
 	}
+	return g.openStation(p, t, draw.Str(raidPart))
+}
+
+// openStation is one of a place's open stations, drawn per place and day,
+// or "" when none stands open.
+func (g *Game) openStation(p *Place, t int64, parts ...draw.Part) string {
 	var open []string
 	for _, st := range p.Structures {
 		if row := g.r.structures[st.Kind]; row != nil && row.Station && !st.Closed() {
@@ -67,18 +73,19 @@ func (g *Game) raidTarget(p *Place, t int64) string {
 	if len(open) == 0 {
 		return ""
 	}
-	k := g.r.draw.Below(uint64(len(open)), structureDraw, draw.Int(int64(p.N)), draw.Int(t/sheets.TicksPerDay), draw.Str(raidPart))
+	k := g.r.draw.Below(uint64(len(open)), structureDraw, append([]draw.Part{draw.Int(int64(p.N)), draw.Int(t / sheets.TicksPerDay)}, parts...)...)
 	return open[k]
 }
 
-// damaged takes points off one structure of a place and says so.
-func (g *Game) damaged(p *Place, kind string, points int64, by string, causes []fact.ID) error {
+// damaged takes points off one structure of a place and says so; subjects
+// come before the settlement.
+func (g *Game) damaged(p *Place, kind string, points int64, by string, causes []fact.ID, subjects ...fact.Ref) error {
 	closed := p.Damage(kind, points)
 	st := p.Get(kind)
 	if st == nil {
 		return nil
 	}
-	_, err := g.worldFact(p.Hex, "structure.damaged", []fact.Ref{arc.SettlementRef(p.N)}, causes,
+	_, err := g.worldFact(p.Hex, "structure.damaged", append(slices.Clip(subjects), arc.SettlementRef(p.N)), causes,
 		append([]fact.Datum{fact.S("structure", kind), fact.N("points", points), fact.N("condition", st.Condition), fact.B("closed", closed),
 			fact.S("by", by), fact.N("settlement", int64(p.N))}, fact.At(p.Hex)...)...)
 	return err

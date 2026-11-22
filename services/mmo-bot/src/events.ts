@@ -3,15 +3,15 @@ import type { Card } from "./card.ts";
 import type { ForumStore } from "./forum.ts";
 import { type ChannelSink, pollEvery } from "./hunts.ts";
 import type { Lexicon } from "./lexicon.ts";
+import { editDue, LiveCards } from "./live.ts";
 import { factNum, factStr } from "./screens/common.ts";
 import { eventCard } from "./screens/story.ts";
 
 /**
- * The events channel (GDD 17.2): each story event posted once, in the
- * order the world wrote it, the last one posted kept in the store. A
- * raid's start mentions the opt-in alarm role and nothing else does. A
- * trouble's card and an arc stage's card are edited as they fill, at most
- * once a world tick, until the stage ends.
+ * The events channel (GDD 17.2): each story event posted once, in the order
+ * the world wrote it. A raid's start alone mentions the opt-in alarm role. A
+ * trouble's or stage's card is edited as it fills, no more often than the
+ * hunt board's edit interval, until the stage ends.
  */
 
 export const EVENTS_POLL_MS = 10_000;
@@ -86,6 +86,7 @@ export function eventShown(ev: api.StoryEvent): string {
 
 export class EventsPoster {
   private readonly card: (ev: api.StoryEvent) => Card | null;
+  private readonly cards: LiveCards<Live>;
 
   constructor(
     private readonly world: EventsWorld,
@@ -99,14 +100,11 @@ export class EventsPoster {
     card?: (ev: api.StoryEvent) => Card | null,
   ) {
     this.card = card ?? ((ev) => eventCard(ev, lex));
+    this.cards = new LiveCards(store, sink, `${prefix}open`, log, "events");
   }
 
   private get lastKey(): string {
     return `${this.prefix}last`;
-  }
-
-  private get openKey(): string {
-    return `${this.prefix}open`;
   }
 
   private liveKey(arc: string): string {
@@ -179,7 +177,6 @@ export class EventsPoster {
       return;
     }
     const arc = arcOf(ev);
-    const key = this.liveKey(arc);
     const rec: Live = {
       message: "",
       at: ev.fact.tick,
@@ -188,27 +185,12 @@ export class EventsPoster {
       ev,
       mention,
     };
-    await this.store.set(key, JSON.stringify(rec));
-    await this.track(arc, true);
-    try {
-      rec.message = await this.sink.post(card, mention);
-    } catch (e) {
-      await this.store.del(key);
-      throw e;
-    }
-    await this.store.set(key, JSON.stringify(rec));
+    await this.cards.post(this.liveKey(arc), rec, card, mention, arc);
   }
 
-  private async track(arc: string, on: boolean): Promise<void> {
-    const open = new Set<string>(JSON.parse((await this.store.get(this.openKey)) ?? "[]"));
-    if (on) open.add(arc);
-    else open.delete(arc);
-    await this.store.set(this.openKey, JSON.stringify([...open].sort()));
-  }
-
-  /** Edits the live cards whose stage moved, and lets go of those whose stage is over. */
+  /** Edits the live cards whose sides changed, and lets go of those whose stage is over or moved on. */
   private async refresh(): Promise<number> {
-    const open: string[] = JSON.parse((await this.store.get(this.openKey)) ?? "[]");
+    const open = await this.cards.open();
     if (!open.length) return 0;
     const [arcs, clock] = await Promise.all([this.world.arcs(), this.world.hunts()]);
     const byId = new Map([...arcs.ended, ...arcs.open].map((a) => [a.id, a]));
@@ -217,10 +199,7 @@ export class EventsPoster {
       try {
         const r = await this.edit(id, byId.get(id), clock);
         if (r.edited) edited++;
-        if (r.done) {
-          await this.store.del(this.liveKey(id));
-          await this.track(id, false);
-        }
+        if (r.done) await this.cards.drop(this.liveKey(id), id);
       } catch (e) {
         this.log(`[events] ${id}: ${String(e)}`);
       }
@@ -233,8 +212,7 @@ export class EventsPoster {
     a: api.Arc | undefined,
     clock: Pick<api.HuntBoard, "tick" | "every">,
   ): Promise<{ edited: boolean; done: boolean }> {
-    const raw = await this.store.get(this.liveKey(id));
-    const rec = raw ? (JSON.parse(raw) as Live) : null;
+    const rec = await this.cards.get(this.liveKey(id));
     // A card whose id never reached the store is left as it was posted.
     if (!rec?.message) return { edited: false, done: true };
     // The arc is gone, or on to its next stage, whose own card shows it.
@@ -243,11 +221,11 @@ export class EventsPoster {
     const ev = refreshed(rec.ev, a);
     const shown = eventShown(ev);
     if (shown === rec.shown) return { edited: false, done };
-    if (clock.tick - rec.at < Math.max(1, clock.every)) return { edited: false, done: false };
+    if (!editDue(rec.at, clock.tick, clock.every)) return { edited: false, done: false };
     const card = this.card(ev);
-    if (!card || !(await this.sink.edit(rec.message, card, rec.mention)))
+    const next = { ...rec, at: clock.tick, shown, ev };
+    if (!card || !(await this.cards.edit(this.liveKey(id), rec.message, card, next, rec.mention)))
       return { edited: false, done: true };
-    await this.store.set(this.liveKey(id), JSON.stringify({ ...rec, at: clock.tick, shown, ev }));
     return { edited: true, done };
   }
 

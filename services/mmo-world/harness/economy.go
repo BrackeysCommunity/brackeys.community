@@ -361,28 +361,20 @@ func soak(b *sheets.Book, pop population, days int64) (economyResult, error) {
 	ctx := context.Background()
 	res := economyResult{size: size}
 	end := days * sheets.TicksPerDay
-	var due []*agent.Player
+	var playing []*agent.Player
 	stocked := map[string]int64{}
+	busy := longBusy(g)
 	for t := int64(0); t < end; t++ {
-		due = due[:0]
+		playing = playing[:0]
 		for i, p := range players {
 			if t < arrive[i] || (i >= main && t >= quietDays*sheets.TicksPerDay) {
 				continue
 			}
-			if (t+int64(i))%workPeriod != 0 || (t+int64(i)*wakeSpread)%sheets.TicksPerDay >= awake {
-				continue
+			if due(i, t, p, busy) {
+				playing = append(playing, p)
 			}
-			if e, ok := p.Policy.(*agent.Earner); ok && e.Role == agent.Casual && (t+int64(i)*casualSpread)%casualEvery >= casualSession {
-				continue
-			}
-			if p.Character != "" {
-				if c := g.Char(p.Character); c != nil && c.Long != nil && c.Fight == nil {
-					continue
-				}
-			}
-			due = append(due, p)
 		}
-		if err := script.TurnFor(ctx, t, due); err != nil {
+		if err := script.TurnFor(ctx, t, playing); err != nil {
 			return res, err
 		}
 		if _, err := g.Advance(); err != nil {
@@ -420,6 +412,31 @@ func soak(b *sheets.Book, pop population, days int64) (economyResult, error) {
 	res.digest = sum.String()
 	res.elapsed = time.Since(start)
 	return res, nil
+}
+
+// due is whether player i plays rel ticks into its run: every workPeriod
+// ticks while awake, a casual player only within its sessions, and never
+// while busy holds of it.
+func due(i int, rel int64, p *agent.Player, busy func(*agent.Player) bool) bool {
+	if (rel+int64(i))%workPeriod != 0 || (rel+int64(i)*wakeSpread)%sheets.TicksPerDay >= awake {
+		return false
+	}
+	if e, ok := p.Policy.(*agent.Earner); ok && e.Role == agent.Casual && (rel+int64(i)*casualSpread)%casualEvery >= casualSession {
+		return false
+	}
+	return !busy(p)
+}
+
+// longBusy is whether a player's character is on a long action outside a
+// fight, which a turn could not interrupt.
+func longBusy(g *game.Game) func(*agent.Player) bool {
+	return func(p *agent.Player) bool {
+		if p.Character == "" {
+			return false
+		}
+		c := g.Char(p.Character)
+		return c != nil && c.Long != nil && c.Fight == nil
+	}
 }
 
 // unplayed is the last starting settlement no guild runs: the second

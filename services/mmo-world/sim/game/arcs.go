@@ -181,10 +181,10 @@ func (g *Game) openArcs(scope string) []*Arc {
 	return out
 }
 
-// storyDay is the director's world day, in order: the streaks, the season,
-// the stages due; the troubles' standing damage, cities, faction cities and
-// pattern boards; the spreading fronts and the occasions run out, then
-// casting by scope: settlements, characters, regions.
+// storyDay is the director's world day: the season and the stages due, then
+// each day's upkeep (troubles, cities, faction cities, patterns, fronts,
+// occasions, what is kept), then casting by scope: settlements, characters,
+// regions.
 func (g *Game) storyDay(t int64) error {
 	if g.Story == nil {
 		return nil
@@ -229,18 +229,8 @@ func (g *Game) storyTick(t int64) error {
 		if a.Stage >= len(a.Stages) || a.Stages[a.Stage].over() {
 			continue
 		}
-		st := &a.Stages[a.Stage]
-		won := ""
-		for _, sr := range st.Sides {
-			if x := g.GoalOf(sr.Goal); x != nil && x.State == goal.Done {
-				won = sr.Side
-				break
-			}
-		}
-		if won == "" && g.huntDown(a.Hunt) {
-			won = sideHold
-		}
-		if won == "" && st.Due > t {
+		won := g.stageWinner(a)
+		if won == "" && a.Stages[a.Stage].Due > t {
 			continue
 		}
 		if err := g.endStage(a, won, t); err != nil {
@@ -248,6 +238,20 @@ func (g *Game) storyTick(t int64) error {
 		}
 	}
 	return nil
+}
+
+// stageWinner is the side that has won an arc's current stage: the one
+// whose goal is met, else the hold when its raid's hunt was slain.
+func (g *Game) stageWinner(a *Arc) string {
+	for _, sr := range a.Stages[a.Stage].Sides {
+		if x := g.GoalOf(sr.Goal); x != nil && x.State == goal.Done {
+			return sr.Side
+		}
+	}
+	if g.huntDown(a.Hunt) {
+		return sideHold
+	}
+	return ""
 }
 
 // huntDown reports whether a trouble's hunt was brought down.
@@ -259,12 +263,12 @@ func (g *Game) huntDown(id string) bool {
 	return i >= 0 && g.Hunts[i].H.Slain
 }
 
-// stagesDue lapses every stage whose time is up; one that starts already
-// due lapses with it.
+// stagesDue ends every stage whose time is up, won if a side was met or
+// its hunt fell meanwhile; one that starts already due lapses with it.
 func (g *Game) stagesDue(t int64) error {
 	for _, a := range g.openArcs("") {
 		for !a.over() && a.Stage < len(a.Stages) && !a.Stages[a.Stage].over() && a.Stages[a.Stage].Due <= t {
-			if err := g.endStage(a, "", t); err != nil {
+			if err := g.endStage(a, g.stageWinner(a), t); err != nil {
 				return err
 			}
 		}
@@ -434,9 +438,15 @@ func (g *Game) candidateFor(tpl arc.Template, cast arc.Cast, seat hex.Hex) arc.C
 }
 
 // castFrom casts a candidate: the arc opens and its first stage starts.
-// A slot its scope has no room in is refused first.
+// A world arc with fewer of the season's stage bands left than it has
+// stages, or a slot its scope has no room in, is refused first.
 func (g *Game) castFrom(tpl arc.Template, c arc.Candidate, by string, t int64) (*Arc, error) {
 	scope := tpl.Row.Scope
+	if scope == arc.ScopeWorld {
+		if err := g.bandsLeft(tpl, t); err != nil {
+			return nil, err
+		}
+	}
 	if err := g.slotFree(scope, c); err != nil {
 		return nil, err
 	}
@@ -467,6 +477,25 @@ func (g *Game) castFrom(tpl arc.Template, c arc.Candidate, by string, t int64) (
 		return nil, err
 	}
 	return a, nil
+}
+
+// bandsLeft refuses a world arc, other than a finale, cast with fewer of
+// the season's stage bands ahead than it has stages.
+func (g *Game) bandsLeft(tpl arc.Template, t int64) error {
+	c, tb, ok := g.Season()
+	if row := g.arcRow(tpl.Row.ID); !ok || row == nil || row.Finale {
+		return nil
+	}
+	ahead := 0
+	for k := 0; tb.StageEnds(k) != 0; k++ {
+		if (c.Start+tb.StageEnds(k))*sheets.TicksPerDay > t {
+			ahead++
+		}
+	}
+	if ahead < len(tpl.Row.Stages) {
+		return refuse(SlotBusy, "too few of this season's stage bands are left for %s", tpl.Row.ID)
+	}
+	return nil
 }
 
 // wakeCast wakes a dormant NPC the arc casts (GDD 4.18).
@@ -503,8 +532,7 @@ func (g *Game) slotFree(scope string, c arc.Candidate) error {
 			return refuse(SlotBusy, "%s is the world's arc", open[0].ID)
 		}
 	case arc.Region:
-		p := g.pacing(arc.Region)
-		if slots := arc.RegionSlots(p.AtOnce, p.PerRegions, int64(len(g.World.Regions))); int64(len(open)) >= slots {
+		if slots := g.regionSlots(); int64(len(open)) >= slots {
 			return refuse(SlotBusy, "%d region arcs already run", len(open))
 		}
 		for _, a := range open {
@@ -528,6 +556,12 @@ func (g *Game) slotFree(scope string, c arc.Candidate) error {
 		}
 	}
 	return nil
+}
+
+// regionSlots is how many region arcs may run at once.
+func (g *Game) regionSlots() int64 {
+	p := g.pacing(arc.Region)
+	return arc.RegionSlots(p.AtOnce, p.PerRegions, int64(len(g.World.Regions)))
 }
 
 // arcClashes reports whether a candidate shares a region or a non-seat ref
@@ -621,10 +655,11 @@ func (g *Game) castSettlements(w *storyView, t int64) error {
 			continue
 		}
 		for _, o := range occasions[n] {
-			if g.r.draw.Percent(o.tpl.Row.Chance, occasionDraw, draw.Int(int64(n)), draw.Str(o.tpl.Row.ID), draw.Int(day)) {
-				if err := g.beginOccasion(o.tpl, o.c, t); err != nil {
-					return err
-				}
+			began, err := g.tryOccasion(o.tpl, o.c, day, t)
+			if err != nil {
+				return err
+			}
+			if began {
 				break
 			}
 		}
@@ -682,8 +717,7 @@ func (g *Game) unpend(c arc.Candidate) {
 // it clashes with no running region arc and its chance passes.
 func (g *Game) castRegions(w *storyView, t int64) error {
 	day := t / sheets.TicksPerDay
-	p := g.pacing(arc.Region)
-	slots := arc.RegionSlots(p.AtOnce, p.PerRegions, int64(len(g.World.Regions)))
+	slots := g.regionSlots()
 	for _, tpl := range g.r.Templates {
 		if int64(len(g.openArcs(arc.Region))) >= slots {
 			return nil
@@ -755,22 +789,36 @@ func (g *Game) startStage(a *Arc, t int64) error {
 	}
 	st := StageRun{Began: t, Due: g.stageDue(a, row, t)}
 	budgets := g.Budgets()
+	held := g.sideHelds(budgets)
+	left := make([]int64, len(budgets))
+	for n := range left {
+		left[n] = max(budgets[n]-g.bountyHeld(n)-held[n], 0)
+	}
+	from := g.heldFrom(a)
+	var users []int64
+	if a.Scope == arc.Settlement {
+		users = g.storyView().placeUsers()
+	}
 	board := g.arcBoard(a)
+	scope, members := goal.World, []string(nil)
+	if a.Scope == arc.Personal {
+		scope, members = goal.Personal, []string{a.Char}
+	}
 	for _, sd := range row.Sides {
-		mark := g.sideMark(a, sd, t)
+		mark := g.sideMark(a, sd, users, t)
 		sponsor, opponent := g.sideFactions(a, sd)
 		at, condAt := g.sideAt(a, sd)
-		reward := g.sideReward(a, mark, g.unitWorth(sd), budgets)
+		reward := g.sideReward(a, mark, g.unitWorth(sd), left)
+		spreadHeld(reward, from, budgets, left, -1)
+		for _, n := range from {
+			left[n] = max(left[n], 0)
+		}
 		issuer := goal.Ref{Kind: goal.ByFaction, ID: strconv.Itoa(sponsor)}
-		x := &Goal{Title: a.Template + ": " + sd.ID, Issuer: issuer, Scope: goal.World, Board: board, Reward: reward, Mode: goal.Pooled,
+		x := &Goal{Title: a.Template + ": " + sd.ID, Issuer: issuer, Scope: scope, Members: members, Board: board, Reward: reward, Mode: goal.Pooled,
 			Lifetime: goal.Ephemeral, Turnover: goal.Expire, Posted: t, Expires: st.Due + 1, State: goal.Live,
 			Cond: goal.Condition{Verb: goal.Back, Side: a.ID + sidePart + itoa(a.Stage) + sidePart + sd.ID, Count: mark, At: condAt}}
-		g.openGoal(x)
-		if reward > 0 {
-			k := ledger.SubKey("tick", i64(t), "arc", a.ID, itoa(a.Stage), sd.ID)
-			if err := g.post(ledger.Move(k, "side", t, ledger.FromFaction, goalPool(x.ID), ledger.Coin, reward)); err != nil {
-				return err
-			}
+		if err := g.postPool(x, ledger.SubKey("tick", i64(t), "arc", a.ID, itoa(a.Stage), sd.ID), "side", t); err != nil {
+			return err
 		}
 		st.Sides = append(st.Sides, SideRun{Side: sd.ID, Goal: x.ID, Mark: mark, Sponsor: sponsor, Opponent: opponent, At: at})
 	}
@@ -893,7 +941,7 @@ func (g *Game) activeIn(regions []int, t int64) int64 {
 // arc's regions, never under the floor; a thread's for its one character
 // at thread-mark; a trouble's for the place's users, a raid's after its
 // wall's cut, less what its keepers and a stocked wall already count.
-func (g *Game) sideMark(a *Arc, sd sheets.SideRow, t int64) int64 {
+func (g *Game) sideMark(a *Arc, sd sheets.SideRow, users []int64, t int64) int64 {
 	p := g.r.Story
 	switch a.Scope {
 	case arc.Personal:
@@ -903,19 +951,22 @@ func (g *Game) sideMark(a *Arc, sd sheets.SideRow, t int64) int64 {
 		}
 		return arc.Mark(per, 1, 1)
 	case arc.Settlement:
-		return g.troubleMark(a, sd, t)
+		return g.troubleMark(a, sd, users, t)
 	}
 	return arc.Mark(sd.Per, g.activeIn(a.Regions, t), p.MarkFloorCharacters)
 }
 
-func (g *Game) troubleMark(a *Arc, sd sheets.SideRow, t int64) int64 {
+func (g *Game) troubleMark(a *Arc, sd sheets.SideRow, users []int64, t int64) int64 {
 	p := g.r.Story
 	n, ok := goal.SettlementOf(a.Place)
 	if !ok || n >= len(g.Places) {
 		return arc.Mark(sd.Per, 0, p.MarkFloorCharacters)
 	}
 	place := g.Places[n]
-	active := g.storyView().placeUsers()[n]
+	var active int64
+	if n < len(users) {
+		active = users[n]
+	}
 	if sd.Wants == arc.WantBeats {
 		active = g.activeIn(a.Regions, t)
 	}
@@ -1177,13 +1228,14 @@ func (g *Game) unitWorth(sd sheets.SideRow) int64 {
 }
 
 // sideReward is a side's escrow: mark × worth × side-pay, capped at
-// side-budget-share of the day's budgets of the places it is held from; a
-// trouble's is capped at the place's bounty share, as a bounty is.
-func (g *Game) sideReward(a *Arc, mark, worth int64, budgets []int64) int64 {
+// side-budget-share of what is left today of the budgets of the places it
+// is held from; a trouble's is capped at the place's bounty share, as a
+// bounty is.
+func (g *Game) sideReward(a *Arc, mark, worth int64, left []int64) int64 {
 	p := g.r.Story
 	var budget int64
 	for _, n := range g.heldFrom(a) {
-		budget += budgets[n]
+		budget += left[n]
 	}
 	share := p.SideBudgetShare
 	if a.Scope == arc.Settlement {
@@ -1229,35 +1281,42 @@ func (g *Game) sideHelds(budgets []int64) []int64 {
 		if !ok {
 			continue
 		}
-		from := g.heldFrom(s.a)
-		var total int64
-		for _, n := range from {
-			total += budgets[n]
-		}
-		left := x.Reward
-		for i, n := range from {
-			part := x.Reward / int64(len(from))
-			if total > 0 {
-				part = arcShare(x.Reward, budgets[n], total)
-			}
-			if i > 0 {
-				out[n] += part
-				left -= part
-			}
-		}
-		out[from[0]] += left
+		spreadHeld(x.Reward, g.heldFrom(s.a), budgets, out, 1)
 	}
 	return out
+}
+
+// spreadHeld adds sign × reward to into over the places it is held from,
+// by their budgets (equal parts when they have none), the rounding on the
+// first.
+func spreadHeld(reward int64, from []int, budgets []int64, into []int64, sign int64) {
+	if reward == 0 || len(from) == 0 {
+		return
+	}
+	var total int64
+	for _, n := range from {
+		total += budgets[n]
+	}
+	left := reward
+	for i, n := range from {
+		part := reward / int64(len(from))
+		if total > 0 {
+			part = arcShare(reward, budgets[n], total)
+		}
+		if i > 0 {
+			into[n] += sign * part
+			left -= part
+		}
+	}
+	into[from[0]] += sign * left
 }
 
 // arcShare is floor(whole × part / total).
 func arcShare(whole, part, total int64) int64 { return whole * part / total }
 
-// endStage ends an arc's current stage, won by a side or lapsed (""):
-// the sides not met are paid side-pay-other of their share by contribution
-// (a trouble lost pays nothing, held pays all) and their goals end, the
-// rest going back to the sponsors; the fact, the effects, the rivals the
-// winners made; then the next stage, or the arc's end.
+// endStage ends an arc's current stage, won by a side or lapsed (""): each side
+// is closed (closeSide), then the fact, the effects and the rivals the winners
+// made; then the next stage, or the arc's end.
 func (g *Game) endStage(a *Arc, won string, t int64) error {
 	if a.over() || a.Stage >= len(a.Stages) || a.Stages[a.Stage].over() {
 		return nil
@@ -1412,8 +1471,8 @@ func (g *Game) rivals(winner *SideRun, f fact.ID, t int64) {
 		return
 	}
 	for _, p := range x.Progress {
-		if p.N > 0 && g.Char(p.Key) != nil {
-			g.pend(arc.Pending{Kind: arc.PendRival, Char: p.Key, Ref: arc.FactionRef(winner.Opponent), Tick: t, Fact: f})
+		if c := g.Char(p.Key); p.N > 0 && c != nil && !g.threadBusy(c, t) {
+			g.pendOnce(arc.Pending{Kind: arc.PendRival, Char: p.Key, Ref: arc.FactionRef(winner.Opponent), Tick: t, Fact: f})
 		}
 	}
 }

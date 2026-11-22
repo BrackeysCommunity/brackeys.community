@@ -111,8 +111,8 @@ func (p *Progress) Held(point int) (Mark, bool) {
 // Shown reports whether constellation's hidden point shows yet.
 func (p *Progress) Shown(b Board) bool { return len(p.Found) >= b.shownAt() }
 
-// Hidden reports whether a point is constellation's hidden one and does
-// not show yet, so a viewer must not see it.
+// Hidden reports whether a point is the solution's point not yet shown.
+// Viewers are not told it.
 func (p *Progress) Hidden(b Board, s Solution, point int) bool {
 	return b.Kind == Constellation && len(s) > 0 && int(s[0]) == point && !p.Shown(b)
 }

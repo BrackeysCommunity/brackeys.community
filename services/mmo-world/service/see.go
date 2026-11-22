@@ -2,14 +2,13 @@ package service
 
 import (
 	"slices"
-	"strings"
 	"time"
 
 	"jams.team/mmo-world/api"
+	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/puzzle"
-	"jams.team/mmo-world/store"
 )
 
 // Sees reports whether a viewer may be shown a tile at all: the one it
@@ -75,29 +74,42 @@ func Filter(g *game.Game, c *game.Char, v api.Viewer, passed int64, now time.Tim
 func seenPattern(g *game.Game, c *game.Char) *api.PatternPoint {
 	p := apiPatternPoint(g, c.C.At)
 	if p != nil && len(p.Clues) > 0 {
-		p.Clues = SeenFacts(c.C.ID, p.Clues)
+		p.Clues = SeenFacts(g, c.C.ID, p.Clues)
 	}
 	return p
 }
 
-// SeenFacts are facts as one viewer may read them: another character's
-// personal thread goes, and of the rest, the other characters each names.
-func SeenFacts(viewer string, facts []api.Fact) []api.Fact {
+// SeenFacts are the facts one viewer may read, each scrubbed as seen does.
+func SeenFacts(g *game.Game, viewer string, facts []api.Fact) []api.Fact {
 	out := make([]api.Fact, 0, len(facts))
 	for _, f := range facts {
-		if game.ThreadFact(f.Kind) && !slices.Contains(f.Subjects, api.Ref{Kind: "character", ID: viewer}) {
-			continue
+		if v, ok := seen(g, viewer, f); ok {
+			out = append(out, v)
 		}
-		seen := f
-		seen.Subjects = []api.Ref{}
-		for _, s := range f.Subjects {
-			if s.Kind != "character" || s.ID == viewer {
-				seen.Subjects = append(seen.Subjects, s)
-			}
-		}
-		out = append(out, seen)
 	}
 	return out
+}
+
+// seen is a fact as a viewer may read it, under the lock: false when the
+// viewer may not read it at all, else without the other characters it
+// names, in its subjects or its data. Viewer "" is the public.
+func seen(g *game.Game, viewer string, f api.Fact) (api.Fact, bool) {
+	refs := make([]fact.Ref, len(f.Subjects))
+	for i, s := range f.Subjects {
+		refs[i] = fact.Ref{Kind: s.Kind, ID: s.ID}
+	}
+	if !game.Visible(viewer, f.Kind, refs) {
+		return api.Fact{}, false
+	}
+	out := f
+	out.Subjects = []api.Ref{}
+	for _, s := range f.Subjects {
+		if s.Kind != kindCharacter || s.ID == viewer {
+			out.Subjects = append(out.Subjects, s)
+		}
+	}
+	out.Data = slices.DeleteFunc(slices.Clone(f.Data), func(d api.Datum) bool { return d.S != "" && d.S != viewer && g.Char(d.S) != nil })
+	return out, true
 }
 
 // playerFacts drops the kinds no public read returns: pins, which no
@@ -106,7 +118,7 @@ func SeenFacts(viewer string, facts []api.Fact) []api.Fact {
 func playerFacts(fs []api.Fact) []api.Fact {
 	out := make([]api.Fact, 0, len(fs))
 	for _, f := range fs {
-		if !slices.ContainsFunc(store.Hidden, func(p string) bool { return strings.HasPrefix(f.Kind, p) }) {
+		if game.Visible("", f.Kind, nil) {
 			out = append(out, f)
 		}
 	}

@@ -28,11 +28,8 @@ var (
 	_ arc.Extra = (*storyView)(nil)
 )
 
-// Memory kinds the view reads to fill its views.
-const (
-	memStructureRaised = "structure.raised"
-	memFactionStarving = "faction.starving"
-)
+// memStructureRaised is the memory kind the view reads raised structures from.
+const memStructureRaised = "structure.raised"
 
 // storyView is a fresh view of the game as it stands.
 func (g *Game) storyView() *storyView { return &storyView{g: g} }
@@ -114,19 +111,17 @@ func (v *storyView) Factions() []arc.FactionView {
 			held[h] = append(held[h], r)
 		}
 	}
-	starved := v.starvedSince()
-	day := v.Day()
 	out := make([]arc.FactionView, len(w.Factions))
 	for i := range w.Factions {
 		f := &w.Factions[i]
 		fv := arc.FactionView{ID: i, Archetype: f.Archetype, Tags: slices.Clone(tagsOf[f.Archetype]), Seat: f.Seat, Holdings: held[i],
 			Stock: f.Stock, Starving: f.Starving, Fallen: f.Fallen, Grudge: slices.Clone(f.Grudge), Disposition: slices.Clone(f.Disposition)}
 		if f.Starving {
-			// The ring forgets old facts: a faction starving longer than it
-			// remembers has starved at least that long.
-			fv.StarvingDays = v.g.r.Story.MemoryDays
-			if tick, ok := starved[i]; ok {
-				fv.StarvingDays = day - tick/sheets.TicksPerDay + 1
+			// The day's count lands at day end; a faction starving since
+			// earlier today has starved a day.
+			fv.StarvingDays = 1
+			if st := v.g.Story; st != nil && i < len(st.Starving) {
+				fv.StarvingDays = max(st.Starving[i], 1)
 			}
 		}
 		led := false
@@ -142,26 +137,6 @@ func (v *storyView) Factions() []arc.FactionView {
 
 // notableID is a notable's id as facts and story actions name it.
 func notableID(id int) string { return "n-" + strconv.Itoa(id) }
-
-// starvedSince is the tick each faction last began starving, as the ring
-// remembers it.
-func (v *storyView) starvedSince() map[int]int64 {
-	out := map[int]int64{}
-	if v.g.Story == nil {
-		return out
-	}
-	for _, m := range v.g.Story.Memory {
-		if m.Kind != memFactionStarving {
-			continue
-		}
-		for _, s := range m.Subjects {
-			if i, ok := arc.RefIndex(s); ok && s == arc.FactionRef(i) {
-				out[i] = m.Tick
-			}
-		}
-	}
-	return out
-}
 
 func (v *storyView) Places() []arc.PlaceView {
 	g := v.g

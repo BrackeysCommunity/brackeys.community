@@ -34,6 +34,12 @@ func (c Clock) Day(worldDay int64) int64 { return worldDay - c.Start + 1 }
 // Closes reports whether the season ends on this world day.
 func (c Clock) Closes(worldDay int64) bool { return worldDay == c.Start+c.Days }
 
+// Turned reports whether tick is the first tick of a season the director
+// began, where an epoch may be taken.
+func (c Clock) Turned(tick int64) bool {
+	return c.N > 0 && !c.Legacy && tick == c.Start*sheets.TicksPerDay
+}
+
 // Next is the season that starts on worldDay and lasts days. The sheets
 // digest carries over until an epoch is taken.
 func (c Clock) Next(worldDay, days int64) Clock {
@@ -146,8 +152,18 @@ type Pressure struct {
 // Largest is the highest score; tie picks among the tied, given how many
 // tie, by their index in ps order. A nil tie takes the first.
 func Largest(ps []Pressure, tie func(n int) int) (Pressure, bool) {
-	if len(ps) == 0 {
+	i, ok := LargestAt(ps, tie)
+	if !ok {
 		return Pressure{}, false
+	}
+	return ps[i], true
+}
+
+// LargestAt is the index in ps of the pressure Largest picks. tie is
+// called only when more than one ties.
+func LargestAt(ps []Pressure, tie func(n int) int) (int, bool) {
+	if len(ps) == 0 {
+		return 0, false
 	}
 	top := ps[0].Score
 	for _, p := range ps[1:] {
@@ -164,7 +180,7 @@ func Largest(ps []Pressure, tie func(n int) int) (Pressure, bool) {
 		n := len(tied)
 		k = ((tie(n) % n) + n) % n
 	}
-	return ps[tied[k]], true
+	return tied[k], true
 }
 
 // Epoch is a rules epoch taken at a season boundary (GDD 18.5): the sheets

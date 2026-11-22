@@ -284,9 +284,6 @@ func TestConstellation(t *testing.T) {
 	if !p.Hidden(b, s, hidden) || p.Hidden(b, s, others[0]) {
 		t.Fatal("hidden point not hidden at the start")
 	}
-	if r := p.Set(b, s, mark(hidden, Find, 1)); r != (Result{}) || len(p.Found) != 0 {
-		t.Fatal("the hidden point was found")
-	}
 	p.Set(b, s, mark(others[0], Find, 1))
 	p.Set(b, s, mark(others[0], Find, 1))
 	if len(p.Found) != 1 || p.Shown(b) {
@@ -299,6 +296,27 @@ func TestConstellation(t *testing.T) {
 	r := p.Set(b, s, mark(others[2], Activate, 1))
 	if !r.Complete || !r.Wrong || len(p.Found) != 2 {
 		t.Fatalf("a wrong activation gave %+v, %+v", r, p)
+	}
+	if r := p.Set(b, s, mark(hidden, Activate, 1)); !r.Solved {
+		t.Fatalf("activating the hidden point gave %+v", r)
+	}
+}
+
+func TestConstellationFindHidden(t *testing.T) {
+	b := board(Constellation, "const@find-hidden")
+	s := Solve(drawer(1), b)
+	hidden := int(s[0])
+	other := (hidden + 1) % b.Points
+	var p Progress
+	if r := p.Set(b, s, mark(hidden, Find, 1)); r != (Result{}) {
+		t.Fatalf("a find at the hidden point gave %+v", r)
+	}
+	if _, held := p.Held(hidden); !held || len(p.Found) != 1 || p.Shown(b) {
+		t.Fatalf("a find at the hidden point was not held like any other: %+v", p)
+	}
+	p.Set(b, s, mark(other, Find, 1))
+	if !p.Shown(b) || p.Hidden(b, s, hidden) {
+		t.Fatal("the hidden point's own find did not count towards showing")
 	}
 	if r := p.Set(b, s, mark(hidden, Activate, 1)); !r.Solved {
 		t.Fatalf("activating the hidden point gave %+v", r)

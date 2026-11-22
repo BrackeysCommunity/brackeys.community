@@ -217,25 +217,12 @@ func (g *Game) arcByID(id string) *Arc {
 // sideWants is what a side counts and the tag its goods carry: an arc
 // row's stage side, or a trouble's one side.
 func (g *Game) sideWants(a *Arc, stage int, side string) (wants, tag string, ok bool) {
-	if a.Scope == arc.Settlement {
-		for _, t := range g.r.Book.Troubles {
-			if t.ID == a.Template {
-				return t.Wants, t.Tag, true
-			}
-		}
-		return "", "", false
+	row, ok := g.stageRow(a, stage)
+	if !ok {
+		return
 	}
-	for _, row := range g.r.Book.Arcs {
-		if row.ID != a.Template || stage >= len(row.Stages) {
-			continue
-		}
-		for _, s := range row.Stages[stage].Sides {
-			if s.ID == side {
-				return s.Wants, s.Tag, true
-			}
-		}
-	}
-	return "", "", false
+	sr, ok := sideRow(row, side)
+	return sr.Wants, sr.Tag, ok
 }
 
 // sideRunning reports whether a side's stage is the arc's current one and
@@ -341,6 +328,9 @@ func (g *Game) backEvents(f fact.Fact) []goal.Event {
 	}
 	var out []goal.Event
 	for _, s := range g.runningSides() {
+		if s.a.Scope == arc.Personal && s.a.Char != c.C.ID {
+			continue
+		}
 		units, worth, implicit := g.counts(c, s, f)
 		if units <= 0 {
 			continue
@@ -489,19 +479,24 @@ func (g *Game) credit(c *Char, sponsor, opponent int, at hex.Hex, worth int64) {
 	if worth <= 0 {
 		return
 	}
-	gp := g.r.Growth.Params()
-	lo, hi := sheets.IntParam(gp, "standing-min"), sheets.IntParam(gp, "standing-max")
 	key := standingKey(sponsor, at)
 	if gain := g.accrue(c, key, worth, g.r.Story.StandingFor); gain > 0 {
-		c.C.AdjustStanding(key, gain, lo, hi)
+		g.adjustStanding(c, key, gain)
 	}
 	if opponent < 0 || opponent == sponsor {
 		return
 	}
 	against := standingKey(opponent, at)
 	if loss := g.accrue(c, backAgainst+against, worth, g.r.Story.StandingAgainst); loss > 0 {
-		c.C.AdjustStanding(against, -loss, lo, hi)
+		g.adjustStanding(c, against, -loss)
 	}
+}
+
+// adjustStanding moves a character's standing under key, clamped to the
+// growth sheet's bounds.
+func (g *Game) adjustStanding(c *Char, key string, by int64) {
+	gp := g.r.Growth.Params()
+	c.C.AdjustStanding(key, by, sheets.IntParam(gp, "standing-min"), sheets.IntParam(gp, "standing-max"))
 }
 
 // accrue adds worth under a key and gives the whole points it now owes.

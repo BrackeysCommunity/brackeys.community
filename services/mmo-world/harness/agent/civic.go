@@ -162,10 +162,7 @@ const (
 	tagCoin    = ""
 )
 
-// structural: the city's wall, the market an admin mends first, the needs
-// CityCheck names that the project waits on and counts, and the days after
-// which an admin posts a project nobody has delivered to again, in case it
-// lapsed.
+// structural: the city's wall, the market an admin mends first, the CityCheck needs the project waits on, and the days after which an undelivered project is posted again.
 const (
 	cityWall        = "wall"
 	structureMarket = "market"

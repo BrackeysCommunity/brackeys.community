@@ -3,10 +3,9 @@ import type { World, WorldReply } from "./world.ts";
 
 /**
  * A World that keeps a sample of every read it passes on, for the card
- * test's fixtures: the latest of each, and of options also the latest
- * taken in a fight, on a machine beat, on the road and down, and of the
- * party read also the latest on a shared beat, at a fork and with none;
- * of the story reads only those with something in them.
+ * test's fixtures: the latest of each; for options also in a fight, on a
+ * machine beat, on the road and down; for party also on a shared beat, at a
+ * fork and with none; story reads only when non-empty.
  */
 export function recording(world: World, samples: Record<string, unknown>): World {
   const keep = <T>(name: string, v: T): T => {

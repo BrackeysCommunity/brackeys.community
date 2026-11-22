@@ -392,6 +392,12 @@ func TestCityFallsBack(t *testing.T) {
 	if p.City == nil || g.storyAt(n).Kept {
 		t.Fatal("a kept city fell back, or stayed kept into the next season")
 	}
+	for _, c := range g.Chars {
+		c.Visits = slices.DeleteFunc(c.Visits, func(v Visit) bool { return v.Settlement == n })
+	}
+	if g.storyView().placeUsers()[n] >= g.sp("city-keep") {
+		t.Fatal("the place still has enough users to keep the city")
+	}
 	built := g.Ledger.Of(ledger.ToBuild, ledger.Coin)
 	treasury := g.Ledger.Of(TreasuryPool(n), ledger.Coin)
 	if err := g.seasonClose(g.Tick()); err != nil {
@@ -408,6 +414,27 @@ func TestCityFallsBack(t *testing.T) {
 	}
 	if g.isCity(n) || !g.CityCheck(n)[5].Met || g.cityProject(n) != "" {
 		t.Fatal("a fallen city still reads as one, holds its tiles or keeps its old project")
+	}
+	audit(t, g)
+}
+
+// TestCityKeptOnTheCloseDay: a city whose visitors keep it on the season's last day is kept at that close.
+func TestCityKeptOnTheCloseDay(t *testing.T) {
+	g, _, p, project := readyCity(t)
+	n := p.N
+	deliverCity(t, g, p, project)
+	if err := g.landCity(n, g.Tick()/sheets.TicksPerDay, g.storyView().placeUsers()); err != nil || p.City == nil {
+		t.Fatalf("the city did not land: %v", err)
+	}
+	if g.storyView().placeUsers()[n] < g.sp("city-keep") {
+		t.Fatal("the place has too few users to keep the city")
+	}
+	g.placeStory(n).Kept = false
+	if err := g.seasonClose(g.Tick()); err != nil {
+		t.Fatal(err)
+	}
+	if p.City == nil || len(factsOf(g, "city.fell-back")) != 0 {
+		t.Fatal("a city its visitors kept on the close day fell back")
 	}
 	audit(t, g)
 }

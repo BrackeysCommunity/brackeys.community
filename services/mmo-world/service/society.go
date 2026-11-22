@@ -229,7 +229,7 @@ func goalSide(g *game.Game, id, viewer string) *api.Side {
 		for i, st := range a.Stages {
 			for _, sr := range st.Sides {
 				if sr.Goal == id {
-					if !shown(a, viewer) {
+					if !game.ArcVisible(a, viewer) {
 						return nil
 					}
 					sd := apiSide(g, a, i, sr, viewer)

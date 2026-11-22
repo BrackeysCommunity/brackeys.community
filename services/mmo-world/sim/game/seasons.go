@@ -38,6 +38,9 @@ type ArcCmd struct {
 	Seat     *hex.Hex `json:"seat,omitempty"`
 }
 
+// FactSeasonClosed is the fact a season's close writes.
+const FactSeasonClosed = "season.closed"
+
 // finaleDraw breaks a tie between the finale's highest pressures.
 const finaleDraw draw.Purpose = "season.finale"
 
@@ -59,7 +62,7 @@ func (g *Game) clock() (season.Clock, bool) {
 }
 
 // storyDays is a season's length after season zero.
-func (g *Game) storyDays() int64 { return sheets.IntParam(g.r.Book.StoryParams, "season-days") }
+func (g *Game) storyDays() int64 { return g.r.Story.SeasonDays }
 
 // seasonCloses reports whether a world day closes the season, and the
 // number of the season it opens. Without a clock a season is the weather's.
@@ -73,7 +76,7 @@ func (g *Game) seasonCloses(day int64) (bool, int64) {
 
 // seasonOpen gives a new world season zero, starting on day 0.
 func (g *Game) seasonOpen() {
-	g.Story = &Story{Clock: &season.Clock{Days: sheets.IntParam(g.r.Book.StoryParams, "season-zero-days")}}
+	g.Story = &Story{Clock: &season.Clock{Days: g.r.Story.SeasonZeroDays}}
 }
 
 // seasonStart gives a world saved before seasons the clock of the season
@@ -96,7 +99,7 @@ func (g *Game) seasonEpoch(cmd Command) error {
 	if !ok {
 		return refuse(NoSeason, "the world keeps no season")
 	}
-	if c.N == 0 || c.Legacy || g.Tick() != c.Start*sheets.TicksPerDay {
+	if !c.Turned(g.Tick()) {
 		return refuse(NotAtBoundary, "an epoch is taken only right after a season closes")
 	}
 	e := cmd.Epoch
@@ -153,20 +156,11 @@ func (g *Game) castSeat(cast arc.Cast, given *hex.Hex) (hex.Hex, bool) {
 // castRefHex is the tile a cast ref stands for, if it names a place.
 func (g *Game) castRefHex(ref fact.Ref) (hex.Hex, bool) {
 	switch ref.Kind {
-	case arc.SettlementRef(0).Kind:
-		n, ok := arc.RefIndex(ref)
-		if !ok || n < 0 || n >= len(g.Places) {
+	case kindSettlement, kindRegion, kindTile:
+		if n, ok := arc.RefIndex(ref); ok && n < 0 {
 			return hex.Hex{}, false
 		}
-		return g.SettlementHex(n), true
-	case arc.RegionRef(0).Kind:
-		r, ok := arc.RefIndex(ref)
-		if !ok || r < 0 || r >= len(g.World.Regions) {
-			return hex.Hex{}, false
-		}
-		return g.storyView().RegionHex(r), true
-	case arc.TileRef(hex.Hex{}).Kind:
-		return hex.ParseRef(ref.ID)
+		return g.refHexOf(ref)
 	}
 	return hex.Hex{}, false
 }
@@ -210,22 +204,11 @@ func (g *Game) seasonDay(t int64) error {
 	return nil
 }
 
-// worldArcs are the open world arcs.
-func (g *Game) worldArcs() []*Arc {
-	var out []*Arc
-	for _, a := range g.Story.Arcs {
-		if !a.over() && a.Scope == arc.ScopeWorld {
-			out = append(out, a)
-		}
-	}
-	return out
-}
-
 // worldStagesDue ends the world stages due by t before anything is cast in
 // the slot they hold: a world stage ends on its band's end, which is the
 // day the next band's casting runs.
 func (g *Game) worldStagesDue(t int64) error {
-	for _, a := range g.worldArcs() {
+	for _, a := range g.openArcs(arc.ScopeWorld) {
 		if err := g.lapseWorldArc(a, t, false); err != nil {
 			return err
 		}
@@ -270,11 +253,12 @@ func (g *Game) castWorldArc(c season.Clock, t int64) error {
 	}
 	day := t / sheets.TicksPerDay
 	w := g.storyView()
-	type pick struct {
+	type option struct {
 		tpl  arc.Template
 		cand arc.Candidate
 	}
-	var top []pick
+	var opts []option
+	var ps []season.Pressure
 	for _, tpl := range g.r.Templates {
 		row := g.arcRow(tpl.Row.ID)
 		if tpl.Row.Scope != arc.ScopeWorld || row == nil || row.Finale {
@@ -288,21 +272,16 @@ func (g *Game) castWorldArc(c season.Clock, t int64) error {
 			_, err := g.castFrom(tpl, cand, ByOpening, t)
 			return refusedIsNothing(err)
 		}
-		switch {
-		case len(top) == 0 || cand.Pressure > top[0].cand.Pressure:
-			top = []pick{{tpl, cand}}
-		case cand.Pressure == top[0].cand.Pressure:
-			top = append(top, pick{tpl, cand})
-		}
+		opts = append(opts, option{tpl, cand})
+		ps = append(ps, season.Pressure{Kind: tpl.Row.ID, Score: cand.Pressure})
 	}
-	if len(top) == 0 {
+	k, ok := season.LargestAt(ps, func(n int) int {
+		return int(g.r.draw.Below(uint64(n), arc.CastDraw, draw.Str(arc.ScopeWorld), draw.Int(day), draw.Str(templatesPart)))
+	})
+	if !ok {
 		return nil
 	}
-	k := 0
-	if len(top) > 1 {
-		k = int(g.r.draw.Below(uint64(len(top)), arc.CastDraw, draw.Str(arc.ScopeWorld), draw.Int(day), draw.Str(templatesPart)))
-	}
-	_, err := g.castFrom(top[k].tpl, top[k].cand, ByDirector, t)
+	_, err := g.castFrom(opts[k].tpl, opts[k].cand, ByDirector, t)
 	return refusedIsNothing(err)
 }
 
@@ -345,17 +324,12 @@ func (g *Game) castFinale(t int64, fresh []fact.Fact) error {
 			ps = append(ps, season.Pressure{Kind: tpl.Row.ID, Ref: ref, Region: region, Score: cand.Pressure})
 		}
 	}
-	top, ok := season.Largest(ps, func(n int) int { return int(g.r.draw.Below(uint64(n), finaleDraw, draw.Int(day))) })
+	k, ok := season.LargestAt(ps, func(n int) int { return int(g.r.draw.Below(uint64(n), finaleDraw, draw.Int(day))) })
 	if !ok {
 		return nil
 	}
-	for i, p := range ps {
-		if p == top {
-			_, err := g.castFrom(opts[i].tpl, opts[i].cand, ByFinale, t)
-			return refusedIsNothing(err)
-		}
-	}
-	return nil
+	_, err := g.castFrom(opts[k].tpl, opts[k].cand, ByFinale, t)
+	return refusedIsNothing(err)
 }
 
 // freshView is the story view with the facts written earlier in this day
@@ -387,22 +361,28 @@ func (g *Game) arcRow(id string) *sheets.ArcRow {
 	return nil
 }
 
-// seasonClose ends the season, in order: the world arcs still open lapse,
-// season.finale records how the finale went, guild votes still short of
-// their need end, cities nobody kept fall back, the ring's tally resets
-// and a core held open past its seasons shuts, places' troubles lost
-// reset, season.closed, and the next season begins. Goals and guild ranks
-// turned over in their own day turns.
+// seasonClose ends the season. Stages due today, ruins and today's city
+// keepers settle first, so they count toward the closing season. Then open
+// world arcs lapse, season.finale records the finale, guild votes, unkept
+// cities, the ring's tally and places' lost troubles reset, and the next
+// season begins. Goals and guild ranks turn over in their own day turns.
 func (g *Game) seasonClose(t int64) error {
 	c := *g.Story.Clock
 	day := t / sheets.TicksPerDay
+	if err := g.stagesDue(t); err != nil {
+		return err
+	}
+	if err := g.ruinsDay(t); err != nil {
+		return err
+	}
+	g.keepDay()
 	var finale *Arc
 	for _, a := range g.Story.Arcs {
 		if a.By == ByFinale && a.Began >= c.Start*sheets.TicksPerDay {
 			finale = a
 		}
 	}
-	for _, a := range g.worldArcs() {
+	for _, a := range g.openArcs(arc.ScopeWorld) {
 		if err := g.lapseWorldArc(a, t, true); err != nil {
 			return err
 		}
@@ -428,7 +408,7 @@ func (g *Game) seasonClose(t int64) error {
 	for i := range g.Story.At {
 		g.Story.At[i].Lost = 0
 	}
-	closed, err := g.regionFact("", "season.closed", nil, nil, fact.N("season", c.N), fact.N("start", c.Start), fact.N("days", c.Days))
+	closed, err := g.regionFact("", FactSeasonClosed, nil, nil, fact.N("season", c.N), fact.N("start", c.Start), fact.N("days", c.Days))
 	if err != nil {
 		return err
 	}

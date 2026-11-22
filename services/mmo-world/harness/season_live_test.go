@@ -38,17 +38,17 @@ func TestLiveStages(t *testing.T) {
 
 	r.fact(api.Fact{Tick: 10, Kind: "arc.cast", Data: data(siege, n("stage", 0), n("due", 300), s("by", "director"), n("mark:garrison", 50), n("mark:besiegers", 50))})
 	r.observe(api.StoryView{Arcs: []api.Arc{{ID: "arc-1", Template: "the-siege", Scope: "world", Regions: []string{"r-2", "r-5"}, Stage: 0, Stages: 3,
-		Sides: []api.Side{{ID: "garrison", Mark: 50, Filled: 44, Backers: 3}, {ID: "besiegers", Mark: 50, Filled: 10, Backers: 1}}}}})
+		Sides: []api.Side{{ID: "garrison", Mark: 50, Filled: 44, Backers: 4, Contributors: 3}, {ID: "besiegers", Mark: 50, Filled: 10, Backers: 1, Contributors: 1}}}}})
 	r.fact(api.Fact{Tick: 40, Kind: "arc.stage-ended", Data: data(siege, n("stage", 0), s("side", "garrison"), n("backers", 4), n("units", 60))})
 	r.fact(api.Fact{Tick: 40, Kind: "arc.stage-began", Data: data(siege, n("stage", 1), n("due", 600), n("mark:garrison", 50), n("mark:besiegers", 50))})
 	r.observe(api.StoryView{Arcs: []api.Arc{{ID: "arc-1", Template: "the-siege", Scope: "world", Stage: 1, Stages: 3,
-		Sides: []api.Side{{ID: "garrison", Mark: 50, Filled: 5, Backers: 1}}}}})
+		Sides: []api.Side{{ID: "garrison", Mark: 50, Filled: 5, Backers: 1, Contributors: 1}}}}})
 	r.fact(api.Fact{Tick: 600, Kind: "arc.stage-ended", Data: data(siege, n("stage", 1), s("side", "lapsed"), n("lapsed", 1))})
 
 	r.fact(api.Fact{Tick: 50, Kind: "trouble.started", Data: data(raid, n("stage", 0), n("due", 194), s("hunt", "h-1"), n("mark:hold", 14))})
 	r.observe(api.StoryView{Arcs: []api.Arc{{ID: "arc-2", Template: "raid", Scope: "settlement", Stages: 1,
 		Cast:  []api.CastRef{{Role: "place", Kind: "settlement", ID: "0", Name: "Rustwell"}},
-		Sides: []api.Side{{ID: "hold", Mark: 14, Filled: 3, Backers: 2}}}}})
+		Sides: []api.Side{{ID: "hold", Mark: 14, Filled: 3, Backers: 2, Contributors: 2}}}}})
 	r.fact(api.Fact{Tick: 90, Kind: "trouble.held", Data: data(raid, n("stage", 0), s("side", "hold"))})
 
 	r.observe(api.StoryView{Arcs: []api.Arc{{ID: "arc-3", Template: "the-debt", Scope: "personal", Stages: 1, Outcome: "lapsed", Lapsed: true,

@@ -460,8 +460,7 @@ func (g *Game) bounties(t int64, key string) error {
 			Issuer: issuer, Scope: goal.World, Board: n, Reward: reward, Mode: goal.Pooled, Lifetime: goal.Ephemeral, Turnover: goal.Expire,
 			Posted: t, Expires: t + g.gp("bounty-days")*sheets.TicksPerDay, State: goal.Live,
 			Cond: goal.Condition{Verb: goal.Defeat, Count: g.gp("bounty-kills"), At: goal.RegionRef(world.RegionRef(r))}}
-		g.openGoal(x)
-		if err := g.post(ledger.Move(ledger.SubKey(key, "bounty", strconv.Itoa(n)), "bounty", t, ledger.FromFaction, goalPool(x.ID), ledger.Coin, reward)); err != nil {
+		if err := g.postPool(x, ledger.SubKey(key, "bounty", strconv.Itoa(n)), "bounty", t); err != nil {
 			return err
 		}
 		if _, err := g.worldFact(p.Hex, "goal.posted", []fact.Ref{goalRef(x.ID)}, nil, fact.S("verb", goal.Defeat), fact.S("issuer", goal.ByFaction), fact.N("reward", reward)); err != nil {
@@ -469,6 +468,16 @@ func (g *Game) bounties(t int64, key string) error {
 		}
 	}
 	return nil
+}
+
+// postPool opens a faction's goal and mints its reward into the goal's
+// pool from the faction.
+func (g *Game) postPool(x *Goal, key, kind string, t int64) error {
+	g.openGoal(x)
+	if x.Reward <= 0 {
+		return nil
+	}
+	return g.post(ledger.Move(key, kind, t, ledger.FromFaction, goalPool(x.ID), ledger.Coin, x.Reward))
 }
 
 // bounty reports whether a goal is a live faction bounty on a

@@ -260,13 +260,22 @@ func (g *Game) citiesDay(day int64) error {
 				return err
 			}
 		}
-		if p.City != nil && n < len(users) && users[n] >= g.sp("city-keep") {
-			if ps := g.placeStory(n); ps != nil {
-				ps.Kept = true
-			}
+	}
+	g.keepDay()
+	return nil
+}
+
+// keepDay notes each standing city that kept its visitors today.
+func (g *Game) keepDay() {
+	users := g.storyView().placeUsers()
+	for n, p := range g.Places {
+		if p.Ruined != 0 || p.Faction != nil || p.City == nil || n >= len(users) || users[n] < g.sp("city-keep") {
+			continue
+		}
+		if ps := g.placeStory(n); ps != nil {
+			ps.Kept = true
 		}
 	}
-	return nil
 }
 
 // landCity raises place n to a city if its project is met and every need

@@ -382,3 +382,47 @@ func TestWorldArcAndFinale(t *testing.T) {
 		t.Fatalf("the close wrote %v, want %v", order, want)
 	}
 }
+
+// A trouble cast on the season's last day and lost on the close tick
+// counts toward the closing season: its loss is written before
+// season.closed and is not carried into the next season.
+func TestTroubleLostOnTheCloseTick(t *testing.T) {
+	g, err := game.New(rules(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := clockOf(t, g)
+	advanceDays(t, g, c.Start+c.Days-1-g.Tick()/sheets.TicksPerDay)
+	home := g.SettlementHex(0)
+	cast := arc.Cast{{Role: "place", Ref: arc.SettlementRef(0)}, {Role: sheets.RoleSource, Ref: arc.RegionRef(g.World.RegionAt(home))}}
+	if _, err := g.Act(game.Command{Key: "cast-shortage", Kind: game.ArcCast, Arc: &game.ArcCmd{Template: "shortage", Cast: cast}}); err != nil {
+		t.Fatal(err)
+	}
+	a := g.Story.Arcs[len(g.Story.Arcs)-1]
+	closeTick := (c.Start + c.Days) * sheets.TicksPerDay
+	a.Stages[a.Stage].Due = closeTick
+	lost, closed := -1, -1
+	for range sheets.TicksPerDay {
+		fs, err := g.Advance()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i, f := range fs {
+			switch {
+			case f.Kind == "trouble.lost" && f.Tick == closeTick && lost < 0:
+				lost = i
+			case f.Kind == game.FactSeasonClosed:
+				closed = i
+			}
+		}
+		if closed >= 0 {
+			break
+		}
+	}
+	if lost < 0 || closed < 0 || lost > closed {
+		t.Fatalf("trouble.lost at %d, season.closed at %d: the loss does not fall in the closing season", lost, closed)
+	}
+	if len(g.Story.At) > 0 && g.Story.At[0].Lost != 0 {
+		t.Fatalf("the next season starts with %d troubles lost at the place", g.Story.At[0].Lost)
+	}
+}

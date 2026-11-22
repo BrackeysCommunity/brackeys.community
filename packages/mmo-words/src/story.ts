@@ -206,6 +206,11 @@ const WANT_UNIT: Record<string, string> = {
   sold: "coin",
 };
 
+/** The unit a side's mark counts in, by what it wants. */
+export function wantUnit(wants: string): string {
+  return WANT_UNIT[wants] ?? "goods";
+}
+
 const ROLES: Record<string, string> = { leader: "leader", factor: "factor", captain: "captain" };
 
 const BANDS: Record<string, string> = {
@@ -217,14 +222,23 @@ const BANDS: Record<string, string> = {
 
 const DIRECTIONS = ["east", "north-east", "north-west", "west", "south-west", "south-east"];
 
-/** "#2": a pattern's point, counted from 1. */
+/** "south-west (#4)": a facing in words, with the value players set it to. */
+function facing(v: number, unknown = `#${num(v)}`): string {
+  const d = DIRECTIONS[v];
+  return d ? `${d} (#${num(v)})` : unknown;
+}
+
+/** "point #2": a pattern's point, counted from 1. */
 const point = (i: number) => `point #${num(i + 1)}`;
 
-/** What a pattern's clue says (GDD 4.13), without giving the solution away. */
-export function clueLine(f: StoryFact): string {
+/**
+ * What a pattern's clue says (GDD 4.13), without giving the solution away.
+ * `named` names a point by its index; chat counts them, the Activity letters them.
+ */
+export function clueLine(f: StoryFact, named: (i: number) => string = point): string {
   const r = new Reading(f);
-  const a = point(r.n("point"));
-  const b = point(r.n("other"));
+  const a = named(r.n("point"));
+  const b = named(r.n("other"));
   const n = r.n("n");
   switch (r.s("says")) {
     case "after":
@@ -234,7 +248,7 @@ export function clueLine(f: StoryFact): string {
         ? `${b} holds the same value as ${a}`
         : `${b} is set ${amount(n, n === 1 ? "value" : "values")} past ${a}`;
     case "facing":
-      return `${a} faces ${DIRECTIONS[n] ?? "its own way"}`;
+      return `${a} faces ${facing(n, "its own way")}`;
     case "live":
       return `${a}'s run is ${n ? "live" : "dead"}`;
     case "missing":
@@ -527,8 +541,7 @@ function wanted(s: StorySide, names?: Names): string {
  * Compact".
  */
 export function sideLine(s: StorySide, names?: Names): string {
-  const unit =
-    s.wants === "goods" && s.tag === "provisions" ? "provisions" : (WANT_UNIT[s.wants] ?? "goods");
+  const unit = s.wants === "goods" && s.tag === "provisions" ? "provisions" : wantUnit(s.wants);
   const parts = [
     s.title,
     wanted(s, names),
@@ -602,15 +615,41 @@ export interface StoryPoint {
   clues?: StoryFact[];
 }
 
-/** What each kind of pattern asks of its points, without the answer. */
-const PATTERN_ASKS: Record<string, string> = {
-  state: "every point set to its value",
-  order: "the points set in their order",
-  alignment: "every point turned to face its way",
-  connection: "the live runs joined",
-  completion: "the missing point found",
-  constellation: "the hidden point found",
+/** Each kind of pattern: what it is called and what it asks of its points, without the answer. */
+const PATTERN_KINDS: Record<string, { name: string; asks: string }> = {
+  state: { name: "settings", asks: "every point set to its value" },
+  order: { name: "an order", asks: "the points set in their order" },
+  alignment: { name: "facings", asks: "every point turned to face its way" },
+  connection: { name: "live runs", asks: "the live runs joined" },
+  completion: { name: "the missing one", asks: "the missing point found" },
+  constellation: { name: "the hidden one", asks: "the hidden point found" },
 };
+
+/** What a kind of pattern is called: "settings"; a kind not known here is named as written. */
+export function patternKind(kind: string): string {
+  return PATTERN_KINDS[kind]?.name ?? readable(kind);
+}
+
+/** What a point holds, by its pattern's kind: "holds setting #2", "is raised". */
+export function heldLine(kind: string, v: number): string {
+  const tag = `#${num(v)}`;
+  switch (kind) {
+    case "state":
+      return `holds setting ${tag}`;
+    case "alignment":
+      return `faces ${facing(v)}`;
+    case "order":
+      return "is woken this round";
+    case "connection":
+      return "is repaired";
+    case "completion":
+      return "is raised";
+    case "constellation":
+      return v === 0 ? "is found" : "is activated";
+    default:
+      return `holds ${tag}`;
+  }
+}
 
 /**
  * The point stood on: "Triangle · point #2 of 3 points · a pylon, set by
@@ -633,7 +672,8 @@ export function patternLine(p: StoryPoint, names?: Names): string {
           ? `held at value ${num(p.held + 1)} of ${plural(p.values, "value")}`
           : "held by you",
       );
-    if (PATTERN_ASKS[p.kind]) parts.push(`it wants ${PATTERN_ASKS[p.kind]}`);
+    const asks = PATTERN_KINDS[p.kind]?.asks;
+    if (asks) parts.push(`it wants ${asks}`);
   }
   const clues = p.clues?.length ?? 0;
   parts.push(clues ? `${plural(clues, "clue")} found` : "no clue found yet");

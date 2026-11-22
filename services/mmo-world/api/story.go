@@ -85,20 +85,23 @@ type CastRef struct {
 // how full it is, what it pays, and who sponsors and opposes it. At is where
 // goods land or beats count, by name; AtHex the tile, where there is one.
 type Side struct {
-	ID       string `json:"id"`
-	Title    string `json:"title"`
-	Wants    string `json:"wants"` // goods, beats, reach, sold, defence
-	Tag      string `json:"tag,omitempty"`
-	Goal     string `json:"goal"`
-	Mark     int64  `json:"mark"`
-	Filled   int64  `json:"filled"`
-	Backers  int64  `json:"backers"`
-	Pay      int64  `json:"pay"` // coin
-	At       string `json:"at"`
-	AtHex    *Hex   `json:"atHex,omitempty"`
-	Sponsor  string `json:"sponsor"`
-	Opponent string `json:"opponent,omitempty"`
-	Mine     bool   `json:"mine"` // the viewer backs it
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Wants   string `json:"wants"` // goods, beats, reach, sold, defence
+	Tag     string `json:"tag,omitempty"`
+	Goal    string `json:"goal"`
+	Mark    int64  `json:"mark"`
+	Filled  int64  `json:"filled"`
+	Backers int64  `json:"backers"`
+	// Contributors are characters who put units in; Backers also counts
+	// declared backers who have not.
+	Contributors int64  `json:"contributors,omitempty"`
+	Pay          int64  `json:"pay"` // coin
+	At           string `json:"at"`
+	AtHex        *Hex   `json:"atHex,omitempty"`
+	Sponsor      string `json:"sponsor"`
+	Opponent     string `json:"opponent,omitempty"`
+	Mine         bool   `json:"mine"` // the viewer backs it
 }
 
 // Arc is an arc as the world shows it. Stage is the stage running, 0-based;

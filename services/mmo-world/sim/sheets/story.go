@@ -194,9 +194,6 @@ const (
 	effectGauge   = "gauge"
 )
 
-// StoryParam reads a story.params cell as a whole number.
-func (b *Book) StoryParam(id string) int64 { return IntParam(b.StoryParams, id) }
-
 // storyProblems checks the story sheets against each other and the
 // sheets they name.
 func (b *Book) storyProblems() []string {

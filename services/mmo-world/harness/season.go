@@ -214,21 +214,15 @@ func playSeason(b *sheets.Book, seed string) (seasonResult, error) {
 		return res, err
 	}
 	g.World.OpenSettlement()
-	local := &seasonClient{Local: service.NewLocal(g), res: &res}
-	plan := guildPlan(b, guildGoods, guildTithe, false)
-	plan.City = true
-	pop := population{roles: economyRoles, back: agent.NewBacker(b)}
-	players := earners(pop, plan, seasonPlayers, 0, 0, agent.Bands(b))
-	for i, p := range players {
-		p.Server, p.Admin = seasonServer, i < economyAdmins
-	}
-	script := agent.NewScript(local, players, "season"+seed)
+	local := service.NewLocal(g)
+	players := seasonRoster(b, seasonServer)
+	script := agent.NewScript(counting{local, &res}, players, "season"+seed)
 	ctx := context.Background()
 	seen := map[string]*seasonArc{}
-	var due []*agent.Player
+	var playing []*agent.Player
 	for t := int64(0); t < seasonDays*sheets.TicksPerDay; t++ {
-		due = seasonDue(g, players, t, due[:0])
-		if err := script.TurnFor(ctx, t, due); err != nil {
+		playing = seasonDue(g, players, t, playing[:0])
+		if err := script.TurnFor(ctx, t, playing); err != nil {
 			return res, err
 		}
 		if _, err := g.Advance(); err != nil {
@@ -259,51 +253,67 @@ func playSeason(b *sheets.Book, seed string) (seasonResult, error) {
 	return res, nil
 }
 
-// seasonClient is the world in process, counting the sides players were
-// offered and the backs they sent.
-type seasonClient struct {
-	*service.Local
+// seasonRoster is the season's players on server: the economy roles, the
+// guild plan with its city, backing the sides they can serve.
+func seasonRoster(b *sheets.Book, server string) []*agent.Player {
+	plan := guildPlan(b, guildGoods, guildTithe, false)
+	plan.City = true
+	pop := population{roles: economyRoles, back: agent.NewBacker(b)}
+	players := earners(pop, plan, seasonPlayers, 0, 0, agent.Bands(b))
+	for i, p := range players {
+		p.Server, p.Admin = server, i < economyAdmins
+	}
+	return players
+}
+
+// seasonWorld is what a season's players call: actions and options, and
+// the pages a citizen reads.
+type seasonWorld interface {
+	agent.Client
+	agent.Pages
+	agent.Boards
+}
+
+// counting is a world counting the sides players were offered and the
+// backs they sent.
+type counting struct {
+	seasonWorld
 	res *seasonResult
 }
 
-func (c *seasonClient) Options(ctx context.Context, id string) (api.Options, error) {
-	o, err := c.Local.Options(ctx, id)
-	if len(o.Sides) > 0 {
+func (c counting) Options(ctx context.Context, id string) (api.Options, error) {
+	o, err := c.seasonWorld.Options(ctx, id)
+	if err == nil && len(o.Sides) > 0 {
 		c.res.offered++
 	}
 	return o, err
 }
 
-func (c *seasonClient) Act(ctx context.Context, req api.ActionRequest) (api.ActionReply, *api.Refusal, error) {
-	rep, ref, err := c.Local.Act(ctx, req)
-	if req.Kind == api.ActBackSide {
+func (c counting) Act(ctx context.Context, req api.ActionRequest) (api.ActionReply, *api.Refusal, error) {
+	rep, ref, err := c.seasonWorld.Act(ctx, req)
+	if req.Kind == api.ActBackSide && err == nil {
 		c.res.backs++
 		c.res.backRefused += btoi(ref != nil)
 	}
 	return rep, ref, err
 }
 
-// seasonDue is who plays at tick t: each player arrives on its own tick of
-// the first world day, then keeps the Economy run's hours.
-func seasonDue(g *game.Game, players []*agent.Player, t int64, due []*agent.Player) []*agent.Player {
+// joined is whether the i-th of n players has arrived rel ticks into the
+// run: each on its own tick of the first world day.
+func joined(i int, rel int64, n int) bool {
+	return rel >= int64(i)*sheets.TicksPerDay/int64(n)
+}
+
+// seasonDue is who plays at tick t: each player arrives over the first
+// world day, then keeps the Economy run's hours.
+func seasonDue(g *game.Game, players []*agent.Player, t int64, out []*agent.Player) []*agent.Player {
+	busy := longBusy(g)
 	for i, p := range players {
-		if t < int64(i)*sheets.TicksPerDay/int64(len(players)) {
-			continue
+		if joined(i, t, len(players)) && due(i, t, p, busy) {
+			out = append(out, p)
 		}
-		if (t+int64(i))%workPeriod != 0 || (t+int64(i)*wakeSpread)%sheets.TicksPerDay >= awake {
-			continue
-		}
-		if e, ok := p.Policy.(*agent.Earner); ok && e.Role == agent.Casual && (t+int64(i)*casualSpread)%casualEvery >= casualSession {
-			continue
-		}
-		if p.Character != "" {
-			if c := g.Char(p.Character); c != nil && c.Long != nil && c.Fight == nil {
-				continue
-			}
-		}
-		due = append(due, p)
 	}
-	return due
+	return out
 }
 
 // note reads the season's own facts off a tick's log.
@@ -461,7 +471,7 @@ func (r seasonResult) undecided() string {
 func seasonDoc(b *sheets.Book, runs []seasonResult, again seasonResult, m Measured) *lineDoc {
 	var doc lineDoc
 	p := doc.p
-	zero := sheets.IntParam(b.StoryParams, "season-zero-days")
+	zero := arc.ParamsOf(b).SeasonZeroDays
 	p("# Season run")
 	p("")
 	p("Season zero headless (GDD 12.6): on each seed a fresh world (`game.New`, season 0 of %d world days) with its second settlement open, and %d scripted players (`harness/agent.Earner`: %s) from one server, whose guild plays the Economy run's plan and who back the sides they can serve. They join over the first world day and play %d world days, through the close and into season 1.",
@@ -489,44 +499,55 @@ func seasonDoc(b *sheets.Book, runs []seasonResult, again seasonResult, m Measur
 	for _, r := range runs {
 		p("## Seed %q", r.seed)
 		p("")
-		p("Finale: %s. Close: %s; the clock after is %s.", finaleCell(r), either(r.closed, fmt.Sprintf("`season.closed` at tick %d (world day %d)", r.closedTick, r.closedTick/sheets.TicksPerDay), "**not written**"), clockCell(r.clock))
+		seasonBody(p, r, "", "", "Sides: units / mark, backers (declared)", sideCells)
+	}
+	return &doc
+}
+
+// seasonBody is one season's account: its finale and close, its backing,
+// why it does not hold, its arcs and troubles, and its ledger. lead opens
+// the first line and backing ends the backing line; sides fills the arc
+// table's sides column, headed sidesHead.
+func seasonBody(p func(string, ...any), r seasonResult, lead, backing, sidesHead string, sides func(seasonStage) string) {
+	p("%sFinale: %s. Close: %s; the clock after is %s.", lead, finaleCell(r),
+		either(r.closed, fmt.Sprintf("`season.closed` at tick %d (world day %d)", r.closedTick, r.closedTick/sheets.TicksPerDay), "**not written**"), clockCell(r.clock))
+	p("")
+	p("Backing: sides listed in %d option reads; %d `goal-back` presses, %d refused.%s", r.offered, r.backs, r.backRefused, backing)
+	p("")
+	if !r.holds() {
+		p("Does not hold: %s.", r.why())
 		p("")
-		p("Backing: sides listed in %d option reads; %d `goal-back` presses, %d refused.", r.offered, r.backs, r.backRefused)
+	}
+	if len(r.arcs) == 0 {
+		p("No arc was cast.")
 		p("")
-		if !r.holds() {
-			p("Does not hold: %s.", r.why())
-			p("")
-		}
-		if len(r.arcs) == 0 {
-			p("No arc was cast.")
-			p("")
-		} else {
-			p("| Arc | Template | Scope | Regions | By | Stage | Due (day) | Outcome | Sides: units / mark, backers (declared) | Decided by players |")
-			p("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
-			for _, a := range r.arcs {
-				for i, s := range a.stages {
-					p("| %s | %s | %s | %s | %s | %d | %d | %s | %s | %s |", a.id, a.template, a.scope, regionList(a.regions), a.by, i+1, s.due/sheets.TicksPerDay,
-						stageOutcome(s), sideCells(s), either(s.decided(), "yes", "no"))
-				}
+	} else {
+		p("| Arc | Template | Scope | Regions | By | Stage | Due (day) | Outcome | %s | Decided by players |", sidesHead)
+		p("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+		for _, a := range r.arcs {
+			for i, s := range a.stages {
+				p("| %s | %s | %s | %s | %s | %d | %d | %s | %s | %s |", a.id, a.template, a.scope, regionList(a.regions), a.by, i+1, s.due/sheets.TicksPerDay,
+					stageOutcome(s), sides(s), either(s.decided(), "yes", "no"))
 			}
-			p("")
 		}
+		p("")
+	}
+	if len(r.troubles) > 0 {
 		p("| Place | Troubles held | Troubles lost |")
 		p("| --- | --- | --- |")
 		for _, pl := range r.troubles {
 			p("| %s | %d | %d |", pl.name, pl.held, pl.lost)
 		}
 		p("")
-		p("Ledger: %s. Digest %s.", auditCell(r.audit), r.digest)
-		p("")
-		for _, a := range r.audit {
-			p("- %s", a)
-		}
-		if len(r.audit) > 0 {
-			p("")
-		}
 	}
-	return &doc
+	p("Ledger: %s. Digest %s.", auditCell(r.audit), r.digest)
+	p("")
+	for _, a := range r.audit {
+		p("- %s", a)
+	}
+	if len(r.audit) > 0 {
+		p("")
+	}
 }
 
 func finaleCell(r seasonResult) string {

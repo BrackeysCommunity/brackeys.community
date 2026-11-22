@@ -21,6 +21,7 @@ import {
   SELECT_MOST,
 } from "./common.ts";
 import { REWARDS } from "./goals.ts";
+import { cityStations } from "./hub.ts";
 
 /**
  * /guild (GDD 4.8, 4.14, 4.16): your guild's members and ranks, its
@@ -664,7 +665,7 @@ export function placesCard(
         value: `Treasury ${amount(s.treasury, "coin")}`,
         inline: true,
       })),
-      ...cityFields(g.settlements, here),
+      ...cityFields(lex, g.settlements, here),
       ...(later.length
         ? [
             {
@@ -715,15 +716,14 @@ function needLine(n: api.CityNeed): string {
  * a city, or what raising it still takes (GDD 4.8). Every need must hold
  * on one world day; the project's goods and the coin are read when it lands.
  */
-function cityFields(all: readonly api.Settlement[], here?: api.Settlement) {
+function cityFields(lex: Lexicon, all: readonly api.Settlement[], here?: api.Settlement) {
   const s = here ?? all[0];
   if (!s) return [];
   if (s.city.city)
     return [
       {
         name: `${s.name} is a city`,
-        value:
-          "Its stations rise to tier 3, its market holds more and caravans come without a road.",
+        value: `${cityStations(lex)}, its market holds more and caravans come without a road.`,
         inline: false,
       },
     ];

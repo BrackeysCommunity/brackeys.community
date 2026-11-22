@@ -25,11 +25,8 @@ const (
 )
 
 // structural: a faction city's place is no lattice point and no guild's
-// founding; the memory kinds that change a region's holder.
-const (
-	factionLattice    = -2
-	memFactionExpands = "faction.expanded"
-)
+// founding.
+const factionLattice = -2
 
 // factionCitiesDay closes as a ruin every faction city whose holding fell,
 // then opens a city for each faction without one whose holding has held
@@ -115,7 +112,7 @@ func (g *Game) factionCityRegion(fi int, day int64) int {
 		if st := g.streakOf(r); st == nil || st.Prosper < g.sp("city-prosperity-days") {
 			continue
 		}
-		if g.heldDays(fi, r, day) < g.fcp("faction-city-days") {
+		if g.heldDays(fi, r) < g.fcp("faction-city-days") {
 			continue
 		}
 		if best < 0 || reg.Defence > g.World.Regions[best].Defence {
@@ -125,25 +122,13 @@ func (g *Game) factionCityRegion(fi int, day int64) int {
 	return best
 }
 
-// heldDays is how long a faction has held a region as the story's memory
-// tells it: since it took the region or split off with it. A holding the
-// memory has no change for has been held at least as long as the memory
-// reaches, and no longer than the world is old.
-func (g *Game) heldDays(fi, r int, day int64) int64 {
-	since := int64(-1)
-	for _, m := range g.Story.Memory {
-		switch {
-		case m.Kind == memFactionExpands && m.Region == r:
-		case m.Kind == world.FactSplit && len(m.Subjects) > 1 && m.Subjects[1] == arc.FactionRef(fi):
-		default:
-			continue
-		}
-		since = max(since, m.Tick/sheets.TicksPerDay)
+// heldDays is how many days faction fi has held region r, counted at each
+// day's end since it last changed hands.
+func (g *Game) heldDays(fi, r int) int64 {
+	if st := g.streakOf(r); st != nil && st.Holder == fi {
+		return st.Held
 	}
-	if since < 0 {
-		return min(g.r.Story.MemoryDays, day)
-	}
-	return day - since
+	return 0
 }
 
 // factionCityTile is the region's highest tile a city may stand on, the

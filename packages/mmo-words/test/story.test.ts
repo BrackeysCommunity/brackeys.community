@@ -8,11 +8,14 @@ import {
   chronicleKinds,
   chronicleLine,
   clueLine,
+  heldLine,
+  patternKind,
   patternLine,
   refKey,
   seasonLine,
   sideLine,
   troubleBanner,
+  wantUnit,
   type Datum,
   type Names,
   type Ref,
@@ -363,11 +366,39 @@ describe("clueLine", () => {
   test("each kind of clue reads", () => {
     expect(clueLine(clue("offset", 2))).toBe("point #3 is set 2 values past point #1");
     expect(clueLine(clue("offset", 0))).toBe("point #3 holds the same value as point #1");
-    expect(clueLine(clue("facing", 1))).toBe("point #1 faces north-east");
+    expect(clueLine(clue("facing", 1))).toBe("point #1 faces north-east (#1)");
+    expect(clueLine(clue("facing", 9))).toBe("point #1 faces its own way");
     expect(clueLine(clue("after", 0))).toBe("point #1 comes before point #3");
     expect(clueLine(clue("near", 1))).toBe("the hidden point is within 1 point of point #1");
     for (const says of ["after", "offset", "facing", "live", "missing", "near", "other"])
       for (const n of [0, 1, 5]) expect(bareNumbers(clueLine(clue(says, n)))).toEqual([]);
+  });
+  test("a namer names the points, and the rest of the line keeps its words", () => {
+    const letter = (i: number) => `point ${"ABC"[i]}`;
+    expect(clueLine(clue("after", 0), letter)).toBe("point A comes before point C");
+    expect(clueLine(clue("missing", 0), letter)).toBe("the gap lies from point A to point C");
+    expect(clueLine(clue("offset", 1), letter)).toBe("point C is set 1 value past point A");
+  });
+});
+
+describe("pattern kinds", () => {
+  test("a kind is named, and what a point holds reads by it", () => {
+    expect(patternKind("state")).toBe("settings");
+    expect(patternKind("constellation")).toBe("the hidden one");
+    expect(heldLine("state", 2)).toBe("holds setting #2");
+    expect(heldLine("alignment", 4)).toBe("faces south-west (#4)");
+    expect(heldLine("alignment", 9)).toBe("faces #9");
+    expect(heldLine("constellation", 0)).toBe("is found");
+    expect(heldLine("constellation", 1)).toBe("is activated");
+  });
+});
+
+describe("wantUnit", () => {
+  test("a side's mark counts in what it wants, beats as points", () => {
+    expect(wantUnit("beats")).toBe("points");
+    expect(wantUnit("reach")).toBe("characters");
+    expect(wantUnit("sold")).toBe("coin");
+    expect(wantUnit("whatever")).toBe("goods");
   });
 });
 

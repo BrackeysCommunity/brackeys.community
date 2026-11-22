@@ -232,8 +232,8 @@ type Game struct {
 	Market   *Market        `json:"market,omitempty"`
 	Society
 	Delve
-	// Story is nil on a game saved before the director, which then runs
-	// as it did.
+	// Story is nil on a game saved before the director; such a game runs
+	// without one.
 	Story *Story     `json:"story,omitempty"`
 	Log   *fact.Tail `json:"log"`
 	r     *Rules

@@ -324,17 +324,14 @@ func changedSheets(a, b *sheets.Book) int64 {
 
 // closes reports whether a tick's facts close a season.
 func closes(facts []fact.Fact) bool {
-	return slices.ContainsFunc(facts, func(f fact.Fact) bool { return f.Kind == seasonClosed })
+	return slices.ContainsFunc(facts, func(f fact.Fact) bool { return f.Kind == game.FactSeasonClosed })
 }
-
-// structural: the fact a season's close writes.
-const seasonClosed = "season.closed"
 
 // atBoundary reports, under mu, whether the world stands right after a
 // season's close with the pending epoch not yet recorded.
 func (s *Server) atBoundary() bool {
 	c, _, ok := s.g.Season()
-	return ok && c.N > 0 && !c.Legacy && s.g.Tick() == c.Start*sheets.TicksPerDay && c.Epoch != s.epoch.to
+	return ok && c.Turned(s.g.Tick()) && c.Epoch != s.epoch.to
 }
 
 // runOn makes the service run on an epoch's book.

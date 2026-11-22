@@ -412,9 +412,6 @@ func (g *Game) patternSet(c *Char, cmd Command) error {
 	if !pb.Fits(m) {
 		return refuse(BadArgs, "point %d of %s takes values 0 to %d", point, b.ID, max(row.Values, 1)-1)
 	}
-	if row.Kind == pattern.Constellation && m.Value == pattern.Find && b.P.Hidden(pb, pattern.Solve(g.r.draw, pb), point) {
-		return refuse(NoPattern, "no pattern's point shows on %s yet", at.Ref())
-	}
 	family := familyOf(row, b.Places[point])
 	if family == "" {
 		lines := []sheets.CostLine{{Tag: beaconTag, Quantity: g.r.Story.BeaconCost}}
@@ -533,7 +530,7 @@ func (b *Board) solvers() tally.Tally {
 
 // patternSolved writes the solve and fires its opens in row order. A
 // board that opens a fact is solved in the world's hearing, not only its
-// region's. What waits for a later milestone opens nothing yet.
+// region's. An open with Waits set opens nothing.
 func (g *Game) patternSolved(b *Board, row *sheets.PatternPuzzle, cause fact.ID, t int64) error {
 	by := b.solvers()
 	subjects := []fact.Ref{boardRef(b.ID)}
@@ -594,25 +591,8 @@ func (g *Game) patternCache(b *Board, ref string, by tally.Tally, cause fact.ID,
 	if err != nil {
 		return err
 	}
-	pool := ledger.CachePool(b.ID)
-	var legs []ledger.Leg
-	for _, l := range lines {
-		asset := ledger.Goods(l.Material)
-		legs = append(legs, ledger.Pair(ledger.FromCache, pool, asset, l.Quantity)...)
-		for j, part := range splitUnits(l.Quantity, by) {
-			if part > 0 {
-				legs = append(legs, ledger.Pair(pool, g.handTo(by[j].Key, b.Centre), asset, part)...)
-			}
-		}
-	}
 	key := ledger.SubKey("tick", i64(t), refPattern, b.ID, ref)
-	if err := g.postAll(ledger.Txn{Key: key, Kind: openCache, Tick: t, Fact: f, Legs: ledger.Merge(legs)}); err != nil {
-		return err
-	}
-	for _, s := range by {
-		g.awaits(s.Key, b.Centre)
-	}
-	return nil
+	return g.openCache(lines, ledger.CachePool(b.ID), by, b.Centre, key, openCache, f, t)
 }
 
 // placeChain lays the chained pattern a solve opens: centred chain-distance
@@ -745,6 +725,7 @@ func (g *Game) patternsDay(day int64) error {
 	if g.Story == nil {
 		return nil
 	}
+	g.Story.clues = nil
 	for _, b := range g.Story.Patterns {
 		row := g.puzzleRow(b.Rule)
 		if row == nil || b.P.Done {
@@ -763,7 +744,7 @@ func (g *Game) patternsDay(day int64) error {
 }
 
 // PatternAt is a pattern's point on h as a viewer sees it, or nil where
-// none stands or constellation's hidden point does not show yet.
+// none stands. A constellation's hidden point looks like any other.
 func (g *Game) PatternAt(_ *Char, h hex.Hex) *PatternPoint {
 	if g.Story == nil {
 		return nil
@@ -774,10 +755,6 @@ func (g *Game) PatternAt(_ *Char, h hex.Hex) *PatternPoint {
 	}
 	row := g.puzzleRow(b.Rule)
 	if row == nil {
-		return nil
-	}
-	pb := b.rules(row)
-	if row.Kind == pattern.Constellation && b.P.Hidden(pb, pattern.Solve(g.r.draw, pb), i) {
 		return nil
 	}
 	out := &PatternPoint{Board: b.ID, Kind: row.Kind, Place: b.Places[i], Family: familyOf(row, b.Places[i]), Point: int64(i),

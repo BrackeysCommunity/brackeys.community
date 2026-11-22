@@ -3,6 +3,7 @@ import type { Card } from "./card.ts";
 import type { ForumStore } from "./forum.ts";
 import { type ChannelSink, pollEvery } from "./hunts.ts";
 import type { Lexicon } from "./lexicon.ts";
+import { postOnce } from "./live.ts";
 import { chronicleCard } from "./screens/story.ts";
 
 /**
@@ -43,15 +44,13 @@ export class ChroniclePoster {
     const was = await this.store.get(key);
     if (was !== null && ch.day <= Number(was)) return 0;
     const card = this.card(ch);
-    // Marked before posting: a crash or a failed write after the post must
-    // not post the day twice in a public channel.
-    await this.store.set(key, String(ch.day));
-    try {
-      await this.sink.post(card);
-    } catch (e) {
-      await (was === null ? this.store.del(key) : this.store.set(key, was));
-      throw e;
-    }
+    await postOnce(
+      this.store,
+      key,
+      String(ch.day),
+      () => this.sink.post(card),
+      () => (was === null ? this.store.del(key) : this.store.set(key, was)),
+    );
     return 1;
   }
 

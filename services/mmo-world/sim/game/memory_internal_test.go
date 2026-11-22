@@ -38,8 +38,8 @@ func storyFact(t *testing.T, g *Game, id fact.ID, tick int64, kind string, subje
 
 // TestMemoryBoundedOverTenThousandFacts feeds the ring ten thousand facts a
 // tick apart, heavy and light: it never holds more than memory-kept, keeps
-// the newest heavy ones and the story kinds, drops the light ones, and
-// forgets everything memory-days on.
+// the newest heavy ones, drops the light ones, and forgets everything
+// memory-days on.
 func TestMemoryBoundedOverTenThousandFacts(t *testing.T) {
 	g := storyGame(t)
 	p := g.r.Story
@@ -49,12 +49,12 @@ func TestMemoryBoundedOverTenThousandFacts(t *testing.T) {
 	for i := range facts {
 		tick := start + int64(i)
 		g.World.Tick = tick
-		kind := "faction.raided" // 45: over the line
+		kind := "hunt.slain" // heavy, and no story kind
 		switch i % 4 {
 		case 1:
-			kind = "beat.won" // light
+			kind = "beat.won"
 		case 2:
-			kind = factVowBroken // light, but a story kind
+			kind = factVowBroken // light: its oath is pended before the weight test
 		}
 		f := storyFact(t, g, fact.ID(i+1), tick, kind, nil)
 		if f.Weight >= p.MemoryWeight || slices.Contains(storyKinds, kind) {
@@ -72,7 +72,7 @@ func TestMemoryBoundedOverTenThousandFacts(t *testing.T) {
 	var got []fact.ID
 	for _, m := range g.Story.Memory {
 		got = append(got, m.Fact)
-		if m.Kind == "beat.won" {
+		if m.Kind == "beat.won" || m.Kind == factVowBroken {
 			t.Fatal("a light fact was remembered")
 		}
 	}
@@ -83,6 +83,114 @@ func TestMemoryBoundedOverTenThousandFacts(t *testing.T) {
 	g.noteStory(nil)
 	if len(g.Story.Memory) != 0 {
 		t.Fatalf("%d memories outlived memory-days", len(g.Story.Memory))
+	}
+}
+
+// TestMemoryCapSparesStoryKinds: heavy per-character facts past
+// memory-kept push out their own kind, never an older holding.fell.
+func TestMemoryCapSparesStoryKinds(t *testing.T) {
+	g := storyGame(t)
+	p := g.r.Story
+	start := g.Tick()
+	g.noteStory([]fact.Fact{storyFact(t, g, 1, start, "holding.fell", nil)})
+	for i := range 2 * p.MemoryKept {
+		g.World.Tick = start + 1 + i
+		g.noteStory([]fact.Fact{storyFact(t, g, fact.ID(i+2), g.Tick(), "hunt.slain", []fact.Ref{char.Ref("c-1")})})
+	}
+	if n := int64(len(g.Story.Memory)); n != p.MemoryKept || g.Story.Memory[0].Kind != "holding.fell" {
+		t.Fatalf("the ring holds %d, first %+v", n, g.Story.Memory[0])
+	}
+}
+
+// TestMemoryCapBoundsStoryKinds: story kinds alone past memory-kept are
+// held to it, the oldest dropped.
+func TestMemoryCapBoundsStoryKinds(t *testing.T) {
+	g := storyGame(t)
+	p := g.r.Story
+	start := g.Tick()
+	n := 2 * p.MemoryKept
+	for i := range n {
+		g.World.Tick = start + i
+		f := storyFact(t, g, fact.ID(i+1), g.Tick(), "structure.raised", nil, fact.N(datumSettlement, 0))
+		if i == 0 && f.Weight < p.MemoryWeight {
+			t.Fatalf("structure.raised weighs %d, under memory-weight", f.Weight)
+		}
+		g.noteStory([]fact.Fact{f})
+	}
+	m := g.Story.Memory
+	if int64(len(m)) != p.MemoryKept {
+		t.Fatalf("the ring holds %d, want %d", len(m), p.MemoryKept)
+	}
+	if want := fact.ID(n - p.MemoryKept + 1); m[0].Fact != want || m[len(m)-1].Fact != fact.ID(n) {
+		t.Fatalf("the ring runs %d..%d, want %d..%d", m[0].Fact, m[len(m)-1].Fact, want, n)
+	}
+}
+
+// TestMemoryForgetsStaleCandidates: a thread candidate older than
+// memory-days leaves the queue.
+func TestMemoryForgetsStaleCandidates(t *testing.T) {
+	g := storyGame(t)
+	g.pend(arc.Pending{Kind: arc.PendReturn, Char: "c-1", Tick: g.Tick()})
+	g.World.Tick += g.r.Story.MemoryDays * sheets.TicksPerDay
+	g.noteStory(nil)
+	if len(g.Story.Pending) != 1 {
+		t.Fatal("a candidate memory-days old was dropped")
+	}
+	g.World.Tick += sheets.TicksPerDay
+	g.pend(arc.Pending{Kind: arc.PendReturn, Char: "c-1", Tick: g.Tick()})
+	g.noteStory(nil)
+	if len(g.Story.Pending) != 1 || g.Story.Pending[0].Tick != g.Tick() {
+		t.Fatalf("the queue after memory-days is %+v", g.Story.Pending)
+	}
+}
+
+// TestStarvingDaysCounted: a faction that just began starving has starved a
+// day though the ring remembers none of it, and the count grows each day.
+func TestStarvingDaysCounted(t *testing.T) {
+	g := storyGame(t)
+	g.World.Factions[0].Starving = true
+	if n := g.storyView().Factions()[0].StarvingDays; n != 1 {
+		t.Fatalf("just starving: %d days", n)
+	}
+	g.streaksDay(0)
+	g.streaksDay(0)
+	if n := g.storyView().Factions()[0].StarvingDays; n != 2 {
+		t.Fatalf("two days starving: %d days", n)
+	}
+	g.World.Factions[0].Starving = false
+	g.streaksDay(0)
+	g.World.Factions[0].Starving = true
+	if n := g.storyView().Factions()[0].StarvingDays; n != 1 {
+		t.Fatalf("starving again: %d days", n)
+	}
+}
+
+// TestHeldDaysSinceTaken: a region that changed hands has been held no days
+// by its new holder, and a day more each day it keeps it.
+func TestHeldDaysSinceTaken(t *testing.T) {
+	g := storyGame(t)
+	if len(g.World.Factions) < 2 {
+		t.Fatal("fewer than two factions")
+	}
+	reg := &g.World.Regions[0]
+	reg.Holder = 0
+	g.streaksDay(0)
+	g.streaksDay(0)
+	if n := g.heldDays(0, 0); n != 2 {
+		t.Fatalf("held two days: %d", n)
+	}
+	reg.Holder = 1
+	if n := g.heldDays(1, 0); n != 0 {
+		t.Fatalf("just taken: %d days", n)
+	}
+	for day := int64(1); day <= 3; day++ {
+		g.streaksDay(0)
+		if n := g.heldDays(1, 0); n != day {
+			t.Fatalf("held %d days, counted %d", day, n)
+		}
+	}
+	if n := g.heldDays(0, 0); n != 0 {
+		t.Fatalf("the old holder still holds it %d days", n)
 	}
 }
 

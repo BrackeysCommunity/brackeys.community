@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 
 	"jams.team/mmo-world/api"
@@ -55,12 +54,9 @@ func arcOrder(args []string) (api.ArcOrder, error) {
 	return o, nil
 }
 
-// story is the operator's view of the story: the season, the arcs, the
-// ring and the pattern boards, never a solution.
+// story is the operator's view of the story, never a solution.
 func story(ctx context.Context, c *client.HTTP) (api.StoryView, error) {
-	var out api.StoryView
-	ref, err := c.Do(ctx, http.MethodGet, api.PathOperatorStory, nil, &out)
-	return out, client.Refused("story", ref, err)
+	return c.OperatorStory(ctx)
 }
 
 // epochFacts are the world's season.epoch facts, oldest first.

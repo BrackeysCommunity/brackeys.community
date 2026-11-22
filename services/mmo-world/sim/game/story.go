@@ -8,19 +8,17 @@ import (
 	"jams.team/mmo-world/sim/season"
 )
 
-// Story is the director's state (GDD 12): the season clock, the arcs, who
-// backs them, the bounded memory predicates read, the streaks, the thread
-// candidates, and the story state of places, faction cities, the ring and
-// pattern boards. A game saved before it existed has none, and runs as it
-// did then.
+// Story is the director's state (GDD 12). It is nil on a game saved
+// before the director.
 type Story struct {
 	Clock    *season.Clock `json:"clock,omitempty"`
 	Arcs     []*Arc        `json:"arcs,omitempty"` // open, then those ended within kept-arc-days
 	NextArc  int64         `json:"nextArc,omitempty"`
-	Rests    []ScopeRest   `json:"rests,omitempty"`   // sorted by scope, ref
-	Backers  []Backing     `json:"backers,omitempty"` // sorted by char, arc, stage
-	Memory   []arc.Memory  `json:"memory,omitempty"`  // oldest first, capped
-	Streaks  []Streak      `json:"streaks,omitempty"` // by region
+	Rests    []ScopeRest   `json:"rests,omitempty"`    // sorted by scope, ref
+	Backers  []Backing     `json:"backers,omitempty"`  // sorted by char, arc, stage
+	Memory   []arc.Memory  `json:"memory,omitempty"`   // oldest first, capped
+	Streaks  []Streak      `json:"streaks,omitempty"`  // by region
+	Starving []int64       `json:"starving,omitempty"` // days running each faction, by index, has starved
 	Pending  []arc.Pending `json:"pending,omitempty"`
 	At       []PlaceStory  `json:"places,omitempty"` // by place index, grown lazily
 	Cities   []FactionCity `json:"factionCities,omitempty"`
@@ -96,7 +94,9 @@ type Streak struct {
 	Prosper int64 `json:"prosper,omitempty"`
 	Cold    int64 `json:"cold,omitempty"`
 	Wet     int64 `json:"wet,omitempty"`
-	Low     int64 `json:"low,omitempty"` // scarcity under seam-below
+	Low     int64 `json:"low,omitempty"`  // scarcity under seam-below
+	Holder  int   `json:"holder"`         // the region's holder when last counted
+	Held    int64 `json:"held,omitempty"` // days the holder has held it
 }
 
 // PlaceStory is one place's story state: its troubles this season and the

@@ -11,9 +11,10 @@ import (
 	"jams.team/mmo-world/sim/world"
 )
 
-// storyKinds are remembered whatever their weight: the predicates cast
-// from each of them.
-var storyKinds = []string{"notable.died", "faction.betrayed", factVowBroken, "guardian.slain", "holding.fell", "trouble.lost"}
+// storyKinds are remembered whatever their weight and leave the ring by
+// count only after every other kind: the predicates' kinds and those the
+// game reads back itself.
+var storyKinds = append(slices.Clone(arc.Remembered), factGuardianSlain)
 
 const factVowBroken = "goal.vow-broken"
 
@@ -25,8 +26,8 @@ const (
 )
 
 // noteStory keeps the facts the director remembers: those at memory-weight
-// or heavier and the story kinds, at most memory-kept of them and none
-// older than memory-days, since the log's tail is flushed at every save.
+// or heavier and the story kinds, none older than memory-days and at most
+// memory-kept, since the log's tail is flushed at every save.
 // A broken vow also queues an oath.
 func (g *Game) noteStory(fs []fact.Fact) {
 	s := g.Story
@@ -46,19 +47,36 @@ func (g *Game) noteStory(fs []fact.Fact) {
 	g.forget()
 }
 
-// forget drops memories past memory-days, then the oldest past memory-kept.
+// forget drops memories and thread candidates past memory-days, then holds
+// the ring to memory-kept: the oldest of other kinds go first, so a story
+// kind is evicted by count only when story kinds alone overfill it.
 func (g *Game) forget() {
 	s := g.Story
 	from := g.Tick()/sheets.TicksPerDay - g.r.Story.MemoryDays
-	drop := 0
-	for drop < len(s.Memory) && s.Memory[drop].Tick/sheets.TicksPerDay < from {
-		drop++
+	old := func(tick int64) bool { return tick/sheets.TicksPerDay < from }
+	s.Memory = slices.DeleteFunc(s.Memory, func(m arc.Memory) bool { return old(m.Tick) })
+	s.Pending = slices.DeleteFunc(s.Pending, func(p arc.Pending) bool { return old(p.Tick) })
+	over := len(s.Memory) - int(g.r.Story.MemoryKept)
+	if over <= 0 {
+		return
 	}
-	if over := len(s.Memory) - drop - int(g.r.Story.MemoryKept); over > 0 {
-		drop += over
+	story := 0
+	for _, m := range s.Memory {
+		if slices.Contains(storyKinds, m.Kind) {
+			story++
+		}
 	}
-	if drop > 0 {
-		s.Memory = slices.Delete(s.Memory, 0, drop)
+	others := min(over, len(s.Memory)-story)
+	over -= others
+	s.Memory = slices.DeleteFunc(s.Memory, func(m arc.Memory) bool {
+		if others > 0 && !slices.Contains(storyKinds, m.Kind) {
+			others--
+			return true
+		}
+		return false
+	})
+	if over > 0 {
+		s.Memory = slices.Delete(s.Memory, 0, over)
 	}
 }
 
@@ -134,10 +152,18 @@ func (g *Game) pend(p arc.Pending) {
 
 // streaksDay counts each region's streaks for the world day just closed:
 // prosperity at the city line, frost and wet weather over their shares,
-// and scarcity under seam-below. A day without the condition resets it.
+// scarcity under seam-below, and how long its holder has held it; and
+// each faction's days starving. A day without the condition resets it.
 func (g *Game) streaksDay(_ int64) {
-	if g.Story == nil {
+	s := g.Story
+	if s == nil {
 		return
+	}
+	if n := len(g.World.Factions); len(s.Starving) < n {
+		s.Starving = append(s.Starving, make([]int64, n-len(s.Starving))...)
+	}
+	for i := range g.World.Factions {
+		s.Starving[i] = run(s.Starving[i], g.World.Factions[i].Starving)
 	}
 	p := g.r.Story
 	prosper := g.sp("city-prosperity")
@@ -148,6 +174,12 @@ func (g *Game) streaksDay(_ int64) {
 		st.Cold = run(st.Cold, g.weatherShare(reg, "cold") >= p.ColdShare)
 		st.Wet = run(st.Wet, g.weatherShare(reg, "wet") >= p.WetShare)
 		st.Low = run(st.Low, g.regionGauge(reg, "scarcity") < p.SeamBelow)
+		if st.Holder != reg.Holder {
+			st.Holder, st.Held = reg.Holder, 0
+		}
+		if reg.Holder >= 0 {
+			st.Held++
+		}
 	}
 }
 
