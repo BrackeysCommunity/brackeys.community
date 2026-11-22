@@ -400,7 +400,7 @@
     },
     {
       "id": "director-cost-flat",
-      "text": "The director's world day costs no more on day 90 than 110% of day 5",
+      "text": "Once its memory has filled, the director's world day costs no more in the week to day 90 than 110% of the week to day 45",
       "runs": "world",
       "holdsFrom": "MM9"
     }

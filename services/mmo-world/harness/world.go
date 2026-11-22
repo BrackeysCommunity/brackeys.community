@@ -410,6 +410,11 @@ func WorldRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 		return nil, err
 	}
 	readings = append(readings, dungeons...)
+	story, err := worldStory(b, n, p)
+	if err != nil {
+		return nil, err
+	}
+	readings = append(readings, story...)
 	if err := doc.save(out, "world.md"); err != nil {
 		return nil, err
 	}
