@@ -1,0 +1,84 @@
+{
+  "$schema": "../schema/story.caches.schema.json",
+  "sheet": "story.caches",
+  "rows": [
+    {
+      "id": "vault-cache",
+      "goods": [
+        {
+          "material": "deep-core",
+          "quantity": 6
+        },
+        {
+          "material": "stormglass",
+          "quantity": 6
+        },
+        {
+          "material": "vault-plate",
+          "quantity": 4
+        }
+      ],
+      "note": "GDD 4.13: what a solved vault holds, tier 3 goods of the old world. Provisional, near a guardian's spoils."
+    },
+    {
+      "id": "core-cache",
+      "goods": [
+        {
+          "material": "chips",
+          "quantity": 12
+        },
+        {
+          "material": "cinder-ore",
+          "quantity": 10
+        }
+      ],
+      "note": "GDD 4.13: what the core's first halls give those who go through. Provisional."
+    },
+    {
+      "id": "line-cache",
+      "goods": [
+        {
+          "material": "fieldstone",
+          "quantity": 40
+        },
+        {
+          "material": "copper-ore",
+          "quantity": 20
+        }
+      ],
+      "note": "GDD 4.13: a frontier line's buried store, tier 1 goods. Provisional."
+    },
+    {
+      "id": "cross-cache",
+      "goods": [
+        {
+          "material": "saltglass",
+          "quantity": 12
+        },
+        {
+          "material": "marsh-amber",
+          "quantity": 8
+        }
+      ],
+      "note": "GDD 4.13: a frontier cross's store, tier 2 goods. Provisional."
+    },
+    {
+      "id": "relay-vault-cache",
+      "goods": [
+        {
+          "material": "stormglass",
+          "quantity": 4
+        },
+        {
+          "material": "chips",
+          "quantity": 10
+        },
+        {
+          "material": "old-silk",
+          "quantity": 2
+        }
+      ],
+      "note": "GDD 4.13: a scatter's hidden relay vault. Provisional."
+    }
+  ]
+}

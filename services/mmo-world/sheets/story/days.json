@@ -1,0 +1,31 @@
+{
+  "$schema": "../schema/story.days.schema.json",
+  "sheet": "story.days",
+  "rows": [
+    {
+      "id": "opening",
+      "from": 1,
+      "to": 7,
+      "note": "GDD 12.6: the new rule or material shows itself; goals turn over."
+    },
+    {
+      "id": "rising",
+      "from": 8,
+      "to": 28,
+      "split": 18,
+      "note": "GDD 12.6: the world arc's first two stages; stage 1 ends on day 18 (provisional), which gives stages of 7 to 12 days (GDD 12.2)."
+    },
+    {
+      "id": "last",
+      "from": 29,
+      "to": 38,
+      "note": "GDD 12.6: the world arc's last stage."
+    },
+    {
+      "id": "finale",
+      "from": 39,
+      "to": 42,
+      "note": "GDD 12.6: the finale, cast from the largest unresolved pressure."
+    }
+  ]
+}

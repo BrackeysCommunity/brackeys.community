@@ -61,6 +61,7 @@ func Check(root string, opt CheckOptions) []Result {
 	add("play sheets", playProblems(book))
 	add("rules compile", ruleProblems(book))
 	add("pack names everything shown", packProblems(book))
+	add("targets name their runs", targetProblems(book))
 	if !opt.SkipLint {
 		add("sim rules and no literals", lintProblems(root))
 	}
@@ -277,6 +278,25 @@ func ruleProblems(b *sheets.Book) []string {
 		return splitErr(err)
 	}
 	return nil
+}
+
+// targetRuns are the run names a target may say holds it: the harness
+// runs, and the readings taken outside them (growth curves, search).
+var targetRuns = []string{
+	"activity", "battle", "content", "craft", "delve", "economy", "growth",
+	"puzzles", "search", "season", "social", "world",
+}
+
+func targetProblems(b *sheets.Book) []string {
+	var p []string
+	for _, t := range b.Targets {
+		for run := range strings.SplitSeq(t.Runs, ",") {
+			if run = strings.TrimSpace(run); !slices.Contains(targetRuns, run) {
+				p = append(p, fmt.Sprintf("meta.targets %s: no run is named %q", t.ID, run))
+			}
+		}
+	}
+	return p
 }
 
 // namedSheets are the sheets whose every id the setting pack must name.

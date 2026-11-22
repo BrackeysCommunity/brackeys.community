@@ -7,6 +7,360 @@
       "value": 60,
       "unit": "weight",
       "doc": "The chronicle posts facts at this weight and above."
+    },
+    {
+      "id": "chronicle-lines",
+      "value": 8,
+      "unit": "count",
+      "doc": "Lines a day's chronicle post holds before \"and N more\" (GDD 12.7)."
+    },
+    {
+      "id": "season-days",
+      "value": 42,
+      "unit": "days",
+      "doc": "A season's length in world days (GDD 12.6); the weather keeps world.params season-days."
+    },
+    {
+      "id": "season-zero-days",
+      "value": 14,
+      "unit": "days",
+      "doc": "Season zero's length, the closed test's season, its bands scaled from season-days (GDD 12.6)."
+    },
+    {
+      "id": "active-days",
+      "value": 7,
+      "unit": "days",
+      "doc": "A character who acted within this many world days counts toward an arc's marks (GDD 12.2)."
+    },
+    {
+      "id": "mark-floor-characters",
+      "value": 2,
+      "unit": "count",
+      "doc": "A mark counts at least this many active characters, so an unattended arc lapses rather than winning at 0. Provisional."
+    },
+    {
+      "id": "stage-days-least",
+      "value": 2,
+      "unit": "days",
+      "doc": "The shortest region or personal stage (GDD 12.2)."
+    },
+    {
+      "id": "stage-days-most",
+      "value": 5,
+      "unit": "days",
+      "doc": "The longest region or personal stage (GDD 12.2)."
+    },
+    {
+      "id": "side-pay",
+      "value": 50,
+      "unit": "percent",
+      "doc": "A side's escrow is its mark's worth at this share (GDD 12.2, 12.3). Provisional."
+    },
+    {
+      "id": "side-pay-other",
+      "value": 50,
+      "unit": "percent",
+      "doc": "The share of its escrow a side that did not win pays its backers, by how much of its mark they filled (GDD 12.2: both pay). Provisional."
+    },
+    {
+      "id": "side-budget-share",
+      "value": 50,
+      "unit": "percent",
+      "doc": "A side's escrow is at most this share of that day's faucet budgets in the arc's regions (GDD 10.2). Provisional."
+    },
+    {
+      "id": "beat-coin",
+      "value": 1,
+      "unit": "coin",
+      "doc": "One point of a won beat's score is worth this much toward a side's escrow. Provisional."
+    },
+    {
+      "id": "standing-for",
+      "value": 20,
+      "unit": "coin",
+      "doc": "Coin's worth backed per +1 standing with the sponsor (GDD 12.3)."
+    },
+    {
+      "id": "standing-against",
+      "value": 60,
+      "unit": "coin",
+      "doc": "Coin's worth backed per -1 standing with the opponent (GDD 12.3)."
+    },
+    {
+      "id": "shunned-below",
+      "value": -50,
+      "unit": "standing",
+      "doc": "A character at or below this standing with a side's sponsor may not back it (GDD 5.4)."
+    },
+    {
+      "id": "marked-ambush",
+      "value": 150,
+      "unit": "percent",
+      "doc": "Ambush chance on a Marked character inside its arc's regions or the opposing sponsor's (GDD 5.5). Provisional."
+    },
+    {
+      "id": "memory-weight",
+      "value": 40,
+      "unit": "weight",
+      "doc": "Facts this heavy or heavier enter the director's memory ring."
+    },
+    {
+      "id": "memory-kept",
+      "value": 512,
+      "unit": "count",
+      "doc": "Facts the director's memory ring keeps at most."
+    },
+    {
+      "id": "memory-days",
+      "value": 30,
+      "unit": "days",
+      "doc": "A fact leaves the memory ring after this many world days; predicates ask the ledger this far back (GDD 12.2)."
+    },
+    {
+      "id": "pending-kept",
+      "value": 64,
+      "unit": "count",
+      "doc": "Personal thread candidates waiting at most."
+    },
+    {
+      "id": "kept-arc-days",
+      "value": 14,
+      "unit": "days",
+      "doc": "An ended arc stays in the story this long, for cards and the recap."
+    },
+    {
+      "id": "raid-mark",
+      "value": 7,
+      "unit": "defence",
+      "doc": "A raid's defence mark per active character of the settlement (GDD 12.10)."
+    },
+    {
+      "id": "keeper-watch",
+      "value": 10,
+      "unit": "defence",
+      "doc": "Defence a keeper-run settlement counts toward every trouble's mark. Provisional."
+    },
+    {
+      "id": "keeper-mend",
+      "value": 10,
+      "unit": "pts",
+      "doc": "Condition a keeper-run settlement mends on every structure a world day. Provisional."
+    },
+    {
+      "id": "ruin-troubles",
+      "value": 3,
+      "unit": "count",
+      "doc": "A chartered settlement that loses this many troubles in a season falls to ruin (GDD 4.8). Provisional."
+    },
+    {
+      "id": "front-joined",
+      "value": 2,
+      "unit": "count",
+      "doc": "A corruption front is a region over its line with this many neighbours over it. Provisional."
+    },
+    {
+      "id": "front-spread",
+      "value": 60,
+      "unit": "gauge",
+      "doc": "Corruption a lapsed front spreads to a neighbour a world day. Provisional."
+    },
+    {
+      "id": "front-spread-days",
+      "value": 5,
+      "unit": "days",
+      "doc": "World days a lapsed front spreads for. Provisional."
+    },
+    {
+      "id": "cold-share",
+      "value": 50,
+      "unit": "percent",
+      "doc": "A region is cold on a day this share of its tiles is under frost. Provisional."
+    },
+    {
+      "id": "cold-days",
+      "value": 5,
+      "unit": "days",
+      "doc": "Cold days running that make a cold snap (GDD 12.9)."
+    },
+    {
+      "id": "cold-regions",
+      "value": 3,
+      "unit": "count",
+      "doc": "Regions a cold snap spans (GDD 12.9)."
+    },
+    {
+      "id": "wet-share",
+      "value": 50,
+      "unit": "percent",
+      "doc": "A region is wet on a day this share of its tiles is under wet weather. Provisional."
+    },
+    {
+      "id": "wet-days",
+      "value": 3,
+      "unit": "days",
+      "doc": "Wet days running that bring sickness (GDD 12.5)."
+    },
+    {
+      "id": "wet-scarcity",
+      "value": 500,
+      "unit": "gauge",
+      "doc": "Scarcity above which a wet streak brings sickness (GDD 12.5)."
+    },
+    {
+      "id": "seam-below",
+      "value": 100,
+      "unit": "gauge",
+      "doc": "Scarcity falling below this opens a seam (GDD 12.5)."
+    },
+    {
+      "id": "seam-stock",
+      "value": 40,
+      "unit": "goods",
+      "doc": "Stock a seam adds to the nearest node. Provisional."
+    },
+    {
+      "id": "seam-radius",
+      "value": 3,
+      "unit": "tiles",
+      "doc": "How far from the place a seam finds its node. Provisional."
+    },
+    {
+      "id": "panic-starving-days",
+      "value": 3,
+      "unit": "days",
+      "doc": "A faction starving this many world days running is collapsing. Provisional."
+    },
+    {
+      "id": "caravan-passages",
+      "value": 40,
+      "unit": "count",
+      "doc": "Until roads, a place's tile with this many passages a season counts as a road in. Provisional."
+    },
+    {
+      "id": "caravan-share",
+      "value": 20,
+      "unit": "percent",
+      "doc": "A caravan's bids are at most this share of the place's day budget. Provisional."
+    },
+    {
+      "id": "caravan-premium",
+      "value": 120,
+      "unit": "percent",
+      "doc": "A caravan bids this share of the reference price, for the next tier's materials. Provisional."
+    },
+    {
+      "id": "fees-raised",
+      "value": 200,
+      "unit": "percent",
+      "doc": "Market fees at a raided place while the raid's stake runs (GDD 12.5: fees double)."
+    },
+    {
+      "id": "prices-cut",
+      "value": 80,
+      "unit": "percent",
+      "doc": "What faction orders at a place in shortage pay, as a share of their price, while its stake runs. Provisional."
+    },
+    {
+      "id": "sick-share",
+      "value": 200,
+      "unit": "percent",
+      "doc": "Rest and repair take this share of their time and cost while sickness runs (GDD 12.5: twice as long)."
+    },
+    {
+      "id": "rival-distance",
+      "value": 12,
+      "unit": "tiles",
+      "doc": "Two settlements this close can be rival seats (GDD 12.9)."
+    },
+    {
+      "id": "rival-growth-days",
+      "value": 14,
+      "unit": "days",
+      "doc": "A rival seat raised a structure within this many world days. Provisional."
+    },
+    {
+      "id": "defector-loyalty",
+      "value": 30,
+      "unit": "count",
+      "doc": "A notable under this loyalty wavers (factions.params defect-below)."
+    },
+    {
+      "id": "betrayal-days",
+      "value": 30,
+      "unit": "days",
+      "doc": "A betrayal this recent can cast a grudge (GDD 12.2's 30 world days)."
+    },
+    {
+      "id": "leader-died-days",
+      "value": 30,
+      "unit": "days",
+      "doc": "A leading notable's death this recent can cast a succession (GDD 12.2's 30 world days)."
+    },
+    {
+      "id": "return-days",
+      "value": 14,
+      "unit": "days",
+      "doc": "Away this long before a return is cast (GDD 12.9)."
+    },
+    {
+      "id": "thread-standing",
+      "value": 50,
+      "unit": "standing",
+      "doc": "Standing at which a faction's notables offer threads (GDD 5.4)."
+    },
+    {
+      "id": "thread-mark",
+      "value": 25,
+      "unit": "count",
+      "doc": "A personal thread's mark, for its one character (GDD 12.2's 25)."
+    },
+    {
+      "id": "finale-lapse-bonus",
+      "value": 200,
+      "unit": "gauge",
+      "doc": "Pressure added to a region the world arc's lapse struck when the finale is cast. Provisional."
+    },
+    {
+      "id": "finale-loss-weight",
+      "value": 100,
+      "unit": "count",
+      "doc": "Pressure per trouble a settlement lost this season when the finale is cast. Provisional."
+    },
+    {
+      "id": "haywire-least",
+      "value": 200,
+      "unit": "gauge",
+      "doc": "The least threat a wrong pattern attempt surges at its centre (GDD 4.13). Provisional."
+    },
+    {
+      "id": "haywire-most",
+      "value": 400,
+      "unit": "gauge",
+      "doc": "The most threat a wrong pattern attempt surges at its centre (GDD 4.13). Provisional."
+    },
+    {
+      "id": "beacon-cost",
+      "value": 20,
+      "unit": "goods",
+      "doc": "Salt delivered to set a beacon. Provisional."
+    },
+    {
+      "id": "chain-distance",
+      "value": 40,
+      "unit": "tiles",
+      "doc": "How far out a chained pattern is placed from the one that opened it (GDD 4.13's offset)."
+    },
+    {
+      "id": "chain-tries",
+      "value": 6,
+      "unit": "count",
+      "doc": "Bearings tried before a chained pattern is not placed. Provisional."
+    },
+    {
+      "id": "stocked-wall-defence",
+      "value": 20,
+      "unit": "defence",
+      "doc": "Defence a running Stocked wall adds to a raid (settlements.guild-works stocked-wall)."
     }
   ]
 }

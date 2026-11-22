@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "story.days",
+  "title": "story.days",
+  "description": "The season's day bands, for a season of story.params season-days (GDD 12.6).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "story.days"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "from",
+          "to"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "opening",
+              "rising",
+              "last",
+              "finale"
+            ],
+            "x-unit": "enum"
+          },
+          "from": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "days"
+          },
+          "to": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "days"
+          },
+          "split": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "days",
+            "description": "rising: the day world stage 1 ends; stage 2 ends at To."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

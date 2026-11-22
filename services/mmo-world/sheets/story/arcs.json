@@ -1,0 +1,1493 @@
+{
+  "$schema": "../schema/story.arcs.schema.json",
+  "sheet": "story.arcs",
+  "rows": [
+    {
+      "id": "the-siege",
+      "scope": "world",
+      "when": "militant-borders-weaker",
+      "chance": 60,
+      "cast": [
+        {
+          "role": "besieger",
+          "kind": "faction",
+          "pick": "largest"
+        },
+        {
+          "role": "holder",
+          "kind": "faction",
+          "pick": "given"
+        },
+        {
+          "role": "holding",
+          "kind": "holding",
+          "pick": "weakest"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-approach",
+          "sides": [
+            {
+              "id": "garrison",
+              "wants": "goods",
+              "tag": "provisions",
+              "per": 25,
+              "at": "seat",
+              "sponsor": "holder",
+              "opponent": "besieger",
+              "won": [
+                {
+                  "kind": "fortify",
+                  "role": "holding",
+                  "amount": 15
+                }
+              ]
+            },
+            {
+              "id": "besiegers",
+              "wants": "beats",
+              "per": 25,
+              "at": "holding",
+              "sponsor": "besieger",
+              "opponent": "holder",
+              "won": [
+                {
+                  "kind": "fortify",
+                  "role": "holding",
+                  "amount": -25
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "fortify",
+              "role": "holding",
+              "amount": -25
+            }
+          ]
+        },
+        {
+          "id": "the-walls",
+          "sides": [
+            {
+              "id": "garrison",
+              "wants": "goods",
+              "tag": "stone",
+              "per": 25,
+              "at": "seat",
+              "sponsor": "holder",
+              "opponent": "besieger",
+              "won": [
+                {
+                  "kind": "fortify",
+                  "role": "holding",
+                  "amount": 15
+                }
+              ]
+            },
+            {
+              "id": "besiegers",
+              "wants": "beats",
+              "per": 25,
+              "at": "holding",
+              "sponsor": "besieger",
+              "opponent": "holder",
+              "won": [
+                {
+                  "kind": "fortify",
+                  "role": "holding",
+                  "amount": -25
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "fortify",
+              "role": "holding",
+              "amount": -25
+            }
+          ]
+        },
+        {
+          "id": "the-storm",
+          "sides": [
+            {
+              "id": "garrison",
+              "wants": "beats",
+              "per": 25,
+              "at": "holding",
+              "sponsor": "holder",
+              "opponent": "besieger",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "regions",
+                  "gauge": "threat",
+                  "amount": -50
+                },
+                {
+                  "kind": "standing",
+                  "role": "holder",
+                  "amount": 2
+                }
+              ]
+            },
+            {
+              "id": "besiegers",
+              "wants": "beats",
+              "per": 25,
+              "at": "holding",
+              "sponsor": "besieger",
+              "opponent": "holder",
+              "won": [
+                {
+                  "kind": "holding-falls",
+                  "role": "holding",
+                  "amount": 40
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "holding-falls",
+              "role": "holding",
+              "amount": 40
+            }
+          ]
+        }
+      ],
+      "note": "GDD 12.9: a militant faction borders a weaker holding; the holding falls if it lapses. Fortify steps are factions.params fortify-gain 15 and raid-damage 25; 40 is the defence a faction's last holding loses instead of falling (factions.params last-holding-damage). Chance provisional."
+    },
+    {
+      "id": "the-succession",
+      "scope": "world",
+      "when": "leader-died",
+      "chance": 60,
+      "cast": [
+        {
+          "role": "faction",
+          "kind": "faction",
+          "pick": "given"
+        },
+        {
+          "role": "claimant-a",
+          "kind": "notable",
+          "pick": "most-loyal"
+        },
+        {
+          "role": "claimant-b",
+          "kind": "notable",
+          "pick": "least-loyal"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-mourning",
+          "sides": [
+            {
+              "id": "claimant-a",
+              "wants": "goods",
+              "tag": "provisions",
+              "per": 25,
+              "at": "seat",
+              "sponsor": "faction",
+              "won": [
+                {
+                  "kind": "loyalty",
+                  "role": "claimant-a",
+                  "amount": 10
+                }
+              ]
+            },
+            {
+              "id": "claimant-b",
+              "wants": "goods",
+              "tag": "timber",
+              "per": 25,
+              "at": "seat",
+              "sponsor": "faction",
+              "won": [
+                {
+                  "kind": "loyalty",
+                  "role": "claimant-b",
+                  "amount": 10
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "loyalty",
+              "role": "claimant-a",
+              "amount": -10
+            },
+            {
+              "kind": "loyalty",
+              "role": "claimant-b",
+              "amount": -10
+            }
+          ]
+        },
+        {
+          "id": "the-rally",
+          "sides": [
+            {
+              "id": "claimant-a",
+              "wants": "beats",
+              "per": 25,
+              "at": "faction",
+              "sponsor": "faction",
+              "won": [
+                {
+                  "kind": "loyalty",
+                  "role": "claimant-a",
+                  "amount": 10
+                }
+              ]
+            },
+            {
+              "id": "claimant-b",
+              "wants": "beats",
+              "per": 25,
+              "at": "faction",
+              "sponsor": "faction",
+              "won": [
+                {
+                  "kind": "loyalty",
+                  "role": "claimant-b",
+                  "amount": 10
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "loyalty",
+              "role": "claimant-a",
+              "amount": -10
+            },
+            {
+              "kind": "loyalty",
+              "role": "claimant-b",
+              "amount": -10
+            }
+          ]
+        },
+        {
+          "id": "the-claim",
+          "sides": [
+            {
+              "id": "claimant-a",
+              "wants": "goods",
+              "tag": "stone",
+              "per": 25,
+              "at": "seat",
+              "sponsor": "faction",
+              "won": [
+                {
+                  "kind": "appoint",
+                  "role": "claimant-a"
+                }
+              ]
+            },
+            {
+              "id": "claimant-b",
+              "wants": "goods",
+              "tag": "provisions",
+              "per": 25,
+              "at": "seat",
+              "sponsor": "faction",
+              "won": [
+                {
+                  "kind": "appoint",
+                  "role": "claimant-b"
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "split",
+              "role": "claimant-b",
+              "amount": 20
+            }
+          ]
+        }
+      ],
+      "note": "GDD 12.9: a faction's leading notable dies; it splits in two if it lapses, led by the least loyal claimant. The loyalty steps and the lapses of the first two stages are provisional."
+    },
+    {
+      "id": "the-long-cold",
+      "scope": "world",
+      "when": "cold-snap",
+      "chance": 60,
+      "cast": [
+        {
+          "role": "front",
+          "kind": "region",
+          "pick": "largest"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-first-frost",
+          "sides": [
+            {
+              "id": "stockpile",
+              "wants": "goods",
+              "tag": "provisions",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "regions",
+                  "gauge": "unrest",
+                  "amount": -30
+                }
+              ]
+            },
+            {
+              "id": "share",
+              "wants": "goods",
+              "tag": "timber",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "regions",
+                  "gauge": "scarcity",
+                  "amount": -30
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "gauge",
+              "role": "regions",
+              "gauge": "scarcity",
+              "amount": 30
+            }
+          ]
+        },
+        {
+          "id": "the-deep-cold",
+          "sides": [
+            {
+              "id": "stockpile",
+              "wants": "goods",
+              "tag": "provisions",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "regions",
+                  "gauge": "unrest",
+                  "amount": -30
+                }
+              ]
+            },
+            {
+              "id": "share",
+              "wants": "goods",
+              "tag": "hide",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "regions",
+                  "gauge": "scarcity",
+                  "amount": -30
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "gauge",
+              "role": "regions",
+              "gauge": "scarcity",
+              "amount": 30
+            }
+          ]
+        },
+        {
+          "id": "the-thaws-wait",
+          "sides": [
+            {
+              "id": "stockpile",
+              "wants": "goods",
+              "tag": "provisions",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "regions",
+                  "gauge": "unrest",
+                  "amount": -50
+                }
+              ]
+            },
+            {
+              "id": "share",
+              "wants": "goods",
+              "tag": "timber",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "regions",
+                  "gauge": "scarcity",
+                  "amount": -50
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "trouble",
+              "role": "regions",
+              "ref": "sickness"
+            }
+          ]
+        }
+      ],
+      "note": "GDD 12.9: a cold snap for 5 world days across three regions; sickness in every settlement there if it lapses. Gauge steps provisional."
+    },
+    {
+      "id": "the-opening",
+      "scope": "world",
+      "when": "core-open",
+      "chance": 100,
+      "cast": [
+        {
+          "role": "core",
+          "kind": "tile",
+          "pick": "given"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-core-wakes",
+          "sides": [
+            {
+              "id": "seal",
+              "wants": "goods",
+              "tag": "metal",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "regions",
+                  "gauge": "threat",
+                  "amount": -30
+                }
+              ]
+            },
+            {
+              "id": "go-through",
+              "wants": "reach",
+              "per": 1,
+              "at": "core",
+              "won": [
+                {
+                  "kind": "cache",
+                  "role": "core",
+                  "ref": "core-cache"
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "gauge",
+              "role": "regions",
+              "gauge": "threat",
+              "amount": 30
+            }
+          ]
+        },
+        {
+          "id": "the-long-hall",
+          "sides": [
+            {
+              "id": "seal",
+              "wants": "beats",
+              "per": 25,
+              "at": "core",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "regions",
+                  "gauge": "threat",
+                  "amount": -30
+                }
+              ]
+            },
+            {
+              "id": "go-through",
+              "wants": "reach",
+              "per": 1,
+              "at": "core",
+              "won": [
+                {
+                  "kind": "cache",
+                  "role": "core",
+                  "ref": "core-cache"
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "gauge",
+              "role": "regions",
+              "gauge": "threat",
+              "amount": 30
+            }
+          ]
+        },
+        {
+          "id": "the-heart",
+          "sides": [
+            {
+              "id": "seal",
+              "wants": "goods",
+              "tag": "stone",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "seal",
+                  "role": "core"
+                }
+              ]
+            },
+            {
+              "id": "go-through",
+              "wants": "reach",
+              "per": 1,
+              "at": "core",
+              "won": [
+                {
+                  "kind": "keep-open",
+                  "role": "core",
+                  "amount": 1
+                },
+                {
+                  "kind": "cache",
+                  "role": "core",
+                  "ref": "vault-cache"
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "keep-open",
+              "role": "core",
+              "amount": 1
+            }
+          ]
+        }
+      ],
+      "note": "GDD 12.9 and 4.13: the ring's core opens; it stays open for a season if it lapses. Seal it with goods and beats; go through counts distinct characters on the core tile. Threat steps provisional."
+    },
+    {
+      "id": "the-last-stand",
+      "scope": "world",
+      "when": "pressure-region",
+      "finale": true,
+      "chance": 100,
+      "cast": [
+        {
+          "role": "front",
+          "kind": "region",
+          "pick": "given"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-line",
+          "sides": [
+            {
+              "id": "hold-the-line",
+              "wants": "beats",
+              "per": 25,
+              "at": "front",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "front",
+                  "gauge": "threat",
+                  "amount": -100
+                }
+              ]
+            },
+            {
+              "id": "fall-back",
+              "wants": "goods",
+              "tag": "provisions",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "regions",
+                  "gauge": "unrest",
+                  "amount": -50
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "gauge",
+              "role": "front",
+              "gauge": "threat",
+              "amount": 100
+            }
+          ]
+        }
+      ],
+      "note": "GDD 12.6: a finale cast from the largest unresolved pressure, here a region's threat and corruption over their lines. Gauge steps provisional."
+    },
+    {
+      "id": "the-reckoning",
+      "scope": "world",
+      "when": "pressure-faction",
+      "finale": true,
+      "chance": 100,
+      "cast": [
+        {
+          "role": "faction",
+          "kind": "faction",
+          "pick": "given"
+        },
+        {
+          "role": "wronged",
+          "kind": "faction",
+          "pick": "largest"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-account",
+          "sides": [
+            {
+              "id": "broker",
+              "wants": "goods",
+              "tag": "provisions",
+              "per": 25,
+              "at": "seat",
+              "sponsor": "faction",
+              "opponent": "wronged",
+              "won": [
+                {
+                  "kind": "peace",
+                  "role": "faction"
+                }
+              ]
+            },
+            {
+              "id": "arm-the-wronged",
+              "wants": "beats",
+              "per": 25,
+              "at": "faction",
+              "sponsor": "wronged",
+              "opponent": "faction",
+              "won": [
+                {
+                  "kind": "fortify",
+                  "role": "faction",
+                  "amount": -25
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "grudge",
+              "role": "faction",
+              "amount": 14
+            }
+          ]
+        }
+      ],
+      "note": "GDD 12.6: a finale cast from the largest unresolved pressure, here a faction's grudges. The fortify step is factions.params raid-damage; 14 grudge days provisional."
+    },
+    {
+      "id": "the-rebuilding",
+      "scope": "world",
+      "when": "pressure-settlement",
+      "finale": true,
+      "chance": 100,
+      "cast": [
+        {
+          "role": "place",
+          "kind": "settlement",
+          "pick": "given"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-ashes",
+          "sides": [
+            {
+              "id": "rebuild",
+              "wants": "goods",
+              "tag": "timber",
+              "per": 25,
+              "at": "place",
+              "won": [
+                {
+                  "kind": "mend",
+                  "role": "place",
+                  "amount": 25
+                }
+              ]
+            },
+            {
+              "id": "move-on",
+              "wants": "goods",
+              "tag": "provisions",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "seat",
+                  "gauge": "prosperity",
+                  "amount": 50
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "gauge",
+              "role": "place",
+              "gauge": "prosperity",
+              "amount": -100
+            }
+          ]
+        }
+      ],
+      "note": "GDD 12.6: a finale cast from the largest unresolved pressure, here a settlement's lost troubles. The mend is settlements.params reopen-share's 25; gauge steps provisional."
+    },
+    {
+      "id": "the-corruption-front",
+      "scope": "region",
+      "when": "corruption-front",
+      "chance": 40,
+      "cast": [
+        {
+          "role": "source",
+          "kind": "region",
+          "pick": "largest"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-front",
+          "days": 4,
+          "sides": [
+            {
+              "id": "cull-the-source",
+              "wants": "beats",
+              "per": 25,
+              "at": "source",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "source",
+                  "gauge": "corruption",
+                  "amount": -100
+                }
+              ]
+            },
+            {
+              "id": "wall-it-off",
+              "wants": "goods",
+              "tag": "stone",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "regions",
+                  "gauge": "corruption",
+                  "amount": -50
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "spread",
+              "role": "source"
+            }
+          ]
+        }
+      ],
+      "note": "GDD 12.9: corruption over 500 that has joined up; it spreads a day at a time for story.params front-spread-days if it lapses. Read on region gauges, as the sim has no tile corruption. Days and steps provisional."
+    },
+    {
+      "id": "the-rival-seat",
+      "scope": "region",
+      "when": "rival-seats",
+      "chance": 40,
+      "cast": [
+        {
+          "role": "seat-a",
+          "kind": "settlement",
+          "pick": "largest"
+        },
+        {
+          "role": "seat-b",
+          "kind": "settlement",
+          "pick": "smallest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-rivalry",
+          "days": 4,
+          "sides": [
+            {
+              "id": "seat-a",
+              "wants": "goods",
+              "tag": "timber",
+              "per": 25,
+              "at": "seat-a",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "seat-a",
+                  "gauge": "prosperity",
+                  "amount": 50
+                },
+                {
+                  "kind": "gauge",
+                  "role": "seat-b",
+                  "gauge": "prosperity",
+                  "amount": -50
+                }
+              ]
+            },
+            {
+              "id": "seat-b",
+              "wants": "goods",
+              "tag": "timber",
+              "per": 25,
+              "at": "seat-b",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "seat-b",
+                  "gauge": "prosperity",
+                  "amount": 50
+                },
+                {
+                  "kind": "gauge",
+                  "role": "seat-a",
+                  "gauge": "prosperity",
+                  "amount": -50
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "gauge",
+              "role": "seat-b",
+              "gauge": "prosperity",
+              "amount": -100
+            }
+          ]
+        }
+      ],
+      "note": "GDD 12.9: two settlements within 12 tiles, both growing; the smaller loses prosperity if it lapses. Steps provisional."
+    },
+    {
+      "id": "the-defector",
+      "scope": "region",
+      "when": "notable-wavers",
+      "chance": 40,
+      "cast": [
+        {
+          "role": "faction",
+          "kind": "faction",
+          "pick": "given"
+        },
+        {
+          "role": "notable",
+          "kind": "notable",
+          "pick": "least-loyal"
+        },
+        {
+          "role": "rival",
+          "kind": "faction",
+          "pick": "given"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-wavering",
+          "days": 3,
+          "sides": [
+            {
+              "id": "shelter-them",
+              "wants": "goods",
+              "tag": "provisions",
+              "per": 25,
+              "at": "seat",
+              "sponsor": "rival",
+              "opponent": "faction",
+              "won": [
+                {
+                  "kind": "defect",
+                  "role": "notable"
+                }
+              ]
+            },
+            {
+              "id": "turn-them-in",
+              "wants": "beats",
+              "per": 25,
+              "at": "faction",
+              "sponsor": "faction",
+              "opponent": "rival",
+              "won": [
+                {
+                  "kind": "loyalty",
+                  "role": "notable",
+                  "amount": 30
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "loyalty",
+              "role": "notable",
+              "amount": -20
+            }
+          ]
+        }
+      ],
+      "note": "GDD 4.6: a notable under factions.params defect-below wavers; the rival is the faction most hostile to theirs. Steps provisional."
+    },
+    {
+      "id": "the-grudge",
+      "scope": "region",
+      "when": "betrayal",
+      "chance": 40,
+      "cast": [
+        {
+          "role": "betrayer",
+          "kind": "faction",
+          "pick": "given"
+        },
+        {
+          "role": "wronged",
+          "kind": "faction",
+          "pick": "given"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-grudge",
+          "days": 3,
+          "sides": [
+            {
+              "id": "broker-peace",
+              "wants": "goods",
+              "tag": "provisions",
+              "per": 25,
+              "at": "seat",
+              "sponsor": "betrayer",
+              "opponent": "wronged",
+              "won": [
+                {
+                  "kind": "peace",
+                  "role": "betrayer"
+                }
+              ]
+            },
+            {
+              "id": "arm-the-wronged",
+              "wants": "beats",
+              "per": 25,
+              "at": "betrayer",
+              "sponsor": "wronged",
+              "opponent": "betrayer",
+              "won": [
+                {
+                  "kind": "fortify",
+                  "role": "betrayer",
+                  "amount": -25
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "gauge",
+              "role": "betrayer",
+              "gauge": "threat",
+              "amount": 100
+            }
+          ]
+        }
+      ],
+      "note": "GDD 4.5: a faction betrayed another within story.params betrayal-days. The fortify step is factions.params raid-damage; the threat step provisional."
+    },
+    {
+      "id": "the-overrun",
+      "scope": "region",
+      "when": "overrun",
+      "chance": 40,
+      "cast": [
+        {
+          "role": "front",
+          "kind": "region",
+          "pick": "given"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-overrun",
+          "days": 2,
+          "sides": [
+            {
+              "id": "retake",
+              "wants": "beats",
+              "per": 25,
+              "at": "front",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "front",
+                  "gauge": "threat",
+                  "amount": -150
+                }
+              ]
+            },
+            {
+              "id": "evacuate",
+              "wants": "goods",
+              "tag": "provisions",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "regions",
+                  "gauge": "unrest",
+                  "amount": -50
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "gauge",
+              "role": "regions",
+              "gauge": "threat",
+              "amount": 50
+            }
+          ]
+        }
+      ],
+      "note": "GDD 4.3: a region past its overrun line beside an open place. Steps provisional."
+    },
+    {
+      "id": "the-dry-seam",
+      "scope": "region",
+      "when": "dry-region",
+      "chance": 40,
+      "cast": [
+        {
+          "role": "front",
+          "kind": "region",
+          "pick": "given"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-drought",
+          "days": 3,
+          "sides": [
+            {
+              "id": "find-a-source",
+              "wants": "beats",
+              "per": 25,
+              "at": "front",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "front",
+                  "gauge": "scarcity",
+                  "amount": -150
+                }
+              ]
+            },
+            {
+              "id": "ration",
+              "wants": "goods",
+              "tag": "provisions",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "seat",
+                  "gauge": "unrest",
+                  "amount": -30
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "trouble",
+              "role": "front",
+              "ref": "shortage"
+            }
+          ]
+        }
+      ],
+      "note": "GDD 4.3: scarcity past its yields line where a place stands; a shortage in every place there if it lapses. Steps provisional."
+    },
+    {
+      "id": "the-debt",
+      "scope": "personal",
+      "when": "npc-owed",
+      "chance": 50,
+      "cast": [
+        {
+          "role": "character",
+          "kind": "character",
+          "pick": "given"
+        },
+        {
+          "role": "npc",
+          "kind": "npc",
+          "pick": "owed"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "given"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-debt",
+          "days": 4,
+          "sides": [
+            {
+              "id": "pay-it",
+              "wants": "goods",
+              "tag": "provisions",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "disposition",
+                  "role": "npc",
+                  "amount": 20
+                }
+              ]
+            },
+            {
+              "id": "deny-it",
+              "wants": "beats",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "standing",
+                  "role": "seat",
+                  "amount": 2
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "disposition",
+              "role": "npc",
+              "amount": -20
+            }
+          ]
+        }
+      ],
+      "note": "GDD 12.9: a notable was helped, or wronged, by the character; their disposition hardens if it lapses. The seat is the NPC's home. Steps provisional."
+    },
+    {
+      "id": "the-return",
+      "scope": "personal",
+      "when": "came-back",
+      "chance": 50,
+      "cast": [
+        {
+          "role": "character",
+          "kind": "character",
+          "pick": "given"
+        },
+        {
+          "role": "home",
+          "kind": "settlement",
+          "pick": "given"
+        },
+        {
+          "role": "elsewhere",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-return",
+          "days": 5,
+          "sides": [
+            {
+              "id": "reclaim",
+              "wants": "goods",
+              "per": 25,
+              "at": "home",
+              "won": [
+                {
+                  "kind": "standing",
+                  "role": "home",
+                  "amount": 2
+                }
+              ]
+            },
+            {
+              "id": "move-on",
+              "wants": "reach",
+              "per": 1,
+              "at": "elsewhere",
+              "won": [
+                {
+                  "kind": "nothing"
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "withdraw",
+              "role": "character"
+            }
+          ]
+        }
+      ],
+      "note": "GDD 12.9: a character comes back after 14 world days away; their orders and claims lapse if it lapses. Home is the last place visited. Steps provisional."
+    },
+    {
+      "id": "the-oath",
+      "scope": "personal",
+      "when": "vow-broken",
+      "chance": 50,
+      "cast": [
+        {
+          "role": "character",
+          "kind": "character",
+          "pick": "given"
+        },
+        {
+          "role": "board",
+          "kind": "settlement",
+          "pick": "given"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-oath",
+          "days": 3,
+          "sides": [
+            {
+              "id": "make-amends",
+              "wants": "goods",
+              "tag": "provisions",
+              "per": 25,
+              "at": "board",
+              "won": [
+                {
+                  "kind": "standing",
+                  "role": "board",
+                  "amount": 2
+                }
+              ]
+            },
+            {
+              "id": "disown-it",
+              "wants": "beats",
+              "per": 25,
+              "at": "board",
+              "won": [
+                {
+                  "kind": "nothing"
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "standing",
+              "role": "board",
+              "amount": -2
+            }
+          ]
+        }
+      ],
+      "note": "GDD 12.8: an oath, cast from a broken vow at the board it was sworn on. Steps provisional."
+    },
+    {
+      "id": "the-rival",
+      "scope": "personal",
+      "when": "lost-to-them",
+      "chance": 50,
+      "cast": [
+        {
+          "role": "character",
+          "kind": "character",
+          "pick": "given"
+        },
+        {
+          "role": "faction",
+          "kind": "faction",
+          "pick": "given"
+        },
+        {
+          "role": "notable",
+          "kind": "notable",
+          "pick": "leading"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-rival",
+          "days": 3,
+          "sides": [
+            {
+              "id": "face-them",
+              "wants": "beats",
+              "per": 25,
+              "at": "faction",
+              "won": [
+                {
+                  "kind": "loyalty",
+                  "role": "notable",
+                  "amount": -10
+                }
+              ]
+            },
+            {
+              "id": "buy-them-off",
+              "wants": "goods",
+              "tag": "provisions",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "standing",
+                  "role": "faction",
+                  "amount": 2
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "marked",
+              "role": "character",
+              "amount": 3
+            }
+          ]
+        }
+      ],
+      "note": "GDD 12.8: a notable who lost to the character's side. Steps provisional."
+    }
+  ]
+}

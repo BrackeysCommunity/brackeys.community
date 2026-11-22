@@ -1,0 +1,31 @@
+{
+  "$schema": "../schema/story.occasions.schema.json",
+  "sheet": "story.occasions",
+  "rows": [
+    {
+      "id": "caravan",
+      "when": "prospers-road",
+      "chance": 30,
+      "days": 1,
+      "banner": "A caravan comes in",
+      "note": "GDD 12.5: prosperity at 600 or above and a road in; until roads, a city or a busy tile. Its bids are story.params caravan-premium inside caravan-share. Chance provisional."
+    },
+    {
+      "id": "migration",
+      "when": "season-turn",
+      "chance": 100,
+      "days": 1,
+      "hunt": "dust-runner-migration",
+      "banner": "The dust-runners are moving",
+      "note": "GDD 12.5: a season's turn; a hunt worth joining, where the flat-runners are thickest."
+    },
+    {
+      "id": "seam",
+      "when": "scarcity-low",
+      "chance": 50,
+      "days": 1,
+      "banner": "A new seam opens",
+      "note": "GDD 12.5: scarcity falling below 100; story.params seam-stock on the nearest node within seam-radius. Chance provisional."
+    }
+  ]
+}

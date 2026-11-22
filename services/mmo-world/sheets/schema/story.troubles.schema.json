@@ -1,0 +1,224 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "story.troubles",
+  "title": "story.troubles",
+  "description": "Settlement troubles: when each comes, what holds it off and what it damages (GDD 12.5, 12.10).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "story.troubles"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "when",
+          "chance",
+          "wants",
+          "per",
+          "damages",
+          "lost",
+          "held",
+          "banner"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "when": {
+            "type": "string",
+            "x-unit": "text"
+          },
+          "chance": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "percent"
+          },
+          "wants": {
+            "type": "string",
+            "enum": [
+              "goods",
+              "beats",
+              "sold",
+              "defence"
+            ],
+            "x-unit": "enum"
+          },
+          "tag": {
+            "type": "string",
+            "x-unit": "tag"
+          },
+          "per": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "count"
+          },
+          "hunt": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "fights.hunts"
+          },
+          "damages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "refs",
+            "x-ref": "settlements.structures"
+          },
+          "lost": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "fortify",
+                    "holding-falls",
+                    "gauge",
+                    "split",
+                    "appoint",
+                    "loyalty",
+                    "defect",
+                    "peace",
+                    "grudge",
+                    "trouble",
+                    "spread",
+                    "seal",
+                    "keep-open",
+                    "cache",
+                    "mend",
+                    "standing",
+                    "disposition",
+                    "withdraw",
+                    "marked",
+                    "damage",
+                    "fees",
+                    "orders-stop",
+                    "prices",
+                    "sick",
+                    "nothing"
+                  ],
+                  "x-unit": "enum"
+                },
+                "role": {
+                  "type": "string",
+                  "x-unit": "text",
+                  "description": "The cast role it acts on; regions: every region of the arc. A trouble's effects act on its place, or on source: the region that cast it."
+                },
+                "gauge": {
+                  "type": "string",
+                  "x-unit": "ref",
+                  "x-ref": "world.gauges"
+                },
+                "amount": {
+                  "type": "integer",
+                  "x-unit": "count",
+                  "description": "Points of defence, gauge, loyalty, standing, condition or disposition; days for grudge, spread, marked, fees, orders-stop, prices, sick; seasons for keep-open. holding-falls: defence lost instead when it is its faction's last; split: loyalty both claimants lose instead when the faction holds too few regions to split; damage: condition lost, 0 for settlements.params trouble-damage."
+                },
+                "ref": {
+                  "type": "string",
+                  "x-unit": "text",
+                  "description": "trouble: the story.troubles id; cache: the story.caches id."
+                }
+              }
+            },
+            "x-unit": "parts"
+          },
+          "held": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "fortify",
+                    "holding-falls",
+                    "gauge",
+                    "split",
+                    "appoint",
+                    "loyalty",
+                    "defect",
+                    "peace",
+                    "grudge",
+                    "trouble",
+                    "spread",
+                    "seal",
+                    "keep-open",
+                    "cache",
+                    "mend",
+                    "standing",
+                    "disposition",
+                    "withdraw",
+                    "marked",
+                    "damage",
+                    "fees",
+                    "orders-stop",
+                    "prices",
+                    "sick",
+                    "nothing"
+                  ],
+                  "x-unit": "enum"
+                },
+                "role": {
+                  "type": "string",
+                  "x-unit": "text",
+                  "description": "The cast role it acts on; regions: every region of the arc. A trouble's effects act on its place, or on source: the region that cast it."
+                },
+                "gauge": {
+                  "type": "string",
+                  "x-unit": "ref",
+                  "x-ref": "world.gauges"
+                },
+                "amount": {
+                  "type": "integer",
+                  "x-unit": "count",
+                  "description": "Points of defence, gauge, loyalty, standing, condition or disposition; days for grudge, spread, marked, fees, orders-stop, prices, sick; seasons for keep-open. holding-falls: defence lost instead when it is its faction's last; split: loyalty both claimants lose instead when the faction holds too few regions to split; damage: condition lost, 0 for settlements.params trouble-damage."
+                },
+                "ref": {
+                  "type": "string",
+                  "x-unit": "text",
+                  "description": "trouble: the story.troubles id; cache: the story.caches id."
+                }
+              }
+            },
+            "x-unit": "parts"
+          },
+          "banner": {
+            "type": "string",
+            "x-unit": "text"
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

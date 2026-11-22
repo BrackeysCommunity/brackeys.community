@@ -163,6 +163,90 @@
       "value": 10,
       "unit": "days",
       "doc": "The Economy run's target: a guild of guild-least founds a settlement within this many world days."
+    },
+    {
+      "id": "city-users",
+      "value": 50,
+      "unit": "count",
+      "doc": "A city needs this many characters active and visiting within city-user-days (GDD 4.8)."
+    },
+    {
+      "id": "city-user-days",
+      "value": 14,
+      "unit": "days",
+      "doc": "How recent a city's active visitors are (GDD 4.8)."
+    },
+    {
+      "id": "city-prosperity",
+      "value": 600,
+      "unit": "gauge",
+      "doc": "The prosperity a city's region holds (GDD 4.8)."
+    },
+    {
+      "id": "city-prosperity-days",
+      "value": 7,
+      "unit": "days",
+      "doc": "World days running its region holds city-prosperity (GDD 4.8)."
+    },
+    {
+      "id": "city-wall-tier",
+      "value": 1,
+      "unit": "tier",
+      "doc": "The wall tier a city stands behind, open (GDD 4.8)."
+    },
+    {
+      "id": "city-stations",
+      "value": 3,
+      "unit": "count",
+      "doc": "Stations a city needs at city-station-tier or above (GDD 4.8)."
+    },
+    {
+      "id": "city-station-tier",
+      "value": 2,
+      "unit": "tier",
+      "doc": "The tier those stations stand at (GDD 4.8)."
+    },
+    {
+      "id": "city-timber",
+      "value": 2000,
+      "unit": "goods",
+      "doc": "Timber the city project's goal asks (GDD 4.8)."
+    },
+    {
+      "id": "city-stone",
+      "value": 1500,
+      "unit": "goods",
+      "doc": "Stone the city project's goal asks (GDD 4.8)."
+    },
+    {
+      "id": "city-metal",
+      "value": 500,
+      "unit": "goods",
+      "doc": "Metal the city project's goal asks (GDD 4.8)."
+    },
+    {
+      "id": "city-coin",
+      "value": 10000,
+      "unit": "coin",
+      "doc": "Coin the treasury pays when the city lands (GDD 4.8)."
+    },
+    {
+      "id": "city-station-cap",
+      "value": 3,
+      "unit": "tier",
+      "doc": "The tier a city's stations rise to (GDD 4.8)."
+    },
+    {
+      "id": "city-book-share",
+      "value": 200,
+      "unit": "percent",
+      "doc": "A city's market book lists this share of its usual kinds (GDD 4.8). Provisional."
+    },
+    {
+      "id": "city-keep",
+      "value": 25,
+      "unit": "count",
+      "doc": "A city whose active visitors never reach this on any day of a season falls back at its close (GDD 4.8)."
     }
   ]
 }

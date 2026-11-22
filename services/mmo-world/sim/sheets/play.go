@@ -134,6 +134,7 @@ type Hunt struct {
 	SpawnLine   int64   `json:"spawnLine,omitempty" unit:"percent" min:"0" max:"100" doc:"The creature's population there, as a share of capacity."`
 	Marks       []int64 `json:"marks,omitempty" unit:"percent" doc:"Shares of the pool, falling: the first time it falls to or below each, a machine stands on the beat."`
 	Family      string  `json:"family,omitempty" unit:"ref" ref:"puzzles.families" doc:"The family a mark's machine is, played as its party version."`
+	Note        string  `json:"note,omitempty" unit:"text"`
 }
 
 type Spoil struct {

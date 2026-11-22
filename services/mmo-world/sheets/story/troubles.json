@@ -1,0 +1,185 @@
+{
+  "$schema": "../schema/story.troubles.schema.json",
+  "sheet": "story.troubles",
+  "rows": [
+    {
+      "id": "raid",
+      "when": "raid-near",
+      "chance": 50,
+      "wants": "defence",
+      "per": 7,
+      "hunt": "raid-band",
+      "damages": [
+        "wall",
+        "market",
+        "forge"
+      ],
+      "lost": [
+        {
+          "kind": "damage"
+        },
+        {
+          "kind": "fees",
+          "amount": 3
+        },
+        {
+          "kind": "gauge",
+          "gauge": "unrest",
+          "amount": 20
+        }
+      ],
+      "held": [
+        {
+          "kind": "gauge",
+          "gauge": "unrest",
+          "amount": -10
+        }
+      ],
+      "banner": "Raiders on the road",
+      "note": "GDD 12.5 and 12.10: a neighbour at its raid line; a defence mark of 7 a character, cut 20% a wall tier; the market's fees double for 3 world days. A lost raid sets the place's followed mark for a fire. Chance provisional."
+    },
+    {
+      "id": "fire",
+      "when": "fire-risk",
+      "chance": 40,
+      "wants": "goods",
+      "tag": "timber",
+      "per": 10,
+      "damages": [
+        "forge",
+        "bench",
+        "still",
+        "loom"
+      ],
+      "lost": [
+        {
+          "kind": "damage",
+          "amount": 100
+        }
+      ],
+      "held": [
+        {
+          "kind": "nothing"
+        }
+      ],
+      "banner": "Fire in the streets",
+      "note": "GDD 12.5: unrest at its fire line, or a raid that got in; a station closed until rebuilt (all of settlements.params condition-max). Mark and chance provisional."
+    },
+    {
+      "id": "corruption",
+      "when": "corruption-next-door",
+      "chance": 30,
+      "wants": "beats",
+      "per": 7,
+      "damages": [
+        "still",
+        "granary"
+      ],
+      "lost": [
+        {
+          "kind": "damage"
+        },
+        {
+          "kind": "gauge",
+          "gauge": "corruption",
+          "amount": 60
+        }
+      ],
+      "held": [
+        {
+          "kind": "gauge",
+          "role": "source",
+          "gauge": "corruption",
+          "amount": -30
+        }
+      ],
+      "banner": "Corruption at the gate",
+      "note": "GDD 12.5: corruption at its line next door; beats count in that region. Mark, steps and chance provisional."
+    },
+    {
+      "id": "shortage",
+      "when": "scarcity-high",
+      "chance": 40,
+      "wants": "goods",
+      "tag": "provisions",
+      "per": 10,
+      "damages": [
+        "granary",
+        "market"
+      ],
+      "lost": [
+        {
+          "kind": "damage"
+        },
+        {
+          "kind": "prices",
+          "amount": 3
+        }
+      ],
+      "held": [
+        {
+          "kind": "gauge",
+          "gauge": "scarcity",
+          "amount": -30
+        }
+      ],
+      "banner": "The stores run low",
+      "note": "GDD 12.5: scarcity at 700 or above; every price in the book. A road cut waits for roads. Mark, steps and chance provisional."
+    },
+    {
+      "id": "sickness",
+      "when": "wet-and-scarce",
+      "chance": 50,
+      "wants": "goods",
+      "tag": "provisions",
+      "per": 10,
+      "damages": [
+        "shrine",
+        "bench"
+      ],
+      "lost": [
+        {
+          "kind": "damage"
+        },
+        {
+          "kind": "sick",
+          "amount": 3
+        }
+      ],
+      "held": [
+        {
+          "kind": "nothing"
+        }
+      ],
+      "banner": "Sickness in the houses",
+      "note": "GDD 12.5: wet for 3 world days with scarcity above 500; rest and repair take twice as long. Mark and chance provisional."
+    },
+    {
+      "id": "panic",
+      "when": "faction-collapsing",
+      "chance": 50,
+      "wants": "sold",
+      "per": 10,
+      "damages": [
+        "market",
+        "treasury"
+      ],
+      "lost": [
+        {
+          "kind": "damage"
+        },
+        {
+          "kind": "orders-stop",
+          "amount": 2
+        }
+      ],
+      "held": [
+        {
+          "kind": "nothing"
+        }
+      ],
+      "banner": "Panic in the market",
+      "note": "GDD 12.5: a faction collapsing; its orders stop for 2 world days. The mark is coin's worth sold to its bids at the place. Mark and chance provisional."
+    }
+  ]
+}

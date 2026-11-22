@@ -35,6 +35,23 @@
       "spawnLine": 60
     },
     {
+      "id": "raid-band",
+      "creature": "reed-rat",
+      "healthRatio": 1,
+      "windowDays": 1,
+      "spoils": [
+        {
+          "material": "hide-scraps",
+          "quantity": 10
+        },
+        {
+          "material": "copper-ore",
+          "quantity": 6
+        }
+      ],
+      "note": "GDD 12.5: the band a raid trouble opens on its place, through OpenHunt only. The reed-rat is the tier-1 creature carrying pack. Spoils provisional."
+    },
+    {
       "id": "bunker-guardian",
       "creature": "barrow-warden",
       "healthRatio": 1,

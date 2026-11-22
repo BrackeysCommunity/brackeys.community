@@ -51,8 +51,7 @@
       ],
       "gives": "raid-defence",
       "by": 20,
-      "needs": "wall",
-      "waits": "MM9 (raids)"
+      "needs": "wall"
     },
     {
       "id": "open-ledger",

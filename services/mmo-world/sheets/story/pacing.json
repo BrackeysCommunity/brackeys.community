@@ -1,0 +1,32 @@
+{
+  "$schema": "../schema/story.pacing.schema.json",
+  "sheet": "story.pacing",
+  "rows": [
+    {
+      "id": "world",
+      "atOnce": 1,
+      "stages": 3,
+      "restDays": 3,
+      "note": "GDD 12.4: 1 arc of 3 stages, 3 world days between."
+    },
+    {
+      "id": "region",
+      "atOnce": 2,
+      "perRegions": 6,
+      "restDays": 2,
+      "note": "GDD 12.4: 2 arcs per 6 regions, read as max(1, floor(awake × 2 / 6)); 2 world days between."
+    },
+    {
+      "id": "settlement",
+      "atOnce": 1,
+      "restDays": 3,
+      "note": "GDD 12.4: one trouble or occasion at a place, 3 world days between."
+    },
+    {
+      "id": "personal",
+      "atOnce": 1,
+      "restDays": 5,
+      "note": "GDD 12.4: one thread per character, 5 world days between."
+    }
+  ]
+}

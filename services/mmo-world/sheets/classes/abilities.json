@@ -66,7 +66,7 @@
       "rules": [
         "ability-wall-captain"
       ],
-      "waits": "MM9 (raids)"
+      "reads": "troubles: a won beat counts double toward a raid's defence mark"
     },
     {
       "id": "unmoved",
@@ -88,7 +88,7 @@
       "rules": [
         "ability-bulwark-wall"
       ],
-      "waits": "MM9 (raids)"
+      "reads": "troubles: the wall's tier for a raid's cut, one higher, at most its top tier"
     },
     {
       "id": "first-strike",
@@ -506,7 +506,7 @@
       "rules": [
         "ability-storm-reader"
       ],
-      "waits": "MM9 (the live map)"
+      "waits": "MM13 (the live map)"
     },
     {
       "id": "bind-the-weather",
@@ -517,7 +517,7 @@
       "rules": [
         "ability-bind-the-weather"
       ],
-      "waits": "MM9 (staged weather)"
+      "waits": "MM12 (staged weather)"
     },
     {
       "id": "chain",
@@ -616,7 +616,7 @@
       "rules": [
         "ability-steward"
       ],
-      "waits": "MM9 (troubles)"
+      "reads": "troubles: a lost trouble at a settlement your guild runs damages no structure"
     }
   ]
 }

@@ -121,6 +121,24 @@
       "value": 25,
       "unit": "weight",
       "doc": "Salience of a neighbour moving away."
+    },
+    {
+      "id": "visit-range",
+      "value": 3,
+      "unit": "tiles",
+      "doc": "A queued NPC whose home or route stop lies this close to a tile a character enters calls on them there (GDD 4.18)."
+    },
+    {
+      "id": "visit-kept",
+      "value": 8,
+      "unit": "count",
+      "doc": "Visits queued for one player at most (GDD 4.18)."
+    },
+    {
+      "id": "dormant-summary",
+      "value": 5,
+      "unit": "count",
+      "doc": "Entries a waking NPC lists from its archive; the rest are tallied (GDD 4.18)."
     }
   ]
 }

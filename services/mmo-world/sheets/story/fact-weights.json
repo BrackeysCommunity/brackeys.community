@@ -995,6 +995,234 @@
       "kind": "world.content-frozen",
       "weight": 10,
       "note": "An operator's change to how the world draws; nothing a player reads."
+    },
+    {
+      "id": "arc-cast",
+      "kind": "arc.cast",
+      "weight": 60,
+      "note": "provisional"
+    },
+    {
+      "id": "arc-stage-began",
+      "kind": "arc.stage-began",
+      "weight": 40,
+      "note": "provisional"
+    },
+    {
+      "id": "arc-ended",
+      "kind": "arc.ended",
+      "weight": 70,
+      "note": "provisional"
+    },
+    {
+      "id": "side-backed",
+      "kind": "side.backed",
+      "weight": 5,
+      "note": "provisional"
+    },
+    {
+      "id": "character-marked",
+      "kind": "character.marked",
+      "weight": 20,
+      "note": "provisional"
+    },
+    {
+      "id": "trouble-held",
+      "kind": "trouble.held",
+      "weight": 70,
+      "note": "GDD 12.10."
+    },
+    {
+      "id": "trouble-lost",
+      "kind": "trouble.lost",
+      "weight": 85,
+      "note": "GDD 12.10."
+    },
+    {
+      "id": "occasion-began",
+      "kind": "occasion.began",
+      "weight": 55,
+      "note": "provisional"
+    },
+    {
+      "id": "occasion-ended",
+      "kind": "occasion.ended",
+      "weight": 10,
+      "note": "provisional"
+    },
+    {
+      "id": "structure-damaged",
+      "kind": "structure.damaged",
+      "weight": 40,
+      "note": "provisional"
+    },
+    {
+      "id": "settlement-ruined",
+      "kind": "settlement.ruined",
+      "weight": 90,
+      "note": "provisional"
+    },
+    {
+      "id": "city-project",
+      "kind": "city.project",
+      "weight": 40,
+      "note": "provisional"
+    },
+    {
+      "id": "city-raised",
+      "kind": "city.raised",
+      "weight": 90,
+      "note": "provisional"
+    },
+    {
+      "id": "city-fell-back",
+      "kind": "city.fell-back",
+      "weight": 80,
+      "note": "provisional"
+    },
+    {
+      "id": "faction-city",
+      "kind": "faction.city",
+      "weight": 85,
+      "note": "provisional"
+    },
+    {
+      "id": "faction-split",
+      "kind": "faction.split",
+      "weight": 90,
+      "note": "provisional"
+    },
+    {
+      "id": "thread-cast",
+      "kind": "thread.cast",
+      "weight": 40,
+      "note": "provisional"
+    },
+    {
+      "id": "thread-ended",
+      "kind": "thread.ended",
+      "weight": 40,
+      "note": "provisional"
+    },
+    {
+      "id": "season-began",
+      "kind": "season.began",
+      "weight": 70,
+      "note": "provisional"
+    },
+    {
+      "id": "season-band",
+      "kind": "season.band",
+      "weight": 30,
+      "note": "provisional"
+    },
+    {
+      "id": "season-closed",
+      "kind": "season.closed",
+      "weight": 95,
+      "note": "provisional"
+    },
+    {
+      "id": "season-epoch",
+      "kind": "season.epoch",
+      "weight": 90,
+      "note": "provisional"
+    },
+    {
+      "id": "core-opened",
+      "kind": "core.opened",
+      "weight": 95,
+      "note": "provisional"
+    },
+    {
+      "id": "core-sealed",
+      "kind": "core.sealed",
+      "weight": 80,
+      "note": "provisional"
+    },
+    {
+      "id": "pattern-clue",
+      "kind": "pattern.clue",
+      "weight": 60,
+      "note": "provisional"
+    },
+    {
+      "id": "pattern-set",
+      "kind": "pattern.set",
+      "weight": 10,
+      "note": "provisional"
+    },
+    {
+      "id": "pattern-haywire",
+      "kind": "pattern.haywire",
+      "weight": 75,
+      "note": "provisional"
+    },
+    {
+      "id": "pattern-lapsed",
+      "kind": "pattern.lapsed",
+      "weight": 20,
+      "note": "provisional"
+    },
+    {
+      "id": "pattern-solved",
+      "kind": "pattern.solved",
+      "weight": 90,
+      "note": "provisional"
+    },
+    {
+      "id": "pattern-placed",
+      "kind": "pattern.placed",
+      "weight": 70,
+      "note": "provisional"
+    },
+    {
+      "id": "pattern-cache",
+      "kind": "pattern.cache",
+      "weight": 60,
+      "note": "provisional"
+    },
+    {
+      "id": "npc-called",
+      "kind": "npc.called",
+      "weight": 30,
+      "note": "provisional"
+    },
+    {
+      "id": "npc-woke",
+      "kind": "npc.woke",
+      "weight": 10,
+      "note": "provisional"
+    },
+    {
+      "id": "region-gauge-moved",
+      "kind": "region.gauge-moved",
+      "weight": 30,
+      "note": "A story action moving a region gauge; provisional."
+    },
+    {
+      "id": "notable-loyalty-moved",
+      "kind": "notable.loyalty-moved",
+      "weight": 20,
+      "note": "A story action moving a notable's loyalty; provisional."
+    },
+    {
+      "id": "faction-peace",
+      "kind": "faction.peace",
+      "weight": 70,
+      "note": "Two factions set a grudge down; provisional."
+    },
+    {
+      "id": "faction-grudge",
+      "kind": "faction.grudge",
+      "weight": 50,
+      "note": "A faction takes up a grudge; provisional."
+    },
+    {
+      "id": "node-seam",
+      "kind": "node.seam",
+      "weight": 40,
+      "note": "A seam opens on a node and adds stock; provisional."
     }
   ]
 }

@@ -720,26 +720,6 @@ func TestGoalsEndWhenTheirTimeRunsOut(t *testing.T) {
 	audit(t, g)
 }
 
-// A work whose system is not built yet cannot be switched on.
-func TestAWorkThatWaitsStaysOff(t *testing.T) {
-	g, ts := society(t, 1)
-	p := g.Places[0]
-	for i := range g.Rules().Book.GuildWorks {
-		row := &g.Rules().Book.GuildWorks[i]
-		if row.Waits == "" {
-			continue
-		}
-		for j := range g.Rules().Book.Structures {
-			if st := &g.Rules().Book.Structures[j]; st.ID == row.Needs && !p.Open(st.ID) {
-				p.Raise(st, g.Tick(), g.Rules().Settle)
-			}
-		}
-		unchanged(t, ts[0], "a work that waits for its system", game.Command{Kind: game.Work, Option: row.ID, Units: 1})
-		return
-	}
-	t.Fatal("no work waits: drop this test with the last waiting work")
-}
-
 // A guild under its members' least takes no settlement by charter.
 func TestACharterNeedsAFullGuild(t *testing.T) {
 	g, ts := newTraders(t, 1)
@@ -822,7 +802,7 @@ func TestWaitingStructuresAreNotRaised(t *testing.T) {
 	if whole == 0 || tiers == 0 {
 		t.Fatalf("%d structures and %d tiers wait: drop the half of this test nothing waits for", whole, tiers)
 	}
-	// The wall stands for Hold fast at its first tier; only its next waits.
+	// Raids read every tier of the wall, so its second rises too.
 	timber := materialWith(t, g, "timber")
 	officer.must(game.Command{Kind: game.Raise, Slot: "wall"})
 	x := lastGoal(g)
@@ -831,12 +811,19 @@ func TestWaitingStructuresAreNotRaised(t *testing.T) {
 	if !p.Open("wall") {
 		t.Fatal("the wall's first tier did not rise")
 	}
-	unchanged(t, officer, "a second tier of the wall", game.Command{Kind: game.Raise, Slot: "wall"})
 	for i := range g.Rules().Book.Structures {
 		row := &g.Rules().Book.Structures[i]
-		if waits := game.RaiseWaits(p, row); (row.ID == "wall" && waits == "") || (row.ID == "forge" && waits != "") {
+		if waits := game.RaiseWaits(p, row); (row.ID == "wall" || row.ID == "forge") && waits != "" {
 			t.Fatalf("the %s's next tier waits for %q", row.ID, waits)
 		}
+	}
+	stone := materialWith(t, g, "stone")
+	officer.must(game.Command{Kind: game.Raise, Slot: "wall"})
+	y := lastGoal(g)
+	member.grant(ledger.Material(stone), y.Cond.Count)
+	member.must(game.Command{Kind: game.DeliverGoal, Target: y.ID, Material: stone, Units: y.Cond.Count})
+	if w := p.Get("wall"); w == nil || w.Tier != 2 {
+		t.Fatalf("the wall's second tier did not rise: %+v", w)
 	}
 	audit(t, g)
 }

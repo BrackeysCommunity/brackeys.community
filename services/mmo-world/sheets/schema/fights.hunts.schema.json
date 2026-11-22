@@ -110,6 +110,10 @@
             "x-unit": "ref",
             "x-ref": "puzzles.families",
             "description": "The family a mark's machine is, played as its party version."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
           }
         }
       }

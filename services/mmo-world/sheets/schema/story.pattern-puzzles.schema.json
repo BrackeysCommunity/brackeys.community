@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "story.pattern-puzzles",
+  "title": "story.pattern-puzzles",
+  "description": "What each pattern's puzzle is and what solving it opens (GDD 4.13).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "story.pattern-puzzles"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "values",
+          "clues",
+          "clueReach",
+          "lapseDays",
+          "family",
+          "opens"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "pattern": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "map.patterns",
+            "description": "A scaffold pattern; empty for a placed one."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "order",
+              "state",
+              "alignment",
+              "connection",
+              "completion",
+              "constellation"
+            ],
+            "x-unit": "enum"
+          },
+          "values": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "count",
+            "description": "Settings or facings a point takes; 1 for a kind with none."
+          },
+          "need": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "connection: live runs; constellation: points found before the hidden one shows."
+          },
+          "clues": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count"
+          },
+          "clueReach": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "tiles"
+          },
+          "servers": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "Distinct servers whose characters must set its points."
+          },
+          "lapseDays": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "days"
+          },
+          "family": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "place"
+              ],
+              "properties": {
+                "place": {
+                  "type": "string",
+                  "enum": [
+                    "relay",
+                    "pylon",
+                    "beacon",
+                    "landmark",
+                    "vault"
+                  ],
+                  "x-unit": "enum"
+                },
+                "family": {
+                  "type": "string",
+                  "x-unit": "ref",
+                  "x-ref": "puzzles.families",
+                  "description": "Empty: the point is set by a delivery of beacon-cost."
+                }
+              }
+            },
+            "x-unit": "parts"
+          },
+          "opens": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "arc",
+                    "pattern",
+                    "cache",
+                    "fact",
+                    "sight",
+                    "seam",
+                    "dungeon",
+                    "road"
+                  ],
+                  "x-unit": "enum"
+                },
+                "ref": {
+                  "type": "string",
+                  "x-unit": "text",
+                  "description": "arc: story.arcs id; pattern: story.pattern-puzzles id; cache: story.caches id."
+                },
+                "n": {
+                  "type": "integer",
+                  "x-unit": "count",
+                  "description": "sight: tiles; seam: stock."
+                },
+                "waits": {
+                  "type": "string",
+                  "x-unit": "text"
+                }
+              }
+            },
+            "x-unit": "parts"
+          },
+          "shape": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "map.shapes"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "tiles"
+          },
+          "points": {
+            "type": "string",
+            "enum": [
+              "corners",
+              "every",
+              "spaced"
+            ],
+            "x-unit": "enum"
+          },
+          "place": {
+            "type": "string",
+            "enum": [
+              "relay",
+              "pylon",
+              "beacon",
+              "landmark"
+            ],
+            "x-unit": "enum"
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

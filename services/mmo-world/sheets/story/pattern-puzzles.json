@@ -1,0 +1,230 @@
+{
+  "$schema": "../schema/story.pattern-puzzles.schema.json",
+  "sheet": "story.pattern-puzzles",
+  "rows": [
+    {
+      "id": "triangle",
+      "pattern": "triangle-of-pylons",
+      "kind": "state",
+      "values": 4,
+      "clues": 3,
+      "clueReach": 9,
+      "lapseDays": 3,
+      "family": [
+        {
+          "place": "pylon",
+          "family": "circuit"
+        },
+        {
+          "place": "vault"
+        }
+      ],
+      "opens": [
+        {
+          "kind": "cache",
+          "ref": "vault-cache"
+        },
+        {
+          "kind": "pattern",
+          "ref": "second-triangle"
+        },
+        {
+          "kind": "fact"
+        }
+      ],
+      "note": "GDD 4.13: the triangle of pylons, the first live pattern. Each pylon holds one of 4 settings on the same day; the clues lie within 9 tiles of the vault. Values, clues and lapse provisional."
+    },
+    {
+      "id": "second-triangle",
+      "kind": "state",
+      "values": 4,
+      "clues": 3,
+      "clueReach": 9,
+      "lapseDays": 3,
+      "family": [
+        {
+          "place": "pylon",
+          "family": "circuit"
+        }
+      ],
+      "opens": [
+        {
+          "kind": "cache",
+          "ref": "vault-cache"
+        },
+        {
+          "kind": "arc",
+          "ref": "the-opening"
+        }
+      ],
+      "shape": "triangle",
+      "size": 18,
+      "points": "corners",
+      "place": "pylon",
+      "note": "GDD 4.13: the chained triangle the first one places, laid like the triangle of pylons (side 18, its corners). Values, clues and lapse provisional."
+    },
+    {
+      "id": "peak-beacons",
+      "pattern": "peak-beacons",
+      "kind": "completion",
+      "values": 1,
+      "clues": 1,
+      "clueReach": 9,
+      "lapseDays": 7,
+      "family": [
+        {
+          "place": "beacon"
+        }
+      ],
+      "opens": [
+        {
+          "kind": "sight",
+          "n": 4
+        }
+      ],
+      "note": "GDD 4.13: the missing beacon is the region's peak; a lit chain gives sight. Sight, clues and lapse provisional."
+    },
+    {
+      "id": "frontier-line",
+      "pattern": "frontier-line",
+      "kind": "order",
+      "values": 1,
+      "clues": 2,
+      "clueReach": 6,
+      "lapseDays": 2,
+      "family": [
+        {
+          "place": "landmark",
+          "family": "fuse"
+        }
+      ],
+      "opens": [
+        {
+          "kind": "cache",
+          "ref": "line-cache"
+        }
+      ],
+      "note": "GDD 4.13: the line's points are fired in a hidden order. Clues and lapse provisional."
+    },
+    {
+      "id": "frontier-cross",
+      "pattern": "frontier-cross",
+      "kind": "alignment",
+      "values": 6,
+      "clues": 2,
+      "clueReach": 6,
+      "lapseDays": 3,
+      "family": [
+        {
+          "place": "beacon"
+        }
+      ],
+      "opens": [
+        {
+          "kind": "cache",
+          "ref": "cross-cache"
+        },
+        {
+          "kind": "dungeon",
+          "waits": "MM10 (pattern dungeons)"
+        }
+      ],
+      "note": "GDD 4.13: each arm faces one of 6 ways. Clues and lapse provisional."
+    },
+    {
+      "id": "frontier-spiral",
+      "pattern": "frontier-spiral",
+      "kind": "connection",
+      "values": 1,
+      "need": 3,
+      "clues": 2,
+      "clueReach": 6,
+      "lapseDays": 4,
+      "family": [
+        {
+          "place": "pylon",
+          "family": "circuit"
+        }
+      ],
+      "opens": [
+        {
+          "kind": "road",
+          "waits": "MM10 (roads)"
+        }
+      ],
+      "note": "GDD 4.13: 3 of the spiral's runs are live, and repairing those connects it. Need, clues and lapse provisional."
+    },
+    {
+      "id": "frontier-star",
+      "pattern": "frontier-star",
+      "kind": "state",
+      "values": 3,
+      "clues": 3,
+      "clueReach": 9,
+      "servers": 2,
+      "lapseDays": 3,
+      "family": [
+        {
+          "place": "beacon"
+        },
+        {
+          "place": "vault"
+        }
+      ],
+      "opens": [
+        {
+          "kind": "cache",
+          "ref": "vault-cache"
+        },
+        {
+          "kind": "fact"
+        }
+      ],
+      "note": "GDD 4.13: set by characters of 2 servers at once. Values, clues and lapse provisional."
+    },
+    {
+      "id": "frontier-scatter",
+      "pattern": "frontier-scatter",
+      "kind": "constellation",
+      "values": 1,
+      "need": 4,
+      "clues": 2,
+      "clueReach": 9,
+      "lapseDays": 5,
+      "family": [
+        {
+          "place": "relay",
+          "family": "signal"
+        }
+      ],
+      "opens": [
+        {
+          "kind": "cache",
+          "ref": "relay-vault-cache"
+        }
+      ],
+      "note": "GDD 4.13: a hidden point shows once 4 are found. Need, clues and lapse provisional."
+    },
+    {
+      "id": "frontier-hook",
+      "pattern": "frontier-hook",
+      "kind": "completion",
+      "values": 1,
+      "clues": 1,
+      "clueReach": 6,
+      "lapseDays": 5,
+      "family": [
+        {
+          "place": "beacon"
+        }
+      ],
+      "opens": [
+        {
+          "kind": "seam",
+          "n": 80
+        }
+      ],
+      "note": "GDD 4.13: one beacon of the hook is missing; completing it opens a seam. Stock, clues and lapse provisional."
+    }
+  ]
+}

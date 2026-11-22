@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "story.faction-cities",
+  "title": "story.faction-cities",
+  "description": "Each faction archetype's city station and what it does there (GDD 4.8).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "story.faction-cities"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "station",
+          "name",
+          "effect"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "factions.archetypes"
+          },
+          "station": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "settlements.structures"
+          },
+          "name": {
+            "type": "string",
+            "x-unit": "text"
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "fee-half",
+              "mount-discount",
+              "salvage-share",
+              "plate-tier",
+              "cleanse"
+            ],
+            "x-unit": "enum"
+          },
+          "amount": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "percent"
+          },
+          "waits": {
+            "type": "string",
+            "x-unit": "text"
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,333 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "story.arcs",
+  "title": "story.arcs",
+  "description": "Arc templates: when each is cast, its cast, stages, sides and effects (GDD 12.9).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "story.arcs"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "scope",
+          "when",
+          "chance",
+          "cast",
+          "stages"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "world",
+              "region",
+              "personal"
+            ],
+            "x-unit": "enum"
+          },
+          "when": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "The predicate's id in sim/arc."
+          },
+          "finale": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "Cast only as a season's finale."
+          },
+          "chance": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "percent",
+            "description": "Daily chance an eligible cast is taken."
+          },
+          "cast": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "role",
+                "kind",
+                "pick"
+              ],
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "x-unit": "text"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "faction",
+                    "region",
+                    "holding",
+                    "settlement",
+                    "notable",
+                    "npc",
+                    "character",
+                    "tile"
+                  ],
+                  "x-unit": "enum"
+                },
+                "pick": {
+                  "type": "string",
+                  "enum": [
+                    "given",
+                    "leading",
+                    "most-loyal",
+                    "least-loyal",
+                    "largest",
+                    "smallest",
+                    "weakest",
+                    "nearest",
+                    "owed",
+                    "keyed"
+                  ],
+                  "x-unit": "enum"
+                }
+              }
+            },
+            "x-unit": "parts"
+          },
+          "stages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "sides",
+                "lapse"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                  "x-unit": "id"
+                },
+                "days": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "x-unit": "days",
+                  "description": "Deadline of a region or personal stage; a world stage ends on its band."
+                },
+                "sides": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "id",
+                      "wants",
+                      "per",
+                      "at",
+                      "won"
+                    ],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                        "x-unit": "id"
+                      },
+                      "wants": {
+                        "type": "string",
+                        "enum": [
+                          "goods",
+                          "beats",
+                          "reach",
+                          "sold",
+                          "defence"
+                        ],
+                        "x-unit": "enum"
+                      },
+                      "tag": {
+                        "type": "string",
+                        "x-unit": "tag",
+                        "description": "goods: the tag delivered, or provisions; empty is any goods."
+                      },
+                      "per": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "x-unit": "count",
+                        "description": "Units of the mark per active character."
+                      },
+                      "at": {
+                        "type": "string",
+                        "x-unit": "text",
+                        "description": "The cast role where goods land, beats count or the tile is reached."
+                      },
+                      "sponsor": {
+                        "type": "string",
+                        "x-unit": "text",
+                        "description": "The cast role whose faction pays; empty: the holder of At, or the keepers."
+                      },
+                      "opponent": {
+                        "type": "string",
+                        "x-unit": "text"
+                      },
+                      "won": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "kind"
+                          ],
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "fortify",
+                                "holding-falls",
+                                "gauge",
+                                "split",
+                                "appoint",
+                                "loyalty",
+                                "defect",
+                                "peace",
+                                "grudge",
+                                "trouble",
+                                "spread",
+                                "seal",
+                                "keep-open",
+                                "cache",
+                                "mend",
+                                "standing",
+                                "disposition",
+                                "withdraw",
+                                "marked",
+                                "damage",
+                                "fees",
+                                "orders-stop",
+                                "prices",
+                                "sick",
+                                "nothing"
+                              ],
+                              "x-unit": "enum"
+                            },
+                            "role": {
+                              "type": "string",
+                              "x-unit": "text",
+                              "description": "The cast role it acts on; regions: every region of the arc. A trouble's effects act on its place, or on source: the region that cast it."
+                            },
+                            "gauge": {
+                              "type": "string",
+                              "x-unit": "ref",
+                              "x-ref": "world.gauges"
+                            },
+                            "amount": {
+                              "type": "integer",
+                              "x-unit": "count",
+                              "description": "Points of defence, gauge, loyalty, standing, condition or disposition; days for grudge, spread, marked, fees, orders-stop, prices, sick; seasons for keep-open. holding-falls: defence lost instead when it is its faction's last; split: loyalty both claimants lose instead when the faction holds too few regions to split; damage: condition lost, 0 for settlements.params trouble-damage."
+                            },
+                            "ref": {
+                              "type": "string",
+                              "x-unit": "text",
+                              "description": "trouble: the story.troubles id; cache: the story.caches id."
+                            }
+                          }
+                        },
+                        "x-unit": "parts"
+                      }
+                    }
+                  },
+                  "x-unit": "parts"
+                },
+                "lapse": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "kind"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "fortify",
+                          "holding-falls",
+                          "gauge",
+                          "split",
+                          "appoint",
+                          "loyalty",
+                          "defect",
+                          "peace",
+                          "grudge",
+                          "trouble",
+                          "spread",
+                          "seal",
+                          "keep-open",
+                          "cache",
+                          "mend",
+                          "standing",
+                          "disposition",
+                          "withdraw",
+                          "marked",
+                          "damage",
+                          "fees",
+                          "orders-stop",
+                          "prices",
+                          "sick",
+                          "nothing"
+                        ],
+                        "x-unit": "enum"
+                      },
+                      "role": {
+                        "type": "string",
+                        "x-unit": "text",
+                        "description": "The cast role it acts on; regions: every region of the arc. A trouble's effects act on its place, or on source: the region that cast it."
+                      },
+                      "gauge": {
+                        "type": "string",
+                        "x-unit": "ref",
+                        "x-ref": "world.gauges"
+                      },
+                      "amount": {
+                        "type": "integer",
+                        "x-unit": "count",
+                        "description": "Points of defence, gauge, loyalty, standing, condition or disposition; days for grudge, spread, marked, fees, orders-stop, prices, sick; seasons for keep-open. holding-falls: defence lost instead when it is its faction's last; split: loyalty both claimants lose instead when the faction holds too few regions to split; damage: condition lost, 0 for settlements.params trouble-damage."
+                      },
+                      "ref": {
+                        "type": "string",
+                        "x-unit": "text",
+                        "description": "trouble: the story.troubles id; cache: the story.caches id."
+                      }
+                    }
+                  },
+                  "x-unit": "parts"
+                }
+              }
+            },
+            "x-unit": "parts"
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "story.pacing",
+  "title": "story.pacing",
+  "description": "How many arcs of each scope run at once and how long each rests (GDD 12.4).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "story.pacing"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "atOnce",
+          "restDays"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "world",
+              "region",
+              "settlement",
+              "personal"
+            ],
+            "x-unit": "enum"
+          },
+          "atOnce": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "count"
+          },
+          "perRegions": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "region: AtOnce arcs per this many awake regions."
+          },
+          "stages": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "world: stages a world arc has."
+          },
+          "restDays": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "days"
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1291,6 +1291,11 @@
       "name": "Dust-runner migration"
     },
     {
+      "id": "hunts-raid-band",
+      "ref": "fights.hunts:raid-band",
+      "name": "Raiding band"
+    },
+    {
       "id": "hunts-bunker-guardian",
       "ref": "fights.hunts:bunker-guardian",
       "name": "Bunker warden"

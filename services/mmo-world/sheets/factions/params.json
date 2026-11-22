@@ -184,6 +184,30 @@
       "value": 200,
       "unit": "percent",
       "doc": "A faction's last holding wants this share of a holding's defence; what it lacks counts as need for fortifying it."
+    },
+    {
+      "id": "faction-city-defence",
+      "value": 100,
+      "unit": "defence",
+      "doc": "A holding at this defence or more can become its faction's city (GDD 4.8). Provisional."
+    },
+    {
+      "id": "faction-city-stock",
+      "value": 200,
+      "unit": "goods",
+      "doc": "A faction with this stock or more can raise a city (GDD 4.8). Provisional."
+    },
+    {
+      "id": "faction-city-days",
+      "value": 21,
+      "unit": "days",
+      "doc": "A holding this many world days old can become a city (GDD 4.8). Provisional."
+    },
+    {
+      "id": "faction-city-standing",
+      "value": 10,
+      "unit": "standing",
+      "doc": "Standing a character needs to trade with a faction city's vendors (GDD 5.4). Provisional."
     }
   ]
 }

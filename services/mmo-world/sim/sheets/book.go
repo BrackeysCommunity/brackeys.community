@@ -78,6 +78,15 @@ type Book struct {
 	FactWeights []FactWeight `sheet:"story.fact-weights" doc:"Weight of each fact kind, 0 to 100."`
 	StoryParams []Param      `sheet:"story.params" doc:"Pacing, deadlines, the chronicle's cut-off."`
 
+	Pacing         []Pacing         `sheet:"story.pacing" doc:"How many arcs of each scope run at once and how long each rests (GDD 12.4)."`
+	SeasonDays     []SeasonDay      `sheet:"story.days" doc:"The season's day bands, for a season of story.params season-days (GDD 12.6)."`
+	Arcs           []ArcRow         `sheet:"story.arcs" doc:"Arc templates: when each is cast, its cast, stages, sides and effects (GDD 12.9)."`
+	Troubles       []TroubleRow     `sheet:"story.troubles" doc:"Settlement troubles: when each comes, what holds it off and what it damages (GDD 12.5, 12.10)."`
+	Occasions      []OccasionRow    `sheet:"story.occasions" doc:"Settlement occasions: when each comes and what it brings (GDD 12.5)."`
+	PatternPuzzles []PatternPuzzle  `sheet:"story.pattern-puzzles" doc:"What each pattern's puzzle is and what solving it opens (GDD 4.13)."`
+	Caches         []Cache          `sheet:"story.caches" doc:"Goods a solved pattern or a won side opens."`
+	FactionCities  []FactionCityRow `sheet:"story.faction-cities" doc:"Each faction archetype's city station and what it does there (GDD 4.8)."`
+
 	EconomyParams []Param        `sheet:"economy.params" doc:"Fees, the faucet, the stabiliser, limits."`
 	RefValues     []RefValue     `sheet:"economy.reference" doc:"Each tier's base value and median vector total (GDD 10.10)."`
 	Standing      []StandingBand `sheet:"economy.standing" doc:"What standing does to a faction order's price (GDD 5.4)."`
@@ -290,7 +299,7 @@ func (b *Book) Validate() error {
 			errs = append(errs, checkValue(row, where, has)...)
 		}
 	}
-	for _, p := range append(b.delveProblems(), b.contentProblems()...) {
+	for _, p := range slices.Concat(b.delveProblems(), b.contentProblems(), b.storyProblems()) {
 		errs = append(errs, errors.New(p))
 	}
 	return errors.Join(errs...)

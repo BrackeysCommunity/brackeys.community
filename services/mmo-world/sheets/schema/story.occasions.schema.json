@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "story.occasions",
+  "title": "story.occasions",
+  "description": "Settlement occasions: when each comes and what it brings (GDD 12.5).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "story.occasions"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "when",
+          "chance",
+          "days",
+          "banner"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "when": {
+            "type": "string",
+            "x-unit": "text"
+          },
+          "chance": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "percent"
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "days"
+          },
+          "hunt": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "fights.hunts"
+          },
+          "banner": {
+            "type": "string",
+            "x-unit": "text"
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

@@ -136,7 +136,7 @@
     },
     {
       "id": "guild-founds",
-      "text": "A guild of 5 can found a settlement within 10 world days; a city takes most of a season",
+      "text": "A guild of 5 can found a settlement within 10 world days",
       "runs": "economy",
       "holdsFrom": "MM6"
     },
@@ -367,6 +367,42 @@
       "text": "Dungeons drawn from history keep their kind's floors, a guardian and distinct ways",
       "runs": "content",
       "holdsFrom": "MM8a"
+    },
+    {
+      "id": "season-zero",
+      "text": "A 14-day season zero has, on every seed, a stage decided by players (won, its mark met by 2 or more distinct backers) and a stage that lapsed, writes its finale and its close, keeps the ledger clean, and replays to the same digest",
+      "runs": "season",
+      "holdsFrom": "MM9"
+    },
+    {
+      "id": "city-takes-season",
+      "text": "A city takes most of a season: the first city lands between world day 22 and 42",
+      "runs": "economy",
+      "holdsFrom": "MM9"
+    },
+    {
+      "id": "settlements-stand-troubles",
+      "text": "With troubles on, an unattended world loses no starting settlement and leaves no ruin after 90 world days",
+      "runs": "world",
+      "holdsFrom": "MM9"
+    },
+    {
+      "id": "arcs-lapse-unattended",
+      "text": "In 90 unattended world days with the director on, at least one arc lapses on every seed and no stage is won",
+      "runs": "world",
+      "holdsFrom": "MM9"
+    },
+    {
+      "id": "factions-keep-holdings-arcs",
+      "text": "In 90 unattended world days with the director on, no faction loses its last holding",
+      "runs": "world",
+      "holdsFrom": "MM9"
+    },
+    {
+      "id": "director-cost-flat",
+      "text": "The director's world day costs no more on day 90 than 110% of day 5",
+      "runs": "world",
+      "holdsFrom": "MM9"
     }
   ]
 }
