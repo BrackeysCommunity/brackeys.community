@@ -36,9 +36,9 @@ export type Screen = "machine" | "beat" | "floor" | "hunt" | "party" | "pouches"
 
 const TITLES: Record<Screen, string> = {
   machine: "Machine",
-  beat: "The beat",
-  floor: "The floor",
-  hunt: "The hunt",
+  beat: "Beat",
+  floor: "Floor",
+  hunt: "Hunt",
   party: "Party",
   pouches: "Pouches",
   bench: "Bench",

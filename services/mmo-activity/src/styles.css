@@ -97,6 +97,15 @@ ul {
 .tabs {
   display: flex;
   gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs > .btn {
+  flex: 1 0 0;
+  min-width: max-content;
+  padding-inline: 6px;
+  white-space: nowrap;
 }
 
 .tabs:empty {

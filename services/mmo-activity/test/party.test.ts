@@ -363,7 +363,7 @@ test("the floor's hex rooms show each way, Mapper's look ahead, and the vote as 
 
 test("the party beat marks who has chosen and shows its window", async () => {
   const { root } = await page("party", { seats: 4 });
-  click(root, "The beat");
+  click(root, "Beat");
   const seats = [...root.querySelectorAll(".seats li")];
   expect(seats.map((li) => li.getAttribute("data-picked"))).toEqual([null, "true", null, null]);
   expect(root.querySelector("[data-due]")?.textContent).toMatch(/^100 s left to pick\./);

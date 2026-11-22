@@ -1,6 +1,6 @@
 import "./party.css";
 import type { PuzzleLayout, PuzzleMove } from "../api.ts";
-import { board, say, set, svg, text, type Board, type Size } from "../shell/board.ts";
+import { board, set, svg, text, type Board, type Size } from "../shell/board.ts";
 import { GOING, type Model, type SceneHost } from "../shell/kit.ts";
 import type { PartySceneHost } from "../shell/party-registry.ts";
 
@@ -85,6 +85,7 @@ export class PartyBar {
   size: Size = { width: 0, height: 0 };
   lamps: Lamp[] = [];
   private line: SVGTextElement | undefined;
+  private said: string | undefined;
 
   constructor(
     private readonly host: PartySceneHost,
@@ -120,13 +121,39 @@ export class PartyBar {
       return { group, ring };
     });
     this.line = text("pb-say", 12, this.top + BAR / 2);
+    this.said = undefined;
     root.append(this.line);
     return true;
   }
 
-  /** The line's text. */
+  /** The line's text, on two lines when one would run under the lamps, cut short past that. */
   say(line: string): void {
-    if (this.line) say(this.line, line);
+    const node = this.line;
+    if (!node || this.said === line) return;
+    this.said = line;
+    node.textContent = line;
+    if (typeof node.getComputedTextLength !== "function") return;
+    const wide = (t: string) => {
+      node.textContent = t;
+      return node.getComputedTextLength() > this.room - 12;
+    };
+    if (!wide(line)) return;
+    const words = line.split(" ");
+    let cut = 1;
+    while (cut < words.length && !wide(words.slice(0, cut + 1).join(" "))) cut++;
+    const first = words.slice(0, cut).join(" ");
+    let rest = words.slice(cut);
+    if (wide(rest.join(" "))) {
+      while (rest.length > 1 && wide(`${rest.join(" ")}…`)) rest = rest.slice(0, -1);
+      rest = [`${rest.join(" ")}…`];
+    }
+    const mid = this.top + BAR / 2;
+    const row = (y: number, t: string) => {
+      const span = svg("tspan", { x: 12, y });
+      span.textContent = t;
+      return span;
+    };
+    node.replaceChildren(row(mid - 9, first), row(mid + 9, rest.join(" ")));
   }
 
   /** Lights a seat's lamp, or puts it out. */

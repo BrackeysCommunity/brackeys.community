@@ -192,7 +192,7 @@ test("a machine beat opens on the machine at rest, and the beat is one tab away"
   expect(root.querySelector(".machine")?.getAttribute("data-phase")).toBe("rest");
   expect(root.querySelector(".countdown-text")?.textContent).toBe("At rest");
   expect(root.textContent).toContain("48 s");
-  click(root, "The beat");
+  click(root, "Beat");
   expect(root.textContent).toContain("Machine: Turret nest");
   expect(root.textContent).toContain("Long shot (about 1 in 4), risks 6 durability.");
   click(root, "Why");
@@ -221,7 +221,7 @@ test("solving by pointer arms, sends the log and shows the server's result", asy
 
 test("an option that is not the machine can be pressed here", async () => {
   const { root, session } = await boot("beat");
-  click(root, "The beat");
+  click(root, "Beat");
   click(root, "Smash");
   await wait();
   expect(session.state?.fight).toBeUndefined();

@@ -42,11 +42,12 @@ export interface Geometry {
 export function geometry(size: Size): Geometry {
   const pad = 8;
   const col = size.width / CRANKS;
-  const top = 76;
+  const top = 100;
   const bar = 20;
   const head = top + bar + 30;
   const room = Math.max(1, size.height - head - 26);
-  const r = Math.max(HIT * 1.6, Math.min(col * 0.34, room * 0.42));
+  // Small enough that the knob's full sweep and the label under it clear the bottom line.
+  const r = Math.max(HIT * 1.6, Math.min(col * 0.34, room * 0.36));
   return {
     hubs: Array.from({ length: CRANKS }, (_, c) => ({ x: col * (c + 0.5), y: head + room / 2 })),
     gauges: Array.from({ length: CRANKS }, (_, c) => ({ x: col * c + pad, width: col - pad * 2 })),
@@ -110,7 +111,7 @@ export function mount(host: PartySceneHost): Scene {
     const { top, bar: h, r } = geo;
     status = text("status", size.width / 2, 20);
     fill = svg("rect", { class: "charge", x: geo.charge.x, y: geo.charge.y, width: 0, height: 10 });
-    left = text("left", size.width / 2, geo.charge.y + 28);
+    left = text("left", size.width / 2, geo.charge.y + 24);
     hands = text("mark", size.width / 2, size.height - 8);
     root.append(
       status,
@@ -141,10 +142,10 @@ export function mount(host: PartySceneHost): Scene {
         svg("circle", { class: "knob", cx: r, r: geo.knob }),
         svg("circle", { class: "grip", cx: r, r: geo.knob * 0.35 }),
       );
-      const who = text("who", hub.x, hub.y + r + 20);
+      const who = text("who", hub.x, hub.y + r + geo.knob + 14);
       const shade = svg("circle", { class: "theirs", cx: hub.x, cy: hub.y, r: r + 6 });
       root.append(
-        text("mark", g.x + g.width / 2, top - 10, `Crank ${letter(c)}`),
+        text("mark", g.x + g.width / 2, top - 24, `Crank ${letter(c)}`),
         svg("rect", { class: "track", x: g.x, y: top, width: g.width, height: h }),
         svg("rect", { class: "band", x: lo, y: top - 3, width: hi - lo, height: h + 6 }),
         svg("rect", { class: "blow", x: blow, y: top, width: end - blow, height: h }),
