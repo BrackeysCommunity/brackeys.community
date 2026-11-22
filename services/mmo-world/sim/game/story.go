@@ -28,6 +28,8 @@ type Story struct {
 	Patterns []*Board      `json:"patterns,omitempty"`
 	Spreads  []Spread      `json:"spreads,omitempty"`
 	Sight    []RegionBonus `json:"sight,omitempty"`
+	// clues is the scaffold's clue sites by chunk, never saved.
+	clues *clueCache
 }
 
 // Arc is one cast template running through its stages.
@@ -147,6 +149,7 @@ type Board struct {
 	Centre hex.Hex          `json:"centre"`
 	Clues  []hex.Hex        `json:"clues,omitempty"`
 	Found  []int            `json:"found,omitempty"` // clue indexes found
+	Told   []fact.ID        `json:"told,omitempty"`  // the facts that found them, as Found
 	P      pattern.Progress `json:"progress"`
 	Placed bool             `json:"placed,omitempty"`
 	Depth  int64            `json:"depth,omitempty"`

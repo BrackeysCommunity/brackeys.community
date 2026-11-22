@@ -83,7 +83,7 @@ func (m *MachineCmd) log() puzzle.Log {
 // Timed reports whether the service stamps a kind with its clock.
 func Timed(kind string) bool {
 	switch kind {
-	case MachineArm, MachineSolve, Press, PartyPick, PartyWindow, DungeonPush, DungeonLeave:
+	case MachineArm, MachineSolve, Press, PartyPick, PartyWindow, DungeonPush, DungeonLeave, PatternSet:
 		return true
 	}
 	return false
@@ -104,6 +104,7 @@ type Armed struct {
 	At        int64       `json:"at"`        // the service's clock at arming, unix ms
 	Tick      int64       `json:"tick"`
 	Intro     bool        `json:"intro,omitempty"`
+	Pattern   *PatternArm `json:"pattern,omitempty"` // a pattern point's machine
 }
 
 // Deadline is when the countdown ends, on the service's clock.
@@ -396,6 +397,9 @@ func (g *Game) machineArm(c *Char, cmd Command) error {
 	if partySource(m.Source) {
 		return g.partyArm(c, cmd)
 	}
+	if m.Source == MachinePattern {
+		return g.patternSet(c, cmd)
+	}
 	var missing error
 	switch m.Source {
 	case SourceBeat:
@@ -460,9 +464,12 @@ func (g *Game) machineSolve(c *Char, cmd Command) ([]fight.Pressed, *puzzle.Resu
 	var pressed []fight.Pressed
 	var err error
 	moved := false
-	if a.Source == SourcePouch {
+	switch a.Source {
+	case SourcePouch:
 		err = g.pouchWorked(c, cmd.Key, a, res, tick)
-	} else {
+	case MachinePattern:
+		err = g.patternWorked(c, a, res, tick)
+	default:
 		pressed, moved, err = g.beatWorked(c, cmd.Key, a, res, tick)
 	}
 	if err != nil {

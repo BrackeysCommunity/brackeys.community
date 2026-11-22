@@ -37,6 +37,7 @@ func (g *Game) noteStory(fs []fact.Fact) {
 		if f.Kind == factVowBroken {
 			g.pendOath(f)
 		}
+		g.ringFact(f)
 		if f.Weight < g.r.Story.MemoryWeight && !slices.Contains(storyKinds, f.Kind) {
 			continue
 		}

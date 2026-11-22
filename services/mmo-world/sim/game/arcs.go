@@ -182,18 +182,25 @@ func (g *Game) openArcs(scope string) []*Arc {
 }
 
 // storyDay is the director's world day, in order: the streaks, the season,
-// the stages due, the spreading fronts and the occasions run out, then
+// the stages due; the troubles' standing damage, cities, faction cities and
+// pattern boards; the spreading fronts and the occasions run out, then
 // casting by scope: settlements, characters, regions.
 func (g *Game) storyDay(t int64) error {
 	if g.Story == nil {
 		return nil
 	}
-	g.streaksDay(t / sheets.TicksPerDay)
+	day := t / sheets.TicksPerDay
+	g.streaksDay(day)
 	if err := g.seasonDay(t); err != nil {
 		return err
 	}
 	if err := g.stagesDue(t); err != nil {
 		return err
+	}
+	for _, daily := range []func(int64) error{g.troubleDay, g.citiesDay, g.factionCitiesDay, g.patternsDay} {
+		if err := daily(day); err != nil {
+			return err
+		}
 	}
 	if err := g.spreadsDay(t); err != nil {
 		return err
@@ -468,8 +475,15 @@ func (g *Game) wakeCast(a *Arc, t int64) error {
 		if b.Ref.Kind != kindNPC {
 			continue
 		}
-		if n := g.NPCs.Get(b.Ref.ID); n != nil && g.r.NPC.Dormant(n, t) {
-			g.r.NPC.Wake(n)
+		n := g.NPCs.Get(b.Ref.ID)
+		if n == nil {
+			continue
+		}
+		woke, err := g.wake(n, t)
+		if err != nil {
+			return err
+		}
+		if woke {
 			if err := g.NPCs.Touched(n); err != nil {
 				return err
 			}
@@ -1489,7 +1503,7 @@ func (g *Game) beginOccasion(tpl arc.Template, c arc.Candidate, t int64) error {
 		return err
 	}
 	ps.Occasion = &Occasion{Kind: row.ID, Began: t, Ends: t + row.Days*sheets.TicksPerDay, Fact: f}
-	return nil
+	return g.occasionOpens(row, c.Place, f, t)
 }
 
 // occasionsDue ends the occasions whose days have run, and rests their
