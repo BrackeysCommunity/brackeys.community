@@ -200,6 +200,11 @@ func (g *Game) buy(c *Char, cmd Command) error {
 	if err := canTrade(c); err != nil {
 		return err
 	}
+	if n, ok := g.SettlementAt(c.C.At); ok {
+		if err := g.cityVendor(c, n); err != nil {
+			return err
+		}
+	}
 	offers := g.Offers(c.C.At)
 	i := slices.IndexFunc(offers, func(o Offer) bool { return o.Asset == cmd.Asset })
 	if i < 0 {
@@ -273,16 +278,21 @@ type Offer struct {
 }
 
 // Offers are what a tile sells: provisions at a market, first-tier mounts
-// at a stable, at the prices buy charges.
+// at a stable, at the prices buy charges; a faction's war-yard asks less
+// for a mount.
 func (g *Game) Offers(h hex.Hex) []Offer {
 	var out []Offer
 	if g.HasStructure(h, structureMarket) {
 		out = append(out, Offer{Asset: ledger.Provisions, Price: g.provisionsPrice()})
 	}
 	if g.HasStructure(h, structureStable) {
+		share := int64(fixed.Hundredths)
+		if n, ok := g.SettlementAt(h); ok {
+			share = g.mountShare(n)
+		}
 		for _, m := range g.r.Book.MountKinds {
 			if m.Tier == g.r.firstTier() {
-				out = append(out, Offer{Asset: m.ID, Price: g.mountPrice(m.Tier)})
+				out = append(out, Offer{Asset: m.ID, Price: fixed.PercentFloor(g.mountPrice(m.Tier), share)})
 			}
 		}
 	}
@@ -523,6 +533,9 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 		if _, err := g.Log.Append(f); err != nil {
 			return err
 		}
+	}
+	if res.Failed {
+		g.scrapYard(c, r, ap.Station, &res)
 	}
 	if add := g.charScale(c, "craft-salvage", 0); add > 0 {
 		base := sheets.IntParam(g.r.Book.ItemParams, "failed-salvage")

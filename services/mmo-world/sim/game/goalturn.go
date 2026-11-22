@@ -294,6 +294,10 @@ func (g *Game) raising(settlement int, structure string) bool {
 
 // built raises a structure once every goal of its project is met.
 func (g *Game) built(b *goal.Build) error {
+	if b.Structure == "" {
+		// A city project raises no structure: its city lands on a story day.
+		return nil
+	}
 	for _, x := range g.Goals {
 		if x.Build != nil && x.Build.Project == b.Project && x.State != goal.Done {
 			return nil

@@ -389,8 +389,10 @@ func (g *Game) arcRow(id string) *sheets.ArcRow {
 
 // seasonClose ends the season, in order: the world arcs still open lapse,
 // season.finale records how the finale went, guild votes still short of
-// their need end, places' troubles lost reset, season.closed, and the next
-// season begins. Goals and guild ranks turned over in their own day turns.
+// their need end, cities nobody kept fall back, the ring's tally resets
+// and a core held open past its seasons shuts, places' troubles lost
+// reset, season.closed, and the next season begins. Goals and guild ranks
+// turned over in their own day turns.
 func (g *Game) seasonClose(t int64) error {
 	c := *g.Story.Clock
 	day := t / sheets.TicksPerDay
@@ -416,6 +418,12 @@ func (g *Game) seasonClose(t int64) error {
 	}
 	for _, gd := range g.Guilds {
 		gd.G.Votes = nil
+	}
+	if err := g.citiesClose(); err != nil {
+		return err
+	}
+	if err := g.ringClose(); err != nil {
+		return err
 	}
 	for i := range g.Story.At {
 		g.Story.At[i].Lost = 0
