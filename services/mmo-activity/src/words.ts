@@ -15,6 +15,7 @@ import {
   adds,
   amount,
   level,
+  num,
   plural,
   quantity,
   seconds,
@@ -152,6 +153,16 @@ export function factLine(f: Fact): string {
       return `Pouch opened: ${amount(n("goods"), "goods")}.`;
     case "pouch.found":
       return "A locked pouch found.";
+    case "pattern.set": {
+      const set = `Point ${pointName(n("point"))} of the pattern now holds ${valueTag(n("value"))}.`;
+      return datum(f, "reach") === undefined ? set : `${set} ${reachLine(n("reach"))}`;
+    }
+    case "pattern.haywire":
+      return `The pattern answered wrong: ${adds(n("threat"), "threat")} surged around it.`;
+    case "pattern.solved":
+      return "The pattern is solved.";
+    case "pattern.clue":
+      return `Clue found: ${clueLine(f)}`;
     default:
       return `${sentence(f.kind.replace(/[.-]/g, " "))}.`;
   }
@@ -170,4 +181,85 @@ export function resultLine(r: PuzzleResult, bench: boolean): string {
 /** A countdown as its ruler reads: "34 s left". */
 export function leftLine(ms: number): string {
   return `${seconds(ms)} left`;
+}
+
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+/**
+ * A pattern's point by letter, A for the first, as its clues name them. A
+ * letter keeps a point's index from reading as a count.
+ */
+export function pointName(i: number): string {
+  let out = "";
+  for (let k = Math.max(0, Math.trunc(i)) + 1; k > 0; k = Math.trunc((k - 1) / LETTERS.length))
+    out = LETTERS[(k - 1) % LETTERS.length] + out;
+  return out;
+}
+
+/** A point's value as chat's pattern-set takes it: a setting or a facing, "#2". */
+export function valueTag(v: number): string {
+  return `#${num(v)}`;
+}
+
+/** What a point holds, by its pattern's kind: "holds setting #2", "is raised". */
+export function heldLine(kind: string, v: number): string {
+  switch (kind) {
+    case "state":
+      return `holds setting ${valueTag(v)}`;
+    case "alignment":
+      return `faces ${valueTag(v)}`;
+    case "order":
+      return "is woken this round";
+    case "connection":
+      return "is repaired";
+    case "completion":
+      return "is raised";
+    case "constellation":
+      return v === 0 ? "is found" : "is activated";
+    default:
+      return `holds ${valueTag(v)}`;
+  }
+}
+
+// How far an alignment's signal leads from the first point.
+function reachLine(reach: number): string {
+  return reach > 0
+    ? `The signal runs from point A to point ${pointName(reach - 1)}.`
+    : "The signal stops at point A.";
+}
+
+/**
+ * What a pattern.clue fact says, in the board's point letters. `points`
+ * bounds a range that would run past the last point.
+ */
+export function clueLine(f: Fact, points?: number): string {
+  const n = (key: string) => Number(datum(f, key) ?? 0);
+  const a = pointName(n("point"));
+  const b = pointName(n("other"));
+  switch (datum(f, "says")) {
+    case "after":
+      return `Point ${a} comes before point ${b}.`;
+    case "offset":
+      return n("n") === 0
+        ? `Point ${b} holds the same setting as point ${a}.`
+        : `Point ${b}'s setting is point ${a}'s turned on ${plural(n("n"), "time")}, round past the last back to ${valueTag(0)}.`;
+    case "facing":
+      return `Point ${a} faces ${valueTag(n("n"))}.`;
+    case "live":
+      return n("n") ? `Point ${a}'s run is live.` : `Point ${a}'s run is dead.`;
+    case "missing":
+      return a === b
+        ? `The missing one is point ${a}.`
+        : `The missing one lies from point ${a} to point ${b}.`;
+    case "near": {
+      const last = points === undefined ? Infinity : points - 1;
+      const from = Math.max(0, n("point") - n("n"));
+      const to = Math.min(last, n("point") + n("n"));
+      return from === to
+        ? `The hidden one is point ${pointName(from)}.`
+        : `The hidden one lies from point ${pointName(from)} to point ${pointName(to)}.`;
+    }
+    default:
+      return "A clue whose words are not known here.";
+  }
 }

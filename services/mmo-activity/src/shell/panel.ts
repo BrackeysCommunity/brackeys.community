@@ -3,6 +3,7 @@ import {
   MachineFork,
   MachineGuardian,
   MachineParty,
+  MachinePattern,
   MachinePouch,
   type IntentReply,
   type MachineView,
@@ -195,7 +196,9 @@ export class MachinePanel {
               ? "On the guardian"
               : m.source === MachinePouch
                 ? "A locked pouch"
-                : "At the tinker's bench";
+                : m.source === MachinePattern
+                  ? "At a pattern's point"
+                  : "At the tinker's bench";
     const known = m.level ? `${m.name}, ${level(m.level)}` : m.name;
     this.head.replaceChildren(
       el("h2", { text: s.panel === 1 ? `${known}: the hidden panel` : known }),

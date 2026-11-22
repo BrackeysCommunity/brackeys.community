@@ -15,6 +15,7 @@ import {
   ActPress,
   CodeBadArgs,
   CodeChose,
+  CodeForbidden,
   CodeLockedDown,
   CodeMachineArmed,
   CodeNeedsActivity,
@@ -45,6 +46,7 @@ import {
   MachineBeat,
   MachineBench,
   MachineFork,
+  MachinePattern,
   MachinePouch,
   type ActivityState,
   type ClientMessage,
@@ -89,6 +91,8 @@ export interface MockDeps {
   teammates?: boolean;
   /** The party versions the mock may lay out and judge; the registry's by default. */
   versions?: (id: string) => PartyVersion | undefined;
+  /** The value chat's pattern-set armed a pattern point with, which no state shows; 0 by default. */
+  patternValue?: number;
 }
 
 // The mock plays by the world's sheets; only the world service decides a
@@ -359,6 +363,8 @@ export class MockGateway {
         });
       }
       case ActMachineArm: {
+        if (m?.source === MachinePattern)
+          return refuse(CodeForbidden, "a pattern's point is set in chat, with its value");
         const view = this.machine();
         if (!view || view.source === MachineBench || !familyOf(view.family))
           return refuse(CodeNoMachine, "there is no machine here to arm");
@@ -446,6 +452,15 @@ export class MockGateway {
       const pouch = this.st.pouches?.find((p) => p.id === view.pouch);
       if (pouch) pouch.locked = LOCKDOWN_TICKS;
       return [this.fact("puzzle.haywire", { family: view.family, late: result.late ? 1 : 0 })];
+    }
+    if (view.source === MachinePattern) {
+      // A solve commits the value chat armed it with; what the board makes
+      // of it is the world's to say.
+      const p = this.st.pattern;
+      if (!p) return [];
+      const value = this.deps.patternValue ?? 0;
+      p.held = value;
+      return [this.fact("pattern.set", { board: p.board, point: p.point, value })];
     }
     if (view.source === MachinePouch) {
       const pouch = this.st.pouches?.find((p) => p.id === view.pouch);

@@ -4,7 +4,14 @@ import { readdirSync, readFileSync } from "node:fs";
 import rigs from "virtual:rigs";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import type { ActivityState } from "../src/api.ts";
+import {
+  ActMachineArm,
+  ActMachineSolve,
+  CodeForbidden,
+  MachinePattern,
+  type ActivityState,
+  type PuzzleLog,
+} from "../src/api.ts";
 import { App, pick, screens } from "../src/app.ts";
 import { MockGateway } from "../src/mock.ts";
 import { geometry } from "../src/scenes/rewire/scene.ts";
@@ -336,4 +343,64 @@ test("a staged place says who placed it, in the bar and on the floor", async () 
     s.floor!.placed = { by: "staff", label: "Rustport", points: 60 };
   });
   expect(texts(floor.root)).toContain("Placed by staff of Rustport · 60 event points.");
+});
+
+// The kit's own solve of a golden layout, as chat's arming laid it.
+function goldenSolve(family: string, layout: unknown): PuzzleLog {
+  const golden = JSON.parse(
+    readFileSync(
+      `${import.meta.dirname}/../../mmo-world/sim/puzzle/testdata/golden/${family}.json`,
+      "utf8",
+    ),
+  );
+  const c = golden.cases.find((x: any) => {
+    const { level: _l, tier: _t, ...rest } = x.layout;
+    return JSON.stringify(rest) === JSON.stringify(layout);
+  });
+  return c.logs.find((l: any) => l.name === "solve").log;
+}
+
+test("a pattern point's strip sits shut over the machine that sets it, and a solve shows the value held", async () => {
+  const { root, session } = await boot("pattern");
+  expect(pick(fixture("pattern"), false, undefined)).toBe("machine");
+  const main = root.querySelector("main")!;
+  expect([...main.children].map((n) => n.className)).toEqual(["panel pattern", "machine"]);
+  const strip = main.querySelector<HTMLDetailsElement>(".pattern details")!;
+  expect(strip.open).toBe(false);
+  expect(strip.querySelector("summary")!.textContent).toBe("Pattern: settingsABC");
+  expect(strip.textContent).toContain("Point B holds setting #3.");
+  const machine = main.querySelector(".machine");
+  const reply = await session.intent(ActMachineSolve, {
+    machine: { log: goldenSolve("circuit", session.state!.machine!.layout) },
+  });
+  await wait();
+  expect(reply.ok).toBe(true);
+  expect(reply.machine?.solved).toBe(true);
+  expect(reply.facts?.map((f) => f.kind)).toEqual(["pattern.set"]);
+  expect(session.state!.pattern!.held).toBe(0);
+  expect(main.querySelector(".machine")).toBe(machine);
+  expect(main.querySelector(".pattern")!.textContent).toContain("Point B holds setting #0.");
+});
+
+test("standing on a pattern point with nothing armed shows the strip open, and the Activity cannot arm it", async () => {
+  const { root, session } = await boot("pattern", undefined, (s) => {
+    s.machine = undefined;
+    s.character.armed = false;
+  });
+  const main = root.querySelector("main")!;
+  expect(main.querySelector(".machine")).toBeNull();
+  expect(main.querySelector<HTMLDetailsElement>(".pattern details")!.open).toBe(true);
+  expect(main.textContent).toContain("Nothing here needs your hands");
+  const reply = await session.intent(ActMachineArm, { machine: { source: MachinePattern } });
+  expect(reply.ok).toBe(false);
+  expect(reply.refusal?.code).toBe(CodeForbidden);
+  expect(session.state!.character.armed).toBe(false);
+});
+
+test("off a pattern point there is no strip", async () => {
+  const { root } = await boot("pattern", undefined, (s) => {
+    s.pattern = undefined;
+    s.machine = undefined;
+  });
+  expect(root.querySelector(".pattern")).toBeNull();
 });

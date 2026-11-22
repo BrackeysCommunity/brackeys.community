@@ -8,6 +8,7 @@ import {
   ActPress,
   MachineBench,
   MachineFork,
+  MachinePattern,
   MachinePouch,
   type ActivityState,
   type Fact,
@@ -28,6 +29,7 @@ import { floorView } from "./views/floor.ts";
 import { huntView } from "./views/hunt.ts";
 import { idleView } from "./views/idle.ts";
 import { partyResult, partyResultLines, partyView, windowLine } from "./views/party.ts";
+import { PatternStrip } from "./views/pattern.ts";
 import { pouchesView } from "./views/pouches.ts";
 import { machineWhy, optionWhy } from "./views/why.ts";
 import { name, placedLine, refusalLine } from "./words.ts";
@@ -112,6 +114,7 @@ export class App {
   private resolved: string[] = [];
   private hunt: { before: HuntView | undefined; now: HuntView } | undefined;
   private ticking: ReturnType<typeof setTimeout> | undefined;
+  private readonly strip = new PatternStrip();
 
   constructor(
     root: HTMLElement,
@@ -246,7 +249,7 @@ export class App {
     }
     switch (screen) {
       case "machine":
-        this.show(this.machine?.root ?? this.unbuilt(state.machine));
+        this.show(this.patternOver(state), this.machine?.root ?? this.unbuilt(state.machine));
         return;
       case "beat":
         this.show(
@@ -316,7 +319,11 @@ export class App {
         );
         return;
       case "idle":
-        this.show(this.recent(), idleView(state));
+        this.show(
+          this.recent(),
+          state.pattern ? this.strip.show(state.pattern, true) : undefined,
+          idleView(state),
+        );
         return;
     }
   }
@@ -344,6 +351,15 @@ export class App {
       el("span", { class: "muted", text: here }),
       el("span", { class: "link", text: line, attrs: { role: "status" } }),
     );
+  }
+
+  // A pattern's point over the machine that sets it, shut to one line so
+  // the machine keeps the screen.
+  private patternOver(state: ActivityState): HTMLElement | undefined {
+    const source = this.machine?.shell.machine.source ?? state.machine?.source;
+    return source === MachinePattern && state.pattern
+      ? this.strip.show(state.pattern, false)
+      : undefined;
   }
 
   // What the last press or lesson did, or why the world turned it down.

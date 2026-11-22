@@ -1,0 +1,202 @@
+{
+  "tick": 4310,
+  "now": 1795000000000,
+  "context": {
+    "kind": "solo",
+    "id": "c-mock"
+  },
+  "character": {
+    "id": "c-mock",
+    "version": 7,
+    "at": {
+      "q": 15,
+      "r": -44
+    },
+    "coin": 120,
+    "provisions": 6,
+    "goods": [
+      {
+        "material": "copper-ore",
+        "units": 4
+      }
+    ],
+    "conditions": [],
+    "practice": [
+      {
+        "id": "circuit",
+        "level": 2
+      }
+    ],
+    "inFight": false,
+    "walked": 31,
+    "armed": true
+  },
+  "place": {
+    "tile": {
+      "hex": {
+        "q": 15,
+        "r": -44
+      },
+      "terrain": "flats",
+      "water": "none",
+      "region": "r-3",
+      "road": 0,
+      "found": 4290
+    },
+    "busy": 1
+  },
+  "machine": {
+    "source": "pattern",
+    "family": "circuit",
+    "name": "Circuit",
+    "layout": {
+      "family": "circuit",
+      "size": 3,
+      "decoys": 1,
+      "false": [6],
+      "turn": [1, 1, 3, 1, 2, 3, 2, 1, 3],
+      "tiles": [4, 2, 2, 2, 2, 1, 1, 3, 4],
+      "start": 0,
+      "goal": 8
+    },
+    "compact": false,
+    "preview": false,
+    "armed": true,
+    "practice": {
+      "level": 2,
+      "uses": 3,
+      "need": 180
+    },
+    "level": 1,
+    "countdown": 60000,
+    "why": [
+      {
+        "label": "family",
+        "value": 60,
+        "unit": "s"
+      }
+    ],
+    "haywire": {
+      "id": "alarm",
+      "name": "alarm",
+      "magnitude": 40,
+      "unit": "gauge"
+    },
+    "armedAt": 1794999988000,
+    "deadline": 1795000048000,
+    "grace": 2000
+  },
+  "pattern": {
+    "board": "triangle@12,-40",
+    "kind": "state",
+    "place": "pylon",
+    "family": "circuit",
+    "point": 1,
+    "points": 3,
+    "values": 4,
+    "held": 3,
+    "solved": false,
+    "lapseDays": 3,
+    "clues": [
+      {
+        "id": 812,
+        "tick": 4100,
+        "kind": "pattern.clue",
+        "region": "r-3",
+        "subjects": [
+          {
+            "kind": "pattern",
+            "id": "triangle@12,-40"
+          }
+        ],
+        "data": [
+          {
+            "k": "board",
+            "s": "triangle@12,-40"
+          },
+          {
+            "k": "rule",
+            "s": "triangle"
+          },
+          {
+            "k": "clue"
+          },
+          {
+            "k": "says",
+            "s": "offset"
+          },
+          {
+            "k": "point"
+          },
+          {
+            "k": "other",
+            "n": 1
+          },
+          {
+            "k": "n",
+            "n": 2
+          },
+          {
+            "k": "q",
+            "n": 9
+          },
+          {
+            "k": "r",
+            "n": -37
+          }
+        ],
+        "weight": 60
+      },
+      {
+        "id": 866,
+        "tick": 4130,
+        "kind": "pattern.clue",
+        "region": "r-3",
+        "subjects": [
+          {
+            "kind": "pattern",
+            "id": "triangle@12,-40"
+          }
+        ],
+        "data": [
+          {
+            "k": "board",
+            "s": "triangle@12,-40"
+          },
+          {
+            "k": "rule",
+            "s": "triangle"
+          },
+          {
+            "k": "clue",
+            "n": 1
+          },
+          {
+            "k": "says",
+            "s": "offset"
+          },
+          {
+            "k": "point",
+            "n": 1
+          },
+          {
+            "k": "other",
+            "n": 2
+          },
+          {
+            "k": "n"
+          },
+          {
+            "k": "q",
+            "n": 18
+          },
+          {
+            "k": "r",
+            "n": -41
+          }
+        ],
+        "weight": 60
+      }
+    ]
+  }
+}

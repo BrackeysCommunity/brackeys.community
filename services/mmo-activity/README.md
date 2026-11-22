@@ -23,8 +23,12 @@ vp dev --port 18787
 - **No world at all:** `http://localhost:18787/?mock=bench`. The mock
   gateway answers from `test/fixtures/state-<name>.json` and the golden
   layouts. Fixtures: `armed`, `beat`, `bench`, `idle`, `intro`, `master`,
-  `pouch`, and the party's `party`, `party-machine`, `floor` and `hunt`.
-  Any family on a beat: `?mock=beat&family=crank&level=6&practice=8`.
+  `pattern`, `pouch`, and the party's `party`, `party-machine`, `floor` and
+  `hunt`. Any family on a beat: `?mock=beat&family=crank&level=6&practice=8`.
+- **A pattern's point:** `?mock=pattern` stands on pylon B of a triangle
+  with its Circuit armed from chat, the pattern strip shut over it. A solve
+  commits the value chat armed it with (0 in the mock, since no state says
+  it); what the board makes of it is the world's alone.
 - **A party with no world:** `?mock=party&seats=4` seats a party of four;
   this screen is the first seat, and the other three are scripted
   teammates who pick, vote, press and play their seats of the rule's own
@@ -90,7 +94,7 @@ services/mmo-bot/scripts/local-world.sh wipe
 | `src/discord.ts`       | Inside or outside Discord, the routes, sign-in                                                               |
 | `src/session.ts`       | The socket: hello, reconnects, the whole state, intents, a party machine's streamed moves                    |
 | `src/app.ts`           | Which screen is open, and the machine in hand                                                                |
-| `src/views/`           | The beat (a party's too), the floor's hex rooms, the hunt, the party, the why view, pouches, the bench, idle |
+| `src/views/`           | The beat (a party's too), the floor's rooms, the hunt, the party, why, pouches, the bench, idle, the pattern |
 | `src/units.ts`         | Every number with its unit (GDD 2); nothing else formats one                                                 |
 | `src/words.ts`         | Pack names and the lines made from facts and refusals                                                        |
 | `src/shell/`           | The puzzle shell every family shares                                                                         |

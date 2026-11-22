@@ -1,0 +1,39 @@
+/* The strip sits over a machine, so its head is one line until opened. */
+.pattern summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-height: var(--touch);
+  cursor: pointer;
+  list-style: none;
+}
+
+.pattern summary::-webkit-details-marker {
+  display: none;
+}
+
+.pattern details > * + * {
+  margin-top: 6px;
+}
+
+.pattern-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pattern-points li {
+  display: grid;
+  place-items: center;
+  min-width: 32px;
+  height: 32px;
+  border: 2px solid var(--line);
+  background: var(--tar);
+  font-weight: 700;
+}
+
+.pattern-points li[aria-current] {
+  border-color: var(--signal);
+  color: var(--signal);
+}
