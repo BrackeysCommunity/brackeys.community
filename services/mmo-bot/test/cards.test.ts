@@ -72,6 +72,10 @@ const NUMBERS: api.Numbers = {
   stepMax: 3,
   beatsMin: 3,
   beatsMax: 6,
+  sideMark: 25,
+  raidMark: 7,
+  chronicleMin: 60,
+  seasonDays: 42,
 };
 const lex = new Lexicon({
   ...(w.lexicon as Omit<api.Lexicon, "numbers">),

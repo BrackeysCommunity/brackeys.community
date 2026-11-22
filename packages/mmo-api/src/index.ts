@@ -140,6 +140,11 @@ export const MachinePouch = "pouch";
  */
 export const MachineBench = "bench";
 /**
+ * Where a machine is; a party's are MachineParty, MachineFork and
+ * MachineGuardian.
+ */
+export const MachinePattern = "pattern"; // a pattern's point
+/**
  * PuzzleMove is one input, in milliseconds since the first touch. Seat is
  * the hand that made it on a party machine; the gateway stamps it.
  */
@@ -336,6 +341,10 @@ export interface ActivityState {
   party?: PartyView;
   floor?: FloorView;
   hunt?: HuntView;
+  /**
+   * Pattern is the pattern point the character stands on.
+   */
+  pattern?: PatternPoint;
 }
 /**
  * ActivityHere is the tile the character stands on, and how busy it is.
@@ -724,6 +733,11 @@ export interface OperatorRequest {
    * Pin is what a pin kind carries.
    */
   pin?: PinOrder;
+  /**
+   * Epoch is what a season-epoch takes, and Arc what an arc-cast casts.
+   */
+  epoch?: Epoch;
+  arc?: ArcOrder;
 }
 /**
  * ActionReply is what an accepted press did. Duplicate is true when the
@@ -953,6 +967,10 @@ export interface Options {
   fight?: Fight;
   purse: Purse;
   rescue?: Rescue;
+  /**
+   * Sides are the arc sides the character could back now.
+   */
+  sides?: SideOption[];
 }
 /**
  * Rescue is a character's part in a rescue (GDD 11.6): whether it has
@@ -1059,6 +1077,10 @@ export interface Fact {
   subjects: Ref[];
   data: Datum[];
   weight: number /* int64 */;
+  /**
+   * Causes are the ids of the facts it was caused by, where they are known.
+   */
+  causes?: number /* int64 */[];
 }
 /**
  * TileQuery asks for the discovered tiles within Radius of Centre.
@@ -1112,6 +1134,17 @@ export interface Place {
   explore: boolean;
   rest: boolean;
   overrun?: boolean;
+  /**
+   * The story here: a settlement's trouble or occasion, its city state,
+   * whether it is a ruin, the pattern point on the tile, and whether the
+   * core here is open.
+   */
+  trouble?: Trouble;
+  occasion?: Occasion;
+  city?: CityState;
+  ruined?: boolean;
+  pattern?: PatternPoint;
+  open?: boolean;
 }
 /**
  * Health is the service's liveness and where the world is. Standby is a
@@ -2366,6 +2399,10 @@ export interface Goal {
    * Paid are a met goal's claims, each with the facts it cites.
    */
   paid?: GoalClaim[];
+  /**
+   * Side is the arc side a Back goal fills.
+   */
+  side?: Side;
 }
 /**
  * GoalClaim is one claim on a met goal: who, for how much, and the facts
@@ -2596,6 +2633,10 @@ export interface Settlement {
    * ConditionMax is a structure's condition in full repair.
    */
   conditionMax: number /* int64 */;
+  /**
+   * City is whether it is a city, or what becoming one still takes.
+   */
+  city: CityState;
 }
 /**
  * GuildMember is one member on the guild's page.
@@ -3094,6 +3135,10 @@ export interface Person {
   traits: string[];
   saved: boolean;
   visit: boolean;
+  /**
+   * Called: it came to meet the character here, on its route.
+   */
+  called?: boolean;
 }
 /**
  * Trail is someone who passed recently, and where they stand now.
@@ -3238,13 +3283,23 @@ export interface Known {
   first: boolean; // they discovered it
 }
 /**
- * RecapLine is one line of what happened while away (GDD 3.3).
+ * RecapLine is one line of what happened while away (GDD 3.3). Kind marks
+ * an arc that ended or a trouble at one of the character's places.
  */
 export interface RecapLine {
   rule: number /* int */;
+  kind?: string;
   fact?: Fact;
   npc?: string;
 }
+/**
+ * Kinds of recap line the story adds.
+ */
+export const RecapArc = "arc";
+/**
+ * Kinds of recap line the story adds.
+ */
+export const RecapTrouble = "trouble";
 /**
  * Recap is since you left.
  */
@@ -3320,4 +3375,391 @@ export interface Numbers {
   stepMax: number /* int64 */; // ticks a tile
   beatsMin: number /* int64 */; // beats in a first-tier encounter
   beatsMax: number /* int64 */; // beats in a first-tier encounter
+  sideMark: number /* int64 */; // units a goods or beats side asks per active character
+  raidMark: number /* int64 */; // defence a raid needs per active character
+  chronicleMin: number /* int64 */; // the least weight a chronicle line has
+  seasonDays: number /* int64 */; // world days a season lasts after season zero
+}
+
+//////////
+// source: story.go
+
+/**
+ * PathChronicle takes ?character=&day=; with no day, the last closed one.
+ */
+export const PathChronicle = "/v1/chronicle";
+/**
+ * PathChronicleFact takes ?character=&id= and answers a fact with its causes.
+ */
+export const PathChronicleFact = "/v1/chronicle/fact";
+/**
+ * PathStoryEvents takes ?after=<fact id>; it is the bot's alone.
+ */
+export const PathStoryEvents = "/v1/story/events";
+/**
+ * Paths of the story: arcs, the season and the chronicle (GDD 12).
+ */
+export const PathArcs = "/v1/arcs"; // ?character=
+/**
+ * Paths of the story: arcs, the season and the chronicle (GDD 12).
+ */
+export const PathOperatorStory = "/v1/operator/story";
+/**
+ * Action kinds of the story. A goal-back names its side goal in Target, as
+ * goal-deliver does; goods carry Asset and Units, and a beats side's first
+ * one, with none, declares for it. A pattern-set names its point in To and
+ * the value in Units.
+ */
+export const ActBackSide = "goal-back";
+/**
+ * Action kinds of the story. A goal-back names its side goal in Target, as
+ * goal-deliver does; goods carry Asset and Units, and a beats side's first
+ * one, with none, declares for it. A pattern-set names its point in To and
+ * the value in Units.
+ */
+export const ActCityRaise = "city-raise";
+/**
+ * Action kinds of the story. A goal-back names its side goal in Target, as
+ * goal-deliver does; goods carry Asset and Units, and a beats side's first
+ * one, with none, declares for it. A pattern-set names its point in To and
+ * the value in Units.
+ */
+export const ActPatternSet = "pattern-set";
+/**
+ * Operator kinds of the story. Each acts on the world, so it names no
+ * character. OpSeasonStart starts a season on a world from before seasons;
+ * the service sends it itself at open. OpSeasonEpoch takes a rules epoch at
+ * a season's close (Epoch). OpArcCast casts a template with its cast bound
+ * by hand (Arc).
+ */
+export const OpSeasonStart = "season-start";
+/**
+ * Operator kinds of the story. Each acts on the world, so it names no
+ * character. OpSeasonStart starts a season on a world from before seasons;
+ * the service sends it itself at open. OpSeasonEpoch takes a rules epoch at
+ * a season's close (Epoch). OpArcCast casts a template with its cast bound
+ * by hand (Arc).
+ */
+export const OpSeasonEpoch = "season-epoch";
+/**
+ * Operator kinds of the story. Each acts on the world, so it names no
+ * character. OpSeasonStart starts a season on a world from before seasons;
+ * the service sends it itself at open. OpSeasonEpoch takes a rules epoch at
+ * a season's close (Epoch). OpArcCast casts a template with its cast bound
+ * by hand (Arc).
+ */
+export const OpArcCast = "arc-cast";
+/**
+ * Refusal codes of the story.
+ */
+export const CodeNotASide = "not-a-side";
+/**
+ * Refusal codes of the story.
+ */
+export const CodeOtherSide = "other-side";
+/**
+ * Refusal codes of the story.
+ */
+export const CodeStageOver = "stage-over";
+/**
+ * Refusal codes of the story.
+ */
+export const CodeShunned = "shunned";
+/**
+ * Refusal codes of the story.
+ */
+export const CodeCityNotReady = "city-not-ready";
+/**
+ * Refusal codes of the story.
+ */
+export const CodeAlreadyCity = "already-city";
+/**
+ * Refusal codes of the story.
+ */
+export const CodeProjectOpen = "project-open";
+/**
+ * Refusal codes of the story.
+ */
+export const CodeRuined = "ruined";
+/**
+ * Refusal codes of the story.
+ */
+export const CodeNoPattern = "no-pattern";
+/**
+ * Refusal codes of the story.
+ */
+export const CodePatternSolved = "pattern-solved";
+/**
+ * Refusal codes of the story.
+ */
+export const CodeSeasonRunning = "season-running";
+/**
+ * Refusal codes of the story.
+ */
+export const CodeNotAtBoundary = "not-at-boundary";
+/**
+ * Refusal codes of the story.
+ */
+export const CodeNoTemplate = "no-template";
+/**
+ * Refusal codes of the story.
+ */
+export const CodeCastMisfit = "cast-misfit";
+/**
+ * Refusal codes of the story.
+ */
+export const CodeSlotBusy = "slot-busy";
+/**
+ * Refusal codes of the story.
+ */
+export const CodeNoSeason = "no-season";
+/**
+ * Refusal codes of the story.
+ */
+export const CodeCrossesEpoch = "crosses-epoch";
+/**
+ * Season is where the world is in its season (GDD 12.6). Day is 1-based
+ * and Band one of opening, rising, last and finale.
+ */
+export interface Season {
+  n: number /* int64 */;
+  day: number /* int64 */;
+  days: number /* int64 */;
+  band: string;
+  ends: number /* int64 */; // the tick it closes at
+}
+/**
+ * CastRef is one role of an arc's cast and what fills it.
+ */
+export interface CastRef {
+  role: string;
+  kind: string;
+  id: string;
+  name?: string;
+}
+/**
+ * Side is one side of an arc's stage (GDD 12.2): what it wants, its mark and
+ * how full it is, what it pays, and who sponsors and opposes it. At is where
+ * goods land or beats count, by name; AtHex the tile, where there is one.
+ */
+export interface Side {
+  id: string;
+  title: string;
+  wants: string; // goods, beats, reach, sold, defence
+  tag?: string;
+  goal: string;
+  mark: number /* int64 */;
+  filled: number /* int64 */;
+  backers: number /* int64 */;
+  pay: number /* int64 */; // coin
+  at: string;
+  atHex?: Hex;
+  sponsor: string;
+  opponent?: string;
+  mine: boolean; // the viewer backs it
+}
+/**
+ * Arc is an arc as the world shows it. Stage is the stage running, 0-based;
+ * Due is the tick it ends at and DueDay the season day. Outcome is the won
+ * side of the last stage, or lapsed.
+ */
+export interface Arc {
+  id: string;
+  template: string;
+  title: string;
+  scope: string; // world, region, settlement, personal
+  cast: CastRef[];
+  regions: string[];
+  seat: Hex;
+  stage: number /* int64 */;
+  stages: number /* int64 */;
+  due: number /* int64 */;
+  dueDay: number /* int64 */;
+  sides: Side[];
+  outcome?: string;
+  began: number /* int64 */; // tick
+  lapsed?: boolean;
+}
+/**
+ * Arcs is /arcs for a character: the season, the arcs open and those ended
+ * lately, and the side goals it backs.
+ */
+export interface Arcs {
+  season: Season;
+  open: Arc[];
+  ended: Arc[];
+  backing: string[];
+}
+/**
+ * SideOption is a side a character could back now: its goal, what is left
+ * of its mark, and where it is served.
+ */
+export interface SideOption {
+  goal: string;
+  arc: string;
+  side: string;
+  wants: string;
+  tag?: string;
+  left: number /* int64 */;
+  at: Hex;
+  region: string;
+  backed: boolean;
+}
+/**
+ * Trouble is a settlement's trouble (GDD 12.5): Why is the fact it was cast
+ * from, Defence how much of the mark is held so far, Ends the tick it is
+ * decided at, and Hunt a raid's hunt.
+ */
+export interface Trouble {
+  kind: string;
+  title: string;
+  banner: string; // a media key
+  why?: Fact;
+  mark: number /* int64 */;
+  defence: number /* int64 */;
+  ends: number /* int64 */;
+  hunt?: string;
+}
+/**
+ * Occasion is a settlement's occasion, until the tick it ends.
+ */
+export interface Occasion {
+  kind: string;
+  banner: string; // a media key
+  ends: number /* int64 */;
+}
+/**
+ * CityNeed is one requirement of a city (GDD 4.8) and how far along it is.
+ */
+export interface CityNeed {
+  id: string;
+  have: number /* int64 */;
+  need: number /* int64 */;
+  unit: string;
+  met: boolean;
+}
+/**
+ * CityState is whether a settlement is a city, since when (a tick), its
+ * outer tiles, and what becoming one still takes.
+ */
+export interface CityState {
+  city: boolean;
+  raised?: number /* int64 */;
+  tiles?: Hex[];
+  needs?: CityNeed[];
+}
+/**
+ * PatternPoint is a pattern's point as the viewer stands on it (GDD 4.13):
+ * which board, its kind, what stands there and the machine family that sets
+ * it, the value held there if any, and the clues the viewer has found. It
+ * never carries the solution.
+ */
+export interface PatternPoint {
+  board: string;
+  kind: string;
+  place: string; // relay, pylon, beacon, landmark, vault
+  family?: string; // empty: set by a delivery
+  point: number /* int64 */;
+  points: number /* int64 */;
+  values: number /* int64 */;
+  held?: number /* int64 */;
+  solved: boolean;
+  clues?: Fact[];
+}
+/**
+ * ChronicleLine is one line of a day's chronicle: the fact, whether it
+ * touches the reader's server's places, and how many causes it has.
+ */
+export interface ChronicleLine {
+  fact: Fact;
+  here?: boolean;
+  causes?: number /* int64 */;
+}
+/**
+ * Chronicle is one closed world day (GDD 12.7): its heaviest lines, how
+ * many more there were, and the earlier days that can be opened.
+ */
+export interface Chronicle {
+  season: Season;
+  day: number /* int64 */;
+  lines: ChronicleLine[];
+  more: number /* int64 */;
+  earlier: number /* int64 */[];
+}
+/**
+ * FactCauses is a fact and its causes, one level deep; each cause opens the
+ * same way.
+ */
+export interface FactCauses {
+  fact: Fact;
+  causes: Fact[];
+}
+/**
+ * StoryEvent is one fact for the events channel, with a snapshot of its arc
+ * or trouble. Alarm says a raid's start that mentions the alarm role.
+ */
+export interface StoryEvent {
+  fact: Fact;
+  arc?: Arc;
+  trouble?: Trouble;
+  place?: string;
+  alarm?: boolean;
+}
+/**
+ * StoryEvents are the events after a fact id; Last is the id to ask after
+ * next.
+ */
+export interface StoryEvents {
+  events: StoryEvent[];
+  last: number /* int64 */;
+}
+/**
+ * StoryView is the operator's view of the story. Boards carry progress,
+ * never solutions.
+ */
+export interface StoryView {
+  season: Season;
+  arcs: Arc[];
+  ring?: RingView;
+  boards: BoardView[];
+}
+/**
+ * RingView is the ring of eight (GDD 4.13): its towers, those fallen this
+ * season, and the core at its centre.
+ */
+export interface RingView {
+  towers: Hex[];
+  fell: Hex[];
+  core: Hex;
+  open: boolean;
+}
+/**
+ * BoardView is a pattern board as an operator reads it: Marks counts the
+ * points set.
+ */
+export interface BoardView {
+  id: string;
+  rule: string;
+  kind: string;
+  points: Hex[];
+  marks: number /* int64 */;
+  solved: boolean;
+}
+/**
+ * Epoch is a rules epoch taken at a season's close (GDD 18.5): the sheets
+ * digests before and after, and how many sheets changed.
+ */
+export interface Epoch {
+  from: string;
+  to: string;
+  sheets: number /* int64 */;
+}
+/**
+ * ArcOrder is what an arc-cast carries: the template, its cast by role, and
+ * the seat, where it is not the cast's own.
+ */
+export interface ArcOrder {
+  template: string;
+  cast: CastRef[];
+  seat?: Hex;
 }

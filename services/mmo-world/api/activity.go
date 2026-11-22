@@ -68,9 +68,10 @@ const (
 // Where a machine is; a party's are MachineParty, MachineFork and
 // MachineGuardian.
 const (
-	MachineBeat  = "beat"
-	MachinePouch = "pouch"
-	MachineBench = "bench"
+	MachineBeat    = "beat"
+	MachinePouch   = "pouch"
+	MachineBench   = "bench"
+	MachinePattern = "pattern" // a pattern's point
 )
 
 // PuzzleMove is one input, in milliseconds since the first touch. Seat is
@@ -252,6 +253,8 @@ type ActivityState struct {
 	Party     *PartyView   `json:"party,omitempty"`
 	Floor     *FloorView   `json:"floor,omitempty"`
 	Hunt      *HuntView    `json:"hunt,omitempty"`
+	// Pattern is the pattern point the character stands on.
+	Pattern *PatternPoint `json:"pattern,omitempty"`
 }
 
 // ActivityHere is the tile the character stands on, and how busy it is.

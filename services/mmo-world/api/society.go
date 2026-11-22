@@ -131,6 +131,8 @@ type Goal struct {
 	Building    string `json:"building,omitempty"` // the structure a raise goal builds
 	// Paid are a met goal's claims, each with the facts it cites.
 	Paid []GoalClaim `json:"paid,omitempty"`
+	// Side is the arc side a Back goal fills.
+	Side *Side `json:"side,omitempty"`
 }
 
 // GoalClaim is one claim on a met goal: who, for how much, and the facts
@@ -315,6 +317,8 @@ type Settlement struct {
 	Here       bool        `json:"here"`
 	// ConditionMax is a structure's condition in full repair.
 	ConditionMax int64 `json:"conditionMax"`
+	// City is whether it is a city, or what becoming one still takes.
+	City CityState `json:"city"`
 }
 
 // GuildMember is one member on the guild's page.

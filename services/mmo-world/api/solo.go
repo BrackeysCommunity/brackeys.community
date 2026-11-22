@@ -186,6 +186,8 @@ type Person struct {
 	Traits []string `json:"traits"`
 	Saved  bool     `json:"saved"`
 	Visit  bool     `json:"visit"`
+	// Called: it came to meet the character here, on its route.
+	Called bool `json:"called,omitempty"`
 }
 
 // Trail is someone who passed recently, and where they stand now.
@@ -308,12 +310,20 @@ type Known struct {
 	First  bool   `json:"first"` // they discovered it
 }
 
-// RecapLine is one line of what happened while away (GDD 3.3).
+// RecapLine is one line of what happened while away (GDD 3.3). Kind marks
+// an arc that ended or a trouble at one of the character's places.
 type RecapLine struct {
 	Rule int    `json:"rule"`
+	Kind string `json:"kind,omitempty"`
 	Fact *Fact  `json:"fact,omitempty"`
 	NPC  string `json:"npc,omitempty"`
 }
+
+// Kinds of recap line the story adds.
+const (
+	RecapArc     = "arc"
+	RecapTrouble = "trouble"
+)
 
 // Recap is since you left.
 type Recap struct {
@@ -382,4 +392,8 @@ type Numbers struct {
 	StepMax      int64 `json:"stepMax"`      // ticks a tile
 	BeatsMin     int64 `json:"beatsMin"`     // beats in a first-tier encounter
 	BeatsMax     int64 `json:"beatsMax"`     // beats in a first-tier encounter
+	SideMark     int64 `json:"sideMark"`     // units a goods or beats side asks per active character
+	RaidMark     int64 `json:"raidMark"`     // defence a raid needs per active character
+	ChronicleMin int64 `json:"chronicleMin"` // the least weight a chronicle line has
+	SeasonDays   int64 `json:"seasonDays"`   // world days a season lasts after season zero
 }

@@ -31,6 +31,10 @@ const lex = new Lexicon({
     stepMax: 3,
     beatsMin: 3,
     beatsMax: 6,
+    sideMark: 25,
+    raidMark: 7,
+    chronicleMin: 60,
+    seasonDays: 42,
   },
 });
 const names = lex.goodsNames();
@@ -61,7 +65,7 @@ function fakeWorld(state: {
     recipes: async () => samples.recipes as api.Recipes,
     recap: async () => samples.recap as api.Recap,
     npc: async () => ({ ok: true, reply: samples.npc as api.Conversation }),
-    lexicon: async () => samples.lexicon as api.Lexicon,
+    lexicon: async () => samples.lexicon as unknown as api.Lexicon,
     media: async () => new Uint8Array([1]),
     market: async () => ({ ok: true, reply: samples.market as api.Market }),
     history: async () => ({ ok: true, reply: samples.history as api.History }),

@@ -131,6 +131,9 @@ type OperatorRequest struct {
 	To *Hex `json:"to,omitempty"`
 	// Pin is what a pin kind carries.
 	Pin *PinOrder `json:"pin,omitempty"`
+	// Epoch is what a season-epoch takes, and Arc what an arc-cast casts.
+	Epoch *Epoch    `json:"epoch,omitempty"`
+	Arc   *ArcOrder `json:"arc,omitempty"`
 }
 
 // ActionReply is what an accepted press did. Duplicate is true when the
@@ -302,6 +305,8 @@ type Options struct {
 	Fight       *Fight   `json:"fight,omitempty"`
 	Purse       Purse    `json:"purse"`
 	Rescue      *Rescue  `json:"rescue,omitempty"`
+	// Sides are the arc sides the character could back now.
+	Sides []SideOption `json:"sides,omitempty"`
 }
 
 // Rescue is a character's part in a rescue (GDD 11.6): whether it has
@@ -395,6 +400,8 @@ type Fact struct {
 	Subjects []Ref   `json:"subjects"`
 	Data     []Datum `json:"data"`
 	Weight   int64   `json:"weight"`
+	// Causes are the ids of the facts it was caused by, where they are known.
+	Causes []int64 `json:"causes,omitempty"`
 }
 
 // TileQuery asks for the discovered tiles within Radius of Centre.
@@ -443,6 +450,15 @@ type Place struct {
 	Explore bool     `json:"explore"`
 	Rest    bool     `json:"rest"`
 	Overrun bool     `json:"overrun,omitempty"`
+	// The story here: a settlement's trouble or occasion, its city state,
+	// whether it is a ruin, the pattern point on the tile, and whether the
+	// core here is open.
+	Trouble  *Trouble      `json:"trouble,omitempty"`
+	Occasion *Occasion     `json:"occasion,omitempty"`
+	City     *CityState    `json:"city,omitempty"`
+	Ruined   bool          `json:"ruined,omitempty"`
+	Pattern  *PatternPoint `json:"pattern,omitempty"`
+	Open     bool          `json:"open,omitempty"`
 }
 
 // Health is the service's liveness and where the world is. Standby is a
