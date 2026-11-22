@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"jams.team/mmo-world/internal/testkit"
+	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/goal"
@@ -231,6 +232,40 @@ func TestFreezePendingArrival(t *testing.T) {
 	}
 	if !reflect.DeepEqual(before, people()) {
 		t.Fatalf("the residents read %+v before the freeze, %+v after", before, people())
+	}
+}
+
+// A site a resident told of is queued for discovery though nobody stands on
+// it; the freeze keeps it native too.
+func TestFreezePendingRumour(t *testing.T) {
+	r := testkit.Rules(t, testkit.Book(t), keys.Throwaway("freeze-rumour"))
+	g, err := game.New(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.World.ContentVersion = world.ContentNative
+	res, err := g.Act(game.Command{Key: "a", Kind: game.Create})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := res.Char
+	var h hex.Hex
+	found := false
+	for _, x := range hex.Ring(c.C.At, 5) {
+		if tl := g.World.Tile(x); (tl == nil || tl.Discovered == nil) && g.World.Content(x) == nil {
+			h, found = x, true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("no unreached tile five out")
+	}
+	g.Pending = append(g.Pending, world.Action{Kind: world.ActDiscover, Hex: h, By: char.Ref(c.C.ID)})
+	if _, err := g.Act(game.Command{Key: game.ContentFreeze, Kind: game.ContentFreeze}); err != nil {
+		t.Fatal(err)
+	}
+	if ct := g.World.Content(h); ct == nil || !ct.Native {
+		t.Fatalf("the rumoured tile froze to %+v", ct)
 	}
 }
 
