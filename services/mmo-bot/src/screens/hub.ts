@@ -1,4 +1,4 @@
-import type { Button } from "../../../../packages/discord-kit/src/index.ts";
+import type { Button, EmbedField } from "../../../../packages/discord-kit/src/index.ts";
 import { buttonRows } from "../../../../packages/discord-kit/src/index.ts";
 import * as api from "../api.ts";
 import { type Card, COLOUR } from "../card.ts";
@@ -19,7 +19,7 @@ import {
   stationLine,
   timeLeft,
 } from "./common.ts";
-import { dungeonName, floorOf } from "./dungeon.ts";
+import { dungeonName, floorOf, placedLine } from "./dungeon.ts";
 
 /** What testers are told before they start. */
 export const TESTER_NOTE =
@@ -161,7 +161,12 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
   if (here.floor) more.push(btn("The dungeon", "dungeon", "", v));
   more.push(back(v));
   const overrun = here.place.overrun;
-  const fields = [
+  const tile = here.place.tile;
+  const fields: EmbedField[] = [];
+  if (tile.siteKind)
+    fields.push({ name: "Site", value: lex.name("map.site-kinds", tile.siteKind), inline: true });
+  if (tile.placed) fields.push({ name: "Placed", value: placedLine(tile.placed), inline: true });
+  fields.push(
     {
       name: "Gauges",
       value:
@@ -169,7 +174,7 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
         "none",
     },
     { name: "What is happening here", value: recent },
-  ];
+  );
   if (here.stations.length) {
     fields.push({
       name: "Stations",

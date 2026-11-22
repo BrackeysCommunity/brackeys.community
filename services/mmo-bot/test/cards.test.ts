@@ -56,6 +56,7 @@ import {
 import { talkCard } from "../src/screens/talk.ts";
 import { travelCard } from "../src/screens/travel.ts";
 import * as mm8 from "./fixtures/mm8.ts";
+import * as mm8a from "./fixtures/mm8a.ts";
 import samples from "./fixtures/world.json";
 
 /** Every card the bot draws, from replies a scripted run recorded off a real world, keeps the card standard (card.ts problems()). */
@@ -1243,6 +1244,14 @@ const cards: [string, () => Card][] = [
       ),
   ],
   ["hub at a fork, a hunt in reach", () => hubCard(o, mm8.atFork, sheet, lex, undefined, mm8.hunt)],
+  ["where, at a site the admins placed", () => whereCard(o, mm8a.adminSite, lex)],
+  ["where, at a site staff placed", () => whereCard(o, mm8a.staffSite, lex)],
+  ["where, at a native site with its kind", () => whereCard(o, mm8a.nativeSite, lex)],
+  ["dungeon entrance, placed", () => entranceCard(o, mm8a.placedEntrance, lex, "c-1")],
+  [
+    "travel, drawn and placed sites seen",
+    () => travelCard(o, mm8a.siteMap, here, lex, NUMBERS.ambushLine),
+  ],
   [
     "the rescue goal, naming the floor",
     () =>
@@ -1780,6 +1789,32 @@ test("the one in need who called is the one offered to carry", () => {
   const quiet = whereCard(o, { ...here, downed: [{ id: "c-7", name: "c-7", called: false }] }, lex);
   expect(labels(quiet).filter((x) => x.startsWith("Carry"))).toEqual([]);
   expect(quiet.fields?.find((f) => f.name === "Down here")?.value).toBe("c-7");
+});
+
+test("a site shows its kind, and a staged place who staged it and what staff spent", () => {
+  const field = (c: Card, name: string) => c.fields?.find((f) => f.name === name)?.value;
+  const admins = whereCard(o, mm8a.adminSite, lex);
+  expect(field(admins, "Site")).toBe("Battlefield ruin");
+  expect(field(admins, "Placed")).toBe("Placed by the admins of Rustwater Crew");
+  expect(field(whereCard(o, mm8a.staffSite, lex), "Placed")).toBe(
+    "Placed by staff of Rustwater Crew · 60 pts (event points)",
+  );
+  const native = whereCard(o, mm8a.nativeSite, lex);
+  expect(field(native, "Site")).toBe("Scrap seam");
+  expect(field(native, "Placed")).toBeUndefined();
+  const settlement = whereCard(o, here, lex);
+  expect(field(settlement, "Site")).toBeUndefined();
+  expect(field(settlement, "Placed")).toBeUndefined();
+  expect(field(entranceCard(o, mm8a.placedEntrance, lex, "c-1"), "Placed")).toBe(
+    "Placed by staff of Rustwater Crew · 60 pts (event points)",
+  );
+  expect(field(entranceCard(o, mm8.atEntrance, lex, "c-1"), "Placed")).toBeUndefined();
+  const select = travelCard(o, mm8a.siteMap, here, lex, NUMBERS.ambushLine).rows.find(
+    (r) => "select" in r,
+  );
+  const labels = select && "select" in select ? select.select.options.map((x) => x.label) : [];
+  expect(labels).toContain("Site, battlefield ruin (Scrubland)");
+  expect(labels).toContain("Site, scrap seam (Scrubland)");
 });
 
 describe("every card keeps the card standard", () => {

@@ -1,4 +1,8 @@
-import type { Button, EmbedField } from "../../../../packages/discord-kit/src/index.ts";
+import {
+  type Button,
+  type EmbedField,
+  SELECT_LABEL_MAX,
+} from "../../../../packages/discord-kit/src/index.ts";
 import type * as api from "../api.ts";
 import type { Card } from "../card.ts";
 import { encodeId, target } from "../ids.ts";
@@ -36,7 +40,7 @@ export function travelCard(
         customId: encodeId("goto", "", v),
         placeholder: "Go to a place you have seen…",
         options: sites.map((t) => ({
-          label: `${lex.name("map.landmarks", t.site!)} (${lex.name("map.terrain", t.terrain)})`,
+          label: siteLabel(t, lex),
           value: target(",", t.hex.q, t.hex.r),
         })),
       },
@@ -93,6 +97,15 @@ export function travelCard(
     rows,
     modifiers: true,
   };
+}
+
+/** A seen place as the go-to select names it: its slot, its kind once drawn, and its ground. */
+function siteLabel(t: api.Tile, lex: Lexicon): string {
+  const kind = t.siteKind ? `, ${lex.name("map.site-kinds", t.siteKind).toLowerCase()}` : "";
+  return `${lex.name("map.landmarks", t.site!)}${kind} (${lex.name("map.terrain", t.terrain)})`.slice(
+    0,
+    SELECT_LABEL_MAX,
+  );
 }
 
 /** A route's danger and the haul it puts at risk (GDD 10.7), as a field for the travel card. */
