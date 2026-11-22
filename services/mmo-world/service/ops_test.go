@@ -20,6 +20,7 @@ import (
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/puzzle"
+	simworld "jams.team/mmo-world/sim/world"
 )
 
 func op(t *testing.T, r *running, req api.OperatorRequest) api.ActionReply {
@@ -53,6 +54,11 @@ func TestOperator(t *testing.T) {
 	}
 	if _, ref, _ := r.cli.Act(ctx, api.ActionRequest{InteractionID: "a1", CharacterID: id, Kind: api.OpCorrect}); ref == nil || ref.Code != api.CodeForbidden {
 		t.Fatalf("an operator action on the player path: %+v", ref)
+	}
+	for _, kind := range []string{api.OpPinReserve, api.OpPinEdit, api.OpPinWithdraw, api.OpContentFreeze} {
+		if _, ref, _ := r.cli.Act(ctx, api.ActionRequest{InteractionID: "a-" + kind, CharacterID: id, Kind: kind}); ref == nil || ref.Code != api.CodeForbidden {
+			t.Fatalf("%s on the player path: %+v", kind, ref)
+		}
 	}
 	op(t, r, api.OperatorRequest{InteractionID: "o3", CharacterID: id, Kind: api.OpBan, Note: "test ban"})
 	o, _ := r.cli.Options(ctx, id)
@@ -172,6 +178,11 @@ func TestAPIMatchesRules(t *testing.T) {
 		{api.CodeNoHunt, game.NoHunt}, {api.CodePressed, game.Pressed}, {api.CodeOpenHunt, game.OpenHunt}, {api.CodeNoSuchRow, game.NoSuchRow},
 		{api.CodeNoSlot, game.NoSlot}, {api.CodeSwapped, game.Swapped}, {api.CodeNoTrack, game.NoTrack}, {api.CodeRivalWon, game.RivalWon},
 		{api.CodeNoRoute, game.NoRoute}, {api.CodeUsed, game.Used},
+		{api.OpPinReserve, game.PinReserve}, {api.OpPinEdit, game.PinEdit}, {api.OpPinWithdraw, game.PinWithdraw}, {api.OpContentFreeze, game.ContentFreeze},
+		{api.CodePinReach, simworld.CodePinReach}, {api.CodePinSeen, simworld.CodePinSeen}, {api.CodePinUnseen, simworld.CodePinUnseen},
+		{api.CodePinGround, simworld.CodePinGround}, {api.CodePinPath, simworld.CodePinPath}, {api.CodePinFix, simworld.CodePinFix},
+		{api.CodePinBudget, simworld.CodePinBudget}, {api.CodePinAnchor, simworld.CodePinAnchor}, {api.CodePinTaken, simworld.CodePinTaken},
+		{api.CodePinEntered, simworld.CodePinEntered}, {api.CodePinGone, simworld.CodePinGone}, {api.CodeAlreadyFrozen, simworld.CodeAlreadyFrozen},
 	} {
 		if pair[0] != pair[1] {
 			t.Errorf("the API says %q where the rules say %q", pair[0], pair[1])

@@ -62,6 +62,7 @@ func (s *Server) Handler() http.Handler {
 	op("POST "+api.PathOperator, s.operator)
 	op("GET "+api.PathOperatorCharacter, s.inspectCharacter)
 	op("GET "+api.PathOperatorTile, s.inspectTile)
+	op("GET "+api.PathOperatorPins, s.pins)
 	op("GET "+api.PathOperatorAudit, s.auditHandler)
 	op("GET "+api.PathOperatorDigest, s.digestHandler)
 	op("GET "+api.PathOperatorEconomy, s.flags)
@@ -409,7 +410,7 @@ func (s *Server) inspectCharacter(w http.ResponseWriter, r *http.Request) {
 }
 
 // inspectTile is a tile as operators see it: its stored state and its
-// baseline, discovered or not.
+// baseline, discovered or not, and the live pins a draw there would read.
 func (s *Server) inspectTile(w http.ResponseWriter, r *http.Request) {
 	h, ok := hexParam(w, r)
 	if !ok {
@@ -420,7 +421,8 @@ func (s *Server) inspectTile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer unlock()
-	reply(w, http.StatusOK, map[string]any{"baseline": s.rules.Gen.Baseline(h), "state": s.g.World.Tile(h), "region": s.g.World.RegionAt(h)})
+	reply(w, http.StatusOK, map[string]any{"baseline": s.rules.Gen.Baseline(h), "state": s.g.World.Tile(h), "region": s.g.World.RegionAt(h),
+		"pins": livePins(s.g, &h)})
 }
 
 func (s *Server) auditHandler(w http.ResponseWriter, r *http.Request) {

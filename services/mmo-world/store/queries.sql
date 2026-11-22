@@ -14,6 +14,11 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
 UPDATE mmo.world SET tick = @tick, sim = @sim, digest = @digest, updated_at = now()
 WHERE id = @id AND tick = @was AND digest = @was_digest;
 
+-- name: RestampSheets :execrows
+-- Moves a kept world onto new sheets only from the exact digest it ran on.
+UPDATE mmo.world SET sheets_digest = @to_digest, updated_at = now()
+WHERE id = @id AND sheets_digest = @from_digest;
+
 -- name: ListRegions :many
 SELECT * FROM mmo.region_state WHERE world_id = $1 ORDER BY region;
 

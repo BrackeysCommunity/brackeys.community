@@ -35,6 +35,7 @@ const (
 	EnvOperatorToken = "MMO_OPERATOR_TOKEN"
 	EnvManualClock   = "MMO_MANUAL_CLOCK" // tests only: the due tick is set through the operator API
 	EnvDisposable    = "MMO_DISPOSABLE"   // 1: found worlds that may be wiped; never on a world players keep
+	EnvSheetsFrom    = "MMO_SHEETS_FROM"  // a kept world's old sheets digest: re-stamp it onto these sheets, once
 	EnvPosthogKey    = "POSTHOG_KEY"
 	EnvPosthogHost   = "POSTHOG_HOST"
 	EnvURL           = "MMO_URL" // where the operator CLI finds the service

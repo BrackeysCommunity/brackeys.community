@@ -282,10 +282,17 @@ func apiTile(g *game.Game, h hex.Hex) (api.Tile, bool) {
 }
 
 // tileView is a tile as a client sees it, found or not: only for a tile
-// the asking character stands on.
+// the asking character stands on. What a pin staged there shows only
+// through the content its first reach stored.
 func tileView(g *game.Game, h hex.Hex) api.Tile {
 	b := g.Rules().Gen.Baseline(h)
 	out := api.Tile{Hex: apiHex(h), Terrain: b.Terrain, Water: b.Water, Site: g.SiteAt(h), Landmark: b.Landmark}
+	if c, ok := g.Content(h); ok {
+		out.SiteKind, out.Placed = c.SiteKind, apiPlaced(c.Placed)
+		if c.Landmark != "" {
+			out.Landmark = c.Landmark
+		}
+	}
 	if st := g.World.Tile(h); st != nil {
 		out.Road = st.Road
 		if st.Discovered != nil {

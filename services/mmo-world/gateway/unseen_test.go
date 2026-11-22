@@ -16,9 +16,13 @@ import (
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/puzzle"
+	"jams.team/mmo-world/sim/tile"
+	simworld "jams.team/mmo-world/sim/world"
 )
 
 var characterID = regexp.MustCompile(`"c-\d+"`)
+
+var factID = regexp.MustCompile(`"id":\d+`)
 
 func asJSON(v any) string {
 	body, _ := json.Marshal(v)
@@ -30,6 +34,155 @@ func asJSON(v any) string {
 func TestNothingUnseen(t *testing.T) {
 	t.Run("solo", nothingUnseenSolo)
 	t.Run("party", nothingUnseenParty)
+	t.Run("pin", nothingUnseenPin)
+}
+
+// structural: how far from the character the pin stands, and how far it
+// reaches; the character's own tile lies outside it.
+const (
+	pinAway  = 5
+	pinReach = 2
+)
+
+// nothingUnseenPin plays twin worlds side by side, one given a designer's
+// reserve a few tiles from a character at a bench, through a bench solve
+// and ticks. No socket is sent a frame for the pin, and every frame is
+// the twin's, byte for byte with fact ids renumbered by first appearance,
+// until the pinned tile is reached.
+func nothingUnseenPin(t *testing.T) {
+	twins := [2]*world{newWorld(t), newWorld(t)}
+	var vs [2]*viewer
+	var sts [2]api.ActivityState
+	var cs [2]*game.Char
+	for i, w := range twins {
+		cs[i] = w.create("u-pinned")
+		w.do(func() { testkit.AtBench(t, w.g, cs[i]) })
+		w.serve(nil)
+		vs[i] = w.join("u-pinned", "i-pin", api.Viewer{Family: puzzle.Rewire, Level: 1}, nil)
+		sts[i] = vs[i].state()
+	}
+	for i, w := range twins {
+		solved, after := vs[i].intent(api.Intent{ID: "pinned-bench-1", Version: sts[i].Character.Version, Kind: api.ActBenchSolve,
+			Machine: &api.MachineIntent{Family: puzzle.Rewire, Level: 1, Log: rewired(sts[i].Machine.Layout)}})
+		if !solved.OK || solved.Machine == nil || !solved.Machine.Solved {
+			t.Fatalf("twin %d's bench solve: %+v", i, solved)
+		}
+		sts[i] = after
+		w.tick()
+		sts[i] = vs[i].state()
+	}
+
+	w := twins[0]
+	var at hex.Hex
+	var fix tile.Fix
+	designer := simworld.PinBy{Role: simworld.PinDesigner}
+	w.do(func() {
+		home := cs[0].C.At
+		for r := int64(pinAway); r <= 2*pinAway && fix.Empty(); r++ {
+			for _, h := range hex.Ring(home, r) {
+				a := w.g.Rules().Gen.Archetypes(h)
+				if len(a) == 0 || w.g.World.Content(h) != nil {
+					continue
+				}
+				f := tile.Fix{Lead: a[len(a)-1]}
+				if w.g.World.CheckPin(h, pinReach, f, designer, false) == nil {
+					at, fix = h, f
+					break
+				}
+			}
+		}
+	})
+	if fix.Empty() {
+		t.Fatal("no unreached tile near the character takes a designer's reserve")
+	}
+	sent := vs[0].tape.count()
+	w.do(func() {
+		if _, err := w.g.Act(game.Command{Key: "pin-1", Kind: game.PinReserve, Pin: &game.PinCmd{At: at, Reach: pinReach, Fix: fix}}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	for _, v := range vs {
+		v.quiet()
+	}
+	if got := vs[0].tape.count(); got != sent+1 {
+		t.Fatalf("the character was sent %d frames for a pin", got-sent-1)
+	}
+	if twins[0].digest() == twins[1].digest() {
+		t.Fatal("the pin left the world as its twin")
+	}
+
+	for range 3 {
+		for i, w := range twins {
+			w.tick()
+			sts[i] = vs[i].state()
+			w.do(func() {
+				if w.g.World.Content(at) != nil {
+					t.Fatalf("twin %d reached the pinned tile %s on a tick", i, at.Ref())
+				}
+			})
+		}
+	}
+	for _, v := range vs {
+		v.quiet()
+	}
+	tapes := [2]string{renumbered(vs[0].tape.all()), renumbered(vs[1].tape.all())}
+	if tapes[0] != tapes[1] {
+		t.Fatalf("the pinned twin was sent what its twin was not:\n%s\n%s", firstDiff(tapes[0], tapes[1]), firstDiff(tapes[1], tapes[0]))
+	}
+	for _, s := range []string{"pin-", `"pin"`, asJSON(api.Hex{Q: at.Q, R: at.R})} {
+		if i := strings.Index(tapes[0], s); i >= 0 {
+			t.Errorf("the character was sent %s: %s", s, tapes[0][max(0, i-80):min(len(tapes[0]), i+80)])
+		}
+	}
+
+	// Reaching the tile lands the reserve there, and only in its world.
+	for i, w := range twins {
+		w.do(func() {
+			if err := w.g.Teleport(cs[i], at); err != nil {
+				t.Fatal(err)
+			}
+		})
+		w.tick()
+		vs[i].state()
+		w.do(func() {
+			c := w.g.World.Content(at)
+			switch {
+			case c == nil:
+				t.Fatalf("twin %d never reached %s", i, at.Ref())
+			case i == 0 && (c.Pin == "" || c.Lead != fix.Lead):
+				t.Fatalf("the pinned tile holds %+v, not the fix %+v", c, fix)
+			case i == 1 && c.Pin != "":
+				t.Fatalf("the pinless twin's tile holds the pin %s", c.Pin)
+			}
+		})
+	}
+	for _, w := range twins {
+		w.stop()
+	}
+	for _, v := range vs {
+		v.ended()
+	}
+}
+
+// renumbered is a tape with each fact id replaced by the order it first
+// appears in, so a fact the twin never wrote does not shift the rest.
+func renumbered(tape string) string {
+	seen := map[string]string{}
+	return factID.ReplaceAllStringFunc(tape, func(id string) string {
+		if _, ok := seen[id]; !ok {
+			seen[id] = fmt.Sprintf(`"id":"#%d"`, len(seen))
+		}
+		return seen[id]
+	})
+}
+
+// firstDiff is a's text round the first byte where it parts from b.
+func firstDiff(a, b string) string {
+	i := 0
+	for i < len(a) && i < len(b) && a[i] == b[i] {
+		i++
+	}
+	return a[max(0, i-80):min(len(a), i+80)]
 }
 
 // nothingUnseenSolo drives two viewers with different sight through real

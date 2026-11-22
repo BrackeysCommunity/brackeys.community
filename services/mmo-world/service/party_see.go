@@ -189,7 +189,7 @@ func floorView(g *game.Game, c *game.Char) *api.FloorView {
 		return nil
 	}
 	out := &api.FloorView{Dungeon: d.Dungeon, Name: d.Name, Kind: d.Kind, Up: d.Up, Floor: d.Floor, Deepest: d.Deepest, Bottom: d.Bottom,
-		Haunted: d.Haunted}
+		Haunted: d.Haunted, Placed: apiPlaced(g.Placed(c.C.At))}
 	if len(d.Pool) > 0 {
 		out.Pool = apiGoods(d.Pool)
 	}

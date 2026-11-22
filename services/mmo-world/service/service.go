@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -36,6 +37,10 @@ type Config struct {
 	// Disposable founds worlds that may be wiped: by an operator's reset,
 	// or at start-up when the sheets changed. Off, a world is kept.
 	Disposable bool
+	// SheetsFrom re-stamps a kept world that runs on exactly this sheets
+	// digest onto the service's sheets instead of refusing it: a one-shot
+	// for sheets that only add (GDD 4.17). Empty, EnvSheetsFrom is read.
+	SheetsFrom string
 	Poll       time.Duration
 	Now        func() time.Time
 	Log        *slog.Logger
@@ -86,6 +91,9 @@ func Open(ctx context.Context, pool *pgxpool.Pool, cfg Config) (*Server, error) 
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
+	if cfg.SheetsFrom == "" {
+		cfg.SheetsFrom = os.Getenv(EnvSheetsFrom)
+	}
 	rules, err := game.NewRules(cfg.Book, cfg.Keys)
 	if err != nil {
 		return nil, err
@@ -129,6 +137,9 @@ func (s *Server) fail(ctx context.Context, err error) error {
 
 func (s *Server) open(ctx context.Context) error {
 	m, err := s.st.MetaFor(ctx, s.cfg.Keys, s.cfg.KeyVersion, s.cfg.Epoch, s.cfg.Book)
+	if errors.Is(err, store.ErrOtherSheets) && s.cfg.SheetsFrom != "" && s.cfg.SheetsFrom == m.SheetsDigest {
+		err = s.restamp(ctx, &m)
+	}
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return s.found(ctx, false)
@@ -142,8 +153,51 @@ func (s *Server) open(ctx context.Context) error {
 		return err
 	}
 	s.meta.Store(&m)
-	s.g, err = s.st.Load(ctx, s.rules)
-	return err
+	if s.g, err = s.st.Load(ctx, s.rules); err != nil {
+		return err
+	}
+	return s.freeze(ctx)
+}
+
+// restamp moves a kept world onto the service's sheets, from exactly the
+// digest the operator named.
+func (s *Server) restamp(ctx context.Context, m *store.Meta) error {
+	to, err := s.cfg.Book.Digest()
+	if err != nil {
+		return err
+	}
+	if err := s.st.Restamp(ctx, m.SheetsDigest, to); err != nil {
+		return err
+	}
+	s.cfg.Log.Warn("SHEETS RESTAMPED: the kept world now runs on these sheets; unset "+EnvSheetsFrom, "world", m.ID, "from", m.SheetsDigest, "to", to)
+	m.SheetsDigest = to
+	return nil
+}
+
+// freezeKey is the interaction the freeze is recorded under: one per
+// world, so it is applied once.
+const freezeKey = "content-freeze"
+
+// freeze stores the seed's content on every discovered tile of a world
+// from before content was drawn from history, then draws from history
+// (GDD 4.17). It is a recorded command, so the world replays through it.
+func (s *Server) freeze(ctx context.Context) error {
+	if s.g.World.Drawn() {
+		return nil
+	}
+	ctx, cancel := writeContext(ctx)
+	defer cancel()
+	out, err := s.do(ctx, game.Command{Key: freezeKey, Kind: game.ContentFreeze}, "", 0, false)
+	switch {
+	case err != nil:
+		return fmt.Errorf("service: freezing the world's content: %w", err)
+	case out.ref != nil:
+		return fmt.Errorf("service: freezing the world's content: %s: %s", out.ref.Code, out.ref.Message)
+	case out.dup || !s.g.World.Drawn():
+		return errors.New("service: the content freeze is recorded but the world does not draw from history")
+	}
+	s.cfg.Log.Warn("CONTENT FROZEN: the world now draws content from history", "world", s.cfg.World, "tick", s.g.Tick(), "facts", len(out.res.Facts))
+	return nil
 }
 
 // resettable reports whether a stored world may be wiped: it is disposable,

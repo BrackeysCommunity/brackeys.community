@@ -204,6 +204,22 @@ func (m Meta) Matches(k keys.Set, keyVersion, rulesEpoch int32, sheetsDigest str
 	return nil
 }
 
+// Restamp moves a kept world onto the sheets digest to, only if it runs on
+// exactly from: a world on any other sheets stays refused.
+func (s *Store) Restamp(ctx context.Context, from, to string) error {
+	if from == "" || to == "" {
+		return fmt.Errorf("store: a restamp of world %s needs both digests", s.World)
+	}
+	n, err := s.q.RestampSheets(ctx, db.RestampSheetsParams{ID: s.World, FromDigest: from, ToDigest: to})
+	if err != nil {
+		return err
+	}
+	if n != 1 {
+		return fmt.Errorf("%w: world %s does not run on %s, so it was not restamped", ErrOtherSheets, s.World, from)
+	}
+	return nil
+}
+
 func metaOf(ctx context.Context, q *db.Queries, id string) (Meta, error) {
 	w, err := q.GetWorld(ctx, id)
 	if err != nil {

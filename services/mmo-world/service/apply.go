@@ -99,6 +99,10 @@ func operatorCommand(req api.OperatorRequest) (game.Command, *api.Refusal, int) 
 		h := simHex(*req.To)
 		cmd.To = &h
 	}
+	if req.Pin != nil {
+		p := simPin(*req.Pin)
+		cmd.Pin = &p
+	}
 	if game.WorldLevel(req.Kind) {
 		cmd.Char = ""
 	}

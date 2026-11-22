@@ -157,6 +157,13 @@ func (h *HTTP) Tile(ctx context.Context, q, r int64) (json.RawMessage, error) {
 	return out, Refused("tile", ref, err)
 }
 
+// Pins are the live pins, to operators only.
+func (h *HTTP) Pins(ctx context.Context) (api.Pins, error) {
+	var out api.Pins
+	ref, err := h.Do(ctx, http.MethodGet, api.PathOperatorPins, nil, &out)
+	return out, Refused("pins", ref, err)
+}
+
 func (h *HTTP) Audit(ctx context.Context) (api.Audit, error) {
 	var out api.Audit
 	ref, err := h.Do(ctx, http.MethodGet, api.PathOperatorAudit, nil, &out)

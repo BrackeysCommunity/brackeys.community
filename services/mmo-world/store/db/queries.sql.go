@@ -892,6 +892,26 @@ func (q *Queries) RecentFactsIn(ctx context.Context, arg RecentFactsInParams) ([
 	return items, nil
 }
 
+const restampSheets = `-- name: RestampSheets :execrows
+UPDATE mmo.world SET sheets_digest = $1, updated_at = now()
+WHERE id = $2 AND sheets_digest = $3
+`
+
+type RestampSheetsParams struct {
+	ToDigest   string
+	ID         string
+	FromDigest string
+}
+
+// Moves a kept world onto new sheets only from the exact digest it ran on.
+func (q *Queries) RestampSheets(ctx context.Context, arg RestampSheetsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, restampSheets, arg.ToDigest, arg.ID, arg.FromDigest)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const saveCharacter = `-- name: SaveCharacter :execrows
 UPDATE mmo.character SET version = $1, q = $2, r = $3, banned = $4, body = $5
 WHERE world_id = $6 AND id = $7 AND version = $8

@@ -1,5 +1,5 @@
 // Command op is the operator CLI: inspect, correct, grant, ban, audit, economy,
-// stand a character before a machine, reset and replay a world.
+// stand a character before a machine, pin content, reset and replay a world.
 //
 // Writes go through the running service's operator API, so the service
 // stays the only writer and every correction replays. replay reads the
@@ -41,6 +41,13 @@ const usage = `op [-id <interaction id>] <command>
   hide <goal> <note...>           take a goal off the notice board, its escrow back
   hunt-start <row> <q,r> [note...]   open a fights.hunts row's hunt on a tile
   hide-name <q,r> [note...]       hide a dungeon's given name; it shows its pack name
+  pin-reserve <q,r> <reach> <field=value>... [-as admin|staff -for <char> -label <text>]
+                                  stage content on a tile nobody has reached
+  pin-edit <q,r> <field=value>... [-as ... -for ... -label ...]   change a reached tile's content
+  pin-withdraw <pin-id> [-as ... -for ...]   stop a live pin counting
+      fields: site, landmark, site-kind, dungeon, floors, lead, stock
+  pins                            the live pins
+  freeze-content [note...]        store the seed's content on a world from before history
   audit                           the conservation check
   economy                         the faucet, and characters flagged for review
   digest                          the world's tick and digest
@@ -190,6 +197,19 @@ func run(args []string) error {
 			return err
 		}
 		return operate(api.OperatorRequest{InteractionID: *id, Kind: cmd, To: &at, Note: strings.Join(rest[1:], " ")})
+	case api.OpPinReserve, api.OpPinEdit, api.OpPinWithdraw:
+		pin, err := pinOrder(cmd, rest)
+		if err != nil {
+			return err
+		}
+		return operate(api.OperatorRequest{InteractionID: *id, Kind: cmd, Pin: &pin})
+	case "pins":
+		if len(rest) != 0 {
+			return errors.New(usage)
+		}
+		return shown(cli().Pins(context.Background()))
+	case "freeze-content":
+		return operate(api.OperatorRequest{InteractionID: *id, Kind: api.OpContentFreeze, Note: strings.Join(rest, " ")})
 	case "audit":
 		return shown(cli().Audit(context.Background()))
 	case "economy":
