@@ -221,6 +221,10 @@ func (g *Game) rest(c *Char, cmd Command) error {
 	if row, w := g.workHere(c, guild.GivesRest, false); w != nil {
 		n = min(n, row.By)
 	}
+	// Sickness at the place stretches the rest (GDD 12.5).
+	if p, ok := g.SettlementAt(c.C.At); ok && g.Story != nil {
+		n = fixed.PercentOf(n, g.sickShare(p, g.Tick()))
+	}
 	g.startLong(c, Rest, cmd.Key, n, n)
 	return nil
 }
@@ -346,6 +350,11 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 	g.syncPlaces()
 	if err := g.creditGoals(first, ledger.SubKey("tick", strconv.FormatInt(t, decimal))); err != nil {
 		return nil, err
+	}
+	if g.Story != nil {
+		if err := g.storyTick(t); err != nil {
+			return nil, err
+		}
 	}
 	if err := g.goalsDue(t); err != nil {
 		return nil, err
@@ -488,7 +497,12 @@ func (g *Game) ambushed(c *Char, h hex.Hex, t int64) bool {
 	if !ok || b.Chance == 0 {
 		return false
 	}
-	return g.r.draw.Percent(b.Chance.Of(fixed.Hundredths), "game.ambush", draw.Str(c.C.ID), draw.Int(t))
+	chance := b.Chance.Of(fixed.Hundredths)
+	// An arc's Marked are sought out on the same roll (GDD 5.5).
+	if g.Story != nil {
+		chance = fixed.PercentOf(chance, g.markedShare(c, h))
+	}
+	return g.r.draw.Percent(chance, "game.ambush", draw.Str(c.C.ID), draw.Int(t))
 }
 
 type gatherNode struct {

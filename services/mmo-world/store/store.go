@@ -98,6 +98,7 @@ type sim struct {
 	Market   *game.Market    `json:"market,omitempty"`
 	Society  game.Society    `json:"society"`
 	Delve    game.Delve      `json:"delve"`
+	Story    *game.Story     `json:"story,omitempty"`
 }
 
 func simOf(g *game.Game) ([]byte, error) {
@@ -108,7 +109,7 @@ func simOf(g *game.Game) ([]byte, error) {
 		return nil, err
 	}
 	return json.Marshal(sim{World: w, Pending: g.Pending, NextChar: g.NextChar, Log: g.Log, Posted: g.Ledger.Posted, Kinds: g.Kinds, Left: g.Left,
-		News: g.News, NPCChain: g.NPCs.Chain, Market: g.Market, Society: g.Society, Delve: g.Delve})
+		News: g.News, NPCChain: g.NPCs.Chain, Market: g.Market, Society: g.Society, Delve: g.Delve, Story: g.Story})
 }
 
 func ts(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }
@@ -241,7 +242,7 @@ func (s *Store) Load(ctx context.Context, r *game.Rules) (*game.Game, error) {
 		return nil, err
 	}
 	g := &game.Game{World: &world.State{}, Pending: sm.Pending, NextChar: sm.NextChar, Log: sm.Log, Kinds: sm.Kinds, Left: sm.Left,
-		News: sm.News, NPCs: npc.Book{List: []*npc.NPC{}, Chain: sm.NPCChain}, Market: sm.Market, Society: sm.Society, Delve: sm.Delve}
+		News: sm.News, NPCs: npc.Book{List: []*npc.NPC{}, Chain: sm.NPCChain}, Market: sm.Market, Society: sm.Society, Delve: sm.Delve, Story: sm.Story}
 	if g.News == nil {
 		g.News = []game.News{}
 	}

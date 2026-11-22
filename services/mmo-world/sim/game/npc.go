@@ -42,8 +42,8 @@ type News struct {
 	Placeless bool `json:"placeless,omitempty"`
 }
 
-// keepNews adds the heavy facts among fs to the news ring, and counts
-// what they built towards crowding.
+// keepNews adds the heavy facts among fs to the news ring, counts what
+// they built towards crowding, and hands them to the story's memory.
 func (g *Game) keepNews(fs []fact.Fact) {
 	line, kept := g.NewsWeight(), g.r.wp("news-kept")
 	for _, f := range fs {
@@ -58,6 +58,7 @@ func (g *Game) keepNews(fs []fact.Fact) {
 	if over := int64(len(g.News)) - kept; over > 0 {
 		g.News = slices.Delete(g.News, 0, int(over))
 	}
+	g.noteStory(fs)
 }
 
 // Person is someone a character can talk to on a tile now.

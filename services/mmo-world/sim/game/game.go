@@ -10,6 +10,7 @@ import (
 	"cmp"
 	"slices"
 
+	"jams.team/mmo-world/sim/arc"
 	"jams.team/mmo-world/sim/canon"
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/class"
@@ -62,6 +63,10 @@ type Rules struct {
 	limits          char.Limits
 	// shifts are the measures' shifts by classes held (see shiftsOf).
 	shifts map[string]map[string]tags.Shift
+	// Story is the story.params cells; Templates the arc, trouble and
+	// occasion rows with their predicates.
+	Story     arc.Params
+	Templates []arc.Template
 }
 
 // NewRules wires the systems under a world's keys.
@@ -78,11 +83,16 @@ func NewRules(b *sheets.Book, k keys.Set) (*Rules, error) {
 	if err != nil {
 		return nil, err
 	}
+	templates, err := arc.Compile(b)
+	if err != nil {
+		return nil, err
+	}
 	r := &Rules{Book: b, Gen: g, Fight: s.Fight, Mounts: s.Mounts, Growth: s.Growth, Crafter: craft.New(b, s.Deriver, s.Growth, k.Roll),
 		Values: econ.New(b), Faucet: faucet.ParamsOf(b.EconomyParams), NPC: npc.New(b, k.Generation, k.Roll), names: map[string]string{}, processStations: map[string][]string{}, draw: draw.NewDrawer(k.Roll),
 		roll: k.Roll, weights: fact.NewWeights(b.FactWeights), limits: char.LimitsOf(s.Growth.Params()),
 		Settle: settle.ParamsOf(b.SettlementParams), Guild: guild.ParamsOf(b.SettlementParams), Class: class.ParamsOf(b.ClassParams),
-		rules: rules, structures: map[string]*sheets.Structure{}, works: map[string]*sheets.GuildWork{}, shifts: map[string]map[string]tags.Shift{}}
+		rules: rules, structures: map[string]*sheets.Structure{}, works: map[string]*sheets.GuildWork{}, shifts: map[string]map[string]tags.Shift{},
+		Story: arc.ParamsOf(b), Templates: templates}
 	for i := range b.Structures {
 		r.structures[b.Structures[i].ID] = &b.Structures[i]
 	}
@@ -187,6 +197,12 @@ type Char struct {
 	Party   string   `json:"party,omitempty"`
 	Keys    []string `json:"keys,omitempty"`
 	Swapped int64    `json:"swapped,omitempty"`
+	// BackWorth is the coin's worth it has put into arc sides, by faction;
+	// BackGiven the standing already given for it; Callers the NPCs that
+	// came to find it (GDD 5.4, 4.18).
+	BackWorth tally.Tally `json:"backWorth,omitempty"`
+	BackGiven tally.Tally `json:"backGiven,omitempty"`
+	Callers   []Caller    `json:"callers,omitempty"`
 }
 
 // Fight is an encounter and the measures it was assembled under. An
@@ -216,8 +232,11 @@ type Game struct {
 	Market   *Market        `json:"market,omitempty"`
 	Society
 	Delve
-	Log *fact.Tail `json:"log"`
-	r   *Rules
+	// Story is nil on a game saved before the director, which then runs
+	// as it did.
+	Story *Story     `json:"story,omitempty"`
+	Log   *fact.Tail `json:"log"`
+	r     *Rules
 	// touched are the characters the command or tick in hand has changed,
 	// its own actor aside; seen those whose view it changed with no row.
 	touched []string
@@ -266,6 +285,7 @@ func New(r *Rules) (*Game, error) {
 	r.Fight.D.Reg = &g.Kinds
 	g.syncPlaces()
 	g.Market = g.newMarket()
+	g.seasonOpen()
 	return g, g.postFactionOrders(g.Tick())
 }
 
