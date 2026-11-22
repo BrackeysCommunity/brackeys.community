@@ -667,8 +667,10 @@ func Valid(g *Goal, now int64, l Limits) error {
 	switch {
 	case !slices.Contains(Verbs, c.Verb):
 		return fmt.Errorf("no verb %q", c.Verb)
-	case c.Verb == Back:
-		return fmt.Errorf("backing a side opens with the first arc")
+	case c.Verb == Back && c.Side == "":
+		return fmt.Errorf("a Back names its arc stage's side")
+	case c.Verb == Back && g.Issuer.Kind != ByFaction && g.Issuer.Kind != ByWorld:
+		return fmt.Errorf("a side is posted by the story, not by a character")
 	case c.unread() != "":
 		return fmt.Errorf("a %s is not narrowed by a %s", c.Verb, c.unread())
 	case c.Count <= 0 && !c.Abstains():
@@ -704,6 +706,11 @@ func Valid(g *Goal, now int64, l Limits) error {
 	}
 	switch g.Lifetime {
 	case Ephemeral:
+		// A side lives as long as its stage, however long a poster's
+		// ephemeral goal may last.
+		if c.Verb == Back && g.Expires > now {
+			break
+		}
 		if d := g.Expires - now; d < l.EphemeralLeast || d > l.EphemeralMost {
 			return fmt.Errorf("an ephemeral goal lasts %d to %d ticks", l.EphemeralLeast, l.EphemeralMost)
 		}

@@ -34,6 +34,9 @@ const (
 	Hungry  = "hungry"
 	Wounded = "wounded"
 	Down    = "down"
+	// ArcMarked is a backer of a world arc's side, whom the other side's
+	// ambushes prefer until the arc ends (GDD 5.5).
+	ArcMarked = "arc-marked"
 )
 
 // Condition is a condition and the tick it ends at (0: until cleared).

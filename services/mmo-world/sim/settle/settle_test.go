@@ -8,7 +8,7 @@ import (
 )
 
 var p = Params{ConditionMax: 100, TroubleDamage: 25, RaidDamage: 10, Neglect: 1, NeglectTicks: 7 * sheets.TicksPerDay,
-	RepairShare: 1, ReopenShare: 25, StationTier: 2, FoundDistance: 6}
+	RepairShare: 1, ReopenShare: 25, StationTier: 2, FoundDistance: 6, CityStationCap: 3}
 
 var forge = sheets.Structure{ID: "forge", Station: true, MaxTier: 3, Charter: true,
 	Each: []sheets.CostLine{{Tag: "stone", Quantity: 300}, {Tag: "timber", Quantity: 200}}}
@@ -22,6 +22,41 @@ func TestRaiseStopsAtTheStationTier(t *testing.T) {
 	}
 	if !s.Raise(&wall, 0, p) || !s.Raise(&wall, 1, p) || !s.Raise(&wall, 2, p) || s.Get("wall").Tier != 3 {
 		t.Fatal("a wall did not reach its own cap")
+	}
+}
+
+// TestCapFor: a city's stations reach the city's cap, never past their
+// row's; a structure that is not a station keeps its row's cap anywhere.
+func TestCapFor(t *testing.T) {
+	low := sheets.Structure{ID: "bench", Station: true, MaxTier: 2}
+	for _, c := range []struct {
+		row  *sheets.Structure
+		city bool
+		want int64
+	}{
+		{&forge, false, 2}, {&forge, true, 3}, {&low, true, 2}, {&wall, false, 3}, {&wall, true, 3},
+	} {
+		if got := CapFor(c.row, p, c.city); got != c.want {
+			t.Errorf("%s in a city %v: cap %d, want %d", c.row.ID, c.city, got, c.want)
+		}
+	}
+	if Cap(&forge, p) != CapFor(&forge, p, false) {
+		t.Fatal("Cap is not the cap outside a city")
+	}
+	s := &Settlement{City: &City{}}
+	for range 3 {
+		if !s.Raise(&forge, 0, p) {
+			t.Fatal("a city's forge stopped short of tier 3")
+		}
+	}
+	if s.Raise(&forge, 0, p) || s.Get("forge").Tier != 3 {
+		t.Fatal("a city's forge rose past the city's cap")
+	}
+	if _, _, ok := s.Next(&forge, p); ok {
+		t.Fatal("a city offers a raise past its cap")
+	}
+	if tier, _, ok := (&Settlement{City: &City{}, Structures: []Structure{{Kind: "forge", Tier: 2}}}).Next(&forge, p); !ok || tier != 3 {
+		t.Fatal("a city offers no tier 3")
 	}
 }
 

@@ -45,6 +45,8 @@ func TestCheckRefuses(t *testing.T) {
 		{"sink gives", ledger.Move("k", "x", 0, ledger.ToLost, ann, ore, 1), "cannot give"},
 		{"unknown account", ledger.Move("k", "x", 0, ann, "bank:x", ore, 1), "unknown account"},
 		{"coin from the wrong source", ledger.Move("k", "x", 0, ledger.FromHaul, ann, ledger.Coin, 1), "coin enters only"},
+		{"coin from a cache", ledger.Move("k", "x", 0, ledger.FromCache, ledger.CachePool("b"), ledger.Coin, 1), "coin enters only"},
+		{"an item from a cache", ledger.Move("k", "x", 0, ledger.FromCache, ledger.CachePool("b"), ledger.Item("i-1"), 1), "a cache gives goods"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			b := funded(t)
@@ -57,6 +59,28 @@ func TestCheckRefuses(t *testing.T) {
 				t.Fatal("a refused transaction changed the book")
 			}
 		})
+	}
+}
+
+// TestCacheGivesGoods: a cache mints materials and provisions into its
+// pool, and the pool splits them out.
+func TestCacheGivesGoods(t *testing.T) {
+	b := funded(t)
+	pool := ledger.CachePool("triangle@0,0")
+	for _, tx := range []ledger.Txn{
+		{Key: "cache", Kind: "cache", Legs: []ledger.Leg{
+			{ledger.FromCache, ore, -4}, {pool, ore, 4},
+			{ledger.FromCache, ledger.Provisions, -2}, {pool, ledger.Provisions, 2},
+		}},
+		ledger.Move("cache/ann", "cache", 0, pool, ann, ore, 3),
+		ledger.Move("cache/bob", "cache", 0, pool, bob, ore, 1),
+	} {
+		if err := b.Post(tx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if b.Of(ann, ore) != 6 || b.Of(bob, ore) != 1 || b.Of(pool, ore) != 0 || b.Of(pool, ledger.Provisions) != 2 {
+		t.Fatalf("balances after a cache: %+v", b.Balances)
 	}
 }
 

@@ -39,6 +39,21 @@ type Settlement struct {
 	Guild      string      `json:"guild,omitempty"`
 	Founded    int64       `json:"founded"`
 	Structures []Structure `json:"structures"`
+	// City is set once the place is raised to a city (GDD 4.8).
+	City *City `json:"city,omitempty"`
+	// Ruined is the tick the place fell to ruin; it keeps its index.
+	Ruined int64 `json:"ruined,omitempty"`
+	// Faction is the faction whose city this is; players trade there and
+	// never run it.
+	Faction *int `json:"faction,omitempty"`
+}
+
+// City is what a city holds beyond a settlement: when it was raised, the
+// outer tiles it claims, and the project that raised it.
+type City struct {
+	Raised  int64     `json:"raised"`
+	Tiles   []hex.Hex `json:"tiles"`
+	Project string    `json:"project,omitempty"`
 }
 
 // Chartered reports whether a guild founded it.
@@ -70,7 +85,7 @@ func (s *Settlement) Use(kind string, tick int64) {
 // Params are the settlements sheet's structure cells.
 type Params struct {
 	ConditionMax, TroubleDamage, RaidDamage, Neglect, NeglectTicks, RepairShare, ReopenShare int64
-	StationTier, FoundDistance                                                               int64
+	StationTier, FoundDistance, CityStationCap                                               int64
 }
 
 // ParamsOf reads them.
@@ -78,18 +93,20 @@ func ParamsOf(p []sheets.Param) Params {
 	i := func(id string) int64 { return sheets.IntParam(p, id) }
 	return Params{ConditionMax: i("condition-max"), TroubleDamage: i("trouble-damage"), RaidDamage: i("raid-damage"),
 		Neglect: i("neglect"), NeglectTicks: i("neglect-days") * sheets.TicksPerDay, RepairShare: i("repair-share"),
-		ReopenShare: i("reopen-share"), StationTier: i("station-tier"), FoundDistance: i("found-distance")}
+		ReopenShare: i("reopen-share"), StationTier: i("station-tier"), FoundDistance: i("found-distance"),
+		CityStationCap: i("city-station-cap")}
 }
 
 // Raise builds a structure at tier 1 or lifts it a tier, at full
-// condition; false past its row's or the settlement's cap.
+// condition; false past its row's or the settlement's cap, a city's for a
+// city.
 func (s *Settlement) Raise(row *sheets.Structure, tick int64, p Params) bool {
 	st := s.Get(row.ID)
 	if st == nil {
 		s.Structures = append(s.Structures, Structure{Kind: row.ID, Tier: 1, Condition: p.ConditionMax, Built: tick, Used: tick})
 		return true
 	}
-	if st.Tier >= Cap(row, p) {
+	if st.Tier >= CapFor(row, p, s.City != nil) {
 		return false
 	}
 	st.Tier++
@@ -99,11 +116,18 @@ func (s *Settlement) Raise(row *sheets.Structure, tick int64, p Params) bool {
 
 // Cap is the highest tier a structure reaches outside a city: its row's,
 // and for a station the settlement's station tier.
-func Cap(row *sheets.Structure, p Params) int64 {
-	if row.Station {
-		return min(row.MaxTier, p.StationTier)
+func Cap(row *sheets.Structure, p Params) int64 { return CapFor(row, p, false) }
+
+// CapFor is Cap in a city or outside one: a city's stations reach the
+// city's cap.
+func CapFor(row *sheets.Structure, p Params, city bool) int64 {
+	if !row.Station {
+		return row.MaxTier
 	}
-	return row.MaxTier
+	if city {
+		return min(row.MaxTier, p.CityStationCap)
+	}
+	return min(row.MaxTier, p.StationTier)
 }
 
 // Next is the tier a raise lifts a structure to and what that costs: the
@@ -111,16 +135,21 @@ func Cap(row *sheets.Structure, p Params) int64 {
 // false past the cap, and for a structure with no lines, which goals do
 // not raise.
 func Next(row *sheets.Structure, st *Structure, p Params) (tier int64, lines []sheets.CostLine, ok bool) {
+	return next(row, st, p, false)
+}
+
+func next(row *sheets.Structure, st *Structure, p Params, city bool) (tier int64, lines []sheets.CostLine, ok bool) {
 	tier, lines = 1, row.First
 	if st != nil {
 		tier, lines = st.Tier+1, row.Each
 	}
-	return tier, lines, tier <= Cap(row, p) && len(lines) > 0
+	return tier, lines, tier <= CapFor(row, p, city) && len(lines) > 0
 }
 
-// Next is Next for the settlement's own structure of the row.
+// Next is Next for the settlement's own structure of the row, to a
+// city's cap in a city.
 func (s *Settlement) Next(row *sheets.Structure, p Params) (tier int64, lines []sheets.CostLine, ok bool) {
-	return Next(row, s.Get(row.ID), p)
+	return next(row, s.Get(row.ID), p, s.City != nil)
 }
 
 // Scaled is a cost at pct per cent, each line at least one unit.

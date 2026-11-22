@@ -303,3 +303,39 @@ func TestValidRefusesAnEachHaulAndAPaidVow(t *testing.T) {
 		t.Fatal("a reward that wraps its escrow is valid")
 	}
 }
+
+// TestValidBack: a side is the story's, posted by a faction or the world
+// with its side named, and lives as long as its stage; a character's post
+// of one is refused.
+func TestValidBack(t *testing.T) {
+	l := Limits{RewardLeast: 10, EachCap: 50, PartyMost: 4, TitleLen: 60, NoteLen: 300, EphemeralLeast: 6, EphemeralMost: 432}
+	side := func(issuer, s string) *Goal {
+		return &Goal{Title: "Supply the garrison", Issuer: Ref{Kind: issuer, ID: "0"}, Scope: World, Mode: Pooled, Reward: 100,
+			Cond:     Condition{Verb: Back, Side: s, Count: 50, At: "settlement:0"},
+			Lifetime: Ephemeral, Expires: 1729, Turnover: Expire}
+	}
+	for _, issuer := range []string{ByFaction, ByWorld} {
+		if err := Valid(side(issuer, "arc-1/0/garrison"), 0, l); err != nil {
+			t.Errorf("a %s side: %v", issuer, err)
+		}
+	}
+	for name, g := range map[string]*Goal{
+		"a character's side":  side(ByCharacter, "arc-1/0/garrison"),
+		"a party's side":      side(ByParty, "arc-1/0/garrison"),
+		"a settlement's side": side(BySettlement, "arc-1/0/garrison"),
+		"a muster's side":     side(ByAdmin, "arc-1/0/garrison"),
+		"no side":             side(ByFaction, ""),
+	} {
+		if Valid(g, 0, l) == nil {
+			t.Errorf("%s was valid", name)
+		}
+	}
+	over := side(ByFaction, "arc-1/0/garrison")
+	if Valid(over, over.Expires, l) == nil {
+		t.Error("a side past its stage was valid")
+	}
+	if Valid(&Goal{Title: "Hold", Cond: Condition{Verb: Defeat, Count: 1, Side: "arc-1/0/a"}, Mode: First, Reward: 10,
+		Lifetime: Standing, Turnover: Keep, Issuer: Ref{Kind: ByFaction}}, 0, l) == nil {
+		t.Error("a side on a verb that is not Back was valid")
+	}
+}

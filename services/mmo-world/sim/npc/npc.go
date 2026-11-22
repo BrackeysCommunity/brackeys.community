@@ -50,6 +50,8 @@ type NPC struct {
 	Summary    tally.Tally `json:"summary"`          // entries folded out of memory, by kind
 	Met        []Meeting   `json:"met"`              // by player, sorted
 	Visits     []string    `json:"visits"`           // players it wants a word with, sorted
+	// Archived are the oldest entries a waking kept, oldest first.
+	Archived []Entry `json:"archived,omitempty"`
 }
 
 // Ref is the fact ref of an NPC.
@@ -491,6 +493,33 @@ func (r *Rules) Dormant(n *NPC, now int64) bool {
 func (r *Rules) Wake(n *NPC) {
 	for _, e := range n.Memory {
 		n.Summary.Bump(e.Kind, 1)
+	}
+	n.Memory = []Entry{}
+}
+
+// DormantSince reports whether nobody has met the NPC since a tick: under
+// a season clock, the previous season's start.
+func (r *Rules) DormantSince(n *NPC, since int64) bool {
+	last := n.Saved
+	for _, m := range n.Met {
+		last = max(last, m.Tick)
+	}
+	return last < since
+}
+
+// WakeKeeping wakes a dormant NPC keeping its oldest keep entries, those
+// archived before among them, in Archived; every other entry folds into
+// the summary once.
+func (r *Rules) WakeKeeping(n *NPC, keep int) {
+	all := append(slices.Clone(n.Archived), n.Memory...)
+	slices.SortStableFunc(all, func(a, b Entry) int { return cmp.Compare(a.Tick, b.Tick) })
+	keep = min(max(keep, 0), len(all))
+	for _, e := range all[keep:] {
+		n.Summary.Bump(e.Kind, 1)
+	}
+	n.Archived = slices.Clip(all[:keep])
+	if len(n.Archived) == 0 {
+		n.Archived = nil
 	}
 	n.Memory = []Entry{}
 }

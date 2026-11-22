@@ -25,6 +25,9 @@ type Action struct {
 	// +1 (0: none).
 	Floor int64 `json:"floor,omitempty"`
 	Way   int64 `json:"way,omitempty"`
+	// Cause is the fact a story action follows from, which the fact it
+	// writes names.
+	Cause fact.ID `json:"cause,omitempty"`
 }
 
 // Action kinds.

@@ -166,3 +166,47 @@ func TestHomedReadsTheRouteIndex(t *testing.T) {
 		t.Fatal("a move left the NPC indexed at its old home")
 	}
 }
+
+// TestDormantSince: an NPC is dormant under a season clock when nobody has
+// met it since the tick given, its saving counting as a meeting.
+func TestDormantSince(t *testing.T) {
+	var r npc.Rules
+	n := &npc.NPC{Saved: 100}
+	if r.DormantSince(n, 100) || !r.DormantSince(n, 101) {
+		t.Fatal("a saving misread")
+	}
+	n.Meet("p", 500)
+	if r.DormantSince(n, 500) || !r.DormantSince(n, 501) {
+		t.Fatal("a meeting misread")
+	}
+}
+
+// TestWakeKeepsTheOldest: waking keeps the oldest entries, those archived
+// at an earlier waking among them, and tallies every other entry once.
+func TestWakeKeepsTheOldest(t *testing.T) {
+	var r npc.Rules
+	n := &npc.NPC{}
+	for _, tick := range []int64{50, 10, 40, 20, 30, 60, 70} {
+		n.Memory = append(n.Memory, npc.Entry{Kind: "k", Tick: tick})
+	}
+	r.WakeKeeping(n, 5)
+	ticks := func() []int64 {
+		var out []int64
+		for _, e := range n.Archived {
+			out = append(out, e.Tick)
+		}
+		return out
+	}
+	if !slices.Equal(ticks(), []int64{10, 20, 30, 40, 50}) || n.Summary.Get("k") != 2 || len(n.Memory) != 0 {
+		t.Fatalf("archived %v, summary %v, memory %v", ticks(), n.Summary, n.Memory)
+	}
+	n.Memory = []npc.Entry{{Kind: "k", Tick: 5}, {Kind: "late", Tick: 90}}
+	r.WakeKeeping(n, 5)
+	if !slices.Equal(ticks(), []int64{5, 10, 20, 30, 40}) || n.Summary.Get("k") != 3 || n.Summary.Get("late") != 1 {
+		t.Fatalf("archived %v, summary %v", ticks(), n.Summary)
+	}
+	r.WakeKeeping(n, 0)
+	if n.Archived != nil || n.Summary.Get("k") != 8 {
+		t.Fatalf("keeping none left %v, summary %v", n.Archived, n.Summary)
+	}
+}

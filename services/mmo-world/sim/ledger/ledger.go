@@ -43,7 +43,8 @@ const (
 	FromCraft    = Source + "craft"
 	FromForage   = Source + "forage"
 	FromStart    = Source + "start"
-	FromHunt     = Source + "hunt" // a hunt's spoils, rolled once at the kill
+	FromHunt     = Source + "hunt"  // a hunt's spoils, rolled once at the kill
+	FromCache    = Source + "cache" // a solved pattern's or a won side's goods; never coin
 	ToProvisions = Sink + "provisions"
 	ToLost       = Sink + "lost"
 	ToOperator   = Sink + "operator"
@@ -73,6 +74,10 @@ func FloorPool(ref string, floor int64) string {
 	return Pool + "floor:" + ref + "/" + strconv.FormatInt(floor, decimal)
 }
 func HuntPool(id string) string { return Pool + "hunt:" + id }
+
+// CachePool holds a cache's goods, by the board or side that opened it,
+// until they are split among its contributors.
+func CachePool(id string) string { return Pool + "cache:" + id }
 
 // FloorOf reads a floor pool back: the entrance's ref and the floor.
 func FloorOf(acc string) (string, int64, bool) {
@@ -277,6 +282,11 @@ func (b *Book) Check(t Txn) error {
 	}
 	if !coinSourced(t) {
 		return fmt.Errorf("ledger %s: coin enters only through faction buys or an operator's correction", t.Key)
+	}
+	for _, l := range t.Legs {
+		if _, goods := GoodsOf(l.Asset); l.Account == FromCache && !goods {
+			return fmt.Errorf("ledger %s: a cache gives goods, not %s", t.Key, l.Asset)
+		}
 	}
 	return nil
 }
