@@ -43,6 +43,59 @@ func (q *Queries) CharacterByDiscord(ctx context.Context, arg CharacterByDiscord
 	return id, err
 }
 
+const chronicleDay = `-- name: ChronicleDay :many
+SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND weight >= $2 AND tick >= $3 AND tick < $4
+AND NOT (kind LIKE ANY ($5::text[]))
+ORDER BY weight DESC, id DESC
+`
+
+type ChronicleDayParams struct {
+	WorldID   string
+	MinWeight int32
+	FromTick  int64
+	ToTick    int64
+	Hidden    []string
+}
+
+// The chronicle's facts of ticks [from, to), heaviest first (GDD 12.7).
+func (q *Queries) ChronicleDay(ctx context.Context, arg ChronicleDayParams) ([]MmoFact, error) {
+	rows, err := q.db.Query(ctx, chronicleDay,
+		arg.WorldID,
+		arg.MinWeight,
+		arg.FromTick,
+		arg.ToTick,
+		arg.Hidden,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MmoFact
+	for rows.Next() {
+		var i MmoFact
+		if err := rows.Scan(
+			&i.WorldID,
+			&i.ID,
+			&i.Tick,
+			&i.Kind,
+			&i.Region,
+			&i.Weight,
+			&i.Subjects,
+			&i.Data,
+			&i.Causes,
+			&i.StagedBy,
+			&i.At,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteNotable = `-- name: DeleteNotable :exec
 DELETE FROM mmo.notable WHERE world_id = $1 AND faction = $2 AND idx = $3
 `
@@ -192,6 +245,34 @@ func (q *Queries) DeleteWorldTiles(ctx context.Context, worldID string) error {
 	return err
 }
 
+const factByID = `-- name: FactByID :one
+SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND id = $2 LIMIT 1
+`
+
+type FactByIDParams struct {
+	WorldID string
+	ID      int64
+}
+
+func (q *Queries) FactByID(ctx context.Context, arg FactByIDParams) (MmoFact, error) {
+	row := q.db.QueryRow(ctx, factByID, arg.WorldID, arg.ID)
+	var i MmoFact
+	err := row.Scan(
+		&i.WorldID,
+		&i.ID,
+		&i.Tick,
+		&i.Kind,
+		&i.Region,
+		&i.Weight,
+		&i.Subjects,
+		&i.Data,
+		&i.Causes,
+		&i.StagedBy,
+		&i.At,
+	)
+	return i, err
+}
+
 const factsAbout = `-- name: FactsAbout :many
 SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND tick > $2 AND subjects @> $3::jsonb
 ORDER BY id DESC LIMIT $4
@@ -211,6 +292,47 @@ func (q *Queries) FactsAbout(ctx context.Context, arg FactsAboutParams) ([]MmoFa
 		arg.Subject,
 		arg.Lim,
 	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MmoFact
+	for rows.Next() {
+		var i MmoFact
+		if err := rows.Scan(
+			&i.WorldID,
+			&i.ID,
+			&i.Tick,
+			&i.Kind,
+			&i.Region,
+			&i.Weight,
+			&i.Subjects,
+			&i.Data,
+			&i.Causes,
+			&i.StagedBy,
+			&i.At,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const factsByIDs = `-- name: FactsByIDs :many
+SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND id = ANY($2::bigint[]) ORDER BY id
+`
+
+type FactsByIDsParams struct {
+	WorldID string
+	Ids     []int64
+}
+
+func (q *Queries) FactsByIDs(ctx context.Context, arg FactsByIDsParams) ([]MmoFact, error) {
+	rows, err := q.db.Query(ctx, factsByIDs, arg.WorldID, arg.Ids)
 	if err != nil {
 		return nil, err
 	}
@@ -850,18 +972,19 @@ func (q *Queries) ListTiles(ctx context.Context, worldID string) ([]MmoTile, err
 }
 
 const recentFactsIn = `-- name: RecentFactsIn :many
-SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND region = $2 AND kind NOT LIKE ($3::text || '%')
+SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND region = $2 AND NOT (kind LIKE ANY ($3::text[]))
 ORDER BY id DESC LIMIT $4
 `
 
 type RecentFactsInParams struct {
 	WorldID string
 	Region  pgtype.Text
-	Hidden  string
+	Hidden  []string
 	Lim     int32
 }
 
-// Pin facts reach no player read (GDD 14.5): hidden is sheets.PinKinds.
+// Pin facts (GDD 14.5) and other characters' threads (GDD 12.8) reach no
+// public read: hidden is store.Hidden as LIKE patterns.
 func (q *Queries) RecentFactsIn(ctx context.Context, arg RecentFactsInParams) ([]MmoFact, error) {
 	rows, err := q.db.Query(ctx, recentFactsIn,
 		arg.WorldID,
@@ -1004,6 +1127,55 @@ func (q *Queries) SnapshotAtOrBefore(ctx context.Context, arg SnapshotAtOrBefore
 		&i.At,
 	)
 	return i, err
+}
+
+const storyFactsSince = `-- name: StoryFactsSince :many
+SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND id > $2 AND kind = ANY($3::text[])
+ORDER BY id LIMIT $4
+`
+
+type StoryFactsSinceParams struct {
+	WorldID string
+	After   int64
+	Kinds   []string
+	Lim     int32
+}
+
+func (q *Queries) StoryFactsSince(ctx context.Context, arg StoryFactsSinceParams) ([]MmoFact, error) {
+	rows, err := q.db.Query(ctx, storyFactsSince,
+		arg.WorldID,
+		arg.After,
+		arg.Kinds,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MmoFact
+	for rows.Next() {
+		var i MmoFact
+		if err := rows.Scan(
+			&i.WorldID,
+			&i.ID,
+			&i.Tick,
+			&i.Kind,
+			&i.Region,
+			&i.Weight,
+			&i.Subjects,
+			&i.Data,
+			&i.Causes,
+			&i.StagedBy,
+			&i.At,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const tryLockWorld = `-- name: TryLockWorld :one

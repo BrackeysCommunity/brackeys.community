@@ -84,10 +84,27 @@ ORDER BY id DESC LIMIT @lim;
 SELECT * FROM mmo.fact WHERE world_id = @world_id AND tick > @since AND weight >= @weight
 ORDER BY id DESC LIMIT @lim;
 
--- Pin facts reach no player read (GDD 14.5): hidden is sheets.PinKinds.
+-- Pin facts (GDD 14.5) and other characters' threads (GDD 12.8) reach no
+-- public read: hidden is store.Hidden as LIKE patterns.
 -- name: RecentFactsIn :many
-SELECT * FROM mmo.fact WHERE world_id = @world_id AND region = @region AND kind NOT LIKE (@hidden::text || '%')
+SELECT * FROM mmo.fact WHERE world_id = @world_id AND region = @region AND NOT (kind LIKE ANY (@hidden::text[]))
 ORDER BY id DESC LIMIT @lim;
+
+-- name: FactByID :one
+SELECT * FROM mmo.fact WHERE world_id = @world_id AND id = @id LIMIT 1;
+
+-- name: FactsByIDs :many
+SELECT * FROM mmo.fact WHERE world_id = @world_id AND id = ANY(@ids::bigint[]) ORDER BY id;
+
+-- The chronicle's facts of ticks [from, to), heaviest first (GDD 12.7).
+-- name: ChronicleDay :many
+SELECT * FROM mmo.fact WHERE world_id = @world_id AND weight >= @min_weight AND tick >= @from_tick AND tick < @to_tick
+AND NOT (kind LIKE ANY (@hidden::text[]))
+ORDER BY weight DESC, id DESC;
+
+-- name: StoryFactsSince :many
+SELECT * FROM mmo.fact WHERE world_id = @world_id AND id > @after AND kind = ANY(@kinds::text[])
+ORDER BY id LIMIT @lim;
 
 -- name: InsertFacts :copyfrom
 INSERT INTO mmo.fact (world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at)

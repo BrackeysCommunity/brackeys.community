@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -814,7 +815,7 @@ const most = 200
 
 func factOf(x db.MmoFact) (fact.Fact, error) {
 	f := fact.Fact{ID: fact.ID(x.ID), Tick: x.Tick, Kind: x.Kind, Region: x.Region.String, Weight: int64(x.Weight)}
-	err := errors.Join(json.Unmarshal(x.Subjects, &f.Subjects), json.Unmarshal(x.Data, &f.Data))
+	err := errors.Join(json.Unmarshal(x.Subjects, &f.Subjects), json.Unmarshal(x.Data, &f.Data), json.Unmarshal(x.Causes, &f.Causes))
 	return f, err
 }
 
@@ -848,9 +849,78 @@ func (s *Store) RecapFacts(ctx context.Context, character string, since, weight 
 	return own, heavy, err
 }
 
-// RecentIn are a region's latest facts, newest first.
+// Hidden are the kind prefixes no public read returns: pins (GDD 14.5) and
+// personal threads, which are their own character's alone (GDD 12.8).
+var Hidden = []string{sheets.PinKinds, game.ThreadKinds}
+
+var likeEscape = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
+// prefixes are LIKE patterns matching kinds that start with any of ps.
+func prefixes(ps []string) []string {
+	out := make([]string, len(ps))
+	for i, p := range ps {
+		out[i] = likeEscape.Replace(p) + "%"
+	}
+	return out
+}
+
+// RecentIn are a region's latest facts, newest first, none of them hidden.
 func (s *Store) RecentIn(ctx context.Context, region string, n int32) ([]fact.Fact, error) {
-	return factsOf(s.q.RecentFactsIn(ctx, db.RecentFactsInParams{WorldID: s.World, Region: pgtype.Text{String: region, Valid: true}, Hidden: sheets.PinKinds, Lim: n}))
+	return factsOf(s.q.RecentFactsIn(ctx, db.RecentFactsInParams{WorldID: s.World, Region: pgtype.Text{String: region, Valid: true}, Hidden: prefixes(Hidden), Lim: n}))
+}
+
+// ErrNoFact is a fact id the store does not hold.
+var ErrNoFact = errors.New("store: no such fact")
+
+// Fact is one stored fact, causes included, or ErrNoFact.
+func (s *Store) Fact(ctx context.Context, id fact.ID) (fact.Fact, error) {
+	x, err := s.q.FactByID(ctx, db.FactByIDParams{WorldID: s.World, ID: int64(id)})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fact.Fact{}, fmt.Errorf("%w: %d in world %s", ErrNoFact, id, s.World)
+	}
+	if err != nil {
+		return fact.Fact{}, err
+	}
+	return factOf(x)
+}
+
+// Facts are the stored facts of ids, oldest first; an id not stored is
+// left out.
+func (s *Store) Facts(ctx context.Context, ids []fact.ID) ([]fact.Fact, error) {
+	if len(ids) == 0 {
+		return []fact.Fact{}, nil
+	}
+	n := make([]int64, len(ids))
+	for i, id := range ids {
+		n[i] = int64(id)
+	}
+	return factsOf(s.q.FactsByIDs(ctx, db.FactsByIDsParams{WorldID: s.World, Ids: n}))
+}
+
+// FactCauses is a fact and its causes one level deep (GDD 12.7), or
+// ErrNoFact. A cause the store no longer holds is left out.
+func (s *Store) FactCauses(ctx context.Context, id fact.ID) (fact.Fact, []fact.Fact, error) {
+	f, err := s.Fact(ctx, id)
+	if err != nil {
+		return f, nil, err
+	}
+	causes, err := s.Facts(ctx, f.Causes)
+	return f, causes, err
+}
+
+// ChronicleDay are the facts of ticks [from, to) of a weight or more, none
+// of them hidden, heaviest first and then newest first.
+func (s *Store) ChronicleDay(ctx context.Context, from, to, weight int64) ([]fact.Fact, error) {
+	return factsOf(s.q.ChronicleDay(ctx, db.ChronicleDayParams{WorldID: s.World, MinWeight: int32(weight), FromTick: from, ToTick: to, Hidden: prefixes(Hidden)}))
+}
+
+// StoryFactsSince are at most n facts of the given kinds after a fact id,
+// oldest first.
+func (s *Store) StoryFactsSince(ctx context.Context, kinds []string, after fact.ID, n int32) ([]fact.Fact, error) {
+	if len(kinds) == 0 {
+		return []fact.Fact{}, nil
+	}
+	return factsOf(s.q.StoryFactsSince(ctx, db.StoryFactsSinceParams{WorldID: s.World, After: int64(after), Kinds: kinds, Lim: n}))
 }
 
 // LedgerOf is an account's last n ledger lines, newest first.
