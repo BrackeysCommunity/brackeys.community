@@ -161,12 +161,12 @@ func (f *fake) Followed(n int) int64          { return f.followed[n] }
 func (f *fake) Passages(n int) int64          { return f.passages[n] }
 func (f *fake) Herd(r int, hunt string) int64 { return f.herd[r] }
 
-// params are the shipped story.params values.
+// params are the shipped story.params and emergence.params values.
 var params = Params{
 	MemoryDays: 30, ColdShare: 50, ColdDays: 5, ColdRegions: 3, WetShare: 50, WetDays: 3, WetScarcity: 500,
 	SeamBelow: 100, PanicStarvingDays: 3, CaravanPassages: 40, FrontJoined: 2, RivalDistance: 12, RivalGrowthDays: 14,
 	DefectorLoyalty: 30, BetrayalDays: 30, LeaderDiedDays: 30, ReturnDays: 14, ThreadStanding: 50,
-	FinaleLapseBonus: 200, FinaleLossWeight: 100,
+	FinaleLapseBonus: 200, FinaleLossWeight: 100, RoadWarLoad: 2000, CaravanThreat: 800,
 }
 
 // row is a template row of scope with cast roles given as role, kind pairs.

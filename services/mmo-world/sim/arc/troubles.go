@@ -124,10 +124,11 @@ func corruptionNextDoor(w World, row Row, p Params) []Candidate {
 }
 
 // scarcityHigh is the shortage: scarcity's yields line on the place's
-// region.
+// region, or every road into it cut (GDD 12.5).
 func scarcityHigh(w World, row Row, _ Params) []Candidate {
+	e, _ := w.(Emergent)
 	return eachPlace(w, row, func(pl PlaceView) (Candidate, bool) {
-		if !w.Line(pl.Region, lineYields) {
+		if !w.Line(pl.Region, lineYields) && (e == nil || !e.RoadCut(pl.N)) {
 			return Candidate{}, false
 		}
 		return atPlace(pl, []int{pl.Region}, w.Gauge(pl.Region, gaugeScarcity), nil), true
@@ -182,12 +183,21 @@ func lostHolding(w World, p Params, ref fact.Ref) bool {
 }
 
 // prospersRoad is the caravan: prosperity's caravan line on the place's
-// region, and a road in: a city, or caravan-passages on its tile this
-// season.
+// region, and a road in: a city, or an open road or a route's end once
+// roads exist, else caravan-passages on its tile this season.
 func prospersRoad(w World, row Row, p Params) []Candidate {
 	x, _ := w.(Extra)
+	e, _ := w.(Emergent)
 	return eachPlace(w, row, func(pl PlaceView) (Candidate, bool) {
-		road := pl.City || (x != nil && x.Passages(pl.N) >= p.CaravanPassages)
+		var road bool
+		switch {
+		case pl.City:
+			road = true
+		case e != nil:
+			road = e.RoadIn(pl.N)
+		default:
+			road = x != nil && x.Passages(pl.N) >= p.CaravanPassages
+		}
 		if !road || !w.Line(pl.Region, lineCaravans) {
 			return Candidate{}, false
 		}

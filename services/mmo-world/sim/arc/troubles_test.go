@@ -199,6 +199,7 @@ func TestEveryTemplateHasAPredicate(t *testing.T) {
 		"npc-owed", "came-back", "vow-broken", "lost-to-them",
 		"raid-near", "fire-risk", "corruption-next-door", "scarcity-high", "wet-and-scarce", "faction-collapsing",
 		"prospers-road", "season-turn", "scarcity-low",
+		"road-busy", "caravan-threatened", "opposed-goals", "legend-near",
 	} {
 		if Predicates[id] == nil {
 			t.Errorf("no predicate %q", id)

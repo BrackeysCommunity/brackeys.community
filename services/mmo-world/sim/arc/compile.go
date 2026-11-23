@@ -39,8 +39,9 @@ func Compile(b *sheets.Book) ([]Template, error) {
 	return out, nil
 }
 
-// Params are the story.params cells, by name. Days stay days and percents
-// stay percents; callers turn days into ticks.
+// Params are the story.params cells, and the emergence.params cells the
+// predicates read, by name. Days stay days and percents stay percents;
+// callers turn days into ticks.
 type Params struct {
 	ChronicleMinWeight, ChronicleLines                               int64
 	SeasonDays, SeasonZeroDays, ActiveDays                           int64
@@ -59,11 +60,13 @@ type Params struct {
 	ThreadMark, FinaleLapseBonus, FinaleLossWeight                   int64
 	HaywireLeast, HaywireMost, BeaconCost, ChainDistance, ChainTries int64
 	StockedWallDefence                                               int64
+	RoadWarLoad, CaravanThreat                                       int64
 }
 
 // ParamsOf reads them; a missing cell panics, as every params reader does.
 func ParamsOf(b *sheets.Book) Params {
 	i := func(id string) int64 { return sheets.IntParam(b.StoryParams, id) }
+	em := func(id string) int64 { return sheets.IntParam(b.EmergenceParams, id) }
 	return Params{
 		ChronicleMinWeight:  i("chronicle-min-weight"),
 		ChronicleLines:      i("chronicle-lines"),
@@ -125,5 +128,7 @@ func ParamsOf(b *sheets.Book) Params {
 		ChainDistance:       i("chain-distance"),
 		ChainTries:          i("chain-tries"),
 		StockedWallDefence:  i("stocked-wall-defence"),
+		RoadWarLoad:         em("road-war-load"),
+		CaravanThreat:       em("caravan-threat"),
 	}
 }
