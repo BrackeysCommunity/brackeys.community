@@ -362,7 +362,10 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 	g.World.Note(g.Log.Since(after)...)
 	out := g.Log.Since(first)
 	g.keepNews(out)
-	return out, nil
+	if err := g.takeTraceErr(); err != nil {
+		return nil, err
+	}
+	return g.Log.Since(first), nil
 }
 
 // defaulted resolves an ambush its owner was away for with the way out.
@@ -396,7 +399,9 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 	}
 	c.C.Walk(to, g.r.limits)
 	c.C.Facing = dir
-	g.visited(c, to, t)
+	if err := g.visited(c, to, t); err != nil {
+		return acts, err
+	}
 	first := g.World.Tile(to) == nil || g.World.Tile(to).Discovered == nil
 	acts = append(acts, world.Action{Kind: world.ActVisit, Hex: to, By: char.Ref(c.C.ID), Dir: &dir, Quiet: g.charScale(c, "tracks-left", fixed.Hundredths) <= 0})
 	c.C.Deeds.Bump(DeedHauled, c.Carried())
@@ -420,6 +425,9 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 		data = append(data, fact.N("first", 1))
 	}
 	if _, err := g.fact(c, "travel.entered", t, data...); err != nil {
+		return acts, err
+	}
+	if err := g.notePassage(c, to, t); err != nil {
 		return acts, err
 	}
 	if c.Carrying != "" {

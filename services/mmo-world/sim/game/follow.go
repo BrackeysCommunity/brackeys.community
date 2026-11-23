@@ -84,7 +84,9 @@ func (g *Game) followed(l *Char, followers []*Char, to hex.Hex, owe, t int64, ac
 		dir := f.C.At.DirectionTo(to)
 		f.C.Walk(to, g.r.limits)
 		f.C.Facing = dir
-		g.visited(f, to, t)
+		if err := g.visited(f, to, t); err != nil {
+			return acts, err
+		}
 		acts = append(acts, world.Action{Kind: world.ActVisit, Hex: to, By: char.Ref(f.C.ID), Dir: &dir, Quiet: g.charScale(f, "tracks-left", fixed.Hundredths) <= 0})
 		f.C.Deeds.Bump(DeedHauled, f.Carried())
 		f.C.Practise("travel", 1, g.r.Growth.Params())
@@ -95,6 +97,9 @@ func (g *Game) followed(l *Char, followers []*Char, to hex.Hex, owe, t int64, ac
 			}
 		}
 		if _, err := g.fact(f, "travel.entered", t, append(fact.At(to), fact.N("ticks", l.Long.StepTicks), fact.S("follows", l.C.ID))...); err != nil {
+			return acts, err
+		}
+		if err := g.notePassage(f, to, t); err != nil {
 			return acts, err
 		}
 		if f.Carrying != "" {

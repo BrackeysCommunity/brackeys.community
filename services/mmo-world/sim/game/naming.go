@@ -30,7 +30,7 @@ func (g *Game) firstSlain(h hex.Hex, namers []string, tick int64) error {
 		_, err := g.worldFact(h, "dungeon.slain-first", refsOf(namers), nil, fact.At(h)...)
 		return err
 	}
-	_, err := g.factWith(c, refsOf(namers[1:]), "dungeon.slain-first", tick, fact.At(h)...)
+	_, err := g.factWith(c, g.withLead(c, refsOf(namers[1:])), "dungeon.slain-first", tick, fact.At(h)...)
 	return err
 }
 

@@ -188,6 +188,9 @@ func (g *Game) afterShared(sh *Shared, actor *Char, in []*Char, packs [][]*item.
 			kind = "beat.won"
 			wins++
 			g.wonBeat(c, e)
+			if err := g.noteReliance(c, e, p.Option, tick); err != nil {
+				return err
+			}
 		}
 		if _, err := g.factWith(c, sh.refs(), kind, tick, fact.S("encounter", e.ID), fact.N("beat", beat),
 			fact.S("option", p.Option.ID), fact.N("score", p.Option.Score)); err != nil {
@@ -316,13 +319,18 @@ func (g *Game) closeShared(sh *Shared, actor *Char, e *fight.Encounter, key stri
 		case fight.Won:
 			if i == 0 {
 				g.Pending = append(g.Pending, world.Action{Kind: world.ActSlay, Hex: sh.Hex, By: char.Ref(c.C.ID), Species: e.Creature.Archetype})
+				if err := g.noteClearing(c, e, tick); err != nil {
+					return err
+				}
 			}
 			if err := g.fought(c, sh.Hex, e.Creature.Archetype, tick); err != nil {
 				return err
 			}
 		case fight.Lost:
 			if slices.Contains(e.Down, c.C.ID) {
-				g.fellOnTile(c, e)
+				if err := g.fellOnTile(c, e, tick); err != nil {
+					return err
+				}
 			}
 		}
 	}

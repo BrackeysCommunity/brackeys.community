@@ -101,11 +101,15 @@ func (g *Game) followTrack(c *Char, cmd Command) error {
 	dir := from.DirectionTo(k.To)
 	c.C.Walk(k.To, g.r.limits)
 	c.C.Facing = dir
-	g.visited(c, k.To, g.Tick())
+	if err := g.visited(c, k.To, g.Tick()); err != nil {
+		return err
+	}
 	g.Pending = append(g.Pending, world.Action{Kind: world.ActVisit, Hex: k.To, By: char.Ref(c.C.ID), Dir: &dir})
 	g.soloEncounter(c, k.Creature, 0, 0, "")
-	_, err := g.fact(c, "track.followed", g.Tick(), append([]fact.Datum{fact.S("creature", k.Creature), fact.N("tick", k.Tick)}, fact.At(k.To)...)...)
-	return err
+	if _, err := g.fact(c, "track.followed", g.Tick(), append([]fact.Datum{fact.S("creature", k.Creature), fact.N("tick", k.Tick)}, fact.At(k.To)...)...); err != nil {
+		return err
+	}
+	return g.notePassage(c, k.To, g.Tick())
 }
 
 // soloEncounter starts an encounter for a character alone against a

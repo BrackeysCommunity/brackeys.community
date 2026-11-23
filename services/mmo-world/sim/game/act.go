@@ -176,6 +176,7 @@ func (g *Game) Act(cmd Command) (Result, error) {
 		}
 		cmd.Char = d.NamedBy[0]
 	}
+	defer g.stagingFor(cmd)()
 	first := fact.ID(g.Log.Len())
 	var c *Char
 	var err error
@@ -237,20 +238,27 @@ func (g *Game) Act(cmd Command) (Result, error) {
 		g.threadGate(c, g.Tick())
 		c.Acted = g.Tick()
 		c.markDay(g.Tick() / sheets.TicksPerDay)
-		g.visited(c, c.C.At, g.Tick())
+		if err := g.visited(c, c.C.At, g.Tick()); err != nil {
+			return Result{}, err
+		}
 		if err := g.cadence(c, g.Tick()); err != nil {
 			return Result{}, err
 		}
 	}
 	facts := g.Log.Since(first)
 	g.keepNews(facts)
+	if err := g.takeTraceErr(); err != nil {
+		return Result{}, err
+	}
 	g.World.Note(facts...)
+	facts = g.Log.Since(first)
 	return Result{Char: c, Facts: facts, Pressed: pressed, Machine: machine, Moved: slices.Clone(g.touched), Seen: g.seenNow()}, nil
 }
 
 // actWorld applies a command that acts on the world itself: there is no
 // character to look up, collect for or mark as having acted.
 func (g *Game) actWorld(cmd Command) (Result, error) {
+	defer g.stagingFor(cmd)()
 	first := fact.ID(g.Log.Len())
 	run := worldCommand(cmd.Kind)
 	if run == nil {
@@ -264,7 +272,11 @@ func (g *Game) actWorld(cmd Command) (Result, error) {
 	}
 	facts := g.Log.Since(first)
 	g.keepNews(facts)
+	if err := g.takeTraceErr(); err != nil {
+		return Result{}, err
+	}
 	g.World.Note(facts...)
+	facts = g.Log.Since(first)
 	return Result{Facts: facts, Moved: slices.Clone(g.touched), Seen: g.seenNow()}, nil
 }
 
@@ -638,6 +650,9 @@ func (g *Game) pressOption(c *Char, key, pick string, tick int64, w *worked) ([]
 	}
 	if len(pressed) > 0 && pressed[0].Outcome.Success {
 		g.wonBeat(c, e)
+		if err := g.noteReliance(c, e, pressed[0].Option, tick); err != nil {
+			return nil, err
+		}
 		// A side counts a solo fighter's beats as it counts a party's; only
 		// a world with a director writes beat.won, so an older world
 		// replays to the same log.
@@ -686,17 +701,19 @@ func (g *Game) close(c *Char, key string, tick int64) error {
 		if err := g.fought(c, c.C.At, e.Creature.Archetype, tick); err != nil {
 			return err
 		}
+		return g.noteClearing(c, e, tick)
 	case fight.Lost:
-		g.fellOnTile(c, e)
+		return g.fellOnTile(c, e, tick)
 	}
 	return nil
 }
 
 // fellOnTile marks a loss on the tile; a floor's is the floor's own record.
-func (g *Game) fellOnTile(c *Char, e *fight.Encounter) {
+func (g *Game) fellOnTile(c *Char, e *fight.Encounter, tick int64) error {
 	if e.Floor == 0 {
 		g.Pending = append(g.Pending, world.Action{Kind: world.ActFall, Hex: c.C.At, By: char.Ref(c.C.ID)})
 	}
+	return g.noteLoss(c, e, tick)
 }
 
 // receive posts a movement into a character's account and adds the goods

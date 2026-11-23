@@ -213,7 +213,7 @@ func (g *Game) guardianSlain(h hex.Hex, e *fight.Encounter, sh *Shared, row *she
 	for _, s := range rolled {
 		data = append(data, fact.N("rolled:"+s.Material, s.Qty))
 	}
-	if err := g.huntFact(tick, h, "guardian.slain", subjects, data...); err != nil {
+	if err := g.huntFact(tick, h, "guardian.slain", g.withLead(g.firstOf(members), subjects), data...); err != nil {
 		return err
 	}
 	return g.firstSlain(h, members, tick)

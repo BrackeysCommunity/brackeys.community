@@ -249,7 +249,7 @@ func (g *Game) huntSlain(c *Char, x *Hunt, key string, tick int64) error {
 	for _, s := range x.Rolled {
 		data = append(data, fact.N("rolled:"+s.Material, s.Qty))
 	}
-	_, err := g.factWith(c, append(also, huntRef(h.ID)), "hunt.slain", tick, data...)
+	_, err := g.factWith(c, g.withLead(c, append(also, huntRef(h.ID))), "hunt.slain", tick, data...)
 	return err
 }
 

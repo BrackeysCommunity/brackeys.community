@@ -38,11 +38,15 @@ func (c *Char) lastVisit() (Visit, bool) {
 	return last, ok
 }
 
-// visited notes a character standing in a settlement now.
-func (g *Game) visited(c *Char, h hex.Hex, t int64) {
+// visited notes a character standing in a settlement now, and the load it
+// carried in from the last one it stood in.
+func (g *Game) visited(c *Char, h hex.Hex, t int64) error {
 	n, ok := g.SettlementAt(h)
 	if !ok {
-		return
+		return nil
+	}
+	if err := g.noteHaul(c, n, t); err != nil {
+		return err
 	}
 	i := c.visitIndex(n)
 	if i < 0 {
@@ -50,6 +54,7 @@ func (g *Game) visited(c *Char, h hex.Hex, t int64) {
 		i = len(c.Visits) - 1
 	}
 	c.Visits[i].Tick = t
+	return nil
 }
 
 // Far is a material's price in another settlement, as a character can
