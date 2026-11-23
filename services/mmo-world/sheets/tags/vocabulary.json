@@ -933,6 +933,78 @@
     {
       "id": "walled",
       "kind": "state"
+    },
+    {
+      "id": "router",
+      "kind": "calling"
+    },
+    {
+      "id": "roadwarden",
+      "kind": "calling"
+    },
+    {
+      "id": "steady-current",
+      "kind": "ability"
+    },
+    {
+      "id": "bench-rig",
+      "kind": "ability"
+    },
+    {
+      "id": "strip-wire",
+      "kind": "ability"
+    },
+    {
+      "id": "patch-in",
+      "kind": "ability"
+    },
+    {
+      "id": "relay",
+      "kind": "ability"
+    },
+    {
+      "id": "tuned-parts",
+      "kind": "ability"
+    },
+    {
+      "id": "trace-the-grid",
+      "kind": "ability"
+    },
+    {
+      "id": "own-circuit",
+      "kind": "ability"
+    },
+    {
+      "id": "road-eyes",
+      "kind": "ability"
+    },
+    {
+      "id": "pack-saddle",
+      "kind": "ability"
+    },
+    {
+      "id": "waymarks",
+      "kind": "ability"
+    },
+    {
+      "id": "light-tread",
+      "kind": "ability"
+    },
+    {
+      "id": "surety",
+      "kind": "ability"
+    },
+    {
+      "id": "trail-stable",
+      "kind": "ability"
+    },
+    {
+      "id": "keep-the-road",
+      "kind": "ability"
+    },
+    {
+      "id": "waystation",
+      "kind": "ability"
     }
   ]
 }

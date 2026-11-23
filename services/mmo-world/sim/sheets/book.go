@@ -95,7 +95,12 @@ type Book struct {
 	GoalParams []Param `sheet:"goals.params" doc:"Listing fees, limits, thresholds."`
 	Words      []Word  `sheet:"goals.words" doc:"Words a goal's title or note may not hold; operators hide what gets past them."`
 
-	Traces []Trace `sheet:"emergence.traces" doc:"Trace decay and promotion lines."`
+	Traces          []Trace        `sheet:"emergence.traces" doc:"GDD 13.1's traces, what each is counted on and how fast it fades."`
+	Promotions      []PromotionRow `sheet:"emergence.promotions" doc:"GDD 13.2's lines: what a trace must reach, and within how long, to become part of the world."`
+	Adaptations     []Adaptation   `sheet:"emergence.adaptations" doc:"What a creature variant resists when a region adapts to a style, and the material it makes new (GDD 13.2, 13.3)."`
+	Camps           []CampRow      `sheet:"emergence.camps" doc:"The tier-1 station a camp on each site kind gains."`
+	LegendTraits    []LegendTrait  `sheet:"emergence.legend-traits" doc:"The traits a legend may carry."`
+	EmergenceParams []Param        `sheet:"emergence.params" doc:"Decay keeping, roads, tolls, caravans, adaptation, legends and the measures."`
 
 	LiveOpsParams []Param `sheet:"liveops.params" doc:"Pool cap and refill, prices, the staged xp allowance."`
 
@@ -313,7 +318,7 @@ func (b *Book) Validate() error {
 			errs = append(errs, checkValue(row, where, has)...)
 		}
 	}
-	for _, p := range slices.Concat(b.delveProblems(), b.contentProblems(), b.storyProblems()) {
+	for _, p := range slices.Concat(b.delveProblems(), b.contentProblems(), b.storyProblems(), b.emergenceProblems()) {
 		errs = append(errs, errors.New(p))
 	}
 	return errors.Join(errs...)

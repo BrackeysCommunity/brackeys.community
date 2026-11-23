@@ -1,0 +1,26 @@
+{
+  "$schema": "../schema/emergence.legend-traits.schema.json",
+  "sheet": "emergence.legend-traits",
+  "rows": [
+    {
+      "id": "wary",
+      "tag": "wary",
+      "note": "provisional: it flees a fight it is losing (tags.rules wary-flees) and opens with a standoff."
+    },
+    {
+      "id": "thick-hided",
+      "tag": "thick",
+      "note": "provisional: it meets a fight in a clash, and only dense edges crack it (tags.rules dense-cracks)."
+    },
+    {
+      "id": "burning",
+      "tag": "burning",
+      "note": "provisional: it sets dry things alight and falters while it burns (tags.rules dry-catches, burning-falters)."
+    },
+    {
+      "id": "charged",
+      "tag": "charged",
+      "note": "provisional: it carries current a conductive edge bites on (tags.rules conductive-bites)."
+    }
+  ]
+}

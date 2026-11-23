@@ -1,0 +1,216 @@
+{
+  "$schema": "../schema/emergence.params.schema.json",
+  "sheet": "emergence.params",
+  "rows": [
+    {
+      "id": "keep-days",
+      "value": 15,
+      "unit": "days",
+      "doc": "An untouched trace is kept this long before expiry: one more than the longest window."
+    },
+    {
+      "id": "road-enter-ticks",
+      "value": 1,
+      "unit": "ticks",
+      "doc": "GDD 3.4: a road tile always takes 1 tick to enter."
+    },
+    {
+      "id": "road-in-reach",
+      "value": 1,
+      "unit": "tiles",
+      "doc": "A road within this many tiles of a place is a road in or a road cut (GDD 12.5)."
+    },
+    {
+      "id": "road-patrol-risk",
+      "value": -1,
+      "unit": "band-steps",
+      "doc": "GDD 10.7, 11.9: a patrolled road is this many route-risk bands lower; provisional."
+    },
+    {
+      "id": "patrol-days",
+      "value": 7,
+      "unit": "days",
+      "doc": "A road war's patrol side won patrols the region's roads this long; provisional."
+    },
+    {
+      "id": "toll-coin",
+      "value": 2,
+      "unit": "coin",
+      "doc": "GDD 12.9: a crossing onto a tolled road costs this, once per character per road per world day; provisional."
+    },
+    {
+      "id": "toll-days",
+      "value": 14,
+      "unit": "days",
+      "doc": "GDD 12.9: a road war's lapse tolls the region's roads this long; provisional."
+    },
+    {
+      "id": "cut-days",
+      "value": 3,
+      "unit": "days",
+      "doc": "GDD 4.10: a raid cuts a region's roads this long; provisional."
+    },
+    {
+      "id": "raid-caravan-share",
+      "value": 50,
+      "unit": "percent",
+      "doc": "GDD 4.10: a raid takes this share of a caravan's goods to the tile's spoils; provisional."
+    },
+    {
+      "id": "route-path-most",
+      "value": 64,
+      "unit": "tiles",
+      "doc": "A route whose path is longer forms but runs no caravans; provisional."
+    },
+    {
+      "id": "caravan-days",
+      "value": 7,
+      "unit": "days",
+      "doc": "GDD 13.2: a route runs a caravan this often, alternating ends; provisional."
+    },
+    {
+      "id": "caravan-load",
+      "value": 30,
+      "unit": "goods",
+      "doc": "A caravan's manifest; provisional."
+    },
+    {
+      "id": "caravan-threat",
+      "value": 800,
+      "unit": "gauge",
+      "doc": "GDD 12.9: a caravan whose path crosses a region at this threat is lost unless rescued."
+    },
+    {
+      "id": "road-war-load",
+      "value": 2000,
+      "unit": "load",
+      "doc": "GDD 12.9: a region's road load that casts the road war."
+    },
+    {
+      "id": "road-war-days",
+      "value": 14,
+      "unit": "days",
+      "doc": "GDD 12.9: the window that road load is read over."
+    },
+    {
+      "id": "pattern-road-most",
+      "value": 40,
+      "unit": "tiles",
+      "doc": "GDD 4.13: the frontier spiral's road is laid to the nearest settlement within this many tiles; provisional."
+    },
+    {
+      "id": "adapt-rate",
+      "value": 12,
+      "unit": "percent",
+      "doc": "Adaptation points a day at a 100% share of the region's wins; a 70% share reaches 60 in about 7 days (GDD 4.15). Provisional."
+    },
+    {
+      "id": "adapt-fade",
+      "value": 3,
+      "unit": "percent",
+      "doc": "Adaptation points lost a day the style's share is under adapt-floor; provisional."
+    },
+    {
+      "id": "adapt-floor",
+      "value": 20,
+      "unit": "percent",
+      "doc": "A style carrying less of its region's wins than this lets adaptation fade; provisional."
+    },
+    {
+      "id": "resist-at",
+      "value": 30,
+      "unit": "percent",
+      "doc": "From this adaptation the region's creatures resist the style's tag; provisional."
+    },
+    {
+      "id": "resist-bands",
+      "value": 1,
+      "unit": "band-steps",
+      "doc": "What an option carrying the resisted tag loses against an adapted region's creatures; provisional."
+    },
+    {
+      "id": "variant-resist-bands",
+      "value": 2,
+      "unit": "band-steps",
+      "doc": "What it loses against the variant; provisional."
+    },
+    {
+      "id": "variant-share",
+      "value": 50,
+      "unit": "percent",
+      "doc": "The share of the archetype's encounters in the region that are the variant; provisional."
+    },
+    {
+      "id": "found-tier-step",
+      "value": 1,
+      "unit": "tier",
+      "doc": "GDD 9.3: plated hide is a tier above treated hide."
+    },
+    {
+      "id": "legends-kept",
+      "value": 16,
+      "unit": "count",
+      "doc": "The newest unlaid legends the director's cast reads; provisional."
+    },
+    {
+      "id": "legend-posted-share",
+      "value": 75,
+      "unit": "percent",
+      "doc": "A line the world re-posts stands when posted on this share of the season's days; provisional."
+    },
+    {
+      "id": "legend-rest-days",
+      "value": 14,
+      "unit": "days",
+      "doc": "Between castings of one legend; provisional."
+    },
+    {
+      "id": "renown-weight",
+      "value": 60,
+      "unit": "weight",
+      "doc": "GDD 13.1: a fact this heavy adds renown to what it names."
+    },
+    {
+      "id": "rename-days",
+      "value": 7,
+      "unit": "days",
+      "doc": "GDD 4.17: the first may rename what they found within this long; provisional."
+    },
+    {
+      "id": "staged-kept",
+      "value": 256,
+      "unit": "count",
+      "doc": "Staged fact ids kept for inheritance; provisional."
+    },
+    {
+      "id": "measure-weeks",
+      "value": 12,
+      "unit": "count",
+      "doc": "Weeks of the new-kinds measure kept; provisional."
+    },
+    {
+      "id": "per-active",
+      "value": 500,
+      "unit": "count",
+      "doc": "GDD 13.5: one promotion of each type a season per this many active characters."
+    },
+    {
+      "id": "opposed-contributors",
+      "value": 3,
+      "unit": "count",
+      "doc": "Contributors each of two opposed goals needs before they become an arc; provisional."
+    },
+    {
+      "id": "masters-line",
+      "value": 3,
+      "unit": "count",
+      "doc": "GDD 7.11: masters of a family homed at a settlement that ease its bench; provisional."
+    },
+    {
+      "id": "masters-ease",
+      "value": 1,
+      "unit": "level",
+      "doc": "GDD 7.11: how many levels easier that bench's family puzzles are; provisional."
+    }
+  ]
+}

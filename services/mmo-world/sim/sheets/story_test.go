@@ -12,7 +12,7 @@ import (
 // 4.13).
 func TestStorySheets(t *testing.T) {
 	b := live(t)
-	if len(b.Pacing) != 4 || len(b.SeasonDays) != 4 || len(b.Arcs) != 18 || len(b.Troubles) != 6 ||
+	if len(b.Pacing) != 4 || len(b.SeasonDays) != 4 || len(b.Arcs) != 22 || len(b.Troubles) != 6 ||
 		len(b.Occasions) != 3 || len(b.PatternPuzzles) != 9 || len(b.Caches) != 5 || len(b.FactionCities) != 5 {
 		t.Fatalf("%d pacing, %d days, %d arcs, %d troubles, %d occasions, %d puzzles, %d caches, %d cities",
 			len(b.Pacing), len(b.SeasonDays), len(b.Arcs), len(b.Troubles), len(b.Occasions), len(b.PatternPuzzles), len(b.Caches), len(b.FactionCities))
@@ -28,7 +28,7 @@ func TestStorySheets(t *testing.T) {
 			t.Errorf("%s has no note", a.ID)
 		}
 	}
-	if scopes["world"] != 8 || scopes["region"] != 6 || scopes["personal"] != 4 || finales != 3 {
+	if scopes["world"] != 8 || scopes["region"] != 10 || scopes["personal"] != 4 || finales != 3 {
 		t.Errorf("scopes %v, %d finales", scopes, finales)
 	}
 	days := sheets.Lookup(b.SeasonDays)
@@ -85,7 +85,8 @@ func TestStorySheets(t *testing.T) {
 	for _, a := range b.Abilities {
 		waits[a.ID] = a.Waits
 	}
-	for id, want := range map[string]string{"wall-captain": "", "bulwark-wall": "", "steward": "", "storm-reader": "MM13 (the live map)", "bind-the-weather": "MM12 (staged weather)"} {
+	for id, want := range map[string]string{"wall-captain": "", "bulwark-wall": "", "steward": "", "storm-reader": "MM13 (the live map)", "bind-the-weather": "MM12 (staged weather)",
+		"third-method": "post-launch (methods learnt per process)", "reforge": "post-launch (reworking an instance)"} {
 		if waits[id] != want {
 			t.Errorf("%s waits for %q, want %q", id, waits[id], want)
 		}

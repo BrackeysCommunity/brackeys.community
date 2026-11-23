@@ -283,8 +283,8 @@ func ruleProblems(b *sheets.Book) []string {
 // targetRuns are the run names a target may say holds it: the harness
 // runs, and the readings taken outside them (growth curves, search).
 var targetRuns = []string{
-	"activity", "battle", "content", "craft", "delve", "economy", "growth",
-	"puzzles", "search", "season", "social", "world",
+	"activity", "battle", "content", "craft", "delve", "economy", "emergence",
+	"growth", "puzzles", "search", "season", "social", "world",
 }
 
 func targetProblems(b *sheets.Book) []string {
@@ -306,7 +306,7 @@ var namedSheets = []string{
 	"puzzles.families", "puzzles.titles", "npcs.traits", "world.seasons", "map.landmarks",
 	"mounts.kinds", "fights.beats", "fights.options", "fights.states", "items.pairings",
 	"growth.exploit-offers", "mounts.offers", "map.dungeons", "map.forks", "puzzles.party",
-	"puzzles.shapes", "fights.hunts",
+	"puzzles.shapes", "fights.hunts", "creatures.variants",
 }
 
 func packProblems(b *sheets.Book) []string {

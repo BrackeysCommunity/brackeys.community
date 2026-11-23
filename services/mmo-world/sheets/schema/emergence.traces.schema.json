@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "emergence.traces",
   "title": "emergence.traces",
-  "description": "Trace decay and promotion lines.",
+  "description": "GDD 13.1's traces, what each is counted on and how fast it fades.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -24,24 +24,47 @@
         "required": [
           "id",
           "decayPercent",
-          "promoteAt"
+          "on"
         ],
         "properties": {
           "id": {
             "type": "string",
-            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
-            "x-unit": "id"
+            "enum": [
+              "passage",
+              "clearing",
+              "loss",
+              "working",
+              "haulage",
+              "reliance",
+              "renown",
+              "mastery"
+            ],
+            "x-unit": "enum"
           },
           "decayPercent": {
             "type": "integer",
             "minimum": 0,
             "maximum": 100,
-            "x-unit": "percent"
+            "x-unit": "percent",
+            "description": "Lost a world day."
           },
-          "promoteAt": {
-            "type": "integer",
-            "minimum": 1,
-            "x-unit": "count"
+          "on": {
+            "type": "string",
+            "enum": [
+              "tile",
+              "site",
+              "node",
+              "pair",
+              "region",
+              "subject",
+              "settlement"
+            ],
+            "x-unit": "enum",
+            "description": "What one trace is counted on."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
           }
         }
       }

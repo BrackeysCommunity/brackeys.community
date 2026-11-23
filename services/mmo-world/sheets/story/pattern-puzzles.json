@@ -126,7 +126,7 @@
         },
         {
           "kind": "dungeon",
-          "waits": "MM10 (pattern dungeons)"
+          "waits": "post-launch (pattern dungeons)"
         }
       ],
       "note": "GDD 4.13: each arm faces one of 6 ways. Clues and lapse provisional."
@@ -148,8 +148,7 @@
       ],
       "opens": [
         {
-          "kind": "road",
-          "waits": "MM10 (roads)"
+          "kind": "road"
         }
       ],
       "note": "GDD 4.13: 3 of the spiral's runs are live, and repairing those connects it. Need, clues and lapse provisional."

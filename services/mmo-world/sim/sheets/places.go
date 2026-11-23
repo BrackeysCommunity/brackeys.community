@@ -51,6 +51,7 @@ type Class struct {
 	Skill  string        `json:"skill" unit:"text" doc:"The practice whose level raises the class level."`
 	Tag    string        `json:"tag" unit:"tag" ref:"tags.vocabulary" doc:"The tag the class gives the character."`
 	Leans  string        `json:"leans" unit:"text"`
+	Hidden bool          `json:"hidden,omitempty" unit:"flag" doc:"A class found after launch: off the card until someone crosses it (GDD 5.8)."`
 }
 
 // Ability is one entry of a class's tree (GDD 5.9): the tag it gives,

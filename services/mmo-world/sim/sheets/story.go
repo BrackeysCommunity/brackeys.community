@@ -45,7 +45,7 @@ type ArcRow struct {
 // CastRow is one role an arc casts and how it is picked.
 type CastRow struct {
 	Role string `json:"role" unit:"text"`
-	Kind string `json:"kind" unit:"enum" enum:"faction|region|holding|settlement|notable|npc|character|tile"`
+	Kind string `json:"kind" unit:"enum" enum:"faction|region|holding|settlement|notable|npc|character|tile|caravan|legend"`
 	Pick string `json:"pick" unit:"enum" enum:"given|leading|most-loyal|least-loyal|largest|smallest|weakest|nearest|owed|keyed"`
 }
 
@@ -72,10 +72,10 @@ type SideRow struct {
 // StoryEffect is one thing the world does when a side wins or a stage, a
 // trouble or an occasion ends.
 type StoryEffect struct {
-	Kind   string `json:"kind" unit:"enum" enum:"fortify|holding-falls|gauge|split|appoint|loyalty|defect|peace|grudge|trouble|spread|seal|keep-open|cache|mend|standing|disposition|withdraw|marked|damage|fees|orders-stop|prices|sick|nothing"`
+	Kind   string `json:"kind" unit:"enum" enum:"fortify|holding-falls|gauge|split|appoint|loyalty|defect|peace|grudge|trouble|spread|seal|keep-open|cache|mend|standing|disposition|withdraw|marked|damage|fees|orders-stop|prices|sick|toll|cut|patrol-road|caravan-on|salvage|caravan-lost|lay-legend|nothing"`
 	Role   string `json:"role,omitempty" unit:"text" doc:"The cast role it acts on; regions: every region of the arc. A trouble's effects act on its place, or on source: the region that cast it."`
 	Gauge  string `json:"gauge,omitempty" unit:"ref" ref:"world.gauges"`
-	Amount int64  `json:"amount,omitempty" unit:"count" doc:"Points of defence, gauge, loyalty, standing, condition or disposition; days for grudge, spread, marked, fees, orders-stop, prices, sick; seasons for keep-open. holding-falls: defence lost instead when it is its faction's last; split: loyalty both claimants lose instead when the faction holds too few regions to split; damage: condition lost, 0 for settlements.params trouble-damage."`
+	Amount int64  `json:"amount,omitempty" unit:"count" doc:"Points of defence, gauge, loyalty, standing, condition or disposition; days for grudge, spread, marked, fees, orders-stop, prices, sick; seasons for keep-open. holding-falls: defence lost instead when it is its faction's last; split: loyalty both claimants lose instead when the faction holds too few regions to split; damage: condition lost, 0 for settlements.params trouble-damage. toll, cut, patrol-road: days, 0 for emergence.params toll-days, cut-days, patrol-days."`
 	Ref    string `json:"ref,omitempty" unit:"text" doc:"trouble: the story.troubles id; cache: the story.caches id."`
 }
 

@@ -1635,6 +1635,303 @@
         }
       ],
       "note": "GDD 12.8: a notable who lost to the character's side. Steps provisional."
+    },
+    {
+      "id": "the-road-war",
+      "scope": "region",
+      "when": "road-busy",
+      "chance": 40,
+      "cast": [
+        {
+          "role": "road",
+          "kind": "tile",
+          "pick": "given"
+        },
+        {
+          "role": "raider",
+          "kind": "faction",
+          "pick": "given"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-raids",
+          "days": 4,
+          "sides": [
+            {
+              "id": "patrol-it",
+              "wants": "beats",
+              "per": 25,
+              "at": "road",
+              "opponent": "raider",
+              "won": [
+                {
+                  "kind": "patrol-road",
+                  "role": "road"
+                },
+                {
+                  "kind": "gauge",
+                  "role": "road",
+                  "gauge": "threat",
+                  "amount": -30
+                }
+              ]
+            },
+            {
+              "id": "prey-on-it",
+              "wants": "goods",
+              "per": 25,
+              "at": "raider",
+              "sponsor": "raider",
+              "won": [
+                {
+                  "kind": "cut",
+                  "role": "road"
+                },
+                {
+                  "kind": "fortify",
+                  "role": "raider",
+                  "amount": 15
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "toll",
+              "role": "road"
+            }
+          ]
+        }
+      ],
+      "note": "GDD 12.9: a region's road load reaches emergence.params road-war-load within road-war-days and a faction not holding it holds a region within story.params rival-distance. Patrol and cut last emergence.params patrol-days and cut-days, the lapse's toll toll-days. Steps provisional."
+    },
+    {
+      "id": "the-lost-caravan",
+      "scope": "region",
+      "when": "caravan-threatened",
+      "chance": 50,
+      "cast": [
+        {
+          "role": "caravan",
+          "kind": "caravan",
+          "pick": "given"
+        },
+        {
+          "role": "front",
+          "kind": "region",
+          "pick": "given"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-stranded",
+          "days": 3,
+          "sides": [
+            {
+              "id": "rescue-it",
+              "wants": "reach",
+              "per": 1,
+              "at": "caravan",
+              "sponsor": "front",
+              "won": [
+                {
+                  "kind": "caravan-on",
+                  "role": "caravan"
+                },
+                {
+                  "kind": "gauge",
+                  "role": "front",
+                  "gauge": "threat",
+                  "amount": -50
+                }
+              ]
+            },
+            {
+              "id": "salvage-it",
+              "wants": "beats",
+              "per": 25,
+              "at": "front",
+              "won": [
+                {
+                  "kind": "salvage",
+                  "role": "caravan"
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "caravan-lost",
+              "role": "caravan"
+            }
+          ]
+        }
+      ],
+      "note": "GDD 12.9: a caravan's road ahead crosses a region at emergence.params caravan-threat; it halts while the arc runs. A salvage splits its goods among that side's backers; a lapse leaves them in its tile's spoils. Steps provisional."
+    },
+    {
+      "id": "the-rival-claims",
+      "scope": "region",
+      "when": "opposed-goals",
+      "chance": 50,
+      "cast": [
+        {
+          "role": "seat-a",
+          "kind": "settlement",
+          "pick": "given"
+        },
+        {
+          "role": "seat-b",
+          "kind": "settlement",
+          "pick": "given"
+        },
+        {
+          "role": "front",
+          "kind": "region",
+          "pick": "given"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-claims",
+          "days": 3,
+          "sides": [
+            {
+              "id": "back-a",
+              "wants": "goods",
+              "per": 25,
+              "at": "seat-a",
+              "opponent": "seat-b",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "seat-a",
+                  "gauge": "prosperity",
+                  "amount": 30
+                },
+                {
+                  "kind": "standing",
+                  "role": "seat-a",
+                  "amount": 2
+                }
+              ]
+            },
+            {
+              "id": "back-b",
+              "wants": "goods",
+              "per": 25,
+              "at": "seat-b",
+              "opponent": "seat-a",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "seat-b",
+                  "gauge": "prosperity",
+                  "amount": 30
+                },
+                {
+                  "kind": "standing",
+                  "role": "seat-b",
+                  "amount": 2
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "gauge",
+              "role": "front",
+              "gauge": "unrest",
+              "amount": 20
+            }
+          ]
+        }
+      ],
+      "note": "GDD 17.6: two live First-mode goals for different guilds race for one thing in one region, each with emergence.params opposed-contributors. A side's goods are the goals' tag when they share one. Steps provisional."
+    },
+    {
+      "id": "the-legend-wakes",
+      "scope": "region",
+      "when": "legend-near",
+      "chance": 30,
+      "cast": [
+        {
+          "role": "legend",
+          "kind": "legend",
+          "pick": "given"
+        },
+        {
+          "role": "front",
+          "kind": "region",
+          "pick": "given"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-waking",
+          "days": 4,
+          "sides": [
+            {
+              "id": "hunt-it",
+              "wants": "beats",
+              "per": 25,
+              "at": "front",
+              "won": [
+                {
+                  "kind": "lay-legend",
+                  "role": "legend"
+                },
+                {
+                  "kind": "gauge",
+                  "role": "front",
+                  "gauge": "threat",
+                  "amount": -50
+                }
+              ]
+            },
+            {
+              "id": "ward-it",
+              "wants": "goods",
+              "tag": "provisions",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "front",
+                  "gauge": "threat",
+                  "amount": -30
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "gauge",
+              "role": "front",
+              "gauge": "threat",
+              "amount": 60
+            }
+          ]
+        }
+      ],
+      "note": "GDD 13.2: a legend gets a place in the director's cast; an unlaid one not cast within emergence.params legend-rest-days, in an awake region with an open place. Steps provisional."
     }
   ]
 }

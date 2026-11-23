@@ -403,6 +403,30 @@
       "text": "The director's world day in the week to day 90 costs no more with its memory ring full than 110% of the day as played: a predicate pays for what it recalls, not for what the ring holds",
       "runs": "world",
       "holdsFrom": "MM9"
+    },
+    {
+      "id": "emergence-loop",
+      "text": "On every 1,000-player seed of the closed world, agents never told of emergence make a style, its region's variant, the variant's found material and a kind made from it, with no operator command and no staged fact",
+      "runs": "emergence",
+      "holdsFrom": "MM10"
+    },
+    {
+      "id": "promotion-each-type",
+      "text": "Every promotion type (road, camp, haunt, route, style, variant, legend, custom) fires at least once on some world of the closed-world run",
+      "runs": "emergence",
+      "holdsFrom": "MM10"
+    },
+    {
+      "id": "pairing-share-falls",
+      "text": "Adaptation brakes reliance: for every variant with 14 days left, its style's share of the region's wins in the 14 days after is below the 14 days before",
+      "runs": "emergence",
+      "holdsFrom": "MM10"
+    },
+    {
+      "id": "trace-cost-flat",
+      "text": "A day's trace intake and turn with 100,000 stale entries costs no more than 110% of the day as played: traces cost what is touched",
+      "runs": "emergence",
+      "holdsFrom": "MM10"
     }
   ]
 }

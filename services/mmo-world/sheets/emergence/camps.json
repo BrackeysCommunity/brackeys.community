@@ -1,0 +1,36 @@
+{
+  "$schema": "../schema/emergence.camps.schema.json",
+  "sheet": "emergence.camps",
+  "rows": [
+    {
+      "id": "ruin",
+      "station": "bench",
+      "note": "provisional: what is left in a shell is patched and spliced."
+    },
+    {
+      "id": "scrap-seam",
+      "station": "forge",
+      "note": "provisional: scrap is smelted where it is dug."
+    },
+    {
+      "id": "cable-run",
+      "station": "bench",
+      "note": "provisional: old cable is spliced where it hangs."
+    },
+    {
+      "id": "den",
+      "station": "loom",
+      "note": "provisional: hides and sinew from a cleared den are worked into cloth and rope."
+    },
+    {
+      "id": "battlefield-ruin",
+      "station": "forge",
+      "note": "provisional: the arms left on old ground are reforged there."
+    },
+    {
+      "id": "scavenger-camp",
+      "station": "still",
+      "note": "provisional: scavengers flash and compile what they find."
+    }
+  ]
+}

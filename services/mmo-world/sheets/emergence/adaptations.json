@@ -1,0 +1,127 @@
+{
+  "$schema": "../schema/emergence.adaptations.schema.json",
+  "sheet": "emergence.adaptations",
+  "rows": [
+    {
+      "id": "plated",
+      "resists": [
+        "keen",
+        "edge-led",
+        "hooked"
+      ],
+      "up": "ward",
+      "upPercent": 200,
+      "down": "flex",
+      "downPoints": 2,
+      "note": "GDD 13.3: a region adapted to keen edges grows plate; treated hide becomes plated hide at Ward 52, Flex 16 (GDD 9.3)."
+    },
+    {
+      "id": "charged",
+      "resists": [
+        "conductive",
+        "conduct-led",
+        "arcing",
+        "glass"
+      ],
+      "up": "conduct",
+      "upPercent": 200,
+      "down": "ward",
+      "downPoints": 2,
+      "note": "provisional: a region adapted to current carries its own."
+    },
+    {
+      "id": "scorched",
+      "resists": [
+        "warm",
+        "heat-led",
+        "igniting",
+        "salt",
+        "ash",
+        "cold",
+        "clay"
+      ],
+      "up": "heat",
+      "upPercent": 200,
+      "down": "flex",
+      "downPoints": 2,
+      "note": "provisional: a region adapted to fire and frost is burnt through."
+    },
+    {
+      "id": "rusted",
+      "resists": [
+        "metal",
+        "heavy",
+        "weight-led",
+        "dense",
+        "tempered",
+        "stone"
+      ],
+      "up": "weight",
+      "upPercent": 150,
+      "down": "edge",
+      "downPoints": 2,
+      "note": "provisional: a region adapted to heavy metal sheds it as rust."
+    },
+    {
+      "id": "wary",
+      "resists": [
+        "reaching",
+        "reach-led",
+        "quick-drawn",
+        "marked",
+        "true",
+        "quiet"
+      ],
+      "up": "reach",
+      "upPercent": 150,
+      "down": "weight",
+      "downPoints": 2,
+      "note": "provisional: a region adapted to reach and aim keeps its distance."
+    },
+    {
+      "id": "hollow",
+      "resists": [
+        "lingering",
+        "bond-led",
+        "amber",
+        "deep-cast"
+      ],
+      "up": "bond",
+      "upPercent": 150,
+      "down": "ward",
+      "downPoints": 2,
+      "note": "provisional: a region adapted to binding empties itself of what binds."
+    },
+    {
+      "id": "swarming",
+      "resists": [
+        "flex-led",
+        "wide",
+        "springy",
+        "fibre",
+        "balanced"
+      ],
+      "up": "flex",
+      "upPercent": 150,
+      "down": "edge",
+      "downPoints": 2,
+      "note": "provisional: a region adapted to sweeping blows comes in numbers."
+    },
+    {
+      "id": "fast",
+      "resists": [
+        "ward-led",
+        "braced-grip",
+        "warded",
+        "sure-gripped",
+        "hide",
+        "timber"
+      ],
+      "up": "flex",
+      "upPercent": 150,
+      "down": "weight",
+      "downPoints": 2,
+      "note": "provisional: a region adapted to guards and braces goes round them; the row for ward-led styles, which GDD 13.3 does not name."
+    }
+  ]
+}

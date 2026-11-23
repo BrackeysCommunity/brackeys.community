@@ -44,7 +44,15 @@
               "dungeon-head",
               "dungeon-tail",
               "settlement-head",
-              "settlement-tail"
+              "settlement-tail",
+              "road-word",
+              "style-lead",
+              "style-word",
+              "material-noun",
+              "legend-epithet",
+              "custom-word",
+              "camp-word",
+              "haunt-word"
             ],
             "x-unit": "enum"
           },

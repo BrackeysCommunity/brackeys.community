@@ -117,6 +117,13 @@
                     "orders-stop",
                     "prices",
                     "sick",
+                    "toll",
+                    "cut",
+                    "patrol-road",
+                    "caravan-on",
+                    "salvage",
+                    "caravan-lost",
+                    "lay-legend",
                     "nothing"
                   ],
                   "x-unit": "enum"
@@ -134,7 +141,7 @@
                 "amount": {
                   "type": "integer",
                   "x-unit": "count",
-                  "description": "Points of defence, gauge, loyalty, standing, condition or disposition; days for grudge, spread, marked, fees, orders-stop, prices, sick; seasons for keep-open. holding-falls: defence lost instead when it is its faction's last; split: loyalty both claimants lose instead when the faction holds too few regions to split; damage: condition lost, 0 for settlements.params trouble-damage."
+                  "description": "Points of defence, gauge, loyalty, standing, condition or disposition; days for grudge, spread, marked, fees, orders-stop, prices, sick; seasons for keep-open. holding-falls: defence lost instead when it is its faction's last; split: loyalty both claimants lose instead when the faction holds too few regions to split; damage: condition lost, 0 for settlements.params trouble-damage. toll, cut, patrol-road: days, 0 for emergence.params toll-days, cut-days, patrol-days."
                 },
                 "ref": {
                   "type": "string",
@@ -181,6 +188,13 @@
                     "orders-stop",
                     "prices",
                     "sick",
+                    "toll",
+                    "cut",
+                    "patrol-road",
+                    "caravan-on",
+                    "salvage",
+                    "caravan-lost",
+                    "lay-legend",
                     "nothing"
                   ],
                   "x-unit": "enum"
@@ -198,7 +212,7 @@
                 "amount": {
                   "type": "integer",
                   "x-unit": "count",
-                  "description": "Points of defence, gauge, loyalty, standing, condition or disposition; days for grudge, spread, marked, fees, orders-stop, prices, sick; seasons for keep-open. holding-falls: defence lost instead when it is its faction's last; split: loyalty both claimants lose instead when the faction holds too few regions to split; damage: condition lost, 0 for settlements.params trouble-damage."
+                  "description": "Points of defence, gauge, loyalty, standing, condition or disposition; days for grudge, spread, marked, fees, orders-stop, prices, sick; seasons for keep-open. holding-falls: defence lost instead when it is its faction's last; split: loyalty both claimants lose instead when the faction holds too few regions to split; damage: condition lost, 0 for settlements.params trouble-damage. toll, cut, patrol-road: days, 0 for emergence.params toll-days, cut-days, patrol-days."
                 },
                 "ref": {
                   "type": "string",

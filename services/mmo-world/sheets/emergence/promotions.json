@@ -1,0 +1,69 @@
+{
+  "$schema": "../schema/emergence.promotions.schema.json",
+  "sheet": "emergence.promotions",
+  "rows": [
+    {
+      "id": "road",
+      "trace": "passage",
+      "count": 60,
+      "distinct": 20,
+      "windowDays": 9,
+      "note": "GDD 13.2: 60 crossings by 20 or more characters within 9 world days."
+    },
+    {
+      "id": "camp",
+      "trace": "clearing",
+      "count": 40,
+      "windowDays": 14,
+      "note": "GDD 13.2: 40 clearings of a site within 14 world days."
+    },
+    {
+      "id": "haunt",
+      "trace": "loss",
+      "count": 30,
+      "windowDays": 7,
+      "tag": "pack",
+      "note": "GDD 13.2: 30 characters down at a site within 7 world days. GDD 4.15's scavengers are the pack creatures, as no archetype carries a scavenger tag."
+    },
+    {
+      "id": "route",
+      "trace": "haulage",
+      "count": 2000,
+      "windowDays": 14,
+      "note": "GDD 13.2: 2,000 load between a pair of settlements within 14 world days."
+    },
+    {
+      "id": "style",
+      "trace": "reliance",
+      "count": 20,
+      "distinct": 20,
+      "perCharacter": 10,
+      "windowDays": 14,
+      "note": "GDD 13.2: 20 characters each winning 10 beats with one style in a region within 14 world days."
+    },
+    {
+      "id": "variant",
+      "count": 0,
+      "percent": 60,
+      "note": "GDD 13.2: a region's adaptation to a style passes 60%."
+    },
+    {
+      "id": "legend",
+      "count": 25,
+      "heavy": 5,
+      "note": "GDD 13.2: a standing goal unmet for a full season after 25 attempts, or an item named by 5 heavy facts in a season."
+    },
+    {
+      "id": "custom",
+      "count": 3,
+      "note": "GDD 13.2: a settlement goal renewed 3 seasons running."
+    },
+    {
+      "id": "masters",
+      "trace": "mastery",
+      "count": 3,
+      "distinct": 3,
+      "note": "GDD 7.11: 3 masters of a family homed at one settlement; provisional."
+    }
+  ]
+}

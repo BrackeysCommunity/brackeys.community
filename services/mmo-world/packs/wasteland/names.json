@@ -1369,6 +1369,56 @@
       "id": "stock-bands-rich",
       "ref": "map.stock-bands:rich",
       "name": "Rich"
+    },
+    {
+      "id": "variants-plated",
+      "ref": "creatures.variants:plated",
+      "name": "Plated"
+    },
+    {
+      "id": "variants-charged",
+      "ref": "creatures.variants:charged",
+      "name": "Charged"
+    },
+    {
+      "id": "variants-fast",
+      "ref": "creatures.variants:fast",
+      "name": "Fleet"
+    },
+    {
+      "id": "variants-wary",
+      "ref": "creatures.variants:wary",
+      "name": "Wary"
+    },
+    {
+      "id": "variants-slow",
+      "ref": "creatures.variants:slow",
+      "name": "Lumbering"
+    },
+    {
+      "id": "variants-swarming",
+      "ref": "creatures.variants:swarming",
+      "name": "Swarming"
+    },
+    {
+      "id": "variants-hoarding",
+      "ref": "creatures.variants:hoarding",
+      "name": "Hoarding"
+    },
+    {
+      "id": "variants-scorched",
+      "ref": "creatures.variants:scorched",
+      "name": "Scorched"
+    },
+    {
+      "id": "variants-rusted",
+      "ref": "creatures.variants:rusted",
+      "name": "Rusted"
+    },
+    {
+      "id": "variants-hollow",
+      "ref": "creatures.variants:hollow",
+      "name": "Hollow"
     }
   ]
 }

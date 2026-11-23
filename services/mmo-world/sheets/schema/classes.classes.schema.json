@@ -82,6 +82,11 @@
           "leans": {
             "type": "string",
             "x-unit": "text"
+          },
+          "hidden": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "A class found after launch: off the card until someone crosses it (GDD 5.8)."
           }
         }
       }

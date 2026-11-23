@@ -20,7 +20,8 @@
     {
       "id": "promotion",
       "kind": "promotion",
-      "weight": 70
+      "weight": 70,
+      "note": "GDD 12.2: a trace crossing its line (GDD 13.2); one kind for every type, named in its type datum."
     },
     {
       "id": "arc-stage-ended",
@@ -1223,6 +1224,96 @@
       "kind": "node.seam",
       "weight": 40,
       "note": "A seam opens on a node and adds stock; provisional."
+    },
+    {
+      "id": "road-grew",
+      "kind": "road.grew",
+      "weight": 20,
+      "note": "A tile joins a named road; provisional."
+    },
+    {
+      "id": "road-cut",
+      "kind": "road.cut",
+      "weight": 60,
+      "note": "GDD 4.10: a raid or a road war cuts a region's roads; provisional."
+    },
+    {
+      "id": "road-tolled",
+      "kind": "road.tolled",
+      "weight": 60,
+      "note": "GDD 12.9: a road war's lapse tolls a region's roads; provisional."
+    },
+    {
+      "id": "road-toll-paid",
+      "kind": "road.toll-paid",
+      "weight": 20,
+      "note": "A character pays a toll; provisional."
+    },
+    {
+      "id": "caravan-departed",
+      "kind": "caravan.departed",
+      "weight": 30,
+      "note": "A route's caravan leaves; provisional."
+    },
+    {
+      "id": "caravan-arrived",
+      "kind": "caravan.arrived",
+      "weight": 40,
+      "note": "A route's caravan arrives and its goods are bid for; provisional."
+    },
+    {
+      "id": "caravan-robbed",
+      "kind": "caravan.robbed",
+      "weight": 60,
+      "note": "GDD 4.10: a raid robs a caravan; provisional."
+    },
+    {
+      "id": "caravan-lost",
+      "kind": "caravan.lost",
+      "weight": 70,
+      "note": "GDD 12.9: a caravan nobody rescued is lost; provisional."
+    },
+    {
+      "id": "custom-held",
+      "kind": "custom.held",
+      "weight": 40,
+      "note": "GDD 13.2: the world posts a custom's goal for the season; provisional."
+    },
+    {
+      "id": "custom-skipped",
+      "kind": "custom.skipped",
+      "weight": 40,
+      "note": "A custom skips a season its treasury cannot pay; provisional."
+    },
+    {
+      "id": "legend-laid",
+      "kind": "legend.laid",
+      "weight": 70,
+      "note": "A legend is laid to rest; provisional."
+    },
+    {
+      "id": "season-added",
+      "kind": "season.added",
+      "weight": 70,
+      "note": "GDD 12.6: what the last season promoted that a player can use; provisional."
+    },
+    {
+      "id": "material-looted-first",
+      "kind": "material.looted-first",
+      "weight": 60,
+      "note": "GDD 4.17: a found material's first loot names its finder; provisional."
+    },
+    {
+      "id": "promotion-renamed",
+      "kind": "promotion.renamed",
+      "weight": 40,
+      "note": "GDD 4.17: the first renames what they found, once; provisional."
+    },
+    {
+      "id": "emergence-started",
+      "kind": "emergence.started",
+      "weight": 40,
+      "note": "Emergence starts on a world from before it; provisional."
     }
   ]
 }

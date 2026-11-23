@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "emergence.adaptations",
+  "title": "emergence.adaptations",
+  "description": "What a creature variant resists when a region adapts to a style, and the material it makes new (GDD 13.2, 13.3).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "emergence.adaptations"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "resists",
+          "up",
+          "upPercent"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "creatures.variants"
+          },
+          "resists": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "tags",
+            "x-ref": "tags.vocabulary"
+          },
+          "up": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "items.axes"
+          },
+          "upPercent": {
+            "type": "integer",
+            "minimum": 100,
+            "x-unit": "percent",
+            "description": "The up axis of the found material, as a share of the base's."
+          },
+          "down": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "items.axes"
+          },
+          "downPoints": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "pts"
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

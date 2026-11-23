@@ -31,7 +31,7 @@
       "station": "forge",
       "name": "Armoury",
       "effect": "plate-tier",
-      "waits": "MM10 (faction crafts)",
+      "waits": "post-launch (faction crafts)",
       "note": "GDD 4.8: plate made at the wardens' armoury comes a tier up."
     },
     {
@@ -39,7 +39,7 @@
       "station": "still",
       "name": "Still",
       "effect": "cleanse",
-      "waits": "MM10 (faction crafts)",
+      "waits": "post-launch (faction crafts)",
       "note": "GDD 4.8: the order's still cleanses corrupted goods."
     }
   ]

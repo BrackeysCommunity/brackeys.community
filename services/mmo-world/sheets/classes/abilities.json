@@ -209,7 +209,7 @@
       "rules": [
         "ability-third-method"
       ],
-      "waits": "MM10 (methods learnt per process)"
+      "waits": "post-launch (methods learnt per process)"
     },
     {
       "id": "salvager",
@@ -242,7 +242,7 @@
       "rules": [
         "ability-reforge"
       ],
-      "waits": "MM10 (reworking an instance)"
+      "waits": "post-launch (reworking an instance)"
     },
     {
       "id": "masters-eye",
@@ -617,6 +617,182 @@
         "ability-steward"
       ],
       "reads": "troubles: a lost trouble at a settlement your guild runs damages no structure"
+    },
+    {
+      "id": "steady-current",
+      "class": "router",
+      "tier": 1,
+      "name": "Steady current",
+      "text": "Appraisal ranges are a quarter narrower",
+      "rules": [
+        "ability-steady-current"
+      ],
+      "reads": "make: the appraisal"
+    },
+    {
+      "id": "bench-rig",
+      "class": "router",
+      "tier": 1,
+      "name": "Bench rig",
+      "text": "Station fees are a quarter lower",
+      "rules": [
+        "ability-bench-rig"
+      ],
+      "reads": "make: station fees"
+    },
+    {
+      "id": "strip-wire",
+      "class": "router",
+      "tier": 5,
+      "name": "Strip the wire",
+      "text": "Failed combinations return 40%, not 30%",
+      "rules": [
+        "ability-strip-wire"
+      ],
+      "reads": "make: what a failed combination returns"
+    },
+    {
+      "id": "patch-in",
+      "class": "router",
+      "tier": 5,
+      "name": "Patch in",
+      "text": "Compile costs one component fewer, at least 2",
+      "rules": [
+        "ability-patch-in"
+      ],
+      "reads": "make: Compile recipes"
+    },
+    {
+      "id": "relay",
+      "class": "router",
+      "tier": 10,
+      "name": "Relay",
+      "text": "Prices from elsewhere are a quarter less old for you",
+      "rules": [
+        "ability-relay"
+      ],
+      "reads": "market: prices elsewhere"
+    },
+    {
+      "id": "tuned-parts",
+      "class": "router",
+      "tier": 10,
+      "name": "Tuned parts",
+      "text": "Items you make gain xp 5% faster for anyone",
+      "rules": [
+        "ability-tuned-parts"
+      ],
+      "reads": "make: stamps the item; growth reads the stamp"
+    },
+    {
+      "id": "trace-the-grid",
+      "class": "router",
+      "tier": 15,
+      "name": "Trace the grid",
+      "text": "You see whether a recipe is registered before committing",
+      "rules": [
+        "ability-trace-the-grid"
+      ],
+      "reads": "make: the appraisal"
+    },
+    {
+      "id": "own-circuit",
+      "class": "router",
+      "tier": 15,
+      "name": "Own circuit",
+      "text": "One kind you discovered costs you half its station fee",
+      "rules": [
+        "ability-own-circuit"
+      ],
+      "reads": "make: station fees for the first kind you discovered"
+    },
+    {
+      "id": "road-eyes",
+      "class": "roadwarden",
+      "tier": 1,
+      "name": "Road eyes",
+      "text": "Ambush chance one band lower on road tiles",
+      "rules": [
+        "ability-road-eyes"
+      ],
+      "reads": "travel: route risk on road tiles"
+    },
+    {
+      "id": "pack-saddle",
+      "class": "roadwarden",
+      "tier": 1,
+      "name": "Pack saddle",
+      "text": "+10 load",
+      "rules": [
+        "ability-pack-saddle"
+      ],
+      "reads": "carry: load"
+    },
+    {
+      "id": "waymarks",
+      "class": "roadwarden",
+      "tier": 5,
+      "name": "Waymarks",
+      "text": "Tracks stay readable for 9 ticks, not 6",
+      "rules": [
+        "ability-waymarks"
+      ],
+      "reads": "tracks: how far back a trail can be followed (track-ticks on follow-the-trail's window)"
+    },
+    {
+      "id": "light-tread",
+      "class": "roadwarden",
+      "tier": 5,
+      "name": "Light tread",
+      "text": "Cover counts 10 higher for you",
+      "rules": [
+        "ability-light-tread"
+      ],
+      "reads": "travel: route risk and ambushes"
+    },
+    {
+      "id": "surety",
+      "class": "roadwarden",
+      "tier": 10,
+      "name": "Surety",
+      "text": "Haul goals you take need a quarter less collateral",
+      "rules": [
+        "ability-surety"
+      ],
+      "reads": "goals: taking a Haul goal"
+    },
+    {
+      "id": "trail-stable",
+      "class": "roadwarden",
+      "tier": 10,
+      "name": "Trail stable",
+      "text": "Your mount needs half its upkeep on the road",
+      "rules": [
+        "ability-trail-stable"
+      ],
+      "reads": "mounts: the upkeep of your mount"
+    },
+    {
+      "id": "keep-the-road",
+      "class": "roadwarden",
+      "tier": 15,
+      "name": "Keep the road",
+      "text": "Your won beats remove 3 threat, not 2",
+      "rules": [
+        "ability-keep-the-road"
+      ],
+      "reads": "world: threat a won beat removes"
+    },
+    {
+      "id": "waystation",
+      "class": "roadwarden",
+      "tier": 15,
+      "name": "Waystation",
+      "text": "Charters cost your guild a quarter less",
+      "rules": [
+        "ability-waystation"
+      ],
+      "reads": "guilds: founding, by the officer who charters"
     }
   ]
 }

@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "emergence.promotions",
+  "title": "emergence.promotions",
+  "description": "GDD 13.2's lines: what a trace must reach, and within how long, to become part of the world.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "emergence.promotions"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "count"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "road",
+              "camp",
+              "haunt",
+              "route",
+              "style",
+              "variant",
+              "legend",
+              "custom",
+              "masters"
+            ],
+            "x-unit": "enum"
+          },
+          "trace": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "emergence.traces"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "Crossings, clearings, downs, load, characters, attempts or seasons the line needs."
+          },
+          "distinct": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "Distinct characters among them."
+          },
+          "perCharacter": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "style: wins each character needs."
+          },
+          "windowDays": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "days"
+          },
+          "percent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "percent",
+            "description": "variant: adaptation it passes."
+          },
+          "heavy": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "legend: heavy facts naming an item in a season."
+          },
+          "tag": {
+            "type": "string",
+            "x-unit": "tag",
+            "x-ref": "tags.vocabulary",
+            "description": "haunt: the creature tag its new lead carries."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

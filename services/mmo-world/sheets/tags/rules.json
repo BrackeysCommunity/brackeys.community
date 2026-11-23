@@ -1418,6 +1418,230 @@
           "percent": 100
         }
       ]
+    },
+    {
+      "id": "ability-steady-current",
+      "subject": [
+        "character",
+        "steady-current"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "appraisal-width",
+          "percent": -25
+        }
+      ]
+    },
+    {
+      "id": "ability-bench-rig",
+      "subject": [
+        "character",
+        "bench-rig"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "station-fee",
+          "percent": -25
+        }
+      ]
+    },
+    {
+      "id": "ability-strip-wire",
+      "subject": [
+        "character",
+        "strip-wire"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "craft-salvage",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": "ability-patch-in",
+      "subject": [
+        "character",
+        "patch-in"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "compile-components",
+          "count": -1
+        }
+      ]
+    },
+    {
+      "id": "ability-relay",
+      "subject": [
+        "character",
+        "relay"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "news-age",
+          "percent": -25
+        }
+      ]
+    },
+    {
+      "id": "ability-tuned-parts",
+      "subject": [
+        "character",
+        "tuned-parts"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "item-xp",
+          "percent": 5
+        }
+      ]
+    },
+    {
+      "id": "ability-trace-the-grid",
+      "subject": [
+        "character",
+        "trace-the-grid"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "sees-registered",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "ability-own-circuit",
+      "subject": [
+        "character",
+        "own-circuit"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "signature-fee",
+          "percent": -50
+        }
+      ]
+    },
+    {
+      "id": "ability-road-eyes",
+      "subject": [
+        "character",
+        "road-eyes"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "road-risk",
+          "count": -1
+        }
+      ]
+    },
+    {
+      "id": "ability-pack-saddle",
+      "subject": [
+        "character",
+        "pack-saddle"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "load",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": "ability-waymarks",
+      "subject": [
+        "character",
+        "waymarks"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "track-ticks",
+          "percent": 50
+        }
+      ]
+    },
+    {
+      "id": "ability-light-tread",
+      "subject": [
+        "character",
+        "light-tread"
+      ],
+      "then": [
+        {
+          "kind": "add",
+          "measure": "cover",
+          "count": 10
+        }
+      ]
+    },
+    {
+      "id": "ability-surety",
+      "subject": [
+        "character",
+        "surety"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "haul-collateral",
+          "percent": -25
+        }
+      ]
+    },
+    {
+      "id": "ability-trail-stable",
+      "subject": [
+        "character",
+        "trail-stable"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "mount-upkeep",
+          "percent": -50
+        }
+      ]
+    },
+    {
+      "id": "ability-keep-the-road",
+      "subject": [
+        "character",
+        "keep-the-road"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "beat-threat",
+          "percent": 50
+        }
+      ]
+    },
+    {
+      "id": "ability-waystation",
+      "subject": [
+        "character",
+        "waystation"
+      ],
+      "then": [
+        {
+          "kind": "scale",
+          "measure": "charter-cost",
+          "percent": -25
+        }
+      ]
     }
   ]
 }

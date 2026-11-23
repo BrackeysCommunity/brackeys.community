@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "emergence.camps",
+  "title": "emergence.camps",
+  "description": "The tier-1 station a camp on each site kind gains.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "emergence.camps"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "station"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "map.site-kinds"
+          },
+          "station": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "settlements.structures"
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

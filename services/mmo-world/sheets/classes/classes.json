@@ -132,6 +132,44 @@
       "skill": "goals",
       "tag": "reeve",
       "leans": "Cheaper listings; larger musters; guild works costing less"
+    },
+    {
+      "id": "router",
+      "unlock": [
+        {
+          "kind": "practice",
+          "id": "rewire",
+          "at": 12
+        },
+        {
+          "kind": "practice",
+          "id": "circuit",
+          "at": 12
+        }
+      ],
+      "skill": "rewire",
+      "tag": "router",
+      "leans": "Benches, salvage and the wire's news",
+      "hidden": true
+    },
+    {
+      "id": "roadwarden",
+      "unlock": [
+        {
+          "kind": "practice",
+          "id": "travel",
+          "at": 6
+        },
+        {
+          "kind": "deed",
+          "id": "road-steps",
+          "at": 300
+        }
+      ],
+      "skill": "travel",
+      "tag": "roadwarden",
+      "leans": "Route risk, the load a road carries and the threat along it",
+      "hidden": true
     }
   ]
 }

@@ -268,14 +268,6 @@ type FactWeight struct {
 	Note   string `json:"note,omitempty" unit:"text" doc:"Why the value is what it is; \"provisional\" marks a value the GDD does not give yet."`
 }
 
-// ---- Emergence ----
-
-type Trace struct {
-	ID           string `json:"id" unit:"id"`
-	DecayPercent int64  `json:"decayPercent" unit:"percent" min:"0" max:"100"`
-	PromoteAt    int64  `json:"promoteAt" unit:"count" min:"1"`
-}
-
 // ---- Tags ----
 
 type Vocab struct {
@@ -579,7 +571,7 @@ type Name struct {
 // NamePart is one piece generated names are built from.
 type NamePart struct {
 	ID   string `json:"id" unit:"id"`
-	List string `json:"list" unit:"enum" enum:"region-head|region-tail|notable-given|notable-family|faction-head|faction-tail|dungeon-head|dungeon-tail|settlement-head|settlement-tail"`
+	List string `json:"list" unit:"enum" enum:"region-head|region-tail|notable-given|notable-family|faction-head|faction-tail|dungeon-head|dungeon-tail|settlement-head|settlement-tail|road-word|style-lead|style-word|material-noun|legend-epithet|custom-word|camp-word|haunt-word"`
 	Text string `json:"text" unit:"text"`
 }
 

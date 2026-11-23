@@ -1,5 +1,54 @@
 {
   "$schema": "../schema/emergence.traces.schema.json",
   "sheet": "emergence.traces",
-  "rows": []
+  "rows": [
+    {
+      "id": "passage",
+      "decayPercent": 10,
+      "on": "tile",
+      "note": "GDD 13.1: crossings of a tile by characters."
+    },
+    {
+      "id": "clearing",
+      "decayPercent": 10,
+      "on": "site",
+      "note": "GDD 13.1: encounters won at a site."
+    },
+    {
+      "id": "loss",
+      "decayPercent": 10,
+      "on": "site",
+      "note": "GDD 13.1: characters down at a site; a region's downs are counted beside it."
+    },
+    {
+      "id": "working",
+      "decayPercent": 10,
+      "on": "node",
+      "note": "GDD 13.1: MM1's tile.Gathered counter, which decays per tiles.counters; no line promotes it (GDD 13.2 gives none)."
+    },
+    {
+      "id": "haulage",
+      "decayPercent": 10,
+      "on": "pair",
+      "note": "GDD 13.1: load moved between a pair of settlements; a region's load onto road tiles is counted beside it."
+    },
+    {
+      "id": "reliance",
+      "decayPercent": 10,
+      "on": "region",
+      "note": "GDD 13.1: won beats by style in a region."
+    },
+    {
+      "id": "renown",
+      "decayPercent": 10,
+      "on": "subject",
+      "note": "GDD 13.1: heavy facts naming an item, a notable or a character."
+    },
+    {
+      "id": "mastery",
+      "decayPercent": 0,
+      "on": "settlement",
+      "note": "GDD 7.11: masters of a puzzle family homed at a settlement; titles do not fade."
+    }
+  ]
 }
