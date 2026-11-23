@@ -188,6 +188,9 @@ func (s *Server) open(ctx context.Context) error {
 	if err := s.seasonStart(ctx); err != nil {
 		return err
 	}
+	if err := s.emergenceStart(ctx); err != nil {
+		return err
+	}
 	if taken {
 		return s.epochAtOpen(ctx)
 	}
@@ -264,6 +267,32 @@ func (s *Server) seasonStart(ctx context.Context) error {
 	c, _, _ := s.g.Season()
 	s.cfg.Log.Warn("SEASON STARTED: the world now keeps a season clock", "world", s.cfg.World, "tick", s.g.Tick(), "season", c.N,
 		"day", c.Day(s.g.Tick()/sheets.TicksPerDay), "days", c.Days)
+	return nil
+}
+
+// emergenceKey is the interaction a world from before emergence is given
+// its traces under: one per world, so it is applied once.
+const emergenceKey = "emergence-start"
+
+// emergenceStart sends the recorded emergence start to a world that keeps
+// no traces, after its season so the traces carry the season's stamp.
+func (s *Server) emergenceStart(ctx context.Context) error {
+	if s.g.Emergence != nil {
+		return nil
+	}
+	ctx, cancel := writeContext(ctx)
+	defer cancel()
+	out, err := s.do(ctx, game.Command{Key: emergenceKey, Kind: game.EmergenceStart}, "", 0, false)
+	switch {
+	case err != nil:
+		return fmt.Errorf("service: starting the world's emergence: %w", err)
+	case out.ref != nil:
+		return fmt.Errorf("service: starting the world's emergence: %s: %s", out.ref.Code, out.ref.Message)
+	case out.dup || s.g.Emergence == nil:
+		return errors.New("service: the emergence start is recorded but the world keeps no traces")
+	}
+	s.cfg.Log.Warn("EMERGENCE STARTED: the world now keeps traces and promotes them", "world", s.cfg.World, "tick", s.g.Tick(),
+		"day", s.g.Tick()/sheets.TicksPerDay, "season", s.g.Emergence.Season)
 	return nil
 }
 

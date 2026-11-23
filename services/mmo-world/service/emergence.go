@@ -1,0 +1,410 @@
+package service
+
+import (
+	"cmp"
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"jams.team/mmo-world/api"
+	"jams.team/mmo-world/sim/arc"
+	"jams.team/mmo-world/sim/emerge"
+	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/fight"
+	"jams.team/mmo-world/sim/game"
+	"jams.team/mmo-world/sim/goal"
+	"jams.team/mmo-world/sim/hex"
+	"jams.team/mmo-world/sim/sheets"
+	"jams.team/mmo-world/sim/world"
+)
+
+// Ref kinds and ids emergence writes, as sim/game names them.
+const (
+	kindPromotion = "promotion"
+	kindCreature  = "creature"
+	kindItem      = "item"
+	foundPrefix   = "found."
+	foundSep      = "."
+	sheetMaterial = "items.materials:"
+	caravanSep    = "@" // a caravan's id is its route's and its departure day
+)
+
+// apiPromotion is a promotion as anyone may read it: never its first.
+func apiPromotion(g *game.Game, p *emerge.Promotion) api.Promotion {
+	out := api.Promotion{ID: p.ID, Type: string(p.Type), Name: p.Shown(), Places: p.Places, Of: p.Of, Day: p.Tick / sheets.TicksPerDay}
+	if p.Region >= 0 {
+		out.Region = world.RegionRef(p.Region)
+	}
+	if p.At != nil {
+		h := apiHex(*p.At)
+		out.At = &h
+	}
+	r := g.Rules()
+	e := g.Emergence
+	switch p.Type {
+	case emerge.Style:
+		if st := e.Styles[emerge.StyleKey{Region: p.Region, Style: p.Of}]; st != nil {
+			out.Resists = st.Resisted
+		}
+		key, pairing := r.Emerge.Styles.Keystone(p.Of)
+		if pairing {
+			out.OfName = r.Name("items.pairings:" + p.Of)
+		} else {
+			out.OfName = r.Name("items.traits:" + key)
+		}
+	case emerge.Variant:
+		out.OfName = r.Name("creatures.archetypes:" + p.Of)
+		for _, v := range e.Variants {
+			if v.ID == p.ID {
+				out.Resists, out.Material = v.Resisted, v.Material
+			}
+		}
+	case emerge.Material:
+		if base, ok := foundBase(p.Of); ok {
+			out.OfName = r.Name(sheetMaterial + base)
+		}
+		out.Material = p.Of
+	case emerge.Legend:
+		out.OfName = legendOfName(g, p)
+	case emerge.Class:
+		out.OfName = cmp.Or(r.Name("classes.classes:"+p.Of), titleOf(p.Of))
+	case emerge.Masters:
+		out.OfName = familyName(g, p.Of)
+	case emerge.Camp, emerge.Haunt:
+		out.OfName = r.Name("map.site-kinds:" + p.Of)
+	case emerge.Road, emerge.Route, emerge.Custom:
+		// Named by their places alone.
+	}
+	return out
+}
+
+// foundBase is the sheet material a found material was made from.
+func foundBase(id string) (string, bool) {
+	rest, ok := strings.CutPrefix(id, foundPrefix)
+	if !ok {
+		return "", false
+	}
+	_, base, ok := strings.Cut(rest, foundSep)
+	return base, ok && base != ""
+}
+
+// legendOfName is what a legend was made of: its creature's name, or the
+// kind of the item its holder carries.
+func legendOfName(g *game.Game, p *emerge.Promotion) string {
+	kind, id, _ := strings.Cut(p.Of, ":")
+	switch kind {
+	case kindCreature:
+		return g.Rules().Name("creatures.archetypes:" + id)
+	case kindItem:
+		if c := g.Char(p.First); c != nil {
+			if in := c.C.Item(id); in != nil {
+				return g.KindName(in.Kind)
+			}
+		}
+	}
+	return ""
+}
+
+// promotionOf is the promotion a fact names, from its record as the game
+// holds it now.
+func promotionOf(g *game.Game, f fact.Fact) *api.Promotion {
+	if g.Emergence == nil {
+		return nil
+	}
+	for _, s := range f.Subjects {
+		if s.Kind != kindPromotion {
+			continue
+		}
+		if p := g.Emergence.Promotion(s.ID); p != nil {
+			out := apiPromotion(g, p)
+			return &out
+		}
+	}
+	return nil
+}
+
+// shownPromotion is a promotion record's shown name, or "".
+func shownPromotion(e *emerge.State, id string) string {
+	if p := e.Promotion(id); p != nil {
+		return p.Shown()
+	}
+	return ""
+}
+
+// emergentTile adds what emergence made of a tile: its road, a cut or a
+// toll on it today, a camp and a haunt.
+func emergentTile(g *game.Game, h hex.Hex, out *api.Tile) {
+	e := g.Emergence
+	if e == nil {
+		return
+	}
+	day := g.Tick() / sheets.TicksPerDay
+	if id := e.Roads[h]; id != "" && out.Road >= world.RoadTrack {
+		if rec := e.RoadRecs[id]; rec != nil {
+			out.RoadName, out.Cut = shownPromotion(e, rec.ID), rec.Cut(day)
+			if !out.Cut && rec.Tolled(day) {
+				out.Toll = g.Rules().Emerge.P.TollCoin
+			}
+		}
+	}
+	if c := e.Camps[h]; c != nil {
+		out.Camp = shownPromotion(e, c.ID)
+	}
+	out.Haunted = e.Haunts[h] != nil
+}
+
+// variantSeen is the name and row of the region's variant an overland
+// encounter is, or "" for any other creature.
+func variantSeen(g *game.Game, h hex.Hex, e *fight.Encounter) (string, string) {
+	if g.Emergence == nil || e.Floor != 0 {
+		return "", ""
+	}
+	v, ok := g.VariantAt(h, e.Creature)
+	if !ok {
+		return "", ""
+	}
+	return shownPromotion(g.Emergence, v.ID), v.Row
+}
+
+// renamable is the id of the promotion a fact announces when the viewer is
+// its first and may still name it.
+func renamable(g *game.Game, viewer string, f fact.Fact) string {
+	if g.Emergence == nil || f.Kind != kindPromotion {
+		return ""
+	}
+	d, ok := f.Get("id")
+	if !ok {
+		return ""
+	}
+	p := g.Emergence.Promotion(d.S)
+	if p == nil || p.First != viewer || viewer == "" || p.Named != "" || !emerge.Renamable(p.Type) ||
+		g.Tick() >= p.Tick+g.Rules().Emerge.P.RenameDays*sheets.TicksPerDay {
+		return ""
+	}
+	return p.ID
+}
+
+// foundNames are the names of the found materials among ids, keyed as the
+// pack keys a sheet material; nil when none is found.
+func foundNames(g *game.Game, ids []string) map[string]string {
+	e := g.Emergence
+	if e == nil || len(e.Materials) == 0 {
+		return nil
+	}
+	want := map[string]bool{}
+	for _, id := range ids {
+		for _, m := range e.Materials {
+			if m.ID == id {
+				want[id] = true
+			}
+		}
+	}
+	if len(want) == 0 {
+		return nil
+	}
+	out := map[string]string{}
+	for i := range e.Promotions {
+		if p := &e.Promotions[i]; p.Type == emerge.Material && want[p.Of] {
+			out[sheetMaterial+p.Of] = p.Shown()
+		}
+	}
+	return out
+}
+
+// materialNames are every found material's name, keyed as the pack keys a
+// sheet material.
+func materialNames(g *game.Game) map[string]string {
+	out := map[string]string{}
+	if g.Emergence == nil {
+		return out
+	}
+	for i := range g.Emergence.Promotions {
+		if p := &g.Emergence.Promotions[i]; p.Type == emerge.Material {
+			out[sheetMaterial+p.Of] = p.Shown()
+		}
+	}
+	return out
+}
+
+// stateNames names the found materials an Activity state shows.
+func stateNames(g *game.Game, st *api.ActivityState) map[string]string {
+	if g.Emergence == nil || len(g.Emergence.Materials) == 0 {
+		return nil
+	}
+	var ids []string
+	add := func(gs []api.Goods) {
+		for _, x := range gs {
+			ids = append(ids, x.Material)
+		}
+	}
+	add(st.Character.Goods)
+	for _, p := range st.Pouches {
+		add(p.Goods)
+	}
+	if st.Floor != nil {
+		add(st.Floor.Pool)
+	}
+	if st.Hunt != nil {
+		add(st.Hunt.Spoils)
+	}
+	return foundNames(g, ids)
+}
+
+// goalLegend is the living legend a Defeat goal's target became in its
+// region, by name.
+func goalLegend(g *game.Game, x *game.Goal) string {
+	e := g.Emergence
+	if e == nil || x.Cond.Verb != goal.Defeat || len(e.Legends) == 0 {
+		return ""
+	}
+	arch := x.Cond.Kind
+	if arch == "" {
+		for _, l := range e.Lines {
+			if l.Goal == x.ID && l.Archetype != "" {
+				arch = l.Archetype
+			}
+		}
+	}
+	if arch == "" {
+		return ""
+	}
+	region := goalRegion(g, x)
+	of := fact.Ref{Kind: kindCreature, ID: arch}
+	for _, l := range e.Legends {
+		if l.Of == of && l.Region == region && l.Laid == 0 {
+			return shownPromotion(e, l.ID)
+		}
+	}
+	return ""
+}
+
+// goalRegion is the region a goal's place names: a tile and its reach, a
+// region, a settlement or a tile, else its board's.
+func goalRegion(g *game.Game, x *game.Goal) int {
+	var h hex.Hex
+	if x.Board >= 0 && x.Board < len(g.Places) {
+		h = g.SettlementHex(x.Board)
+	}
+	c := x.Cond
+	switch kind, id, _ := goal.ParseRef(c.At); {
+	case c.Hex != nil:
+		h = *c.Hex
+	case kind == goal.PlaceRegion:
+		if r, ok := arc.RefIndex(fact.Ref{ID: id}); ok && r < len(g.World.Regions) {
+			return r
+		}
+	case kind == goal.PlaceSettlement:
+		if n, ok := goal.SettlementOf(c.At); ok && n < len(g.Places) {
+			h = g.SettlementHex(n)
+		}
+	case kind == goal.PlaceTile:
+		if t, ok := hex.ParseRef(id); ok {
+			h = t
+		}
+	}
+	return g.World.RegionAt(h)
+}
+
+// goalCustom is the custom a settlement's goal renews as, or posted, by
+// name: one at its board asking the same thing at the same place.
+func goalCustom(g *game.Game, x *game.Goal) string {
+	e := g.Emergence
+	if e == nil || len(e.Customs) == 0 || x.Build != nil || x.Issuer.Kind != goal.BySettlement && x.Issuer.Kind != goal.ByAdmin {
+		return ""
+	}
+	for _, rec := range e.Customs {
+		if rec.Place != x.Board {
+			continue
+		}
+		var s game.GoalSpec
+		if json.Unmarshal(rec.Spec, &s) != nil {
+			continue
+		}
+		if sameLine(s.Cond, x.Cond) {
+			return shownPromotion(e, rec.ID)
+		}
+	}
+	return ""
+}
+
+// sameLine reports whether two conditions ask the same thing at the same
+// place, whatever their counts.
+func sameLine(a, b goal.Condition) bool {
+	same := a.Verb == b.Verb && a.Kind == b.Kind && a.Gauge == b.Gauge && a.Tag == b.Tag && a.Trait == b.Trait && a.At == b.At && a.Within == b.Within
+	return same && (a.Hex == nil) == (b.Hex == nil) && (a.Hex == nil || *a.Hex == *b.Hex)
+}
+
+// storyPromotions are the chronicle channel's promotions after a fact id,
+// each with its record as the game holds it now, capped like the events.
+func (s *Server) storyPromotions(w http.ResponseWriter, r *http.Request) {
+	var after int64
+	if q := r.URL.Query().Get("after"); q != "" {
+		n, err := strconv.ParseInt(q, 10, 64)
+		if err != nil || n < 0 {
+			refuse(w, http.StatusBadRequest, api.Refusal{Code: api.CodeBadJSON, Message: "after is a fact id"})
+			return
+		}
+		after = n
+	}
+	facts, err := s.st.StoryFactsSince(r.Context(), api.PromotionKinds, fact.ID(after), eventsMost)
+	if err != nil {
+		s.internal(w, err)
+		return
+	}
+	unlock, ok := s.hold(r.Context(), w, true)
+	if !ok {
+		return
+	}
+	defer unlock()
+	out := api.StoryEvents{Events: []api.StoryEvent{}, Last: after}
+	for _, f := range facts {
+		out.Last = max(out.Last, int64(f.ID))
+		if ev, ok := storyEvent(s.g, f); ok {
+			out.Events = append(out.Events, ev)
+		}
+	}
+	reply(w, http.StatusOK, out)
+}
+
+// operatorEmergence is the operator's dashboard of the four measures,
+// read under the lock.
+func (s *Server) operatorEmergence(w http.ResponseWriter, r *http.Request) {
+	unlock, ok := s.hold(r.Context(), w, true)
+	if !ok {
+		return
+	}
+	defer unlock()
+	d, on := s.g.Measures()
+	if !on {
+		refuse(w, http.StatusNotFound, api.Refusal{Code: api.CodeNotFound, Message: "the world keeps no emergence"})
+		return
+	}
+	reply(w, http.StatusOK, apiEmergence(s.g, d))
+}
+
+// apiEmergence is the dashboard on the wire.
+func apiEmergence(g *game.Game, d game.Dashboard) api.Emergence {
+	out := api.Emergence{Day: d.Day, Season: d.Season, Active: d.Active, KindsPerMille: append([]int64{}, d.KindsPerMille...), KindsHealthy: d.KindsHealthy,
+		Promotions: typeCounts(d.Promotions), Need: d.Need, PromotionsHealthy: d.PromotionsHealthy, Heavy: d.Heavy, HeavyPlayer: d.HeavyPlayer,
+		HeavyHealthy: d.HeavyHealthy, Pairing: []api.RegionShare{}, PairingHealthy: d.PairingHealthy, Traces: typeCounts(d.Traces), Recent: []api.Promotion{}}
+	for _, p := range d.Pairing {
+		region := ""
+		if p.Region >= 0 {
+			region = world.RegionRef(p.Region)
+		}
+		out.Pairing = append(out.Pairing, api.RegionShare{Region: region, Style: p.Style, Name: p.Name, Percent: p.Percent})
+	}
+	for i := range d.Recent {
+		out.Recent = append(out.Recent, apiPromotion(g, &d.Recent[i]))
+	}
+	return out
+}
+
+func typeCounts(ts []game.TypeCount) []api.TypeCount {
+	out := make([]api.TypeCount, 0, len(ts))
+	for _, t := range ts {
+		out = append(out, api.TypeCount{Type: t.Type, Count: t.Count})
+	}
+	return out
+}

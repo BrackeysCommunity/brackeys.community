@@ -154,7 +154,7 @@ func apiGoal(g *game.Game, x *game.Goal, c *game.Char) api.Goal {
 	out := api.Goal{ID: x.ID, Title: x.Title, Note: x.Note, Issuer: x.Issuer.Kind, By: issuerName(g, x), Verb: x.Cond.Verb, What: condText(g, x.Cond),
 		Where: placeRef(g, x.Cond.At), Reward: x.Reward, Mode: x.Mode, Cap: x.Cap, Lifetime: x.Lifetime, Turnover: x.Turnover, State: x.State,
 		Progress: x.Total(), Count: x.Cond.Count, Claims: int64(len(x.Claims)), Need: x.Need, Pledged: x.Pledges.Sum(), Vow: x.Vow(), Top: []api.Contribution{},
-		Evolved: x.Evolved != 0 && x.Evolved == g.World.Day, Even: x.Even}
+		Evolved: x.Evolved != 0 && x.Evolved == g.World.Day, Even: x.Even, Legend: goalLegend(g, x), Custom: goalCustom(g, x)}
 	if x.State == goal.Proposed {
 		out.Reward, out.Vow = out.Pledged, false
 	}
@@ -525,8 +525,12 @@ func apiClasses(g *game.Game, c *game.Char) api.Classes {
 	out := api.Classes{Classes: []api.Class{}, Active: int64(len(c.C.Classes.Active)), Most: r.Class.Active, Here: here}
 	for i := range r.Book.Classes {
 		row := &r.Book.Classes[i]
-		v := api.Class{ID: row.ID, Name: titleOf(row.ID), Leans: row.Leans, Earned: c.C.Classes.Has(row.ID), Active: slices.Contains(c.C.Classes.Active, row.ID),
-			Needs: []api.Need{}, Tiers: []api.Tier{}}
+		earned := c.C.Classes.Has(row.ID)
+		if !earned && !g.ClassShown(row.ID) {
+			continue
+		}
+		v := api.Class{ID: row.ID, Name: titleOf(row.ID), Leans: row.Leans, Earned: earned, Active: slices.Contains(c.C.Classes.Active, row.ID),
+			Needs: []api.Need{}, Tiers: []api.Tier{}, Found: row.Hidden && g.ClassShown(row.ID)}
 		for _, e := range c.C.Classes.Earned {
 			if e.ID == row.ID {
 				v.First = e.First

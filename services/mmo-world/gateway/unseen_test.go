@@ -14,6 +14,8 @@ import (
 	"jams.team/mmo-world/service"
 	"jams.team/mmo-world/sim/arc"
 	"jams.team/mmo-world/sim/char"
+	"jams.team/mmo-world/sim/emerge"
+	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
@@ -38,6 +40,7 @@ func TestNothingUnseen(t *testing.T) {
 	t.Run("party", nothingUnseenParty)
 	t.Run("pin", nothingUnseenPin)
 	t.Run("story", nothingUnseenStory)
+	t.Run("emergence", nothingUnseenEmergence)
 }
 
 // structural: how far from the character the pin stands, and how far it
@@ -769,6 +772,130 @@ func nothingUnseenStory(t *testing.T) {
 				if f.Kind != "pattern.clue" {
 					t.Errorf("%s was shown a clue of kind %s", view.who, f.Kind)
 				}
+			}
+		}
+	}
+}
+
+// promotedIn puts a promotion record and its fact into the game as the
+// core writes them.
+func promotedIn(t *testing.T, g *game.Game, p emerge.Promotion) emerge.Promotion {
+	t.Helper()
+	e := g.Emergence
+	p.ID, p.Season, p.Tick = e.NewID(p.Type), e.Season, g.Tick()
+	subjects := []fact.Ref{{Kind: "promotion", ID: p.ID}}
+	if p.First != "" {
+		subjects = append(subjects, char.Ref(p.First))
+	}
+	id, err := g.Log.Append(fact.Fact{Tick: p.Tick, Kind: "promotion", Weight: 70, Subjects: subjects,
+		Data: []fact.Datum{fact.S("type", string(p.Type)), fact.S("id", p.ID), fact.S("name", p.Name)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Fact = id
+	e.Promotions = append(e.Promotions, p)
+	return p
+}
+
+// nothingUnseenEmergence gives one character the firsts of a style, a
+// variant and its found material, and a bounty that became a legend, and
+// lays a road under another. The other is shown the road's and the
+// material's names (the material's after its first renames it), and the
+// legend on the bounty, and is never sent the first's id but as the
+// bounty's issuer, as a board always names one; its state's names hold
+// found ids only.
+func nothingUnseenEmergence(t *testing.T) {
+	w := newWorld(t)
+	g := w.g
+	first, other := w.create("u-first"), w.create("u-other")
+	b := g.Rules().Book
+	arch := b.Creatures[0].ID
+	bounty := api.GoalSpec{Title: "Slay it", Issuer: "character", Mode: "first", Lifetime: "standing", Turnover: "carry",
+		Cond: api.Condition{Verb: "defeat", Kind: arch, Count: 1}}
+	w.act(first, "bounty-1", api.ActionRequest{Kind: api.ActPostGoal, Goal: &bounty})
+
+	var material, legend, road emerge.Promotion
+	var key string
+	w.do(func() {
+		e := g.Emergence
+		region := g.World.RegionAt(first.C.At)
+		row, base := b.Adaptations[0], b.Materials[0]
+		found, ok := g.Rules().Emerge.Found(base, row.ID)
+		if !ok {
+			t.Fatalf("adaptation %s makes nothing of %s", row.ID, base.ID)
+		}
+		style := promotedIn(t, g, emerge.Promotion{Type: emerge.Style, Name: "Ember Hands", First: first.C.ID, Region: region, Of: "edge+keen"})
+		variant := promotedIn(t, g, emerge.Promotion{Type: emerge.Variant, Name: "Plated beast", First: first.C.ID, Region: region, Of: arch})
+		e.Variants = append(e.Variants, &emerge.VariantRec{ID: variant.ID, Region: region, Archetype: arch, Row: row.ID, Style: style.Of,
+			Resisted: "keen", Material: found.ID})
+		e.Materials = append(e.Materials, found)
+		material = promotedIn(t, g, emerge.Promotion{Type: emerge.Material, Name: "Plated stuff", First: first.C.ID, Region: region, Of: found.ID})
+		legend = promotedIn(t, g, emerge.Promotion{Type: emerge.Legend, Name: "The beast the Unbroken", First: first.C.ID, Region: region,
+			Of: "creature:" + arch})
+		e.Legends = append(e.Legends, &emerge.LegendRec{ID: legend.ID, Trait: b.LegendTraits[0].ID, Of: fact.Ref{Kind: "creature", ID: arch},
+			Region: region, At: first.C.At})
+		h := other.C.At
+		road = promotedIn(t, g, emerge.Promotion{Type: emerge.Road, Name: "the Home road", Region: g.World.RegionAt(h), At: &h})
+		e.Roads[h] = road.ID
+		e.RoadRecs[road.ID] = &emerge.RoadRec{ID: road.ID, Region: road.Region, Tiles: 1}
+		g.World.Tile(h).Road = simworld.RoadTrack
+		g.Attach(g.Rules())
+		other.C.Goods = append(other.C.Goods, item.Spoil{Material: found.ID, Qty: 2})
+		key = "items.materials:" + found.ID
+	})
+	w.serve(nil)
+
+	v := w.join("u-other", "i-emergence", api.Viewer{}, nil)
+	st := v.state()
+	if len(st.Names) != 1 || st.Names[key] != material.Name || st.Place.Tile.RoadName != road.Name {
+		t.Fatalf("the other's state names %v on %+v", st.Names, st.Place.Tile)
+	}
+	w.act(first, "rename-1", api.ActionRequest{Kind: api.ActPromoteName, Option: material.ID, Note: "Shellhide"})
+	w.tick()
+	if st = v.state(); st.Names[key] != "Shellhide" {
+		t.Fatalf("after the rename the other's state names %v", st.Names)
+	}
+	var page string
+	w.do(func() {
+		gs, err := w.l.Goals(t.Context(), other.C.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		i := slices.IndexFunc(gs.Board, func(x api.Goal) bool { return x.Title == bounty.Title })
+		if i < 0 || gs.Board[i].Legend != legend.Name {
+			t.Fatalf("the bounty on the other's board: %+v", gs.Board)
+		}
+		page = strings.ReplaceAll(asJSON(gs), `"by":"`+first.C.ID+`"`, "")
+	})
+	v.quiet()
+	w.stop()
+	v.ended()
+
+	tape := v.tape.all()
+	for _, text := range []struct{ who, s string }{{"the other's tape", tape}, {"the other's goals", page}} {
+		for _, id := range characterID.FindAllString(text.s, -1) {
+			if id != `"`+other.C.ID+`"` {
+				t.Errorf("%s holds the character id %s", text.who, id)
+			}
+		}
+		if strings.Contains(text.s, "u-first") {
+			t.Errorf("%s holds the first's user", text.who)
+		}
+	}
+	v.tape.mu.Lock()
+	frames := slices.Clone(v.tape.frames)
+	v.tape.mu.Unlock()
+	for _, frame := range frames {
+		var msg api.ServerMessage
+		if err := json.Unmarshal(frame, &msg); err != nil {
+			t.Fatal(err)
+		}
+		if msg.State == nil {
+			continue
+		}
+		for k := range msg.State.Names {
+			if k != key {
+				t.Errorf("the state names %s, which nobody found", k)
 			}
 		}
 	}

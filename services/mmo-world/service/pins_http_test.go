@@ -833,4 +833,11 @@ func TestPlayerFacts(t *testing.T) {
 	if out := service.PlayerFacts(nil); out == nil || len(out) != 0 {
 		t.Errorf("nil input gave %#v", out)
 	}
+	first, mine := api.Ref{Kind: "character", ID: "c-2"}, api.Ref{Kind: "character", ID: "c-1"}
+	promo := api.Ref{Kind: "promotion", ID: "style:1"}
+	got := service.ScrubFirsts("c-1", []api.Fact{{Kind: "promotion", Subjects: []api.Ref{promo, first}, Data: []api.Datum{{Key: "by", S: "c-2"}, {Key: "name", S: "x"}}},
+		{Kind: "promotion.renamed", Subjects: []api.Ref{promo, mine}}, {Kind: "party.joined", Subjects: []api.Ref{first, mine}}})
+	if len(got[0].Subjects) != 1 || len(got[0].Data) != 1 || len(got[1].Subjects) != 2 || len(got[2].Subjects) != 2 {
+		t.Errorf("promotion firsts scrubbed to %+v", got)
+	}
 }

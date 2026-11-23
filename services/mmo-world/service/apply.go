@@ -187,7 +187,7 @@ func applyCommand(ctx context.Context, g *game.Game, rec records, subs *listener
 	}
 	rep := actionReply(g, res)
 	if !game.Operator(cmd.Kind) {
-		rep.Facts = playerFacts(rep.Facts)
+		rep.Facts = scrubFirsts(cmd.Char, playerFacts(rep.Facts))
 	}
 	body, err := json.Marshal(rep)
 	if err != nil {

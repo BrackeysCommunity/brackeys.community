@@ -59,6 +59,7 @@ func (s *Server) Handler() http.Handler {
 	player("GET "+api.PathChronicleFact, s.chronicleFact)
 	player("GET "+api.PathStoryEvents, s.storyEvents)
 	player("GET "+api.PathArcs, s.arcs)
+	player("GET "+api.PathStoryPromotions, s.storyPromotions)
 	mux.HandleFunc("GET "+api.PathMedia+"{key}", s.mediaHandler)
 	op := func(path string, h http.HandlerFunc) {
 		mux.Handle(path, s.guard(s.cfg.OperatorToken, s.operatorOnly(h)))
@@ -71,6 +72,7 @@ func (s *Server) Handler() http.Handler {
 	op("GET "+api.PathOperatorDigest, s.digestHandler)
 	op("GET "+api.PathOperatorEconomy, s.flags)
 	op("GET "+api.PathOperatorStory, s.operatorStory)
+	op("GET "+api.PathOperatorEmergence, s.operatorEmergence)
 	op("POST "+api.PathOperatorReset, s.reset)
 	op("POST "+api.PathOperatorClock, s.clock)
 	return mux

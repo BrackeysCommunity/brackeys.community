@@ -1370,7 +1370,7 @@ export const PathStoryPromotions = "/v1/story/promotions";
 export const PathOperatorEmergence = "/v1/operator/emergence";
 /**
  * ActPromoteName renames a promotion once, by its first, within the
- * rename days: Option is the promotion id and Text the name (GDD 4.17).
+ * rename days: Option is the promotion id and Note the name (GDD 4.17).
  */
 export const ActPromoteName = "promote-name";
 /**

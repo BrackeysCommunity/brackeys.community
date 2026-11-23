@@ -66,6 +66,7 @@ func Filter(g *game.Game, c *game.Char, v api.Viewer, passed int64, now time.Tim
 	if c.Fight == nil && (st.Machine == nil || st.Machine.Source == api.MachinePattern) {
 		st.Pattern = seenPattern(g, c)
 	}
+	st.Names = stateNames(g, &st)
 	return st
 }
 
@@ -110,6 +111,32 @@ func seen(g *game.Game, viewer string, f api.Fact) (api.Fact, bool) {
 	}
 	out.Data = slices.DeleteFunc(slices.Clone(f.Data), func(d api.Datum) bool { return d.S != "" && d.S != viewer && g.Char(d.S) != nil })
 	return out, true
+}
+
+// firstKinds are the facts that name a promotion's first, who is named to
+// nobody else.
+var firstKinds = []string{"promotion", "promotion.renamed"}
+
+// scrubFirsts drops from each promotion fact the characters other than the
+// viewer, in its subjects and its data, for reads that name others freely.
+func scrubFirsts(viewer string, fs []api.Fact) []api.Fact {
+	for i, f := range fs {
+		if !slices.Contains(firstKinds, f.Kind) {
+			continue
+		}
+		var gone []string
+		subjects := make([]api.Ref, 0, len(f.Subjects))
+		for _, s := range f.Subjects {
+			if s.Kind == kindCharacter && s.ID != viewer {
+				gone = append(gone, s.ID)
+				continue
+			}
+			subjects = append(subjects, s)
+		}
+		fs[i].Subjects = subjects
+		fs[i].Data = slices.DeleteFunc(slices.Clone(f.Data), func(d api.Datum) bool { return d.S != "" && slices.Contains(gone, d.S) })
+	}
+	return fs
 }
 
 // playerFacts drops the kinds no public read returns: pins, which no

@@ -1,6 +1,6 @@
 // Command op is the operator CLI: inspect, correct, grant, ban, audit, economy,
 // stand a character before a machine, pin content, start a season, cast an
-// arc, read the story, reset and replay a world.
+// arc, read the story and the emergence dashboard, reset and replay a world.
 //
 // Writes go through the running service's operator API, so the service
 // stays the only writer and every correction replays. replay reads the
@@ -54,6 +54,8 @@ const usage = `op [-id <interaction id>] <command>
                                   cast an arc with its cast bound by hand
       kinds: faction f-N, region r-N, holding r-N, settlement N, tile q,r, notable, npc, character
   story                           the season, the arcs, the ring and the pattern boards
+  emergence                       the four measures against their healthy lines, this season's
+                                  promotions by type against need, and the newest 20 promotions
   audit                           the conservation check
   economy                         the faucet, and characters flagged for review
   digest                          the world's tick and digest
@@ -229,6 +231,11 @@ func run(args []string) error {
 			return errors.New(usage)
 		}
 		return shown(story(context.Background(), cli()))
+	case "emergence":
+		if len(rest) != 0 {
+			return errors.New(usage)
+		}
+		return emergence(context.Background(), cli(), os.Stdout)
 	case "audit":
 		return shown(cli().Audit(context.Background()))
 	case "economy":

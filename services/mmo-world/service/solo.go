@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -289,9 +290,11 @@ func topTwo(v item.Vec) [2]int {
 func (s *Server) here(w http.ResponseWriter, r *http.Request) {
 	var out api.Here
 	var banner render.BannerInput
+	viewer := ""
 	if !s.withChar(w, r, func(c *game.Char) {
 		out = s.apiHere(c)
 		banner = s.bannerInput(c.C.At)
+		viewer = c.C.ID
 	}) {
 		return
 	}
@@ -299,7 +302,7 @@ func (s *Server) here(w http.ResponseWriter, r *http.Request) {
 	if out.Banner, err = s.banner(banner); err == nil && out.Place.Tile.Region != "" {
 		var recent []fact.Fact
 		recent, err = s.st.RecentIn(r.Context(), out.Place.Tile.Region, recentFacts)
-		out.Recent = apiFacts(recent)
+		out.Recent = scrubFirsts(viewer, apiFacts(recent))
 	}
 	if err != nil {
 		s.internal(w, err)
@@ -487,8 +490,8 @@ func (s *Server) recap(w http.ResponseWriter, r *http.Request) {
 		for _, l := range rc.Lines {
 			x := api.RecapLine{Rule: l.Rule, Kind: l.Kind, NPC: l.NPC}
 			if l.NPC == "" {
-				f := apiFacts([]fact.Fact{l.Fact})[0]
-				x.Fact = &f
+				f, _ := seen(s.g, c.C.ID, apiFact(l.Fact))
+				x.Fact, x.Promotion = &f, renamable(s.g, c.C.ID, l.Fact)
 			}
 			out.Lines = append(out.Lines, x)
 		}
@@ -576,7 +579,9 @@ func (s *Server) mapHandler(w http.ResponseWriter, r *http.Request) {
 	reply(w, http.StatusOK, out)
 }
 
-func (s *Server) lexicon(w http.ResponseWriter, _ *http.Request) {
+// lexicon is the pack's names and the sheet numbers cards state, with the
+// names of the materials the world has found.
+func (s *Server) lexicon(w http.ResponseWriter, r *http.Request) {
 	rules := s.rules.Load()
 	b := rules.Book
 	n := rules.CardNumbers()
@@ -590,6 +595,12 @@ func (s *Server) lexicon(w http.ResponseWriter, _ *http.Request) {
 	for _, start := range b.Starts {
 		out.Starts = append(out.Starts, start.ID)
 	}
+	unlock, ok := s.hold(r.Context(), w, true)
+	if !ok {
+		return
+	}
+	defer unlock()
+	maps.Copy(out.Names, materialNames(s.g))
 	reply(w, http.StatusOK, out)
 }
 

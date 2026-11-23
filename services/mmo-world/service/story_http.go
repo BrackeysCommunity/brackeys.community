@@ -37,6 +37,8 @@ var (
 	kindSettlement = arc.SettlementRef(0).Kind
 	kindTile       = arc.TileRef(hex.Hex{}).Kind
 	kindCharacter  = char.Ref("").Kind
+	kindLegend     = arc.LegendRef("").Kind
+	kindCaravan    = arc.CaravanRef("").Kind
 )
 
 // Ref kinds a cast binds that sim/arc builds unexported.
@@ -206,6 +208,15 @@ func castName(g *game.Game, ref fact.Ref, viewer string) string {
 	case kindCharacter:
 		if ref.ID == viewer && viewer != "" {
 			return charName(g, ref.ID)
+		}
+	case kindLegend:
+		if g.Emergence != nil {
+			return shownPromotion(g.Emergence, ref.ID)
+		}
+	case kindCaravan:
+		if g.Emergence != nil {
+			route, _, _ := strings.Cut(ref.ID, caravanSep)
+			return shownPromotion(g.Emergence, route)
 		}
 	}
 	return ""
@@ -488,14 +499,14 @@ func (s *Server) storyEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 // storyEvent is one fact for the events channel with its snapshot: a
-// trouble's, or an arc's that is not a personal thread. False for a fact
-// the public may not read.
+// trouble's, an arc's that is not a personal thread, or the promotion it
+// names. False for a fact the public may not read.
 func storyEvent(g *game.Game, f fact.Fact) (api.StoryEvent, bool) {
 	v, ok := seen(g, "", apiFact(f))
 	if !ok {
 		return api.StoryEvent{}, false
 	}
-	ev := api.StoryEvent{Fact: v}
+	ev := api.StoryEvent{Fact: v, Promotion: promotionOf(g, f)}
 	if d, ok := f.Get("arc"); ok {
 		if a := g.ArcByID(d.S); a != nil && a.Scope == arc.Settlement {
 			ev.Trouble = troubleView(g, a)

@@ -193,6 +193,7 @@ func apiFight(g *game.Game, c *game.Char, f *game.FightView) *api.Fight {
 	}
 	e := c.Fight.E
 	v.Floor, v.Hidden = e.Floor, int64(e.At) < e.Hidden
+	v.CreatureName, v.Variant = variantSeen(g, c.C.At, e)
 	for _, in := range g.SwapDecks(c) {
 		v.Decks = append(v.Decks, api.DeckView{ID: in.ID, Name: g.KindName(in.Kind)})
 	}
@@ -275,6 +276,7 @@ func apiFact(f fact.Fact) api.Fact {
 	for _, c := range f.Causes {
 		x.Causes = append(x.Causes, int64(c))
 	}
+	x.Staged = f.StagedBy != nil
 	return x
 }
 
@@ -315,6 +317,7 @@ func tileView(g *game.Game, h hex.Hex) api.Tile {
 			out.Structures = append(out.Structures, s.Kind)
 		}
 	}
+	emergentTile(g, h, &out)
 	if r := g.World.RegionAt(h); r >= 0 {
 		out.Region = world.RegionRef(r)
 	}

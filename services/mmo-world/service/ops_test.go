@@ -178,6 +178,7 @@ func TestAPIMatchesRules(t *testing.T) {
 		{api.CodeNoHunt, game.NoHunt}, {api.CodePressed, game.Pressed}, {api.CodeOpenHunt, game.OpenHunt}, {api.CodeNoSuchRow, game.NoSuchRow},
 		{api.CodeNoSlot, game.NoSlot}, {api.CodeSwapped, game.Swapped}, {api.CodeNoTrack, game.NoTrack}, {api.CodeRivalWon, game.RivalWon},
 		{api.CodeNoRoute, game.NoRoute}, {api.CodeUsed, game.Used},
+		{api.ActPromoteName, game.PromoteName}, {api.CodeNotFirst, game.NotFirst}, {api.CodeNameClosed, game.NameClosed},
 		{api.OpPinReserve, game.PinReserve}, {api.OpPinEdit, game.PinEdit}, {api.OpPinWithdraw, game.PinWithdraw}, {api.OpContentFreeze, game.ContentFreeze},
 		{api.CodePinReach, simworld.CodePinReach}, {api.CodePinSeen, simworld.CodePinSeen}, {api.CodePinUnseen, simworld.CodePinUnseen},
 		{api.CodePinGround, simworld.CodePinGround}, {api.CodePinPath, simworld.CodePinPath}, {api.CodePinFix, simworld.CodePinFix},

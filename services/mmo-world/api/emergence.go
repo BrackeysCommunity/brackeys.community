@@ -10,7 +10,7 @@ const (
 )
 
 // ActPromoteName renames a promotion once, by its first, within the
-// rename days: Option is the promotion id and Text the name (GDD 4.17).
+// rename days: Option is the promotion id and Note the name (GDD 4.17).
 const ActPromoteName = "promote-name"
 
 // Refusal codes of emergence.
