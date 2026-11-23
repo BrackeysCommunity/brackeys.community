@@ -42,6 +42,7 @@ const (
 	ActClearFloor     = "clear-floor" // floor Units of the dungeon on Hex cleared; kept for recorded actions
 	ActEase           = "ease"        // Units of threat taken off the region holding Hex
 	ActAlarm          = "alarm"       // Units of threat a machine's alarm adds to the region holding Hex
+	ActProsper        = "prosper"     // Units of prosperity a day's trade adds to the region holding Hex
 )
 
 // actions is every action kind: what it needs to be applied, checked
@@ -111,6 +112,17 @@ var actions = map[string]struct {
 	}, func(s *State, _ fact.Log, a Action) error {
 		if r := s.RegionAt(a.Hex); r >= 0 {
 			s.addGauge(r, s.GaugeIndex("threat"), a.Units)
+		}
+		return nil
+	}},
+	ActProsper: {func(_ *State, a Action) error {
+		if a.Units <= 0 {
+			return fmt.Errorf("world: prosper by %d", a.Units)
+		}
+		return nil
+	}, func(s *State, _ fact.Log, a Action) error {
+		if r := s.RegionAt(a.Hex); r >= 0 {
+			s.addGauge(r, s.GaugeIndex("prosperity"), a.Units)
 		}
 		return nil
 	}},

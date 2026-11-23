@@ -192,6 +192,7 @@ func (g *Game) dayTurn(t int64) error {
 		b.CloseDay(day-1, t, g.mp("history-days"), int64(g.cause(b.Settlement, t)))
 	}
 	m.Yesterday, m.Notable = m.Notable, []Trade{}
+	g.tradeDay(day - 1)
 	supply, held, active := g.coinHeld()
 	per := int64(0)
 	if active > 0 {

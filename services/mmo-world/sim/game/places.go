@@ -12,6 +12,7 @@ import (
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/settle"
 	"jams.team/mmo-world/sim/sheets"
+	"jams.team/mmo-world/sim/world"
 )
 
 // Commands of settlements (GDD 4.8, 4.16).
@@ -466,6 +467,45 @@ func (g *Game) placesTurn(t int64) error {
 		}
 	}
 	return nil
+}
+
+// tradeDay raises each region's prosperity by the coin its settlements'
+// books traded on the world day just closed (GDD 4.3), up to a day's cap.
+// It runs once the books close, so the world's day pulls the gauge back
+// toward its baseline after the rise.
+func (g *Game) tradeDay(day int64) {
+	if g.Market == nil {
+		return
+	}
+	per, most := g.sp("prosperity-coin"), g.sp("prosperity-trade-cap")
+	coin := map[int]int64{}
+	at := map[int]hex.Hex{}
+	var order []int
+	for _, b := range g.Market.Books {
+		if b.Settlement < 0 || b.Settlement >= len(g.Places) || g.Places[b.Settlement].Ruined != 0 || len(b.Days) == 0 {
+			continue
+		}
+		d := b.Days[len(b.Days)-1]
+		if d.Day != day || d.Coin <= 0 {
+			continue
+		}
+		h := g.SettlementHex(b.Settlement)
+		r := g.World.RegionAt(h)
+		if r < 0 {
+			continue
+		}
+		if _, ok := at[r]; !ok {
+			at[r] = h
+			order = append(order, r)
+		}
+		coin[r] += d.Coin
+	}
+	slices.Sort(order)
+	for _, r := range order {
+		if by := min(coin[r]/max(per, 1), most); by > 0 {
+			g.Pending = append(g.Pending, world.Action{Kind: world.ActProsper, Hex: at[r], Units: by})
+		}
+	}
 }
 
 // used marks a settlement's structures used now, and with them every

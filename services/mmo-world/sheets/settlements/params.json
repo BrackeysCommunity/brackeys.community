@@ -189,6 +189,18 @@
       "doc": "World days running its region holds city-prosperity (GDD 4.8)."
     },
     {
+      "id": "prosperity-coin",
+      "value": 1000,
+      "unit": "coin",
+      "doc": "Coin a region's market books trade in a world day for each prosperity it adds (GDD 4.3)."
+    },
+    {
+      "id": "prosperity-trade-cap",
+      "value": 25,
+      "unit": "gauge",
+      "doc": "The most prosperity a day's trade adds to a region. Against the 5% pull it holds a region about 19 times this over its baseline, so the highest baseline stays under the gauge's max."
+    },
+    {
       "id": "city-wall-tier",
       "value": 1,
       "unit": "tier",
