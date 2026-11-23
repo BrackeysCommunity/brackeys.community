@@ -43,8 +43,9 @@ const (
 	FromCraft    = Source + "craft"
 	FromForage   = Source + "forage"
 	FromStart    = Source + "start"
-	FromHunt     = Source + "hunt"  // a hunt's spoils, rolled once at the kill
-	FromCache    = Source + "cache" // a solved pattern's or a won side's goods; never coin
+	FromHunt     = Source + "hunt"    // a hunt's spoils, rolled once at the kill
+	FromCache    = Source + "cache"   // a solved pattern's or a won side's goods; never coin
+	FromCaravan  = Source + "caravan" // a caravan's manifest; never coin
 	ToProvisions = Sink + "provisions"
 	ToLost       = Sink + "lost"
 	ToOperator   = Sink + "operator"
@@ -56,6 +57,7 @@ const (
 	ToGoalFees   = Sink + "goal-fees"
 	ToBuild      = Sink + "build" // charters, structures and their repairs
 	ToWorks      = Sink + "works" // what guild works consume
+	ToTolls      = Sink + "tolls" // coin paid to cross a tolled road
 )
 
 // Material, Item and Char name a material asset, an item asset and a
@@ -78,6 +80,13 @@ func HuntPool(id string) string { return Pool + "hunt:" + id }
 // CachePool holds a cache's goods, by the board or side that opened it,
 // until they are split among its contributors.
 func CachePool(id string) string { return Pool + "cache:" + id }
+
+// CaravanPool holds a caravan's goods on the road, by its id. The audit
+// holds it to what the state says the caravan carries.
+func CaravanPool(id string) string { return Pool + caravanPrefix + id }
+
+// IsCaravan reports whether an account is a caravan's pool.
+func IsCaravan(acc string) bool { return strings.HasPrefix(acc, Pool+caravanPrefix) }
 
 // FloorOf reads a floor pool back: the entrance's ref and the floor.
 func FloorOf(acc string) (string, int64, bool) {
@@ -124,10 +133,11 @@ func CharOf(acc string) (string, bool) { return strings.CutPrefix(acc, Holder) }
 // structural: the prefixes of an NPC's pool account and an escrow pool;
 // a floor is written in decimal and read back as an int64.
 const (
-	npcPrefix    = "npc:"
-	escrowPrefix = "escrow:"
-	decimal      = 10
-	floorBits    = 64
+	npcPrefix     = "npc:"
+	escrowPrefix  = "escrow:"
+	caravanPrefix = "caravan:"
+	decimal       = 10
+	floorBits     = 64
 )
 
 // Goods is the asset a material trades as; provisions are their own.
@@ -284,8 +294,13 @@ func (b *Book) Check(t Txn) error {
 		return fmt.Errorf("ledger %s: coin enters only through faction buys or an operator's correction", t.Key)
 	}
 	for _, l := range t.Legs {
-		if _, goods := GoodsOf(l.Asset); l.Account == FromCache && !goods {
+		_, goods := GoodsOf(l.Asset)
+		switch {
+		case goods:
+		case l.Account == FromCache:
 			return fmt.Errorf("ledger %s: a cache gives goods, not %s", t.Key, l.Asset)
+		case l.Account == FromCaravan:
+			return fmt.Errorf("ledger %s: a caravan carries goods, not %s", t.Key, l.Asset)
 		}
 	}
 	return nil
@@ -343,8 +358,8 @@ func Rebuild(bal []Balance, posted int64) Book {
 }
 
 // Audit is the conservation check (GDD 10.9): every asset sums to zero
-// over all accounts, and every holder's balances are exactly what the
-// state says it holds. It returns each discrepancy found.
+// over all accounts, and every holder's and caravan's balances are
+// exactly what the state says it holds. It returns each discrepancy found.
 func Audit(ledger, held []Balance) []string {
 	var out []string
 	sums := Rebuild(nil, 0)
@@ -357,7 +372,7 @@ func Audit(ledger, held []Balance) []string {
 	want := Rebuild(held, 0)
 	got := Rebuild(nil, 0)
 	for _, x := range ledger {
-		if strings.HasPrefix(x.Account, Holder) {
+		if strings.HasPrefix(x.Account, Holder) || IsCaravan(x.Account) {
 			got.add(x.Account, x.Asset, x.Units)
 		}
 	}

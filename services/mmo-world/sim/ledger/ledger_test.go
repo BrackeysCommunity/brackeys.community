@@ -47,6 +47,8 @@ func TestCheckRefuses(t *testing.T) {
 		{"coin from the wrong source", ledger.Move("k", "x", 0, ledger.FromHaul, ann, ledger.Coin, 1), "coin enters only"},
 		{"coin from a cache", ledger.Move("k", "x", 0, ledger.FromCache, ledger.CachePool("b"), ledger.Coin, 1), "coin enters only"},
 		{"an item from a cache", ledger.Move("k", "x", 0, ledger.FromCache, ledger.CachePool("b"), ledger.Item("i-1"), 1), "a cache gives goods"},
+		{"coin from a caravan", ledger.Move("k", "x", 0, ledger.FromCaravan, ledger.CaravanPool("c"), ledger.Coin, 1), "coin enters only"},
+		{"an item from a caravan", ledger.Move("k", "x", 0, ledger.FromCaravan, ledger.CaravanPool("c"), ledger.Item("i-1"), 1), "a caravan carries goods"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			b := funded(t)
@@ -153,6 +155,37 @@ func TestAudit(t *testing.T) {
 				t.Fatalf("audit found %q, want one containing %q", bad, c.want)
 			}
 		})
+	}
+}
+
+func TestAuditCaravanPools(t *testing.T) {
+	b := funded(t)
+	cv := ledger.CaravanPool("route:1/0")
+	for _, tx := range []ledger.Txn{
+		ledger.Move("depart", "caravan", 1, ledger.FromCaravan, cv, ore, 30),
+		ledger.Move("rob", "caravan", 2, cv, ledger.TilePool("t"), ore, 15),
+	} {
+		if err := b.Post(tx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	held := []ledger.Balance{{ann, ledger.Coin, 5}, {ann, ore, 3}}
+	carried := append(slices.Clone(held), ledger.Balance{Account: cv, Asset: ore, Units: 15})
+	if bad := ledger.Audit(b.Balances, carried); len(bad) != 0 {
+		t.Fatal(bad)
+	}
+	if bad := ledger.Audit(b.Balances, held); !slices.ContainsFunc(bad, func(s string) bool { return strings.Contains(s, cv) }) {
+		t.Fatalf("a caravan the state does not hold went unseen: %q", bad)
+	}
+	wrong := append(slices.Clone(held), ledger.Balance{Account: cv, Asset: ore, Units: 30})
+	if bad := ledger.Audit(b.Balances, wrong); !slices.ContainsFunc(bad, func(s string) bool { return strings.Contains(s, "ledger 15") }) {
+		t.Fatalf("a caravan's wrong manifest went unseen: %q", bad)
+	}
+	if err := b.Post(ledger.Move("arrive", "caravan", 3, cv, ledger.ToFaction, ore, 15)); err != nil {
+		t.Fatal(err)
+	}
+	if bad := ledger.Audit(b.Balances, held); len(bad) != 0 {
+		t.Fatal(bad)
 	}
 }
 

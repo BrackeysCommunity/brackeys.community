@@ -16,12 +16,13 @@ import (
 func TestEveryClassCanBeEarned(t *testing.T) {
 	b := rules(t).Book
 	processes := b.IDs("items.processes")
+	practices := game.Practices(b)
 	for _, c := range b.Classes {
-		if !slices.Contains(game.Skills, c.Skill) {
+		if !slices.Contains(practices, c.Skill) {
 			t.Errorf("%s: its level follows %q, which nothing practises", c.ID, c.Skill)
 		}
 		for _, q := range c.Unlock {
-			known := map[string][]string{"practice": game.Skills, "deed": game.Deeds, "crafts": processes}[q.Kind]
+			known := map[string][]string{"practice": practices, "deed": game.Deeds, "crafts": processes}[q.Kind]
 			if !slices.Contains(known, q.ID) {
 				t.Errorf("%s: unlocks at %s %q, which nothing counts", c.ID, q.Kind, q.ID)
 			}

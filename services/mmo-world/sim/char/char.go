@@ -20,6 +20,10 @@ import (
 // Ref is the fact ref of a character.
 func Ref(id string) fact.Ref { return fact.Ref{Kind: "character", ID: id} }
 
+// DeedRoadSteps counts steps onto road tiles, which a Roadwarden's
+// threshold reads.
+const DeedRoadSteps = "road-steps"
+
 // Slot names in the kit (GDD 5.2).
 const (
 	Hand    = "hand"

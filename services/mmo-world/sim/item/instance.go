@@ -136,7 +136,7 @@ func (d *Deriver) Materials(id string) []Spoil {
 	var out []Spoil
 	var walk func(id string, qty int64)
 	walk = func(id string, qty int64) {
-		if _, ok := d.materials[id]; ok {
+		if _, ok := d.material(id); ok {
 			i := slices.IndexFunc(out, func(s Spoil) bool { return s.Material == id })
 			if i < 0 {
 				out = append(out, Spoil{Material: id})

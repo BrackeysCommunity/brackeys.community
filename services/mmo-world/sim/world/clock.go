@@ -43,6 +43,7 @@ const (
 	ActEase           = "ease"        // Units of threat taken off the region holding Hex
 	ActAlarm          = "alarm"       // Units of threat a machine's alarm adds to the region holding Hex
 	ActProsper        = "prosper"     // Units of prosperity a day's trade adds to the region holding Hex
+	ActRoad           = "road"        // Hex's road raised to level Units; never lowered
 )
 
 // actions is every action kind: what it needs to be applied, checked
@@ -126,6 +127,7 @@ var actions = map[string]struct {
 		}
 		return nil
 	}},
+	ActRoad: {checkRoad, applyRoad},
 	ActFall: {nil, func(s *State, _ fact.Log, a Action) error {
 		s.touch(a.Hex).BattlesLost++
 		return nil

@@ -14,6 +14,9 @@ import (
 type Tail struct {
 	Count ID        `json:"count"`
 	Chain canon.Sum `json:"chain"`
+	// Stage may mark a fact (its StagedBy) once it is normalised and before
+	// it is hashed, so the chain covers the mark and a replay reproduces it.
+	Stage func(*Fact) `json:"-"`
 	facts []Fact
 	enc   canon.Encoder
 }
@@ -22,6 +25,9 @@ func (t *Tail) Append(f Fact) (ID, error) {
 	next := t.Count + 1
 	if err := prepare(&f, next); err != nil {
 		return 0, err
+	}
+	if t.Stage != nil {
+		t.Stage(&f)
 	}
 	b, err := t.enc.Marshal(f)
 	if err != nil {

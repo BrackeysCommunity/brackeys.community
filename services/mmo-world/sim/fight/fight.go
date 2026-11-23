@@ -208,6 +208,8 @@ type Situation struct {
 	// how many more times a chained state's rules fire, by its tag.
 	Rally   int64
 	Repeats map[tags.Tag]int64
+	// Resist is what the region's creatures have adapted against.
+	Resist []Resist
 }
 
 // Part is one line of a score's why.
@@ -454,6 +456,7 @@ func (r *Rules) option(s Situation, k Kit, row sheets.OptionRow, g *Gear, axis s
 		}
 	}
 	steps += rallied(s, row, &why)
+	steps -= resisted(s, row.Kind, subject, &why)
 	o.Tags = subject.Tags()
 	var lines []Part
 	o.Difficulty, lines = r.difficulty(s)

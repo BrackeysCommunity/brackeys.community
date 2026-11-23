@@ -89,6 +89,8 @@ type Encounter struct {
 	Rally     int64       `json:"rally,omitempty"` // band steps on the next press
 	Rallied   string      `json:"rallied,omitempty"`
 	Kept      []string    `json:"kept,omitempty"`
+	// Resist is what the region had adapted against when it began.
+	Resist []Resist `json:"resist,omitempty"`
 	// Pool is the dungeon's guardian, pressed on the last beat; the game
 	// attaches it before each press.
 	Pool *Pool `json:"-"`
@@ -120,7 +122,8 @@ type Site struct {
 	Measures []tags.Measure
 	Party    int64
 	Troubled bool
-	Floor    int64 // a dungeon floor, from 1; 0 outside
+	Resist   []Resist // what the region's creatures have adapted against
+	Floor    int64    // a dungeon floor, from 1; 0 outside
 	// The rest are zero outside a dungeon's floors.
 	Beats    int64  // 0: the tier's count; else exactly a floor's
 	Half     bool   // half way to the next tier: the midpoint difficulty
@@ -140,7 +143,7 @@ type Site struct {
 func (r *Rules) Assemble(site Site, c Creature) *Encounter {
 	e := &Encounter{ID: site.ID, Creature: c, Site: slices.Clone(site.Tags), Measures: site.Measures,
 		Party: max(1, site.Party), Troubled: site.Troubled, Floor: site.Floor, Guardian: -1,
-		Half: site.Half, Beyond: site.Beyond, Hidden: site.Hidden, Pool: site.Guardian}
+		Half: site.Half, Beyond: site.Beyond, Hidden: site.Hidden, Pool: site.Guardian, Resist: slices.Clone(site.Resist)}
 	if site.Floor > 0 && (site.Half || site.Beyond > 0) {
 		e.Dungeon = entranceOf(site.Place)
 	}
@@ -274,7 +277,7 @@ func (e *Encounter) Final() bool { return e.At == len(e.Beats)-1 }
 func (r *Rules) Situation(e *Encounter, who string) Situation {
 	s := Situation{Encounter: e.ID, Beat: int64(e.At), Kind: e.Beats[e.At], Creature: &e.Creature,
 		Place: slices.Clone(e.Site), Measures: e.Measures, Party: e.Party - int64(len(e.Down)), Troubled: e.Troubled,
-		Puzzle: e.Machines[e.At], Level: e.Levels[e.At], Half: e.Half, Beyond: e.Beyond}
+		Puzzle: e.Machines[e.At], Level: e.Levels[e.At], Half: e.Half, Beyond: e.Beyond, Resist: e.Resist}
 	if j := e.Joined; j != nil && e.At <= j.Until {
 		s.Joined = &j.Creature
 	}

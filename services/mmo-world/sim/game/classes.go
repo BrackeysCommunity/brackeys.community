@@ -41,10 +41,20 @@ const DeedGiven = "given"
 const practiceGoals = "goals"
 
 // Deeds are every deed a class threshold may count.
-var Deeds = []string{DeedHoldWon, DeedRuns, DeedFloors, DeedHauled, DeedForOthers, DeedPledged}
+var Deeds = []string{DeedHoldWon, DeedRuns, DeedFloors, DeedHauled, DeedForOthers, DeedPledged, char.DeedRoadSteps}
 
-// Skills are every skill the game practises.
+// Skills are every skill the game practises besides the puzzle families.
 var Skills = []string{"fight", "travel", "gather", "lockpick", "puzzle", practiceCraft, practiceGoals}
+
+// Practices are Skills and every machine puzzle family, which a solve
+// practises under its own id.
+func Practices(b *sheets.Book) []string {
+	out := slices.Clone(Skills)
+	for _, f := range b.PuzzleFamilies {
+		out = append(out, f.ID)
+	}
+	return out
+}
 
 // reader is a character as a class's thresholds read it.
 type reader struct{ c *char.Character }

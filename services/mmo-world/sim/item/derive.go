@@ -177,6 +177,9 @@ type Deriver struct {
 	quirk      *draw.Drawer
 	// Reg holds the kinds already made, so a recipe can name one as input.
 	Reg Registry
+	// Found holds the materials the world made in play, read where the
+	// sheet has no row.
+	Found *Found
 	// SkipQuirk derives without the quirk, to compare against it.
 	SkipQuirk bool
 }
@@ -227,11 +230,19 @@ func (d *Deriver) Budget(tier int64) int64 { return d.tiers[tier].Budget }
 
 // Material reports whether id is a base material, and its tier.
 func (d *Deriver) Material(id string) (int64, bool) {
-	m, ok := d.materials[id]
+	m, ok := d.material(id)
 	if !ok {
 		return 0, false
 	}
 	return m.Tier, true
+}
+
+// material is a base material's row: the sheet's, else a found one.
+func (d *Deriver) material(id string) (sheets.Material, bool) {
+	if m, ok := d.materials[id]; ok {
+		return *m, true
+	}
+	return d.Found.Get(id)
 }
 
 // Trait is a trait's sheet row.
@@ -284,7 +295,7 @@ type part struct {
 }
 
 func (d *Deriver) resolve(in Input) (part, error) {
-	if m, ok := d.materials[in.Kind]; ok {
+	if m, ok := d.material(in.Kind); ok {
 		return part{
 			vec:  m.Vector.Slice(),
 			tier: m.Tier, baseTier: m.Tier, tags: tags.Of(m.Tags), qty: in.Qty,

@@ -21,6 +21,9 @@ type Values struct {
 	params    []sheets.Param
 	archs     map[string]*sheets.Archetype
 	standing  []sheets.StandingBand // by From, lowest first
+	// Found prices the materials the world made in play by their tier,
+	// where the sheet has no row.
+	Found *item.Found
 }
 
 func New(b *sheets.Book) *Values {
@@ -44,7 +47,7 @@ func (v *Values) Param(id string) int64 { return sheets.IntParam(v.params, id) }
 // Material is a material's reference value: its tier's base, scaled by its
 // vector total against the tier's median, rounded half away. Never under 1.
 func (v *Values) Material(id string) int64 {
-	m, ok := v.materials[id]
+	m, ok := v.material(id)
 	if !ok {
 		return 0
 	}
@@ -57,6 +60,13 @@ func (v *Values) Material(id string) int64 {
 		total += x
 	}
 	return max(1, fixed.Ratio(r.Base*total, r.Median).Int())
+}
+
+func (v *Values) material(id string) (sheets.Material, bool) {
+	if m, ok := v.materials[id]; ok {
+		return *m, true
+	}
+	return v.Found.Get(id)
 }
 
 // Kind is a made kind's value: its inputs' values plus step-markup,
@@ -99,10 +109,11 @@ type Want struct {
 // Wants are a settlement's buy orders for the world day (GDD 10.4): each
 // material from the faction that wants it most (first on a tie) or else
 // the keepers, provisions from the first faction that buys them, each
-// priced at reference value times urgency.
+// priced at reference value times urgency. Found materials follow the
+// sheet's, so a world that has found none posts what it always did.
 func (v *Values) Wants(buyers []Buyer) []Want {
 	var out []Want
-	for _, m := range v.sorted {
+	for _, m := range append(slices.Clip(v.sorted), v.Found.List()...) {
 		w := Want{Material: m.ID, Buyer: Keepers, Urgency: fixed.Hundredths}
 		for fi, b := range buyers {
 			if u, ok := v.urgency(b, m.Tags); ok && (w.Buyer == Keepers || u > w.Urgency) {

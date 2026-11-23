@@ -136,3 +136,37 @@ func TestStanding(t *testing.T) {
 		}
 	}
 }
+
+// TestFoundMaterialValue: a found material is priced by its own tier like
+// any material, and joins the day's wants after the sheet's.
+func TestFoundMaterialValue(t *testing.T) {
+	v, b := values(t)
+	plated := sheets.Material{ID: "found.plated.stalker-hide", Tier: 2, Tags: []string{"hide", "plated"}, Vector: sheets.Vector{Flex: 16, Ward: 52}}
+	if v.Material(plated.ID) != 0 {
+		t.Fatal("an unregistered found material has a value")
+	}
+	buyers := []Buyer{{Archetype: b.Archetypes[0].ID, Needs: map[string]int64{}, Full: 10}}
+	before := v.Wants(buyers)
+	v.Found = &item.Found{}
+	if got := v.Wants(buyers); !slices.Equal(got, before) {
+		t.Fatal("an empty registry moved the wants")
+	}
+	v.Found.Add(plated)
+	// Tier 2's base 24 over its median 78, at 68 points: 20.9, so 21.
+	if got := v.Material(plated.ID); got != 21 {
+		t.Fatalf("plated hide is worth %d, want 21", got)
+	}
+	if v.Material("stalker-hide") >= v.Material(plated.ID) {
+		t.Fatal("the found material is worth no more than its base")
+	}
+	reg := item.NewMemRegistry()
+	k := reg.Freeze(&item.Kind{ID: "plate", Recipe: item.Recipe{Inputs: []item.Input{{Kind: plated.ID, Qty: 2}}}})
+	if got, want := v.Kind(reg, k), fixed.PercentPlus(2*21, v.Param("step-markup")); got != want {
+		t.Fatalf("a kind of plated hide: %d, want %d", got, want)
+	}
+	got := v.Wants(buyers)
+	n := len(b.Materials)
+	if !slices.Equal(got[:n], before[:n]) || got[n].Material != plated.ID || got[n].Price < v.Material(plated.ID) || !slices.Equal(got[n+1:], before[n:]) {
+		t.Fatalf("wants with a found material: %+v", got)
+	}
+}
