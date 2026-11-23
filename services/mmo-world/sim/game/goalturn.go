@@ -2,12 +2,14 @@ package game
 
 import (
 	"cmp"
+	"maps"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
 
 	"jams.team/mmo-world/sim/econ"
+	"jams.team/mmo-world/sim/emerge"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/goal"
@@ -649,4 +651,315 @@ func (g *Game) Board(n int) []*Goal {
 		return cmp.Compare(b.Posted, a.Posted)
 	})
 	return out
+}
+
+// Goal lines (GDD 13.2): a goal that could stand unmet into a legend or
+// renew into a custom is read by its signature through the season it
+// stands in, as it goes live, is attempted, met and turned over. Nothing
+// reads the log back.
+
+// structural: how a signature's parts join, and a tile-and-radius place.
+const (
+	sigSep    = "|"
+	sigWithin = "~"
+	attemptAt = "@"
+)
+
+// signature is a goal's line: who issues it, the verb and what it names,
+// and the place.
+func signature(x *Goal) string {
+	c := x.Cond
+	kind := c.Kind
+	if kind == "" {
+		kind = c.Gauge
+	}
+	place := c.At
+	if c.Hex != nil && c.Within > 0 {
+		place = goal.TileRef(*c.Hex) + sigWithin + strconv.FormatInt(c.Within, decimal)
+	}
+	return strings.Join([]string{x.Issuer.Kind, x.Issuer.ID, c.Verb, kind, c.Tag, c.Trait, place}, sigSep)
+}
+
+// lined reports whether a goal keeps a line: a Defeat, which could stand
+// unmet into a legend, or a settlement's own goal, which could renew into
+// a custom. Hidden goals, arc sides, calls for help, vows and a party's
+// or a character's own scope keep none.
+func lined(x *Goal) bool {
+	switch {
+	case x.Hidden, x.Cond.Verb == goal.Back, x.Cond.Verb == goal.Carry, x.Cond.Abstains():
+		return false
+	case x.Scope == goal.Personal, x.Scope == goal.Party:
+		return false
+	}
+	return x.Cond.Verb == goal.Defeat || customPlace(x) >= 0
+}
+
+// customPlace is the settlement whose own goal x is, -1 for any other. A
+// raise's or a city's lines are a project, not a goal a settlement renews.
+func customPlace(x *Goal) int {
+	if x.Build != nil || x.Issuer.Kind != goal.BySettlement && x.Issuer.Kind != goal.ByAdmin {
+		return -1
+	}
+	return x.Board
+}
+
+// seasonDayNow is today's day of the season, 0 on a world with no clock.
+func (g *Game) seasonDayNow() int64 {
+	c, ok := g.clock()
+	if !ok {
+		return 0
+	}
+	return c.Day(g.Tick() / sheets.TicksPerDay)
+}
+
+// lineOf is a lined goal's line this season, made when first seen.
+func (g *Game) lineOf(x *Goal) *emerge.Line {
+	e := g.Emergence
+	if e == nil || !lined(x) {
+		return nil
+	}
+	sig := signature(x)
+	if l := e.Lines[sig]; l != nil {
+		return l
+	}
+	region, at := g.goalPlace(x)
+	l := &emerge.Line{Sig: sig, Goal: x.ID, Standing: x.Lifetime == goal.Standing, Region: region, At: at,
+		Place: customPlace(x), FirstDay: g.seasonDayNow()}
+	if x.Cond.Verb == goal.Defeat {
+		l.Archetype = x.Cond.Kind
+	}
+	e.Lines[sig] = l
+	return l
+}
+
+// noteGoal reads a goal going live onto its line, which follows its newest
+// goal.
+func (g *Game) noteGoal(x *Goal) {
+	if g.Emergence == nil || x.State != goal.Live {
+		return
+	}
+	l := g.lineOf(x)
+	if l == nil || cmpID(x.ID, l.Goal) < 0 {
+		return
+	}
+	l.Goal, l.Standing = x.ID, x.Lifetime == goal.Standing
+}
+
+// noteCredit reads one event a goal counted: a unit counted short of a
+// claim is an attempt on its line, a claim meets the line, and a First
+// goal reaching its contributors may be a rival claim. A staged fact, a
+// pin's or a thread's counts toward none of it.
+func (g *Game) noteCredit(x *Goal, ev goal.Event, f fact.Fact, contributors, cites int, claims []goal.Claim) {
+	if g.Emergence == nil || len(claims) == 0 && len(x.Facts) == cites && len(x.Progress) == contributors {
+		return
+	}
+	if f.StagedBy != nil || untraced(f.Kind) {
+		return
+	}
+	l := g.lineOf(x)
+	switch {
+	case l == nil:
+	case len(claims) > 0:
+		l.Met = true
+	case len(x.Facts) > cites && !x.Cond.Hold() && ev.Who != "" && x.State == goal.Live:
+		if l.Archetype == "" && x.Cond.Verb == goal.Defeat {
+			l.Archetype = ev.Kind
+		}
+		g.attempt(l, ev.Who, f.Tick/sheets.TicksPerDay)
+	}
+	need := g.r.Emerge.P.OpposedContributors
+	if x.Mode == goal.First && x.State == goal.Live && int64(contributors) < need && int64(len(x.Progress)) >= need {
+		g.indexContest(x)
+	}
+}
+
+// attempt counts one character's try at a line on a day, once a day.
+func (g *Game) attempt(l *emerge.Line, who string, day int64) {
+	l.Attempts.See(who+attemptAt+strconv.FormatInt(day, decimal), day, g.Emergence.Season, g.r.Emerge.Lines[string(emerge.Legend)].Count)
+}
+
+// goalPlace is the region and tile a goal's place names: a region's
+// centre, a settlement's or a tile, else its board.
+func (g *Game) goalPlace(x *Goal) (int, hex.Hex) {
+	var h hex.Hex
+	if x.Board >= 0 && x.Board < len(g.Places) {
+		h = g.SettlementHex(x.Board)
+	}
+	c := x.Cond
+	switch kind, id, _ := goal.ParseRef(c.At); {
+	case c.Hex != nil:
+		h = *c.Hex
+	case kind == goal.PlaceRegion:
+		if r, ok := g.regionOf(c.At); ok {
+			return r, g.regionHex(r)
+		}
+	case kind == goal.PlaceSettlement:
+		if n, ok := goal.SettlementOf(c.At); ok && n < len(g.Places) {
+			h = g.SettlementHex(n)
+		}
+	case kind == goal.PlaceTile:
+		if t, ok := hex.ParseRef(id); ok {
+			h = t
+		}
+	}
+	return g.World.RegionAt(h), h
+}
+
+// goalGuild is the guild a goal is posted for: a muster's own, else the
+// guild that runs its board's settlement; "" for none.
+func (g *Game) goalGuild(x *Goal) string {
+	if x.Issuer.Kind == goal.ByAdmin {
+		return x.Issuer.ID
+	}
+	if x.Board >= 0 && x.Board < len(g.Places) {
+		return g.Places[x.Board].Guild
+	}
+	return ""
+}
+
+// indexContest pairs a First goal that has just reached its contributors
+// with every live one racing it for the same thing in the same region on
+// another guild's behalf (GDD 17.6). It runs once a goal, when it becomes
+// ready, so the arc view reads a short list.
+func (g *Game) indexContest(x *Goal) {
+	e := g.Emergence
+	gx := g.goalGuild(x)
+	rx, _ := g.goalPlace(x)
+	if gx == "" || rx < 0 {
+		return
+	}
+	need := g.r.Emerge.P.OpposedContributors
+	for _, y := range g.Goals {
+		if y == x || y.Mode != goal.First || !g.liveGoal(y.ID) || int64(len(y.Progress)) < need ||
+			y.Cond.Verb != x.Cond.Verb || y.Cond.Kind != x.Cond.Kind || y.Cond.Tag != x.Cond.Tag {
+			continue
+		}
+		if gy := g.goalGuild(y); gy == "" || gy == gx {
+			continue
+		}
+		if ry, _ := g.goalPlace(y); ry != rx {
+			continue
+		}
+		a, b := y, x
+		if cmpID(a.ID, b.ID) > 0 {
+			a, b = b, a
+		}
+		if slices.ContainsFunc(e.Contests, func(c *emerge.Contest) bool { return c.A == a.ID && c.B == b.ID }) {
+			continue
+		}
+		tag := x.Cond.Kind
+		if tag == "" {
+			tag = x.Cond.Tag
+		}
+		e.Contests = append(e.Contests, &emerge.Contest{A: a.ID, B: b.ID, SeatA: a.Board, SeatB: b.Board, Region: rx, Tag: tag})
+	}
+}
+
+func init() {
+	registerEmerge(emergeHook{Name: "goal-lines", Order: linesOrder, Kinds: []string{factEncounterLost, factEncounterLeft},
+		Fact: linesFact, Day: linesDay, Begin: linesBegin})
+}
+
+// structural: the lines are kept before the legends and customs that read
+// them at the close.
+const linesOrder = 60
+
+// The encounter outcomes an attempt is read from.
+const (
+	factEncounterLost = "encounter.lost"
+	factEncounterLeft = "encounter.left"
+)
+
+// linesFact counts an encounter lost or left as an attempt on every Defeat
+// line it is fought under: its archetype, its tags and its place.
+func linesFact(g *Game, f fact.Fact) error {
+	h, ok := fact.HexOf(f)
+	if !ok {
+		return nil
+	}
+	e := g.Emergence
+	arch, _ := f.Get("archetype")
+	ev := goal.Event{Fact: f.ID, Verb: goal.Defeat, Kind: arch.S, Hex: h, Places: g.placesOf(h)}
+	if t, _ := f.Get("tags"); t.S != "" {
+		ev.Tags = strings.Split(t.S, ",")
+	}
+	day := f.Tick / sheets.TicksPerDay
+	for _, sig := range slices.Sorted(maps.Keys(e.Lines)) {
+		l := e.Lines[sig]
+		x := g.GoalOf(l.Goal)
+		if x == nil || x.Cond.Verb != goal.Defeat || !x.Cond.Matches(ev) {
+			continue
+		}
+		if l.Archetype == "" {
+			l.Archetype = arch.S
+		}
+		for _, s := range f.Subjects {
+			if s.Kind == renownCharacter {
+				g.attempt(l, s.ID, day)
+			}
+		}
+	}
+	return nil
+}
+
+// linesDay counts a day posted on every line whose goal stands live, and
+// lets a line go once it can neither stand into a legend nor count toward
+// a custom, so the lines stay bounded by the goals that are up.
+func linesDay(g *Game, day, _ int64) error {
+	c, ok := g.clock()
+	if !ok {
+		return nil
+	}
+	e := g.Emergence
+	left := c.Start + c.Days - day
+	for _, sig := range slices.Sorted(maps.Keys(e.Lines)) {
+		l := e.Lines[sig]
+		if g.liveGoal(l.Goal) {
+			l.Days++
+			continue
+		}
+		x := g.GoalOf(l.Goal)
+		stands := x != nil && x.Cond.Verb == goal.Defeat && g.postedShare(l.Days+left, c.Days)
+		if !stands && (l.Place < 0 || !l.Met) {
+			delete(e.Lines, sig)
+		}
+	}
+	e.Contests = slices.DeleteFunc(e.Contests, func(c *emerge.Contest) bool { return !g.liveGoal(c.A) || !g.liveGoal(c.B) })
+	return nil
+}
+
+// postedShare reports whether a line posted on days of a season's length
+// stood long enough to be standing (GDD 13.2).
+func (g *Game) postedShare(days, length int64) bool {
+	return days*fixed.Hundredths >= g.r.Emerge.P.LegendPostedShare*length
+}
+
+// linesBegin opens the new season's lines on every goal still up.
+func linesBegin(g *Game, _ int64) error {
+	for _, x := range g.Goals {
+		g.noteGoal(x)
+	}
+	return nil
+}
+
+// contests are the rival claims indexed so far (GDD 17.6) whose goals both
+// still stand live, cast or not; the arc view reads them and casting marks
+// them.
+func (g *Game) contests() []*emerge.Contest {
+	if g.Emergence == nil {
+		return nil
+	}
+	var out []*emerge.Contest
+	for _, c := range g.Emergence.Contests {
+		if g.liveGoal(c.A) && g.liveGoal(c.B) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// liveGoal reports whether a goal stands live and shown.
+func (g *Game) liveGoal(id string) bool {
+	x := g.GoalOf(id)
+	return x != nil && x.State == goal.Live && !x.Hidden
 }

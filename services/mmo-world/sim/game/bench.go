@@ -107,7 +107,10 @@ func (g *Game) benchTop(c *Char, family string) int64 {
 	return p.Param("bench-base-levels") + c.C.Level(family)/p.Param("bench-practice-per-level")
 }
 
+// benchSpec is the machine a bench sets for a level, set easier where the
+// settlement's masters eased the family.
 func (g *Game) benchSpec(c *Char, settlement int, family string, level int64, compact bool) puzzle.Spec {
+	level = max(1, level-g.benchEase(settlement, family))
 	spec := puzzle.Spec{Family: family, Level: level, Tier: g.r.firstTier(), Place: "bench:" + strconv.Itoa(settlement),
 		Attempt: c.BenchRuns, Compact: compact}
 	spec.Shape = g.Puzzles().Shape(family, level, spec.Where())

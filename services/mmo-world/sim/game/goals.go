@@ -212,6 +212,7 @@ func (g *Game) openGoal(x *Goal) {
 	x.Season = g.season()
 	i, _ := slices.BinarySearchFunc(g.Goals, x.ID, func(y *Goal, id string) int { return cmpID(y.ID, id) })
 	g.Goals = slices.Insert(g.Goals, i, x)
+	g.noteGoal(x)
 }
 
 // Screened is a goal's words refused by the word list.
@@ -361,12 +362,13 @@ func (g *Game) cargo(c *Char, x *Goal, s GoalSpec) error {
 
 // backer is the account behind a goal's coin: it pays the escrow and the
 // fee, and takes back what nobody claims. A muster's is its settlement's
-// treasury, a bounty's its faction, anyone else's the poster's purse.
+// treasury, as is a custom's (a settlement's goal nobody posted), a
+// bounty's its faction, anyone else's the poster's purse.
 func backer(x *Goal) string {
-	switch x.Issuer.Kind {
-	case goal.ByAdmin:
+	switch {
+	case x.Issuer.Kind == goal.ByAdmin, customGoal(x):
 		return TreasuryPool(x.Board)
-	case goal.ByFaction:
+	case x.Issuer.Kind == goal.ByFaction:
 		return ledger.ToFaction
 	}
 	return ledger.Char(x.Poster)
@@ -499,6 +501,7 @@ func (g *Game) pledge(c *Char, cmd Command) error {
 func (g *Game) goLive(x *Goal, key string) error {
 	pool := g.Ledger.Of(goalPool(x.ID), ledger.Coin)
 	x.GoLive(pool, g.listingFee(x, pool))
+	g.noteGoal(x)
 	if err := g.post(ledger.Move(ledger.SubKey(key, "live"), "goal-fee", g.Tick(), goalPool(x.ID), ledger.ToGoalFees, ledger.Coin, x.Fee)); err != nil {
 		return err
 	}
@@ -1151,7 +1154,10 @@ func (g *Game) creditGoals(from fact.ID, key string) error {
 				if x.Hidden || x.State != goal.Live {
 					continue
 				}
-				if err := g.payClaims(x, x.Credit(e), key); err != nil {
+				contributors, cites := len(x.Progress), len(x.Facts)
+				claims := x.Credit(e)
+				g.noteCredit(x, e, f, contributors, cites, claims)
+				if err := g.payClaims(x, claims, key); err != nil {
 					return err
 				}
 			}

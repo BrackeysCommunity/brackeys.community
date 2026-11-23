@@ -38,6 +38,9 @@ type Instance struct {
 	// Pattern names the kind a written pattern teaches.
 	Pattern string `json:"pattern,omitempty"`
 	Staged  bool   `json:"staged,omitempty"`
+	// Legend is the tag a legend's trait gives the item, outside its picks
+	// and their budget.
+	Legend tags.Tag `json:"legend,omitempty"`
 }
 
 // NewInstance is a freshly made item at level 1, whole.
@@ -56,13 +59,16 @@ func (in *Instance) Traits(k *Kind, d *Deriver) []string {
 	return out
 }
 
-// Tags are the kind's tags plus picked traits' tags.
+// Tags are the kind's tags plus picked traits' tags and a legend's.
 func (in *Instance) Tags(k *Kind, d *Deriver) []tags.Tag {
 	out := slices.Clone(k.Tags)
 	for _, p := range in.Picks {
 		if tr := d.traits[p]; tr != nil && !slices.Contains(out, tags.Tag(tr.Tag)) {
 			out = append(out, tags.Tag(tr.Tag))
 		}
+	}
+	if in.Legend != "" && !slices.Contains(out, in.Legend) {
+		out = append(out, in.Legend)
 	}
 	slices.Sort(out)
 	return out

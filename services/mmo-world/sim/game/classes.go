@@ -120,7 +120,7 @@ func (r *Rules) shiftsOf(s *class.State) map[string]tags.Shift {
 
 // classesFor checks a character's thresholds after it acts: each class it
 // has newly crossed is earned, a fact, and the first in the world is
-// recorded as such.
+// recorded as such; the first across a hidden class finds it for all.
 func (g *Game) classesFor(c *Char, tick int64) error {
 	for i := range g.r.Book.Classes {
 		row := &g.r.Book.Classes[i]
@@ -139,7 +139,11 @@ func (g *Game) classesFor(c *Char, tick int64) error {
 		if first {
 			data = append(data, fact.S("first", "world"))
 		}
-		if _, err := g.fact(c, "class.unlocked", tick, data...); err != nil {
+		f, err := g.fact(c, "class.unlocked", tick, data...)
+		if err != nil {
+			return err
+		}
+		if err := g.classFound(c, row, f.ID); err != nil {
 			return err
 		}
 	}
