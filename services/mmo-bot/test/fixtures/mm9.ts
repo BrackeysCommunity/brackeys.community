@@ -416,4 +416,6 @@ export const recap: api.Recap = {
     { rule: 9, kind: "trouble", fact: troubleFact("trouble.lost") },
   ],
   more: 0,
+  day: 0,
+  awayHours: 0,
 };

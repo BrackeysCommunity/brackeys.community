@@ -8,8 +8,9 @@ import { chronicleCard } from "./screens/story.ts";
 
 /**
  * The chronicle channel (GDD 12.7): one post per closed world day per
- * server, its heaviest facts with the server's own places first. The day
- * is marked before it is posted, so a restart never posts it twice.
+ * server, its heaviest facts with the server's own places first. The card
+ * is made, narrated or not, before the day is marked, and the day is marked
+ * before it is posted, so a restart never posts it twice.
  */
 
 export const CHRONICLE_POLL_MS = 60_000;
@@ -21,7 +22,7 @@ export interface ChronicleWorld {
 }
 
 export class ChroniclePoster {
-  private readonly card: (ch: api.Chronicle) => Card;
+  private readonly card: (ch: api.Chronicle) => Card | Promise<Card>;
 
   constructor(
     private readonly world: ChronicleWorld,
@@ -31,7 +32,7 @@ export class ChroniclePoster {
     private readonly server: string,
     private readonly prefix = "mmo-bot:chronicle:",
     private readonly log: (line: string) => void = console.log,
-    card?: (ch: api.Chronicle) => Card,
+    card?: (ch: api.Chronicle) => Card | Promise<Card>,
   ) {
     this.card = card ?? ((ch) => chronicleCard(ch, lex, 0, true));
   }
@@ -43,7 +44,7 @@ export class ChroniclePoster {
     const key = `${this.prefix}${this.server}:day`;
     const was = await this.store.get(key);
     if (was !== null && ch.day <= Number(was)) return 0;
-    const card = this.card(ch);
+    const card = await this.card(ch);
     await postOnce(
       this.store,
       key,

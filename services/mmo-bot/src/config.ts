@@ -27,7 +27,19 @@ export interface Config {
   eventsAlarmRole?: string;
   /** How often the lexicon is read again, so found names reach the cards; unset is LEXICON_REFRESH_MS. */
   lexiconRefreshMs?: number;
+  /**
+   * The model's key (ANTHROPIC_API_KEY). It is read through a getter, so no
+   * JSON, spread or inspection of the config carries it.
+   */
+  anthropicKey?: string;
+  /** Narration's master switch: MMO_NARRATION=on. */
+  narration: boolean;
+  /** The world-wide narration budget a world day, in dollars (MMO_NARRATION_DAY_USD). */
+  narrationDayUsd: number;
 }
+
+/** The narration budget a world day when MMO_NARRATION_DAY_USD is unset. */
+export const NARRATION_DAY_USD = 1;
 
 function integer(name: string): number | undefined {
   const v = process.env[name]?.trim();
@@ -37,9 +49,37 @@ function integer(name: string): number | undefined {
   return n;
 }
 
+function dollars(name: string, fallback: number): number {
+  const v = process.env[name]?.trim();
+  if (!v) return fallback;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0)
+    throw new Error(`${name} must be a positive number, not "${v}"`);
+  return n;
+}
+
+const keys = new WeakMap<object, string>();
+
+/** Where a config's key is read from: a getter over a private map, not a property of the config. */
+const KEYED: object = Object.defineProperty({}, "anthropicKey", {
+  get(this: object) {
+    return keys.get(this);
+  },
+});
+
+/** A config that holds the key without showing it to JSON, spread or inspection. */
+export function withKey<T extends object>(
+  config: T,
+  key: string | undefined,
+): T & { anthropicKey?: string } {
+  const out = Object.assign(Object.create(KEYED) as T, config);
+  if (key) keys.set(out, key);
+  return out;
+}
+
 /** Reads the bot settings and fails at startup if a required value is missing. */
 export function loadConfig(): Config {
-  return {
+  const config: Config = {
     token: need("DISCORD_TOKEN"),
     applicationId: need("DISCORD_APP_ID"),
     guildId: need("DISCORD_GUILD_ID"),
@@ -54,5 +94,8 @@ export function loadConfig(): Config {
     chronicleChannel: process.env.MMO_CHRONICLE_CHANNEL?.trim() || undefined,
     eventsAlarmRole: process.env.MMO_EVENTS_ALARM_ROLE?.trim() || undefined,
     lexiconRefreshMs: integer("LEXICON_REFRESH_MS"),
+    narration: process.env.MMO_NARRATION?.trim() === "on",
+    narrationDayUsd: dollars("MMO_NARRATION_DAY_USD", NARRATION_DAY_USD),
   };
+  return withKey(config, process.env.ANTHROPIC_API_KEY?.trim() || undefined);
 }

@@ -16,8 +16,10 @@
   "include": [
     "src/**/*.ts",
     "test/**/*.ts",
+    "scripts/**/*.ts",
     "../../packages/discord-kit/src/**/*.ts",
     "../../packages/mmo-api/src/**/*.ts",
-    "../../packages/mmo-words/src/**/*.ts"
+    "../../packages/mmo-words/src/**/*.ts",
+    "../../packages/mmo-narrate/src/**/*.ts"
   ]
 }

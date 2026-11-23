@@ -431,7 +431,14 @@ const cards: [string, () => Card][] = [
       recapCard(
         o,
         here,
-        { since: 0, tick: 9, lines: machineFacts.map(([f]) => ({ rule: 2, fact: f })), more: 0 },
+        {
+          since: 0,
+          tick: 9,
+          lines: machineFacts.map(([f]) => ({ rule: 2, fact: f })),
+          more: 0,
+          day: 0,
+          awayHours: 0,
+        },
         lex,
         new Map(),
       ),

@@ -11,13 +11,15 @@ const BENCH_KEEPER = "tinker";
 /**
  * A conversation: the topics the NPC raises, voiced from templates, and the
  * choices (GDD 4.18). bench is the tinker's bench standing open here, which
- * the tinker's own card leads to.
+ * the tinker's own card leads to. remembers is what the NPC holds of the
+ * past, shown when there is any.
  */
 export function talkCard(
   o: api.Options,
   conv: api.Conversation,
   said?: string,
   bench?: api.BenchHere,
+  remembers?: string,
 ): Card {
   const v = o.version;
   const keeps = conv.npc.role === BENCH_KEEPER ? bench : undefined;
@@ -47,6 +49,7 @@ export function talkCard(
     fields: [
       { name: "Traits", value: conv.npc.traits.join(", ") || "none shown", inline: true },
       ...(keeps ? [{ name: "The bench", value: benchLine(keeps), inline: true }] : []),
+      ...(remembers ? [{ name: "Remembers", value: remembers }] : []),
     ],
     footer: "What you choose is remembered: by this NPC, and by the people it talks to.",
     rows,

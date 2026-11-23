@@ -15,7 +15,12 @@ export interface World {
   appraise(req: api.AppraiseRequest): Promise<WorldReply<api.Appraisal>>;
   recipes(characterId: string): Promise<api.Recipes>;
   recap(characterId: string): Promise<api.Recap>;
-  npc(characterId: string, npc: string): Promise<WorldReply<api.Conversation>>;
+  /** A conversation; with dossier, also what the NPC brings to it (GDD 4.18). */
+  npc(
+    characterId: string,
+    npc: string,
+    opts?: { dossier?: boolean },
+  ): Promise<WorldReply<api.Conversation>>;
   lexicon(): Promise<api.Lexicon>;
   media(key: string): Promise<Uint8Array>;
   market(characterId: string, material?: string): Promise<WorldReply<api.Market>>;
@@ -36,7 +41,8 @@ export interface World {
     day?: number,
     server?: string,
   ): Promise<WorldReply<api.Chronicle>>;
-  chronicleFact(characterId: string, id: number): Promise<WorldReply<api.FactCauses>>;
+  /** A fact and its causes; with no character, the public view of them. */
+  chronicleFact(characterId: string | undefined, id: number): Promise<WorldReply<api.FactCauses>>;
   /** The arcs open and lately ended; with no character, only those everyone may see. */
   arcs(characterId: string): Promise<api.Arcs>;
   /** The events channel's facts after a fact id: the bot's own read. */
@@ -116,7 +122,11 @@ export function httpWorld(base: string, token: string, fetcher: typeof fetch = f
     appraise: (req) => read("POST", api.PathAppraise, req),
     recipes: (id) => get(api.PathRecipes + q({ characterId: id })),
     recap: (id) => get(api.PathRecap + q({ characterId: id })),
-    npc: (id, npc) => read("GET", api.PathNPC + q({ characterId: id, npc })),
+    npc: (id, npc, opts) =>
+      read(
+        "GET",
+        api.PathNPC + q({ characterId: id, npc, dossier: opts?.dossier ? 1 : undefined }),
+      ),
     lexicon: () => get(api.PathLexicon),
     market: (id, material) => read("GET", api.PathMarket + q({ characterId: id, material })),
     history: (id, material) => read("GET", api.PathHistory + q({ characterId: id, material })),
@@ -132,7 +142,7 @@ export function httpWorld(base: string, token: string, fetcher: typeof fetch = f
     chronicle: (id, day, server) =>
       read("GET", api.PathChronicle + q({ characterId: id || undefined, day, server })),
     chronicleFact: (id, fact) =>
-      read("GET", api.PathChronicleFact + q({ characterId: id, id: fact })),
+      read("GET", api.PathChronicleFact + q({ characterId: id || undefined, id: fact })),
     arcs: (id) => get(api.PathArcs + q({ characterId: id || undefined })),
     storyEvents: (after) => get(api.PathStoryEvents + q({ after })),
     storyPromotions: (after) => get(api.PathStoryPromotions + q({ after })),

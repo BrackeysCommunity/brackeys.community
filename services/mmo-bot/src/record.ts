@@ -5,7 +5,8 @@ import type { World, WorldReply } from "./world.ts";
  * A World that keeps a sample of every read it passes on, for the card
  * test's fixtures: the latest of each; for options also in a fight, on a
  * machine beat, on the road and down; for party also on a shared beat, at a
- * fork and with none; story reads only when non-empty.
+ * fork and with none; for npc also with a dossier; story reads only when
+ * non-empty.
  */
 export function recording(world: World, samples: Record<string, unknown>): World {
   const keep = <T>(name: string, v: T): T => {
@@ -41,7 +42,12 @@ export function recording(world: World, samples: Record<string, unknown>): World
       if (r.lines.length) samples.recap = r;
       return r;
     },
-    npc: keepOk("npc", world.npc),
+    npc: async (id, npc, opts) => {
+      const r = await world.npc(id, npc, opts);
+      // The plain sample stays what a conversation without a dossier reads.
+      if (r.ok) keep("dossier" in r.reply ? "npc:dossier" : "npc", r.reply);
+      return r;
+    },
     lexicon: async () => keep("lexicon", await world.lexicon()),
     market: keepOk("market", world.market),
     history: keepOk("history", world.history),

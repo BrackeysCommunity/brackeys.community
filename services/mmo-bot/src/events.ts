@@ -29,6 +29,16 @@ export interface EventsWorld {
   hunts(): Promise<Pick<api.HuntBoard, "tick" | "every">>;
 }
 
+/**
+ * An event's card, or null when the channel does not show it. mode is
+ * "post" for a first post and "cached" for a live edit, which must never
+ * wait on a model.
+ */
+export type EventCard = (
+  ev: api.StoryEvent,
+  mode: "post" | "cached",
+) => Card | null | Promise<Card | null>;
+
 /** A card still edited as its stage fills. */
 interface Live {
   /** The card's message; empty while it is being posted. */
@@ -75,7 +85,7 @@ export function eventShown(ev: api.StoryEvent): string {
 }
 
 export class EventsPoster {
-  private readonly card: (ev: api.StoryEvent) => Card | null;
+  private readonly card: EventCard;
   private readonly cards: LiveCards<Live>;
 
   constructor(
@@ -87,7 +97,7 @@ export class EventsPoster {
     private readonly alarmRole?: string,
     private readonly prefix = "mmo-bot:events:",
     private readonly log: (line: string) => void = console.log,
-    card?: (ev: api.StoryEvent) => Card | null,
+    card?: EventCard,
   ) {
     this.card = card ?? ((ev) => eventCard(ev, lex));
     this.cards = new LiveCards(store, sink, `${prefix}open`, log, "events");
@@ -131,7 +141,7 @@ export class EventsPoster {
         if (ev.fact.id <= last) continue;
         let card: Card | null;
         try {
-          card = this.card(ev);
+          card = await this.card(ev, "post");
         } catch (e) {
           this.log(`[events] ${ev.fact.kind} ${ev.fact.id}: ${String(e)}`);
           card = null;
@@ -213,7 +223,7 @@ export class EventsPoster {
     const shown = eventShown(ev);
     if (shown === rec.shown) return { edited: false, done };
     if (!editDue(rec.at, clock.tick, clock.every)) return { edited: false, done: false };
-    const card = this.card(ev);
+    const card = await this.card(ev, "cached");
     const next = { ...rec, at: clock.tick, shown, ev };
     if (!card || !(await this.cards.edit(this.liveKey(id), rec.message, card, next, rec.mention)))
       return { edited: false, done: true };

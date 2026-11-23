@@ -519,6 +519,8 @@ export const recap: api.Recap = {
     { rule: 9, fact: promotionFact(1001, road) },
   ],
   more: 0,
+  day: 0,
+  awayHours: 0,
 };
 
 /** A found class beside the recorded ones, earned by nobody here yet. */

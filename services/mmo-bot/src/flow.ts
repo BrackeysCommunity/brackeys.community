@@ -1,9 +1,11 @@
 import type { Modal } from "../../../packages/discord-kit/src/index.ts";
+import type { Narrator } from "../../../packages/mmo-narrate/src/index.ts";
 import * as api from "./api.ts";
 import type { Card } from "./card.ts";
 import { type Action, fields, type Id, integerTarget, type Launch, launchOf } from "./ids.ts";
 import { capitalise, type Lexicon } from "./lexicon.ts";
 import type { CommandName } from "./manifest.ts";
+import { type DayClock, dayClock, type Narration, offNarration } from "./narration/hooks.ts";
 import type { PartyNote } from "./party.ts";
 import { backCards } from "./screens/back.ts";
 import { classesCard } from "./screens/classes.ts";
@@ -181,6 +183,22 @@ export interface Ctx {
   lex: Lexicon;
   /** The threat line routes stop before. */
   threatLine: number;
+  /** Where cards are narrated; offNarration, every card its template, when unset. */
+  narration?: Narration;
+  /** The narrator the narration's parts share; null when every model use is off. */
+  narrator?: Narrator | null;
+  /** The world day the bot last heard of; a fresh clock per Ctx when unset. */
+  day?: DayClock;
+}
+
+const clocks = new WeakMap<Ctx, DayClock>();
+
+/** A Ctx's day clock, the same one for every press made through it. */
+function clockOf(ctx: Ctx): DayClock {
+  if (ctx.day) return ctx.day;
+  let c = clocks.get(ctx);
+  if (!c) clocks.set(ctx, (c = dayClock()));
+  return c;
 }
 
 export interface Answer {
@@ -242,6 +260,24 @@ class Session {
   }
   private get world() {
     return this.ctx.world;
+  }
+  private get narration(): Narration {
+    return this.ctx.narration ?? offNarration;
+  }
+  private get day(): DayClock {
+    return clockOf(this.ctx);
+  }
+  /** The server a press came from, for the per-server switch; empty in a DM. */
+  private get server(): string {
+    return this.press.guild ?? "";
+  }
+
+  /** Since you left, narrated when the narration gives it. */
+  private recapAnswer(o: api.Options, here: api.Here, recap: api.Recap): Promise<Card> {
+    this.day.saw(recap.day);
+    return this.narration.recap(recap, this.press.user, this.server, () =>
+      recapCard(o, here, recap, this.lex, peopleOf(here)),
+    );
   }
 
   private async load() {
@@ -311,7 +347,7 @@ class Session {
     const look = await this.act(api.ActLook, o.version);
     if (recap.lines.length === 0) return this.hub();
     const version = look.ok ? look.reply.character.version : o.version;
-    return this.done(recapCard({ ...o, version }, here, recap, this.lex, peopleOf(here)));
+    return this.done(await this.recapAnswer({ ...o, version }, here, recap));
   }
 
   async hub(notice?: string): Promise<Answer> {
@@ -619,9 +655,12 @@ class Session {
 
   async talk(npc: string, said?: string): Promise<Answer> {
     const { o, here } = await this.load();
-    const conv = await this.world.npc(this.character, npc);
-    if (!conv.ok) return this.where(conv.refusal.message);
-    return this.done(talkCard(o, conv.reply, said, here.bench));
+    const dossier = await this.narration.wantsDossier(this.press.user, this.server);
+    const read = await this.world.npc(this.character, npc, { dossier });
+    if (!read.ok) return this.where(read.refusal.message);
+    if (read.reply.dossier) this.day.saw(read.reply.dossier.day);
+    const { conv, remembers } = await this.narration.talk(read.reply, this.press.user, this.server);
+    return this.done(talkCard(o, conv, said, here.bench, remembers));
   }
 
   /** The card a launch button sits on: the adapter launches, and any other caller sees the card again. */
@@ -656,8 +695,13 @@ class Session {
     const ch: api.Chronicle = read.ok
       ? read.reply
       : { season: arcs.season, day: -1, lines: [], more: 0, earlier: [] };
+    const template = () => chronicleCard(ch, this.lex, o.version, false, arcs.open);
+    if (read.ok) this.day.saw(ch.day + 1);
+    const card = read.ok
+      ? await this.narration.chronicle(ch, this.server, "cached", template)
+      : template();
     return this.retitled(
-      this.done(chronicleCard(ch, this.lex, o.version, false, arcs.open)),
+      this.done(card),
       notice ?? (read.ok || day === undefined ? undefined : capitalise(read.refusal.message)),
     );
   }
@@ -724,7 +768,7 @@ class Session {
   private async recap(notice?: string): Promise<Answer> {
     const { o, here } = await this.load();
     const recap = await this.world.recap(this.character);
-    return this.retitled(this.done(recapCard(o, here, recap, this.lex, peopleOf(here))), notice);
+    return this.retitled(this.done(await this.recapAnswer(o, here, recap)), notice);
   }
 
   /** A write, then the card it leads to; a refusal shows its reason on that card. */

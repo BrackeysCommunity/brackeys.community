@@ -12,13 +12,14 @@ import { BoardPoster, ForumPoster, type ForumStore, memoryStore } from "./forum.
 import { HuntPoster } from "./hunts.ts";
 import { Lexicon } from "./lexicon.ts";
 import { MediaCache } from "./media.ts";
+import { createNarration, dayClock, narratorFor } from "./narration/index.ts";
 import { Notifier } from "./notify.ts";
 import { PartyPoster } from "./party.ts";
 import { PromotionsPoster } from "./promotions.ts";
 import { ThreadBudget } from "./publish.ts";
 import { LexiconRefresher } from "./refresh.ts";
 import { registerCommands } from "./register.ts";
-import { EVENTS_CHANNEL } from "./screens/story.ts";
+import { chronicleCard, EVENTS_CHANNEL, eventCard } from "./screens/story.ts";
 import { httpWorld } from "./world.ts";
 
 /**
@@ -37,6 +38,14 @@ const redis = config.redisUrl
   ? new IORedis(config.redisUrl, { maxRetriesPerRequest: 1, enableOfflineQueue: false })
   : null;
 redis?.on("error", (e) => console.warn(`[redis] ${e.message}`));
+const narrator = narratorFor(config, redis);
+console.log(
+  narrator
+    ? "[narration] the model is on where the switch allows it"
+    : "[narration] off: it needs MMO_NARRATION=on, ANTHROPIC_API_KEY and REDIS_URL",
+);
+const narration = createNarration({});
+const day = dayClock();
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const notifier = new Notifier(world, async (user, text) => {
   const u = await client.users.fetch(user);
@@ -60,7 +69,14 @@ const parties = new PartyPoster(
   new ThreadBudget(),
 );
 const handle = createHandler({
-  ctx: { world, lex, threatLine: config.threatLine ?? lex.numbers.ambushLine },
+  ctx: {
+    world,
+    lex,
+    threatLine: config.threatLine ?? lex.numbers.ambushLine,
+    narration,
+    narrator,
+    day,
+  },
   budget: redis ? redisBudget(redis) : localBudget(),
   media: (key) => media.get(key),
   onLong: (user, character) => notifier.watch(user, character),
@@ -107,6 +123,12 @@ client.once(Events.ClientReady, async (c) => {
       store,
       channel(eventsChannel),
       config.eventsAlarmRole,
+      undefined,
+      undefined,
+      (ev, mode) => {
+        const card = eventCard(ev, lex);
+        return card && narration.event(ev, config.guildId, mode, () => card);
+      },
     ).start();
   if (chronicleChannel)
     new ChroniclePoster(
@@ -123,6 +145,14 @@ client.once(Events.ClientReady, async (c) => {
       store,
       channel(chronicleChannel),
       config.guildId,
+      undefined,
+      undefined,
+      (ch) => {
+        day.saw(ch.day + 1);
+        return narration.chronicle(ch, config.guildId, "post", () =>
+          chronicleCard(ch, lex, 0, true),
+        );
+      },
     ).start();
   if (chronicleChannel)
     new PromotionsPoster(
