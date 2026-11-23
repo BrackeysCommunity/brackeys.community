@@ -96,11 +96,12 @@ func (g *Game) PlaceAt(h hex.Hex) *Place {
 	return nil
 }
 
-// Stations are the open stations a settlement's tile holds.
+// Stations are the open stations a settlement's tile holds, or a camp's
+// where no settlement stands.
 func (g *Game) Stations(h hex.Hex) []Station {
 	p := g.PlaceAt(h)
 	if p == nil {
-		return nil
+		return g.campStations(h)
 	}
 	var out []Station
 	for _, s := range p.Structures {

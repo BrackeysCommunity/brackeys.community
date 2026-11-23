@@ -21,8 +21,12 @@ func (g *Game) Content(h hex.Hex) (*tile.Content, bool) {
 	return c, c != nil
 }
 
-// Creatures are the archetypes a tile holds, its lead first.
-func (g *Game) Creatures(h hex.Hex) []string {
+// Creatures are the archetypes a tile holds, its lead first; a haunt's
+// scavenger leads over the stored content.
+func (g *Game) Creatures(h hex.Hex) []string { return g.hauntedLead(h, g.livesOn(h)) }
+
+// livesOn are the archetypes a tile's content holds, its lead first.
+func (g *Game) livesOn(h hex.Hex) []string {
 	c, ok := g.Content(h)
 	if !ok || c.Lead == "" {
 		return g.r.Gen.Creatures(h)

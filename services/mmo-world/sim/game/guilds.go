@@ -964,9 +964,15 @@ func (g *Game) linesWorth(lines []sheets.CostLine) int64 {
 	return n
 }
 
-// MaterialOfTag is the first material of the sheet holding a tag.
+// MaterialOfTag is the first material of the sheet holding a tag, else
+// the first the world found.
 func (g *Game) MaterialOfTag(tag string) (string, bool) {
 	for _, m := range g.r.Book.Materials {
+		if slices.Contains(m.Tags, tag) {
+			return m.ID, true
+		}
+	}
+	for _, m := range g.foundMaterials() {
 		if slices.Contains(m.Tags, tag) {
 			return m.ID, true
 		}
@@ -974,20 +980,31 @@ func (g *Game) MaterialOfTag(tag string) (string, bool) {
 	return "", false
 }
 
-// tagValue is the least reference value of a material holding a tag.
+// tagValue is the least reference value of a material holding a tag, the
+// world's found materials among them.
 func (g *Game) tagValue(tag string) int64 {
 	if tag == ledger.Provisions {
 		return g.r.Values.Param("provisions-value")
 	}
 	best := int64(0)
-	for _, m := range g.r.Book.Materials {
-		if slices.Contains(m.Tags, tag) {
-			if v := g.r.Values.Asset(m.ID); best == 0 || v < best {
-				best = v
+	for _, ms := range [][]sheets.Material{g.r.Book.Materials, g.foundMaterials()} {
+		for _, m := range ms {
+			if slices.Contains(m.Tags, tag) {
+				if v := g.r.Values.Asset(m.ID); best == 0 || v < best {
+					best = v
+				}
 			}
 		}
 	}
 	return best
+}
+
+// foundMaterials are the materials the world found, in the order found.
+func (g *Game) foundMaterials() []sheets.Material {
+	if g.Emergence == nil {
+		return nil
+	}
+	return g.Emergence.Materials
 }
 
 // StockDays is how many world days the guild's bank feeds a work, at its

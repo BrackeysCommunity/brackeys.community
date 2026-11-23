@@ -414,6 +414,8 @@ func (g *Game) act(c *Char, cmd Command) ([]fight.Pressed, error) {
 		return nil, g.dungeonLeave(c, cmd)
 	case DungeonName:
 		return nil, g.dungeonName(c, cmd)
+	case PromoteName:
+		return nil, g.promoteName(c, cmd)
 	case KeyMake:
 		return nil, g.keyMake(c, cmd)
 	case HuntPress:
@@ -574,7 +576,11 @@ func (g *Game) begin(c *Char, ambush bool, due int64) error {
 		}
 	}
 	c.Encounters++
+	drop := g.emergentBegin(h, b, &site)
 	cr := g.r.Fight.Spawn(b.arch, b.extra, site.Tags, site.Measures)
+	if drop != "" {
+		cr.WithDrop(drop)
+	}
 	e := g.r.Fight.Assemble(site, cr)
 	if len(b.members) <= 1 {
 		c.Fight = &Fight{E: e, Measures: site.Measures, Ambush: ambush, Due: due}
@@ -795,13 +801,11 @@ func (g *Game) correct(c *Char, cmd Command) error {
 	return g.receive(c, t)
 }
 
-// isMaterial reports whether asset names a base material of the sheets.
+// isMaterial reports whether asset names a material: the sheets' or one
+// the world found.
 func (g *Game) isMaterial(asset string) bool {
 	id, ok := ledger.MaterialOf(asset)
-	if ok {
-		_, ok = g.r.Fight.D.Material(id)
-	}
-	return ok
+	return ok && g.knownMaterial(id)
 }
 
 // grant gives a character a mount of a mounts.kinds row, as an operator.
