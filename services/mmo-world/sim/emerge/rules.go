@@ -80,6 +80,7 @@ type Rules struct {
 // lineIDs are the promotion rows the game reads.
 var lineIDs = []Type{Road, Camp, Haunt, Route, Style, Variant, Legend, Custom, Masters}
 
+// Compile reads the emergence sheets into Rules, or every problem found.
 func Compile(b *sheets.Book) (*Rules, error) {
 	var errs []error
 	r := &Rules{Lines: Lines{}, Decay: map[string]Decay{}, Styles: NewStyleBook(b), Tags: map[string]string{}}

@@ -318,6 +318,53 @@ func TestCaravanHaltsInArc(t *testing.T) {
 	audit(t, g)
 }
 
+// TestCaravanKeepsItsLegs: a road laid on a caravan's path after it left,
+// and then cut, moves it nowhere; a caravan saved without its legs reads
+// the path as it was the day it left.
+func TestCaravanKeepsItsLegs(t *testing.T) {
+	g, rt, _ := routeGame(t)
+	toDay(t, g, rt.Next)
+	cv := g.Emergence.Caravans[0]
+	if len(cv.Legs) != len(orient(rt, cv.From)) || cv.Material == "" || cv.Units != g.r.Emerge.P.CaravanLoad {
+		t.Fatalf("the caravan left without its legs or manifest: %+v", cv)
+	}
+	before := map[int64]hex.Hex{}
+	for tk := cv.Depart; tk <= cv.Arrive; tk++ {
+		before[tk] = g.caravanAt(cv, tk)
+	}
+	same := func(what string) {
+		t.Helper()
+		for tk, h := range before {
+			if got := g.caravanAt(cv, tk); got != h {
+				t.Fatalf("%s: at %d the caravan is on %s, was %s", what, tk, got.Ref(), h.Ref())
+			}
+		}
+	}
+	var recs []*emerge.RoadRec
+	path := orient(rt, cv.From)
+	for _, h := range path[1 : len(path)-1] {
+		if g.IsSettlement(h) || g.Emergence.Roads[h] != "" {
+			continue
+		}
+		recs = append(recs, roadAtTile(t, g, h))
+	}
+	if len(recs) == 0 {
+		t.Fatal("no road laid on the caravan's path")
+	}
+	same("a road laid on the way")
+	for _, rec := range recs {
+		rec.CutUntil = g.Tick()/dayTick(1) + g.r.Emerge.P.CutDays
+	}
+	same("the road cut")
+	for _, rec := range recs {
+		rec.CutUntil = 0
+	}
+	cv.Legs = nil
+	if g.caravanAt(cv, cv.Arrive) != path[len(path)-1] || g.caravanAt(cv, cv.Depart) != path[0] {
+		t.Fatal("a caravan saved without its legs does not walk its path")
+	}
+}
+
 // TestCaravansNeedBothPlaces: a route whose place has fallen sends no
 // caravan until it stands again.
 func TestCaravansNeedBothPlaces(t *testing.T) {

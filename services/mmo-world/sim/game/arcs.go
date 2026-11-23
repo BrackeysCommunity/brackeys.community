@@ -76,8 +76,8 @@ const (
 	kindNPC        = "npc"
 	kindCharacter  = "character"
 	kindTile       = "tile"
-	kindCaravan    = "caravan"
-	kindLegend     = "legend"
+	kindCaravan    = arc.KindCaravan
+	kindLegend     = arc.KindLegend
 )
 
 // structural: the roles a trouble binds.
@@ -509,9 +509,9 @@ func (g *Game) bandsLeft(tpl arc.Template, t int64) error {
 
 // structural: the rival claims' roles, by which its contest is found.
 const (
-	roleSeatA = "seat-a"
-	roleSeatB = "seat-b"
-	roleFront = "front"
+	roleSeatA = arc.RoleSeatA
+	roleSeatB = arc.RoleSeatB
+	roleFront = arc.RoleFront
 )
 
 // castCaravan is a live caravan by id.

@@ -28,7 +28,7 @@ func legendNear(w World, row Row, _ Params) []Candidate {
 			continue
 		}
 		out = append(out, candidate(at, regionSet(l.Region, w.RegionOf(at)), w.Gauge(l.Region, gaugeThreat), nil,
-			bind(roleLegend, LegendRef(l.ID)), bind(roleFront, RegionRef(l.Region)), seat))
+			bind(roleLegend, LegendRef(l.ID)), bind(RoleFront, RegionRef(l.Region)), seat))
 	}
 	return found(w, row, out)
 }

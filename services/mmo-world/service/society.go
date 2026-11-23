@@ -154,7 +154,7 @@ func apiGoal(g *game.Game, x *game.Goal, c *game.Char) api.Goal {
 	out := api.Goal{ID: x.ID, Title: x.Title, Note: x.Note, Issuer: x.Issuer.Kind, By: issuerName(g, x), Verb: x.Cond.Verb, What: condText(g, x.Cond),
 		Where: placeRef(g, x.Cond.At), Reward: x.Reward, Mode: x.Mode, Cap: x.Cap, Lifetime: x.Lifetime, Turnover: x.Turnover, State: x.State,
 		Progress: x.Total(), Count: x.Cond.Count, Claims: int64(len(x.Claims)), Need: x.Need, Pledged: x.Pledges.Sum(), Vow: x.Vow(), Top: []api.Contribution{},
-		Evolved: x.Evolved != 0 && x.Evolved == g.World.Day, Even: x.Even, Legend: goalLegend(g, x), Custom: goalCustom(g, x)}
+		Evolved: x.Evolved != 0 && x.Evolved == g.World.Day, Even: x.Even, Legend: g.GoalLegend(x), Custom: g.GoalCustom(x)}
 	if x.State == goal.Proposed {
 		out.Reward, out.Vow = out.Pledged, false
 	}

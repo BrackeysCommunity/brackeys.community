@@ -139,3 +139,30 @@ func (g *Game) legendOf(of fact.Ref, region int) *emerge.LegendRec {
 	}
 	return nil
 }
+
+// liveLegends are the newest legends-kept goal legends not laid to rest,
+// oldest first. Only a goal legend has a creature to cast or tag.
+func (g *Game) liveLegends() []*emerge.LegendRec {
+	e := g.Emergence
+	kept := g.r.Emerge.P.LegendsKept
+	var out []*emerge.LegendRec
+	for i := len(e.Legends) - 1; i >= 0 && int64(len(out)) < kept; i-- {
+		if l := e.Legends[i]; l != nil && l.Laid == 0 && l.Of.Kind == kindCreature {
+			out = append(out, l)
+		}
+	}
+	slices.Reverse(out)
+	return out
+}
+
+// legendTag is the trait tag a live goal legend's archetype carries in its
+// region.
+func (g *Game) legendTag(region int, archetype string) (tags.Tag, bool) {
+	for _, l := range g.liveLegends() {
+		if l.Region == region && l.Of.ID == archetype {
+			t := g.traitTag(l.Trait)
+			return t, t != ""
+		}
+	}
+	return "", false
+}

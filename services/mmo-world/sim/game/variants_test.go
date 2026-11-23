@@ -185,7 +185,12 @@ func TestVariantAt60(t *testing.T) {
 	ms := promotionsOf(g, emerge.Material)
 	base := sheets.Lookup(g.r.Book.Materials)["stalker-hide"]
 	want, _ := g.r.Emerge.Found(*base, "plated")
-	got, ok := g.Emergence.Material(v.Material)
+	mi := slices.IndexFunc(g.Emergence.Materials, func(m sheets.Material) bool { return m.ID == v.Material })
+	ok := mi >= 0
+	var got sheets.Material
+	if ok {
+		got = g.Emergence.Materials[mi]
+	}
 	if !ok || len(ms) != 1 || ms[0].Of != v.Material || v.Material != want.ID || !g.knownMaterial(v.Material) {
 		t.Fatalf("the variant's material: %q %+v, promotions %+v", v.Material, got, ms)
 	}
@@ -364,7 +369,10 @@ func TestPlatedEelLoop(t *testing.T) {
 		t.Fatalf("no plated wire-eel by day %d: %+v", day, vs)
 	}
 	v := g.Emergence.Variants[0]
-	m, _ := g.Emergence.Material(v.Material)
+	var m sheets.Material
+	if i := slices.IndexFunc(g.Emergence.Materials, func(m sheets.Material) bool { return m.ID == v.Material }); i >= 0 {
+		m = g.Emergence.Materials[i]
+	}
 	if v.Material != "found.plated.stalker-hide" || m.Tier != 2 || m.Vector.Ward != 52 || m.Vector.Flex != 16 {
 		t.Fatalf("plated hide: %+v", m)
 	}

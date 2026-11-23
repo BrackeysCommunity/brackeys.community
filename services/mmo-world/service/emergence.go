@@ -2,18 +2,15 @@ package service
 
 import (
 	"cmp"
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"jams.team/mmo-world/api"
-	"jams.team/mmo-world/sim/arc"
 	"jams.team/mmo-world/sim/emerge"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fight"
 	"jams.team/mmo-world/sim/game"
-	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/world"
@@ -24,8 +21,6 @@ const (
 	kindPromotion = "promotion"
 	kindCreature  = "creature"
 	kindItem      = "item"
-	foundPrefix   = "found."
-	foundSep      = "."
 	sheetMaterial = "items.materials:"
 	caravanSep    = "@" // a caravan's id is its route's and its departure day
 )
@@ -81,12 +76,8 @@ func apiPromotion(g *game.Game, p *emerge.Promotion) api.Promotion {
 
 // foundBase is the sheet material a found material was made from.
 func foundBase(id string) (string, bool) {
-	rest, ok := strings.CutPrefix(id, foundPrefix)
-	if !ok {
-		return "", false
-	}
-	_, base, ok := strings.Cut(rest, foundSep)
-	return base, ok && base != ""
+	_, base, ok := emerge.ParseMaterialID(id)
+	return base, ok
 }
 
 // legendOfName is what a legend was made of: its creature's name, or the
@@ -178,8 +169,7 @@ func renamable(g *game.Game, viewer string, f fact.Fact) string {
 		return ""
 	}
 	p := g.Emergence.Promotion(d.S)
-	if p == nil || p.First != viewer || viewer == "" || p.Named != "" || !emerge.Renamable(p.Type) ||
-		g.Tick() >= p.Tick+g.Rules().Emerge.P.RenameDays*sheets.TicksPerDay {
+	if p == nil || g.CanRename(p, viewer) != nil {
 		return ""
 	}
 	return p.ID
@@ -249,90 +239,6 @@ func stateNames(g *game.Game, st *api.ActivityState) map[string]string {
 		add(st.Hunt.Spoils)
 	}
 	return foundNames(g, ids)
-}
-
-// goalLegend is the living legend a Defeat goal's target became in its
-// region, by name.
-func goalLegend(g *game.Game, x *game.Goal) string {
-	e := g.Emergence
-	if e == nil || x.Cond.Verb != goal.Defeat || len(e.Legends) == 0 {
-		return ""
-	}
-	arch := x.Cond.Kind
-	if arch == "" {
-		for _, l := range e.Lines {
-			if l.Goal == x.ID && l.Archetype != "" {
-				arch = l.Archetype
-			}
-		}
-	}
-	if arch == "" {
-		return ""
-	}
-	region := goalRegion(g, x)
-	of := fact.Ref{Kind: kindCreature, ID: arch}
-	for _, l := range e.Legends {
-		if l.Of == of && l.Region == region && l.Laid == 0 {
-			return shownPromotion(e, l.ID)
-		}
-	}
-	return ""
-}
-
-// goalRegion is the region a goal's place names: a tile and its reach, a
-// region, a settlement or a tile, else its board's.
-func goalRegion(g *game.Game, x *game.Goal) int {
-	var h hex.Hex
-	if x.Board >= 0 && x.Board < len(g.Places) {
-		h = g.SettlementHex(x.Board)
-	}
-	c := x.Cond
-	switch kind, id, _ := goal.ParseRef(c.At); {
-	case c.Hex != nil:
-		h = *c.Hex
-	case kind == goal.PlaceRegion:
-		if r, ok := arc.RefIndex(fact.Ref{ID: id}); ok && r < len(g.World.Regions) {
-			return r
-		}
-	case kind == goal.PlaceSettlement:
-		if n, ok := goal.SettlementOf(c.At); ok && n < len(g.Places) {
-			h = g.SettlementHex(n)
-		}
-	case kind == goal.PlaceTile:
-		if t, ok := hex.ParseRef(id); ok {
-			h = t
-		}
-	}
-	return g.World.RegionAt(h)
-}
-
-// goalCustom is the custom a settlement's goal renews as, or posted, by
-// name: one at its board asking the same thing at the same place.
-func goalCustom(g *game.Game, x *game.Goal) string {
-	e := g.Emergence
-	if e == nil || len(e.Customs) == 0 || x.Build != nil || x.Issuer.Kind != goal.BySettlement && x.Issuer.Kind != goal.ByAdmin {
-		return ""
-	}
-	for _, rec := range e.Customs {
-		if rec.Place != x.Board {
-			continue
-		}
-		var s game.GoalSpec
-		if json.Unmarshal(rec.Spec, &s) != nil {
-			continue
-		}
-		if sameLine(s.Cond, x.Cond) {
-			return shownPromotion(e, rec.ID)
-		}
-	}
-	return ""
-}
-
-// sameLine reports whether two conditions ask the same thing at the same
-// place, whatever their counts.
-func sameLine(a, b goal.Condition) bool {
-	same := a.Verb == b.Verb && a.Kind == b.Kind && a.Gauge == b.Gauge && a.Tag == b.Tag && a.Trait == b.Trait && a.At == b.At && a.Within == b.Within
-	return same && (a.Hex == nil) == (b.Hex == nil) && (a.Hex == nil || *a.Hex == *b.Hex)
 }
 
 // storyPromotions are the chronicle channel's promotions after a fact id,

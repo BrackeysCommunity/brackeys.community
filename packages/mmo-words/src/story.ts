@@ -1,5 +1,5 @@
-import { claimSideName, promotionNoun, seasonAddedCounts, SIDE_NAMES } from "./emergence.ts";
-import { amount, num, outOf, plural, signed, ticks } from "./units.ts";
+import { claimSideName, promotionNoun, seasonAddedWhat, SIDE_NAMES } from "./emergence.ts";
+import { amount, list, num, outOf, plural, signed, ticks } from "./units.ts";
 
 /**
  * How the story reads: the chronicle's lines, an arc's sides, a trouble's
@@ -115,11 +115,6 @@ function lower(s: string): string {
 function the(name: string): string {
   const l = lower(name);
   return /^the /i.test(l) ? l : `the ${l}`;
-}
-
-/** "a, b and c". */
-function list(xs: string[]): string {
-  return xs.length < 2 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`;
 }
 
 /** What a thing is called when the world gives it no name. */
@@ -262,7 +257,7 @@ const ITEM_REF = "item:";
 function promotionLine(r: Reading): string {
   const type = r.s("type");
   const name = r.s("name");
-  const named = name || `a ${promotionNoun(type)}`;
+  const named = r.promoted(type);
   const of = r.s("of");
   const site = () => the(r.row("map.site-kinds", of) || "site");
   switch (type) {
@@ -612,10 +607,9 @@ const LINES: Record<string, Line> = {
   "material.looted-first": (r) =>
     `${capital(r.s("name") || r.material(r.s("material")))} was taken for the first time${r.where()}.`,
   "season.added": (r) => {
-    const counts = seasonAddedCounts(r.f);
-    const first = r.s("first");
-    return counts
-      ? `Season ${num(r.n("season"))} added to the world: ${counts}${first ? `, ${first} among them` : ""}.`
+    const what = seasonAddedWhat(r.f);
+    return what
+      ? `Season ${num(r.n("season"))} added to the world: ${what}.`
       : `Season ${num(r.n("season"))} added nothing new to use.`;
   },
   "emergence.started": () =>

@@ -27,9 +27,8 @@ import (
 	"jams.team/mmo-world/sim/world"
 )
 
-// structural: the emergence run's shape (GDD 13). The lines are GDD
-// 13.2's as the sheets write them; only the seeds, the population and the
-// days are the run's.
+// structural: the emergence run's shape (GDD 13); the promotion lines
+// stay the sheets'.
 const (
 	emergenceSeeds   = 4
 	emergencePlayers = 1000
@@ -78,13 +77,11 @@ func planFromEnv(n int) emergencePlan {
 	return p
 }
 
-// EmergenceRun plays the closed world (GDD 13): the Economy run's players,
-// one in ten wandering, on -n seeds of EMERGENCE_PLAYERS and one world of
-// EMERGENCE_BIG, for EMERGENCE_DAYS world days. Nobody is told of
-// emergence and nothing is scripted or staged; the run reads what the
-// world promoted, whether a style became a variant, a found material and
-// a kind made of it, how reliance fell once the region adapted, and what
-// the traces' day costs with a padded store.
+// EmergenceRun plays the closed world (GDD 13) on planFromEnv's plan: the
+// Economy run's players, one in wanderShare wandering, told nothing of
+// emergence and never scripted or staged. It reports what the world
+// promoted, how far each style's loop closed, how reliance fell once a
+// region adapted, and the traces' day cost.
 func EmergenceRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	return emergenceRun(b, out, planFromEnv(n))
 }
@@ -579,10 +576,12 @@ func pairingCases(w emergenceWorld) []pairingCase {
 				c.why = "no wins in the region before it"
 				break
 			}
+			if c.after.region == 0 {
+				c.why = "no wins in the region after it"
+				break
+			}
 			c.measured = true
-			// after/after-region < before/before-region, with no wins after
-			// read as a share of none.
-			c.ok = c.after.style*c.before.region < c.before.style*max(c.after.region, 1)
+			c.ok = c.after.style*c.before.region < c.before.style*c.after.region
 		}
 		out = append(out, c)
 	}

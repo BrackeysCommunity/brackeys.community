@@ -7,7 +7,7 @@ import (
 
 // Emergent is what the emergence predicates read beyond World and Extra
 // (GDD 13). A World without it casts none of them, and its troubles and
-// occasions read as they did before emergence.
+// occasions read World and Extra alone.
 type Emergent interface {
 	// RoadLoad is the load carried onto region's road tiles over
 	// road-war-days, and its busiest road tile; ok is false with no road.
@@ -54,15 +54,22 @@ type ContestView struct {
 
 // Cast kinds the emergence templates bind.
 const (
-	kindCaravan = "caravan"
-	kindLegend  = "legend"
+	KindCaravan = "caravan"
+	KindLegend  = "legend"
+)
+
+// Roles the emergence templates bind.
+const (
+	RoleFront = "front"
+	RoleSeatA = "seat-a"
+	RoleSeatB = "seat-b"
 )
 
 // CaravanRef names a caravan as a cast binds it.
-func CaravanRef(id string) fact.Ref { return fact.Ref{Kind: kindCaravan, ID: id} }
+func CaravanRef(id string) fact.Ref { return fact.Ref{Kind: KindCaravan, ID: id} }
 
 // LegendRef names a legend as a cast binds it.
-func LegendRef(id string) fact.Ref { return fact.Ref{Kind: kindLegend, ID: id} }
+func LegendRef(id string) fact.Ref { return fact.Ref{Kind: KindLegend, ID: id} }
 
 // awakeSet is the awake regions, for predicates that ask of many.
 func awakeSet(w World) map[int]bool {

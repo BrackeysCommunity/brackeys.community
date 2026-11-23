@@ -179,8 +179,9 @@ func nameKey(k reflect.Kind) bool {
 }
 
 // encodePairs writes a map whose keys JSON cannot name (a tile, a struct)
-// as a list of [key, value] pairs sorted by the key's canonical bytes. An
-// empty one stays {} so a digest from before such maps held entries holds.
+// as a list of [key, value] pairs sorted by the key's canonical bytes.
+// An empty one stays {}, so digests taken while such maps were empty stay
+// valid.
 func (e *Encoder) encodePairs(b []byte, v reflect.Value, keys []reflect.Value) ([]byte, error) {
 	type pair struct {
 		key []byte

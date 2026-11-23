@@ -60,6 +60,17 @@ type State struct {
 
 	tollDay int64 // the day Tolled was last pruned
 	tollOK  bool
+
+	ix promoIndex // rebuilt lazily, never saved
+}
+
+// promoIndex indexes Promotions[:n]. Promotions are only appended, so it
+// extends from n.
+type promoIndex struct {
+	n      int
+	byOf   map[Type]map[string][]int
+	styles map[int][]int
+	all    []int // every style promotion
 }
 
 // New is an empty state stamped with a season; its first measure week
@@ -493,12 +504,46 @@ func (s *State) PayToll(char, road string, day int64) bool {
 	return true
 }
 
-// Material is a found material by id.
-func (s *State) Material(id string) (sheets.Material, bool) {
-	for _, m := range s.Materials {
-		if m.ID == id {
-			return m, true
+func (s *State) index() {
+	if s.ix.byOf == nil || s.ix.n > len(s.Promotions) {
+		s.ix = promoIndex{byOf: map[Type]map[string][]int{}, styles: map[int][]int{}}
+	}
+	for i := s.ix.n; i < len(s.Promotions); i++ {
+		p := &s.Promotions[i]
+		m := s.ix.byOf[p.Type]
+		if m == nil {
+			m = map[string][]int{}
+			s.ix.byOf[p.Type] = m
+		}
+		m[p.Of] = append(m[p.Of], i)
+		if p.Type == Style {
+			s.ix.styles[p.Region] = append(s.ix.styles[p.Region], i)
+			s.ix.all = append(s.ix.all, i)
 		}
 	}
-	return sheets.Material{}, false
+	s.ix.n = len(s.Promotions)
+}
+
+func (s *State) promos(is []int) []*Promotion {
+	out := make([]*Promotion, len(is))
+	for k, i := range is {
+		out[k] = &s.Promotions[i]
+	}
+	return out
+}
+
+// ByOf are the promotions of a type made of one thing, in promotion order.
+func (s *State) ByOf(t Type, of string) []*Promotion {
+	s.index()
+	return s.promos(s.ix.byOf[t][of])
+}
+
+// StylesIn are the style promotions in a region, in promotion order; a
+// region below 0 is every region.
+func (s *State) StylesIn(region int) []*Promotion {
+	s.index()
+	if region < 0 {
+		return s.promos(s.ix.all)
+	}
+	return s.promos(s.ix.styles[region])
 }

@@ -138,8 +138,13 @@ func (s *Store) Audit(ctx context.Context) ([]string, error) {
 			return err
 		}
 		for _, b := range bal {
-			if live[b.Account] {
+			m, ok := live[b.Account]
+			switch {
+			case !ok:
+			case m.material == "":
 				held = append(held, b)
+			case b.Asset == ledger.Goods(m.material):
+				held = append(held, ledger.Balance{Account: b.Account, Asset: b.Asset, Units: min(b.Units, m.units)})
 			}
 		}
 		out = append(out, ledger.Audit(bal, held)...)
@@ -148,24 +153,35 @@ func (s *Store) Audit(ctx context.Context) ([]string, error) {
 	return out, err
 }
 
-// liveCaravans is the pool of every caravan still on the road in a stored
-// sim. A pool left behind by one that came in is not listed, so the audit
-// still reads it as a discrepancy.
-func liveCaravans(sim []byte) (map[string]bool, error) {
+// caravanManifest is what a live caravan's pool may hold; no material is
+// a caravan saved before it carried its manifest, held to whatever it has.
+type caravanManifest struct {
+	material string
+	units    int64
+}
+
+// liveCaravans is the manifest of every caravan still on the road in a
+// stored sim, by pool, held as the game holds it: its material up to its
+// units. A pool left behind by one that came in is not listed, and a
+// foreign good in a live one is not held, so the audit reads either as a
+// discrepancy.
+func liveCaravans(sim []byte) (map[string]caravanManifest, error) {
 	var sm struct {
 		Emergence *struct {
 			Caravans []struct {
-				ID string `json:"id"`
+				ID       string `json:"id"`
+				Material string `json:"material"`
+				Units    int64  `json:"units"`
 			} `json:"caravans"`
 		} `json:"emergence"`
 	}
 	if err := json.Unmarshal(sim, &sm); err != nil {
 		return nil, err
 	}
-	out := map[string]bool{}
+	out := map[string]caravanManifest{}
 	if sm.Emergence != nil {
 		for _, cv := range sm.Emergence.Caravans {
-			out[ledger.CaravanPool(cv.ID)] = true
+			out[ledger.CaravanPool(cv.ID)] = caravanManifest{material: cv.Material, units: cv.Units}
 		}
 	}
 	return out, nil

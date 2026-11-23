@@ -400,6 +400,51 @@ func TestFeedRoadLoad(t *testing.T) {
 	}
 }
 
+// TestFeedRoadLoadRecent: load on a cut road is neither load nor a road
+// step, and once road-war-days have run since the tally began, traffic on
+// another road tile makes it the busiest even while the old tile's load is
+// still in the window.
+func TestFeedRoadLoadRecent(t *testing.T) {
+	g := feedGame(t)
+	tiles := openTiles(t, g, 40)
+	h := tiles[0]
+	region := g.World.RegionAt(h)
+	i := slices.IndexFunc(tiles[1:], func(x hex.Hex) bool { return g.World.RegionAt(x) == region })
+	if i < 0 {
+		t.Fatal("no second open tile in the region")
+	}
+	other := tiles[1+i]
+	mat := someHaul(g)[0].Material
+	cut := roadAtTile(t, g, h)
+	cut.CutUntil = g.Tick()/dayTick(1) + g.r.Emerge.P.CutDays
+	c := feedChars(t, g, 1, h)[0]
+	c.C.Goods = []item.Spoil{{Material: mat, Qty: 7}}
+	mustFeed(t, g.noteRoadLoad(c, h, g.Tick()))
+	if rl := g.Emergence.RoadLoad[region]; rl != nil || c.C.Deeds.Get(char.DeedRoadSteps) != 0 {
+		t.Fatalf("a cut road carried load: %+v", rl)
+	}
+	cut.CutUntil = 0
+	g.Pending = append(g.Pending, world.Action{Kind: world.ActRoad, Hex: other, Units: world.RoadTrack})
+	advance(t, g)
+	mustFeed(t, g.noteRoadLoad(c, h, g.Tick()))
+	rl := g.Emergence.RoadLoad[region]
+	if rl == nil || rl.Busiest != h {
+		t.Fatalf("road load: %+v", rl)
+	}
+	if g.r.Emerge.P.RoadWarDays < 2 {
+		t.Skip("road-war-days leaves no room for load inside the window")
+	}
+	mid := g.Tick() + dayTick(g.r.Emerge.P.RoadWarDays-1)
+	c.C.Goods = []item.Spoil{{Material: mat, Qty: 7}}
+	mustFeed(t, g.noteRoadLoad(c, h, mid))
+	later := g.Tick() + dayTick(g.r.Emerge.P.RoadWarDays)
+	c.C.At, c.C.Goods = other, []item.Spoil{{Material: mat, Qty: 1}}
+	mustFeed(t, g.noteRoadLoad(c, other, later))
+	if rl.Busiest != other || rl.Tiles[h] != 0 {
+		t.Fatalf("the busiest road is %s after the traffic moved: %+v", rl.Busiest.Ref(), rl)
+	}
+}
+
 // TestFeedStagedCrossings: crossings made while a staged command is
 // applied leave no trace.
 func TestFeedStagedCrossings(t *testing.T) {

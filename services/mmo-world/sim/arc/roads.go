@@ -13,7 +13,6 @@ const (
 	RoleRoad    = "road"
 	roleRaider  = "raider"
 	roleCaravan = "caravan"
-	roleFront   = "front"
 )
 
 // roadBusy is the road war (GDD 12.9): an awake region whose roads carried
@@ -76,7 +75,7 @@ func caravanThreatened(w World, row Row, p Params) []Candidate {
 		}
 		causes := recalled(w, p.MemoryDays, []string{memRaids, memSurge}, inRegions([]int{front}))
 		out = append(out, candidate(at, regionSet(front, w.RegionOf(cv.At), w.RegionOf(at)), w.Gauge(front, gaugeThreat), causes,
-			bind(roleCaravan, CaravanRef(cv.ID)), bind(roleFront, RegionRef(front)), seat))
+			bind(roleCaravan, CaravanRef(cv.ID)), bind(RoleFront, RegionRef(front)), seat))
 	}
 	return found(w, row, out)
 }

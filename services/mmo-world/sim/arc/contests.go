@@ -27,7 +27,7 @@ func opposedGoals(w World, row Row, _ Params) []Candidate {
 		}
 		seen[k] = true
 		out = append(out, candidate(a.Hex, regionSet(c.Region, a.Region, b.Region), w.Gauge(c.Region, gaugeUnrest), nil,
-			bind("seat-a", SettlementRef(a.N)), bind("seat-b", SettlementRef(b.N)), bind(roleFront, RegionRef(c.Region))))
+			bind(RoleSeatA, SettlementRef(a.N)), bind(RoleSeatB, SettlementRef(b.N)), bind(RoleFront, RegionRef(c.Region))))
 	}
 	return found(w, row, out)
 }

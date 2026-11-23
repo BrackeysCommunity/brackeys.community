@@ -110,7 +110,7 @@ type Want struct {
 // material from the faction that wants it most (first on a tie) or else
 // the keepers, provisions from the first faction that buys them, each
 // priced at reference value times urgency. Found materials follow the
-// sheet's, so a world that has found none posts what it always did.
+// sheet's.
 func (v *Values) Wants(buyers []Buyer) []Want {
 	var out []Want
 	for _, m := range append(slices.Clip(v.sorted), v.Found.List()...) {

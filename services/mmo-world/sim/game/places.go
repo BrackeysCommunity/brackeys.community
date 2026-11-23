@@ -370,7 +370,11 @@ func (g *Game) payLines(c *Char, key, kind string, lines []sheets.CostLine, sink
 
 // materialHas reports whether a material, or provisions, holds a tag.
 func (g *Game) materialHas(material, tag string) bool {
-	return slices.Contains(g.r.matTags[material], tag)
+	if tags, ok := g.r.matTags[material]; ok {
+		return slices.Contains(tags, tag)
+	}
+	m, ok := g.foundReg.Get(material)
+	return ok && slices.Contains(m.Tags, tag)
 }
 
 // allSettlements are the tiles a new settlement on h must keep its

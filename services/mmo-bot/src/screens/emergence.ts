@@ -21,9 +21,6 @@ export const NAME_INPUT = "name";
 /** The longest name the modal takes: the board's title length. */
 export const NAME_MOST = 60;
 
-/** The types a promotion's first may rename (GDD 4.17). */
-export const RENAMABLE = new Set(["style", "variant", "material", "legend"]);
-
 const SMALL = [
   "no",
   "one",

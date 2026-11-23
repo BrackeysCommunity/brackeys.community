@@ -160,4 +160,24 @@ func axisPtrs(v *sheets.Vector) []*int64 {
 	return []*int64{&v.Edge, &v.Weight, &v.Flex, &v.Conduct, &v.Heat, &v.Ward, &v.Reach, &v.Bond}
 }
 
-func MaterialID(row, base string) string { return "found." + row + "." + base }
+// structural: a found material's id is "found.<row>.<base>".
+const (
+	foundPrefix = "found."
+	foundSep    = "."
+)
+
+// MaterialID is the id of the found material a variant row makes of a base.
+func MaterialID(row, base string) string { return foundPrefix + row + foundSep + base }
+
+// ParseMaterialID is the row and base a found material's id names.
+func ParseMaterialID(id string) (row, base string, ok bool) {
+	rest, ok := strings.CutPrefix(id, foundPrefix)
+	if !ok {
+		return "", "", false
+	}
+	row, base, ok = strings.Cut(rest, foundSep)
+	if !ok || row == "" || base == "" {
+		return "", "", false
+	}
+	return row, base, true
+}

@@ -14,9 +14,9 @@ import (
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// nilEmergenceDigest is the digest the pre-MM9 world reaches at 6a1ea316,
-// the commit before emergence, after a season-start, an operator's grant
-// and play through its season's close and one day on.
+// nilEmergenceDigest is the digest testdata/pre-mm9 reaches without
+// emergence after a season-start, an operator's grant and play through its
+// season's close and one day on.
 const nilEmergenceDigest = "c70e2ce9523092fddcdc8f1b9dbb103ba76debc68dae2d574d2334a1c6d6c2be"
 
 // loadPreMM9 is testdata/pre-mm9 attached to its rules, and the digest it

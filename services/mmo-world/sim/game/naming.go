@@ -2,7 +2,6 @@ package game
 
 import (
 	"slices"
-	"strings"
 
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/fact"
@@ -87,9 +86,9 @@ func (g *Game) dungeonName(c *Char, cmd Command) error {
 	case g.namersLeader(d) != c.C.ID:
 		return refuse(NotLeader, "%s's leader names this dungeon", c.C.ID)
 	}
-	name := strings.TrimSpace(cmd.Note)
-	if name == "" || int64(len([]rune(name))) > g.gp("title-length") || g.blocked(name) != "" {
-		return refuse(BadName, "a name is 1 to %d characters the board takes", g.gp("title-length"))
+	name, err := g.screenName(cmd.Note)
+	if err != nil {
+		return err
 	}
 	return g.nameGiven(h, d, name, false, g.Tick())
 }

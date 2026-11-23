@@ -115,7 +115,7 @@ func seen(g *game.Game, viewer string, f api.Fact) (api.Fact, bool) {
 
 // firstKinds are the facts that name a promotion's first, who is named to
 // nobody else.
-var firstKinds = []string{"promotion", "promotion.renamed"}
+var firstKinds = []string{"promotion", "promotion.renamed", "material.looted-first"}
 
 // scrubFirsts drops from each promotion fact the characters other than the
 // viewer, in its subjects and its data, for reads that name others freely.

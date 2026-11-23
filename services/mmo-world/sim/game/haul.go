@@ -34,7 +34,6 @@ func (g *Game) riskBand(c *Char, h hex.Hex) (sheets.RouteRisk, int, bool) {
 	case i > 0 && cover >= g.mp("cover-raise"):
 		i = min(i+1, len(bands)-1)
 	}
-	// A cut road is no road; a patrolled one is safer still (GDD 10.7).
 	if day := g.Tick() / sheets.TicksPerDay; g.onRoad(h, day) {
 		shift := g.charScale(c, "road-risk", 0)
 		if g.roadPatrolled(h, day) {

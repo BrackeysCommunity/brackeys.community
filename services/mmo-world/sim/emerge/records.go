@@ -85,7 +85,8 @@ type Pair struct {
 type RoadLoad struct {
 	Region  int               `json:"region"`
 	Window  Window            `json:"window"`
-	Tiles   map[hex.Hex]int64 `json:"tiles"` // this window's load by road tile, for the busiest
+	Tiles   map[hex.Hex]int64 `json:"tiles"`          // recent load by road tile, for the busiest
+	From    int64             `json:"from,omitempty"` // the day the tile tally began
 	Busiest hex.Hex           `json:"busiest"`
 }
 
@@ -98,11 +99,12 @@ type roadLoadWire struct {
 	Region  int        `json:"region"`
 	Window  Window     `json:"window"`
 	Tiles   []tileLoad `json:"tiles"`
+	From    int64      `json:"from,omitempty"`
 	Busiest hex.Hex    `json:"busiest"`
 }
 
 func (r RoadLoad) wire() roadLoadWire {
-	w := roadLoadWire{Region: r.Region, Window: r.Window, Busiest: r.Busiest, Tiles: make([]tileLoad, 0, len(r.Tiles))}
+	w := roadLoadWire{Region: r.Region, Window: r.Window, From: r.From, Busiest: r.Busiest, Tiles: make([]tileLoad, 0, len(r.Tiles))}
 	for _, h := range SortedHexes(r.Tiles) {
 		w.Tiles = append(w.Tiles, tileLoad{Hex: h, Load: r.Tiles[h]})
 	}
@@ -116,7 +118,7 @@ func (r *RoadLoad) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &w); err != nil {
 		return err
 	}
-	*r = RoadLoad{Region: w.Region, Window: w.Window, Busiest: w.Busiest, Tiles: make(map[hex.Hex]int64, len(w.Tiles))}
+	*r = RoadLoad{Region: w.Region, Window: w.Window, From: w.From, Busiest: w.Busiest, Tiles: make(map[hex.Hex]int64, len(w.Tiles))}
 	for _, t := range w.Tiles {
 		r.Tiles[t.Hex] = t.Load
 	}
@@ -311,6 +313,11 @@ type Caravan struct {
 	Arrive int64  `json:"arrive"`           // tick
 	Halted int64  `json:"halted,omitempty"` // tick it stopped, 0 moving
 	Arc    string `json:"arc,omitempty"`
+	// Legs are the ticks from its path's first tile to each tile, read the
+	// day it left; Material and Units are its manifest.
+	Legs     []int64 `json:"legs,omitempty"`
+	Material string  `json:"material,omitempty"`
+	Units    int64   `json:"units,omitempty"`
 }
 
 // VariantRec is a region's adapted creature.

@@ -367,8 +367,7 @@ func (g *Game) streakOf(r int) *Streak {
 
 // emergentView is the story view with what emergence adds (GDD 13): roads,
 // caravans, legends and contests. Only a world keeping emergence is read
-// through it, so without one the road and caravan templates find nothing
-// and the shortage and the caravan read as they did before.
+// through it.
 type emergentView struct{ *storyView }
 
 var _ arc.Emergent = emergentView{}
@@ -492,21 +491,15 @@ func (v emergentView) RoadIn(place int) bool {
 	return slices.ContainsFunc(v.g.Emergence.Routes, func(rt *emerge.RouteRec) bool { return rt.A == place || rt.B == place })
 }
 
-// Legends are the newest legends-kept legends not laid to rest, oldest
-// first.
+// Legends are the newest legends-kept goal legends not laid to rest, oldest
+// first. An item legend has no creature to hunt, so it is never cast.
 func (v emergentView) Legends() []arc.LegendView {
-	e := v.g.Emergence
 	p := v.g.r.Emerge.P
 	day := v.Day()
 	var out []arc.LegendView
-	for i := len(e.Legends) - 1; i >= 0 && int64(len(out)) < p.LegendsKept; i-- {
-		l := e.Legends[i]
-		if l.Laid != 0 {
-			continue
-		}
+	for _, l := range v.g.liveLegends() {
 		out = append(out, arc.LegendView{ID: l.ID, Region: l.Region, At: l.At, Rested: l.Cast != 0 && day < l.Cast+p.LegendRestDays})
 	}
-	slices.Reverse(out)
 	return out
 }
 

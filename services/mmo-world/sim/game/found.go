@@ -28,7 +28,6 @@ func (g *Game) registerFound(m sheets.Material) {
 	if g.foundReg != nil {
 		g.foundReg.Add(m)
 	}
-	g.r.matTags[m.ID] = slices.Clone(m.Tags)
 }
 
 // knownMaterial reports whether a material is the sheet's or found.

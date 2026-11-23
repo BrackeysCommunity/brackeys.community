@@ -276,3 +276,29 @@ func TestPromoteNameRefusals(t *testing.T) {
 	}
 	refused(c, styles[1].ID, "Last Light", NameClosed)
 }
+
+// TestLegendsGoalOnly: an item legend has no creature to hunt, so it is not
+// offered and takes no legends-kept slot.
+func TestLegendsGoalOnly(t *testing.T) {
+	g := mmGame(t)
+	goalL := mmLegendState(t, g)
+	item := func() *emerge.LegendRec {
+		l := mmLegendState(t, g)
+		l.Of = fact.Ref{Kind: renownItem, ID: "item-" + l.ID}
+		return l
+	}
+	item()
+	v := emergentView{g.storyView()}
+	if ls := v.Legends(); len(ls) != 1 || ls[0].ID != goalL.ID {
+		t.Fatalf("with an item legend newer than a goal legend, offered %+v", ls)
+	}
+	for range g.r.Emerge.P.LegendsKept {
+		item()
+	}
+	if ls := v.Legends(); len(ls) != 1 || ls[0].ID != goalL.ID {
+		t.Fatalf("item legends filling legends-kept crowd out the goal legend: %+v", ls)
+	}
+	if _, ok := g.legendTag(goalL.Region, goalL.Of.ID); !ok {
+		t.Fatal("the goal legend's archetype carries no tag")
+	}
+}

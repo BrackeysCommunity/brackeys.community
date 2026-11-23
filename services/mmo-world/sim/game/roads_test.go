@@ -231,6 +231,84 @@ func TestTollOncePerDay(t *testing.T) {
 	audit(t, g)
 }
 
+// TestTollEveryFollower: each member of a party stepping onto a tolled road
+// pays its own toll, not only the leader.
+func TestTollEveryFollower(t *testing.T) {
+	g := feedGame(t)
+	p := g.r.Emerge.P
+	from, to := slowStep(t, g)
+	rec := roadAtTile(t, g, to)
+	rec.TollUntil = g.Tick()/sheets.TicksPerDay + p.TollDays
+	cs := formParty(t, g, 2, from)
+	lead, f := cs[0], cs[1]
+	coins := map[string]int64{}
+	for _, c := range cs {
+		roadGrant(t, g, c, "toll-party-"+c.C.ID, ledger.Coin, p.TollCoin*2)
+		coins[c.C.ID] = c.C.Coin
+	}
+	act(t, g, f, Follow, "")
+	if _, err := g.Act(Command{Key: "toll-lead", Char: lead.C.ID, Kind: Step, Dir: from.DirectionTo(to)}); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; lead.Long != nil && i < 50; i++ {
+		advance(t, g)
+	}
+	if lead.C.At != to || f.C.At != to {
+		t.Fatalf("leader at %s, follower at %s, want %s", lead.C.At.Ref(), f.C.At.Ref(), to.Ref())
+	}
+	if n := len(factsOf(g, factRoadTollPaid)); n != 2 {
+		t.Fatalf("%d tolls paid for a party of two", n)
+	}
+	for _, c := range cs {
+		if c.C.Coin != coins[c.C.ID]-p.TollCoin {
+			t.Fatalf("%s paid %d, want %d", c.C.ID, coins[c.C.ID]-c.C.Coin, p.TollCoin)
+		}
+	}
+	audit(t, g)
+}
+
+// TestRoadStopsAtTheMapEdge: a laid road ends where its path leaves the
+// map, so one road id never lies in disconnected pieces.
+func TestRoadStopsAtTheMapEdge(t *testing.T) {
+	g := feedGame(t)
+	var a, b hex.Hex
+	found := false
+	for _, h := range openTiles(t, g, 300) {
+		for _, n := range h.Neighbours() {
+			if g.World.RegionAt(n) >= 0 && !g.IsSettlement(n) && !g.IsSettlement(h) && g.Emergence.Roads[n] == "" && g.Emergence.Roads[h] == "" {
+				a, b, found = h, n, true
+				break
+			}
+		}
+		if found {
+			break
+		}
+	}
+	if !found {
+		t.Fatal("no two open tiles side by side near the first settlement")
+	}
+	off := hex.Hex{Q: 1 << 40, R: 1 << 40}
+	if g.World.RegionAt(off) >= 0 {
+		t.Fatal("the far tile is on the map")
+	}
+	after := b.Neighbour(0).Neighbour(0).Neighbour(0)
+	if g.World.RegionAt(after) < 0 || g.Emergence.Roads[after] != "" {
+		t.Fatal("the tile past the gap is not open ground")
+	}
+	if err := g.layRoad([]hex.Hex{a, b, off, after}, viaPattern, g.lastFact()); err != nil {
+		t.Fatal(err)
+	}
+	advance(t, g)
+	ra, okA := g.roadAt(a)
+	rb, okB := g.roadAt(b)
+	if !okA || !okB || ra.ID != rb.ID || ra.Tiles != 2 {
+		t.Fatalf("the tiles before the gap: %+v %+v", ra, rb)
+	}
+	if g.Emergence.Roads[after] != "" {
+		t.Fatal("the road went on past the map's edge")
+	}
+}
+
 func TestPatrolledRoadBand(t *testing.T) {
 	g := feedGame(t)
 	p := g.r.Emerge.P

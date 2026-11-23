@@ -189,3 +189,17 @@ func TestCompileRefusesMissingCells(t *testing.T) {
 		t.Fatal("compiled with a missing param and line")
 	}
 }
+
+// TestMaterialIDRoundTrip: a found material's id parses back to its row and
+// base, and an id that is not one does not parse.
+func TestMaterialIDRoundTrip(t *testing.T) {
+	id := MaterialID("ember-hardened", "iron.ore")
+	if row, base, ok := ParseMaterialID(id); !ok || row != "ember-hardened" || base != "iron.ore" {
+		t.Fatalf("%q parsed to %q %q %v", id, row, base, ok)
+	}
+	for _, bad := range []string{"iron", "found.", "found.row", "found..iron", "found.row.", "lost.row.iron"} {
+		if _, _, ok := ParseMaterialID(bad); ok {
+			t.Errorf("%q parsed as a found material", bad)
+		}
+	}
+}

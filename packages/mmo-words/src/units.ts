@@ -29,6 +29,11 @@ export function change(from: number, to: number, unit: string, of?: number): str
   return from === to ? `${num(to)} ${tail}` : `${num(from)} to ${num(to)} ${tail}`;
 }
 
+/** "a, b and c". */
+export function list(xs: string[]): string {
+  return xs.length < 2 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`;
+}
+
 /** "14 of 30 load". */
 export function outOf(n: number, of: number, unit: string): string {
   return `${num(n)} of ${num(of)} ${unit}`;

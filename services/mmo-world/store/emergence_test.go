@@ -27,6 +27,43 @@ import (
 	"jams.team/mmo-world/store/pgtest"
 )
 
+// foreignManifest checks the stored audit holds a live caravan's pool to
+// its manifest: with the stored manifest naming another material, the
+// goods in the pool read as a discrepancy. It puts the stored sim back.
+func foreignManifest(t *testing.T, ctx context.Context, pool *pgxpool.Pool, st *store.Store, worldID, caravan string) {
+	t.Helper()
+	var raw []byte
+	if err := pool.QueryRow(ctx, `SELECT sim FROM mmo.world WHERE id = $1`, worldID).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	dec := json.NewDecoder(strings.NewReader(string(raw)))
+	dec.UseNumber()
+	var sim map[string]any
+	if err := dec.Decode(&sim); err != nil {
+		t.Fatal(err)
+	}
+	cvs, _ := sim["emergence"].(map[string]any)["caravans"].([]any)
+	i := slices.IndexFunc(cvs, func(x any) bool { return x.(map[string]any)["id"] == caravan })
+	if i < 0 || cvs[i].(map[string]any)["material"] == nil {
+		t.Fatalf("the stored caravan %s carries no manifest", caravan)
+	}
+	cvs[i].(map[string]any)["material"] = "foreign-good"
+	bent, err := json.Marshal(sim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE mmo.world SET sim = $1 WHERE id = $2`, bent, worldID); err != nil {
+		t.Fatal(err)
+	}
+	bad, err := st.Audit(ctx)
+	if _, rerr := pool.Exec(ctx, `UPDATE mmo.world SET sim = $1 WHERE id = $2`, raw, worldID); rerr != nil {
+		t.Fatal(rerr)
+	}
+	if err != nil || !slices.ContainsFunc(bad, func(s string) bool { return strings.Contains(s, ledger.CaravanPool(caravan)) }) {
+		t.Fatal("a foreign good in a live caravan's pool passed the stored audit:", bad, err)
+	}
+}
+
 func emergenceJSON(t *testing.T, g *game.Game) string {
 	t.Helper()
 	b, err := json.Marshal(g.Emergence)
@@ -329,6 +366,7 @@ func TestEmergenceSurvivesSaves(t *testing.T) {
 	if bad, err := st.Audit(ctx); err != nil || len(bad) > 0 {
 		t.Fatal("the stored audit with the caravan live:", bad, err)
 	}
+	foreignManifest(t, ctx, pool, st, world, caravan)
 	testkit.Act(t, ctx, st, g, game.Command{Key: "unload", Char: c.C.ID, Kind: game.Correct, Asset: ledger.Material(found.ID), Units: -1, Note: "test unload"}, "")
 	for range 4 * day {
 		if !slices.ContainsFunc(g.Emergence.Caravans, func(cv *emerge.Caravan) bool { return cv.ID == caravan }) {

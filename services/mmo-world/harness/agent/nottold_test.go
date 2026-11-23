@@ -8,17 +8,17 @@ import (
 )
 
 // told are the words a policy would need to play toward emergence (GDD
-// 13): its traces, what they promote, and the MM10 wire names. A policy
-// that names none plays MM5 to MM9 code, so whatever the closed world
-// promotes it promotes unprompted.
+// 13): its traces, what they promote and their wire names. A policy that
+// names none cannot aim at emergence, so whatever the closed world promotes
+// it promotes unprompted.
 var told = []string{
 	"Emergence", "emerge", "Promot", "Style", "Pairing", "Variant", "Resist", "Adapt", "Caravan", "RoadName",
 	"Haunt", "Camp", "Legend", "Custom", "Toll", "Reliance",
 	"PathStoryPromotions", "PathOperatorEmergence", "ActPromoteName", "CreatureName",
 }
 
-// toldBefore are words of the list a file used before emergence for
-// something else, by file. None does today; a new use still fails.
+// toldBefore excuses, by file, a listed word a policy uses for something
+// other than emergence.
 var toldBefore = map[string][]string{}
 
 // TestAgentsNotTold reads every policy source for the words, in any case.

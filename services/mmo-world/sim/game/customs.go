@@ -13,7 +13,7 @@ import (
 	"jams.team/mmo-world/sim/ledger"
 )
 
-// Customs (GDD 13.2): a settlement's goal renewed three seasons running
+// Customs (GDD 13.2): a settlement's goal renewed enough seasons running
 // becomes something the world posts by itself each season, paid from the
 // settlement's treasury so no coin comes from nowhere.
 
@@ -125,10 +125,7 @@ func (g *Game) holdCustom(rec *emerge.CustomRec, t int64) error {
 	if err := json.Unmarshal(rec.Spec, &s); err != nil {
 		return err
 	}
-	name := rec.ID
-	if p := e.Promotion(rec.ID); p != nil {
-		name = p.Shown()
-	}
+	name := g.promotionShown(rec.ID)
 	h := g.SettlementHex(rec.Place)
 	subjects := []fact.Ref{promotionRef(rec.ID), arc.SettlementRef(rec.Place)}
 	treasury := TreasuryPool(rec.Place)

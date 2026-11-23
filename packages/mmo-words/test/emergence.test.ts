@@ -7,6 +7,7 @@ import {
   bareNumbers,
   chronicleLine,
   emergenceWords,
+  list,
   PROMOTION_TYPES,
   promotionCount,
   promotionCounts,
@@ -225,5 +226,14 @@ describe("promotion counts", () => {
         "60 crossings, 40 clearings, 2 roads, 1 route, 3 caravans, 1 legend, 1 custom, 10 wins, 25 attempts, 4 promotions",
       ),
     ).toEqual([]);
+  });
+});
+
+describe("list", () => {
+  test("joins with commas and a final and", () => {
+    expect(list([])).toBe("");
+    expect(list(["a"])).toBe("a");
+    expect(list(["a", "b"])).toBe("a and b");
+    expect(list(["a", "b", "c"])).toBe("a, b and c");
   });
 });

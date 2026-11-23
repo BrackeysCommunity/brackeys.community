@@ -366,10 +366,7 @@ func (g *Game) backEvents(f fact.Fact) []goal.Event {
 		return g.backedGoods(c, f)
 	}
 	var out []goal.Event
-	for _, s := range g.runningSides() {
-		if !ArcVisible(s.a, c.C.ID) {
-			continue
-		}
+	for _, s := range g.runningSides(c.C.ID) {
 		units, worth, implicit := g.counts(c, s, f)
 		if units <= 0 {
 			continue
@@ -401,11 +398,12 @@ func (g *Game) backedGoods(c *Char, f fact.Fact) []goal.Event {
 	return []goal.Event{e}
 }
 
-// runningSides are the sides whose stage is running, in arc order.
-func (g *Game) runningSides() []backed {
+// runningSides are the running sides viewer may read, in arc order. Another
+// character's thread is passed over before its goal is read.
+func (g *Game) runningSides(viewer string) []backed {
 	var out []backed
 	for _, a := range g.Story.Arcs {
-		if a.over() || a.Stage < 0 || a.Stage >= len(a.Stages) {
+		if !ArcVisible(a, viewer) || a.over() || a.Stage < 0 || a.Stage >= len(a.Stages) {
 			continue
 		}
 		st := &a.Stages[a.Stage]
@@ -595,10 +593,7 @@ func (g *Game) SidesFor(c *Char) []SideOption {
 		return nil
 	}
 	var out []SideOption
-	for _, s := range g.runningSides() {
-		if !ArcVisible(s.a, c.C.ID) {
-			continue
-		}
+	for _, s := range g.runningSides(c.C.ID) {
 		b, backs := g.backingIn(c.C.ID, s.a.ID, s.stage)
 		if (backs && b.Side != s.sr.Side) || !s.x.May(c.C.ID) || g.shunned(c, s) {
 			continue

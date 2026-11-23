@@ -102,6 +102,9 @@ func (g *Game) followed(l *Char, followers []*Char, to hex.Hex, owe, t int64, ac
 		if err := g.notePassage(f, to, t); err != nil {
 			return acts, err
 		}
+		if err := g.toll(f, to, t); err != nil {
+			return acts, err
+		}
 		if f.Carrying != "" {
 			if err := g.carried(f, to, t); err != nil {
 				return acts, err

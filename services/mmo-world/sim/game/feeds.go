@@ -11,9 +11,8 @@ import (
 	"jams.team/mmo-world/sim/tags"
 )
 
-// The trace feeds (GDD 13.1): each trace is counted where its signal is
-// made, in time bounded by the line it feeds, and never read back from the
-// log. Each feed does nothing for a staged act or while emergence is off.
+// The trace feeds (GDD 13.1). Each does nothing for a staged act or while
+// emergence is off.
 
 // structural: goods a staged source made are never haulage (GDD 14.5).
 const tagStaged = "staged"
@@ -23,9 +22,8 @@ func (g *Game) lastFact() fact.ID {
 	return fact.ID(g.Log.Len())
 }
 
-// notePassage counts a character's step onto a tile toward a road: 60
-// crossings by 20 distinct characters within 9 days (GDD 13.2). A step onto
-// a road tile is also road load.
+// notePassage counts a character's step onto a tile toward the road line
+// (GDD 13.2). A step onto a road tile is also road load.
 func (g *Game) notePassage(c *Char, h hex.Hex, t int64) error {
 	if !g.traced(c, h) {
 		return nil
@@ -76,8 +74,8 @@ func (g *Game) noteRoadLoad(c *Char, h hex.Hex, t int64) error {
 	if !g.traced(c, h) {
 		return nil
 	}
-	tl := g.World.Tile(h)
-	if tl == nil || tl.Road <= 0 {
+	day, season := g.traceAt(t)
+	if !g.onRoad(h, day) {
 		return nil
 	}
 	c.C.Deeds.Bump(char.DeedRoadSteps, 1)
@@ -86,19 +84,17 @@ func (g *Game) noteRoadLoad(c *Char, h hex.Hex, t int64) error {
 		return nil
 	}
 	s := g.Emergence
-	day, season := g.traceAt(t)
 	days := g.r.Emerge.P.RoadWarDays
 	rl := s.RoadLoad[region]
 	if rl == nil {
 		rl = &emerge.RoadLoad{Region: region}
 		s.RoadLoad[region] = rl
 	}
-	// The tally by tile starts over once the window has emptied, so the
-	// busiest road is this window's.
-	if rl.Tiles == nil {
+	// The tally by tile covers at most road-war-days and starts over each
+	// season, so the busiest road is one in use now.
+	if rl.Tiles == nil || day-rl.From >= days || rl.Window.Season != season {
 		rl.Tiles = map[hex.Hex]int64{}
-	} else if rl.Window.Sum(day, season, days) == 0 {
-		clear(rl.Tiles)
+		rl.From = day
 	}
 	load := g.hauled(c)
 	rl.Window.Add(day, season, load, days)
@@ -129,9 +125,8 @@ func (g *Game) siteTrace(e *fight.Encounter, h hex.Hex) bool {
 	return e.Floor == 0 && g.slot(h) != "" && !g.IsDungeon(h) && !g.IsSettlement(h)
 }
 
-// noteClearing counts an overland encounter won at a site toward a camp:
-// 40 clearings within 14 days. A shared encounter is one clearing, fed by
-// its first member.
+// noteClearing counts an overland encounter won at a site toward a camp's
+// line. A shared encounter is one clearing, fed by its first member.
 func (g *Game) noteClearing(c *Char, e *fight.Encounter, t int64) error {
 	h := c.C.At
 	if e.Result != fight.Won || !g.siteTrace(e, h) || !g.traced(c, h) {
@@ -155,8 +150,8 @@ func (g *Game) noteClearing(c *Char, e *fight.Encounter, t int64) error {
 }
 
 // noteLoss counts a character down in an overland encounter: on its
-// region's tally always, and at a site toward a haunt, 30 downs within 7
-// days, counted per down.
+// region's tally always, and at a site toward a haunt's line, counted per
+// down.
 func (g *Game) noteLoss(c *Char, e *fight.Encounter, t int64) error {
 	h := c.C.At
 	if e.Floor != 0 || !g.traced(c, h) {
@@ -209,8 +204,8 @@ func (g *Game) regionTally(region int) *emerge.RegionTally {
 }
 
 // noteHaul counts the load a character carries into settlement n from the
-// last settlement it stood in toward a trade route: 2,000 load between a
-// pair within 14 days. It runs before the visit is recorded.
+// last settlement it stood in toward a trade route's line. It runs before
+// the visit is recorded.
 func (g *Game) noteHaul(c *Char, n int, t int64) error {
 	last, ok := c.lastVisit()
 	if !ok || last.Settlement == n || n >= len(g.Places) || !g.traced(c, g.Places[n].Hex) {
@@ -252,9 +247,9 @@ func (g *Game) noteHaul(c *Char, n int, t int64) error {
 }
 
 // noteReliance counts a won press: the region's won beats, and the style
-// the pressed option makes toward a named style, 20 characters each with
-// 10 wins with it within 14 days (GDD 13.2). Once named, the style keeps a
-// tally of what it beats there, which its variant is drawn from.
+// the pressed option makes toward the style line (GDD 13.2). Once named,
+// the style keeps a tally of what it beats there, which its variant is
+// drawn from.
 func (g *Game) noteReliance(c *Char, e *fight.Encounter, o fight.Option, t int64) error {
 	h := c.C.At
 	if !g.traced(c, h) {

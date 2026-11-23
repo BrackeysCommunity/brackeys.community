@@ -26,8 +26,7 @@ import { httpWorld } from "./world.ts";
  * privileged intents; the game reads no messages), answering interactions,
  * keeping party threads, and posting the market and notice-board forums,
  * the events or game channel's hunts, the events channel and the chronicle
- * channel, its promotions among them, from the world service's API. The
- * lexicon is read again on a timer so the names play finds reach the cards.
+ * channel, its promotions among them, from the world service's API.
  */
 process.on("unhandledRejection", (e) => console.error(`[unhandled] ${describe(e)}`));
 const config = loadConfig();

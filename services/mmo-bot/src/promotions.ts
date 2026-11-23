@@ -11,8 +11,7 @@ import { promotionCard } from "./screens/emergence.ts";
  * made part of the world, a legend laid, a custom held and what a season
  * added, posted once as it happens, in the order the world wrote it. The
  * mark is kept apart from the events channel's, so either channel may be
- * set alone. A post may name something the lexicon did not yet know, a
- * found material, so the lexicon is read again after each.
+ * set alone.
  */
 
 export const PROMOTIONS_POLL_MS = 15_000;

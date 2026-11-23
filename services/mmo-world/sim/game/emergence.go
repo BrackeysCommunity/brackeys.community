@@ -456,8 +456,7 @@ func (g *Game) settlementName(n int) string {
 }
 
 // nearPlaceName is the name of a promotion's first place, else of the open
-// settlement nearest its tile (the lowest index on a tie), else of its
-// region.
+// settlement nearest its tile, else of its tile, else of its region.
 func (g *Game) nearPlaceName(p Promoting) string {
 	if len(p.Places) > 0 {
 		return g.settlementName(p.Places[0])
@@ -470,28 +469,16 @@ func (g *Game) nearPlaceName(p Promoting) string {
 		}
 		return ""
 	}
-	best, far := -1, int64(0)
-	for i, pl := range g.Places {
-		if d := hex.Distance(pl.Hex, *p.At); best < 0 || d < far {
-			best, far = i, d
-		}
+	if n, ok := g.nearestOpen(*p.At); ok {
+		return g.settlementName(n)
 	}
-	if best < 0 {
-		return g.placeName(*p.At)
-	}
-	return g.settlementName(best)
+	return g.placeName(*p.At)
 }
-
-// structural: a found material's id is "found.<row>.<base>".
-const (
-	foundPrefix = "found."
-	foundSep    = "."
-)
 
 // foundParts are the adaptation row and base material a found id names.
 func (g *Game) foundParts(id string) (string, sheets.Material, bool) {
-	row, base, ok := strings.Cut(strings.TrimPrefix(id, foundPrefix), foundSep)
-	if !ok || !strings.HasPrefix(id, foundPrefix) {
+	row, base, ok := emerge.ParseMaterialID(id)
+	if !ok {
 		return "", sheets.Material{}, false
 	}
 	m, ok := sheets.Lookup(g.r.Book.Materials)[base]

@@ -335,8 +335,8 @@ func TestRoadWarNeedsLoadAndRaider(t *testing.T) {
 }
 
 // TestRoadWarSpendsItsLoad: a road war cast on a region's roads, even one
-// won the day it was cast, holds off another there for road-war-days, since no side lowers the load that cast
-// it; once that window has passed the same load casts again.
+// won the day it was cast, holds off another there for road-war-days; after
+// that the same load casts again.
 func TestRoadWarSpendsItsLoad(t *testing.T) {
 	g := mmGame(t)
 	road, _ := mmRoadWarState(t, g)
@@ -683,8 +683,7 @@ func mmSig(cs []arc.Candidate) []string {
 	return out
 }
 
-// mmMM9State is every MM9 template's state the siege, overrun, dry seam
-// and grudge tests set.
+// mmMM9State sets what the siege, overrun, dry seam and grudge tests need.
 func mmMM9State(t *testing.T, g *Game) {
 	t.Helper()
 	tplSiegeState(t, g)
@@ -697,10 +696,10 @@ func mmMM9State(t *testing.T, g *Game) {
 }
 
 // TestTemplatesNoEmergenceUnchanged: without emergence the director reads
-// the plain view; MM9's eighteen templates find what they find with
-// emergence on, and play end to end as before; the four emergence
-// templates find nothing and cast nothing, even with their state set, and
-// their refs cannot be bound by hand.
+// the plain view; the eighteen older templates find the same with emergence
+// on and play end to end; the four emergence templates find and cast
+// nothing, even with their state set, and their refs cannot be bound by
+// hand.
 func TestTemplatesNoEmergenceUnchanged(t *testing.T) {
 	on, off := tplGame(t), tplGame(t)
 	var cv *emerge.Caravan

@@ -163,7 +163,13 @@ func subjectID(f fact.Fact, kind string) string {
 }
 
 func (g *Game) materialTags(material string) []string {
-	return slices.Clone(g.r.matTags[material])
+	if tags, ok := g.r.matTags[material]; ok {
+		return slices.Clone(tags)
+	}
+	if m, ok := g.foundReg.Get(material); ok {
+		return slices.Clone(m.Tags)
+	}
+	return nil
 }
 
 func (g *Game) itemOf(who, id string) *item.Instance {

@@ -222,13 +222,17 @@ func (g *Game) meet(h hex.Hex, rec *emerge.RoadRec) {
 
 // layRoad lays a road along a path as one new road with its own promotion
 // (GDD 4.13's road to the nearest settlement), named for the open
-// settlement nearest its start. Tiles already on a road stay on theirs.
+// settlement nearest its start. Tiles already on a road stay on theirs; the
+// road stops where the path leaves the map.
 func (g *Game) layRoad(path []hex.Hex, via string, cause fact.ID) error {
 	e := g.Emergence
 	if e == nil {
 		return nil
 	}
-	free := slices.DeleteFunc(slices.Clone(path), func(h hex.Hex) bool { return e.Roads[h] != "" || g.World.RegionAt(h) < 0 })
+	if i := slices.IndexFunc(path, func(h hex.Hex) bool { return g.World.RegionAt(h) < 0 }); i >= 0 {
+		path = path[:i]
+	}
+	free := slices.DeleteFunc(slices.Clone(path), func(h hex.Hex) bool { return e.Roads[h] != "" })
 	if len(free) == 0 {
 		return nil
 	}

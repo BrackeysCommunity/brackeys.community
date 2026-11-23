@@ -63,15 +63,19 @@ func (g *Game) manifestOf(from int) (string, bool) {
 }
 
 // caravanHolds is each live caravan's goods as the state has them: its
-// pool, held to its manifest's material and to caravan-load, so a pool
-// left behind, a foreign good or an over-mint reads as a discrepancy.
+// pool, held to its manifest's material and units, so a pool left behind,
+// a foreign good or an over-mint reads as a discrepancy. A caravan saved
+// without its manifest is held to its origin's and to caravan-load.
 func caravanHolds(g *Game) []ledger.Balance {
 	var out []ledger.Balance
-	load := g.r.Emerge.P.CaravanLoad
 	for _, cv := range g.Emergence.Caravans {
-		mat, ok := g.manifestOf(cv.From)
-		if !ok {
-			continue
+		mat, load := cv.Material, cv.Units
+		if mat == "" {
+			var ok bool
+			if mat, ok = g.manifestOf(cv.From); !ok {
+				continue
+			}
+			load = g.r.Emerge.P.CaravanLoad
 		}
 		pool, asset := ledger.CaravanPool(cv.ID), ledger.Goods(mat)
 		if n := min(g.Ledger.Of(pool, asset), load); n > 0 {
@@ -126,6 +130,7 @@ func (g *Game) caravanDepart(rt *emerge.RouteRec, day, t int64) error {
 	path := orient(rt, from)
 	legs := g.legs(path, day)
 	cv.Arrive = t + legs[len(legs)-1]
+	cv.Legs, cv.Material, cv.Units = legs, mat, p.CaravanLoad
 	data := append(g.caravanData(cv, p.CaravanLoad), fact.S("material", mat), fact.N("from", int64(from)), fact.N("to", int64(to)))
 	fid, err := g.worldFact(g.SettlementHex(from), factCaravanDeparted, []fact.Ref{promotionRef(rt.ID)}, g.routeCause(rt.ID), data...)
 	if err != nil {
@@ -204,9 +209,9 @@ func (g *Game) legs(path []hex.Hex, day int64) []int64 {
 }
 
 // caravanStep is a caravan's path in the order it walks it and the index
-// of the tile it is on at t. Its clock stops while it is halted; the legs
-// are read as they were the day it left, scaled to its journey, so the
-// answer depends on nothing that changes on the way.
+// of the tile it is on at t. Its clock stops while it is halted. Its legs
+// are the ones read the day it left and kept on it, scaled to its journey,
+// so a cut or a road laid on the way never moves it.
 func (g *Game) caravanStep(cv *emerge.Caravan, t int64) ([]hex.Hex, int) {
 	rt := g.routeRec(cv.Route)
 	if rt == nil || len(rt.Path) == 0 {
@@ -225,7 +230,10 @@ func (g *Game) caravanStep(cv *emerge.Caravan, t int64) ([]hex.Hex, int) {
 	case gone >= span:
 		return path, last
 	}
-	legs := g.legs(path, cv.Depart/sheets.TicksPerDay)
+	legs := cv.Legs
+	if len(legs) != len(path) {
+		legs = g.legs(path, cv.Depart/sheets.TicksPerDay)
+	}
 	total := legs[last]
 	i := last
 	for i > 0 && legs[i]*span > gone*total {

@@ -840,4 +840,13 @@ func TestPlayerFacts(t *testing.T) {
 	if len(got[0].Subjects) != 1 || len(got[0].Data) != 1 || len(got[1].Subjects) != 2 || len(got[2].Subjects) != 2 {
 		t.Errorf("promotion firsts scrubbed to %+v", got)
 	}
+	looted := func() []api.Fact {
+		return []api.Fact{{Kind: "material.looted-first", Subjects: []api.Ref{{Kind: "material", ID: "m-1"}, first}}}
+	}
+	if got := service.ScrubFirsts("c-1", looted()); len(got[0].Subjects) != 1 || got[0].Subjects[0].Kind != "material" {
+		t.Errorf("material first shown to another: %+v", got)
+	}
+	if got := service.ScrubFirsts("c-2", looted()); len(got[0].Subjects) != 2 {
+		t.Errorf("material first hidden from itself: %+v", got)
+	}
 }

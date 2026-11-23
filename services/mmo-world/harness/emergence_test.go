@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"jams.team/mmo-world/sheetfs"
+	"jams.team/mmo-world/sim/emerge"
 	"jams.team/mmo-world/sim/game"
 )
 
@@ -243,6 +244,48 @@ func TestEmergenceReportShape(t *testing.T) {
 	for _, typ := range []string{"road", "camp", "haunt", "route", "style", "variant", "legend", "custom", "material", "class", "masters"} {
 		if !strings.Contains(doc, "| "+typ+" | ") {
 			t.Errorf("the promotions table has no %s row", typ)
+		}
+	}
+}
+
+// TestPairingCases holds pairing-share-falls to measuring only a region
+// with wins on both sides of the variant.
+func TestPairingCases(t *testing.T) {
+	k := emerge.StyleKey{Region: 1, Style: "s"}
+	const day = 20
+	samples := func(before, after winDay) map[int64]winDay {
+		m := map[int64]winDay{}
+		for d := int64(day - pairingDays); d < day; d++ {
+			m[d] = before
+		}
+		for d := int64(day + 1); d <= day+pairingDays; d++ {
+			m[d] = after
+		}
+		return m
+	}
+	for _, tc := range []struct {
+		name          string
+		before, after winDay
+		measured, ok  bool
+		why           string
+	}{
+		{"fell", winDay{2, 4}, winDay{1, 4}, true, true, ""},
+		{"rose", winDay{1, 4}, winDay{2, 4}, true, false, ""},
+		{"none before", winDay{0, 0}, winDay{1, 4}, false, false, "no wins in the region before it"},
+		{"none after", winDay{2, 4}, winDay{0, 0}, false, false, "no wins in the region after it"},
+	} {
+		w := emergenceWorld{
+			variants: []variantSeen{{day: day, style: k, matched: true}},
+			samples:  map[emerge.StyleKey]map[int64]winDay{k: samples(tc.before, tc.after)},
+			lastDay:  day + pairingDays,
+		}
+		cs := pairingCases(w)
+		if len(cs) != 1 {
+			t.Fatalf("%s: %d cases, want 1", tc.name, len(cs))
+		}
+		c := cs[0]
+		if c.measured != tc.measured || c.ok != tc.ok || c.why != tc.why {
+			t.Errorf("%s: measured %v ok %v why %q, want %v %v %q", tc.name, c.measured, c.ok, c.why, tc.measured, tc.ok, tc.why)
 		}
 	}
 }

@@ -305,3 +305,50 @@ func TestFilledStateDigests(t *testing.T) {
 		t.Fatal("digest moved across a JSON round trip")
 	}
 }
+
+// TestPromotionIndex: ByOf and StylesIn follow promotions appended after
+// the first read, and a shorter promotion list rebuilds them.
+func TestPromotionIndex(t *testing.T) {
+	s := New(0, 1)
+	add := func(tp Type, region int, of string) {
+		s.Promotions = append(s.Promotions, Promotion{ID: s.NewID(tp), Type: tp, Region: region, Of: of})
+	}
+	ids := func(ps []*Promotion) []string {
+		out := []string{}
+		for _, p := range ps {
+			out = append(out, p.ID)
+		}
+		return out
+	}
+	want := func(what string, got []*Promotion, w ...string) {
+		t.Helper()
+		if w == nil {
+			w = []string{}
+		}
+		if g := ids(got); !slices.Equal(g, w) {
+			t.Fatalf("%s: %v, want %v", what, g, w)
+		}
+	}
+	add(Style, 0, "feint")
+	add(Material, -1, "found.a")
+	add(Style, 2, "feint")
+	want("feint", s.ByOf(Style, "feint"), "style:1", "style:3")
+	want("region 2", s.StylesIn(2), "style:3")
+	want("all", s.StylesIn(-1), "style:1", "style:3")
+
+	add(Style, 0, "guard")
+	add(Material, -1, "found.a")
+	want("feint after", s.ByOf(Style, "feint"), "style:1", "style:3")
+	want("material", s.ByOf(Material, "found.a"), "material:2", "material:5")
+	want("region 0", s.StylesIn(0), "style:1", "style:4")
+	want("all after", s.StylesIn(-1), "style:1", "style:3", "style:4")
+	want("none", s.ByOf(Variant, "x"))
+
+	s.Promotions = s.Promotions[:2]
+	want("feint shorter", s.ByOf(Style, "feint"), "style:1")
+	want("all shorter", s.StylesIn(-1), "style:1")
+	want("material shorter", s.ByOf(Material, "found.a"), "material:2")
+	if p := s.ByOf(Style, "feint")[0]; p != &s.Promotions[0] {
+		t.Fatal("ByOf does not point into Promotions")
+	}
+}

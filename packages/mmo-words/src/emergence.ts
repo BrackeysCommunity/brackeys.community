@@ -1,5 +1,5 @@
 import type { StoryFact } from "./story.ts";
-import { num, plural } from "./units.ts";
+import { list, num, plural } from "./units.ts";
 
 /**
  * How emergence reads (GDD 13): what each kind of promotion is called, the
@@ -43,10 +43,6 @@ export function promotionNoun(type: string): string {
 export function promotionCount(type: string, n: number): string {
   const [one, many] = TYPE_NOUNS[type] ?? ["promotion", "promotions"];
   return plural(n, one, many);
-}
-
-function list(xs: string[]): string {
-  return xs.length < 2 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`;
 }
 
 /** Counts by type in a fixed order, the zeros left out: "2 roads, 1 camp and 1 style". */
@@ -192,6 +188,14 @@ export function seasonAddedCounts(added: StoryFact): string {
   });
 }
 
+/** What season.added brought, with its first named addition, or "" for none. */
+export function seasonAddedWhat(added: StoryFact): string {
+  const counts = seasonAddedCounts(added);
+  if (!counts) return "";
+  const first = datum(added, "first").s;
+  return `${counts}${first ? `, ${first} among them` : ""}`;
+}
+
 /** What a season's close keeps (GDD 13.4). `kept` counts the season's promotions by type. */
 export function seasonKept(kept: Record<string, number> = {}): string {
   const counts = promotionCounts(kept);
@@ -207,10 +211,8 @@ export function seasonFaded(): string {
 
 /** What a new season adds (GDD 12.6), from its season.added fact. */
 export function seasonAdded(added?: StoryFact): string {
-  const counts = added ? seasonAddedCounts(added) : "";
-  if (!counts) return "Added: nothing new to use this time.";
-  const first = datum(added, "first").s;
-  return `Added: ${counts}${first ? `, ${first} among them` : ""}.`;
+  const what = added ? seasonAddedWhat(added) : "";
+  return what ? `Added: ${what}.` : "Added: nothing new to use this time.";
 }
 
 /**

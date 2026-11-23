@@ -58,11 +58,8 @@ func styleNamedOnce(g *Game, p *Promoting) (bool, error) {
 	if p.Name != "" {
 		return false, nil
 	}
-	for _, x := range g.Emergence.Promotions {
-		if x.Type == emerge.Style && x.Of == p.Of {
-			p.Name = x.Shown()
-			break
-		}
+	if xs := g.Emergence.ByOf(emerge.Style, p.Of); len(xs) > 0 {
+		p.Name = xs[0].Shown()
 	}
 	return false, nil
 }
@@ -72,11 +69,7 @@ func styleNamedOnce(g *Game, p *Promoting) (bool, error) {
 func (g *Game) promotedStyles(region int) []*emerge.StyleTrace {
 	e := g.Emergence
 	var out []*emerge.StyleTrace
-	for i := range e.Promotions {
-		p := &e.Promotions[i]
-		if p.Type != emerge.Style || (region >= 0 && p.Region != region) {
-			continue
-		}
+	for _, p := range e.StylesIn(region) {
 		if st := e.Styles[emerge.StyleKey{Region: p.Region, Style: p.Of}]; st != nil {
 			out = append(out, st)
 		}
@@ -171,11 +164,8 @@ func (g *Game) materialPromotion(id string) *emerge.Promotion {
 	if id == "" {
 		return nil
 	}
-	e := g.Emergence
-	for i := len(e.Promotions) - 1; i >= 0; i-- {
-		if p := &e.Promotions[i]; p.Type == emerge.Material && p.Of == id {
-			return p
-		}
+	if xs := g.Emergence.ByOf(emerge.Material, id); len(xs) > 0 {
+		return xs[len(xs)-1]
 	}
 	return nil
 }
@@ -232,29 +222,6 @@ func (g *Game) resistFor(region int, archetype string, variant bool) []fight.Res
 	}
 	slices.SortFunc(out, func(a, b fight.Resist) int { return cmp.Compare(a.Tag, b.Tag) })
 	return out
-}
-
-// legendTag is the trait tag a goal legend's archetype carries in its
-// region, among the newest legends the cast reads.
-func (g *Game) legendTag(region int, archetype string) (tags.Tag, bool) {
-	e := g.Emergence
-	kept := g.r.Emerge.P.LegendsKept
-	for i := len(e.Legends) - 1; i >= 0 && kept > 0; i-- {
-		l := e.Legends[i]
-		if l == nil || l.Laid != 0 {
-			continue
-		}
-		kept--
-		if l.Region != region || l.Of.Kind != kindCreature || l.Of.ID != archetype {
-			continue
-		}
-		for _, row := range g.r.Book.LegendTraits {
-			if row.ID == l.Trait || row.Tag == l.Trait {
-				return tags.Tag(row.Tag), true
-			}
-		}
-	}
-	return "", false
 }
 
 // emergentBegin is what emergence makes of an encounter about to begin on
