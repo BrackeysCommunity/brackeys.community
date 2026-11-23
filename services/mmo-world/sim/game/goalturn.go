@@ -572,8 +572,8 @@ func (g *Game) Drafts(c *Char) []Draft {
 	var out []Draft
 	if m, ok := g.workedOutNear(h); ok {
 		tag := firstOr(g.materialTags(m), m)
-		out = append(out, Draft{Why: "a source of " + g.MaterialName(m) + " near here is worked out",
-			Spec: GoalSpec{Title: "Find the next " + g.MaterialName(m), Issuer: goal.ByCharacter, Mode: goal.First, Lifetime: goal.Standing, Turnover: goal.Keep,
+		out = append(out, Draft{Why: "a source of " + g.sheetMaterialName(m) + " near here is worked out",
+			Spec: GoalSpec{Title: "Find the next " + g.sheetMaterialName(m), Issuer: goal.ByCharacter, Mode: goal.First, Lifetime: goal.Standing, Turnover: goal.Keep,
 				Reward: g.gp("reward-least"), Cond: goal.Condition{Verb: goal.Discover, Tag: tag, Count: 1, Hex: &h, Within: g.Near()}}})
 	}
 	if r, ok := g.threatened(h); ok {
@@ -586,8 +586,8 @@ func (g *Game) Drafts(c *Char) []Draft {
 		out = append(out, d)
 	}
 	if m, ok := g.lacking(n); ok {
-		out = append(out, Draft{Why: "nobody is selling " + g.MaterialName(m) + " here and a faction wants it",
-			Spec: GoalSpec{Title: "Bring " + g.MaterialName(m), Issuer: goal.ByCharacter, Mode: goal.First, Lifetime: goal.Ephemeral, Turnover: goal.Expire,
+		out = append(out, Draft{Why: "nobody is selling " + g.sheetMaterialName(m) + " here and a faction wants it",
+			Spec: GoalSpec{Title: "Bring " + g.sheetMaterialName(m), Issuer: goal.ByCharacter, Mode: goal.First, Lifetime: goal.Ephemeral, Turnover: goal.Expire,
 				Ticks: sheets.TicksPerDay, Reward: g.gp("reward-least") * g.gp("draft-units"),
 				Cond: goal.Condition{Verb: goal.Deliver, Kind: m, Count: g.gp("draft-units"), At: here}}})
 	}
@@ -776,7 +776,7 @@ func (g *Game) noteCredit(x *Goal, ev goal.Event, f fact.Fact, contributors, cit
 
 // attempt counts one character's try at a line on a day, once a day.
 func (g *Game) attempt(l *emerge.Line, who string, day int64) {
-	l.Attempts.See(who+attemptAt+strconv.FormatInt(day, decimal), day, g.Emergence.Season, g.r.Emerge.Lines[string(emerge.Legend)].Count)
+	l.Attempts.See(who+attemptAt+strconv.FormatInt(day, decimal), day, g.Emergence.Season, g.r.Emerge.Lines.Line(emerge.Legend).Count)
 }
 
 // goalPlace is the region and tile a goal's place names: a region's

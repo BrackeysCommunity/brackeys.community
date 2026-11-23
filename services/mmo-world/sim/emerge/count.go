@@ -195,6 +195,7 @@ type Daily struct {
 	PrevDay int64 `json:"prevDay,omitempty"`
 }
 
+// On is the count on day: today's, the day before's, else 0.
 func (d Daily) On(day int64) int64 {
 	switch {
 	case d.Day == day:
@@ -205,6 +206,7 @@ func (d Daily) On(day int64) int64 {
 	return 0
 }
 
+// Add counts n on day; a new day keeps the old one only when it is the day before.
 func (d *Daily) Add(day, n int64) {
 	if d.Day != day {
 		d.Prev, d.PrevDay = 0, 0

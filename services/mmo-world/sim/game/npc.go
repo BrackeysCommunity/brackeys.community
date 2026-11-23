@@ -683,7 +683,7 @@ func (g *Game) traded(c *Char, h hex.Hex, material string, t int64) error {
 		return nil
 	}
 	if n := g.NPCs.Get(s.ID); n != nil {
-		if err := g.note(n, c, npc.Entry{Kind: entryTraded, Player: c.C.ID, Weight: g.r.NPC.Param("traded-weight"), Tick: t, Thing: g.MaterialName(material)}, t); err != nil {
+		if err := g.note(n, c, npc.Entry{Kind: entryTraded, Player: c.C.ID, Weight: g.r.NPC.Param("traded-weight"), Tick: t, Thing: g.sheetMaterialName(material)}, t); err != nil {
 			return err
 		}
 		return g.NPCs.Touched(n)

@@ -466,11 +466,13 @@ func (v emergentView) roadsNear(n int) (open, cut bool) {
 	if n < 0 || n >= len(g.Places) {
 		return false, false
 	}
+	day := g.Tick() / sheets.TicksPerDay
 	for _, h := range hex.DiscAt(g.Places[n].Hex, g.r.Emerge.P.RoadInReach) {
-		if _, ok := g.roadAt(h); !ok {
+		rec, ok := g.roadAt(h)
+		if !ok {
 			continue
 		}
-		if g.roadOpen(h) {
+		if !rec.Cut(day) {
 			open = true
 		} else {
 			cut = true

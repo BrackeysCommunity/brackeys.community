@@ -1402,7 +1402,8 @@ export interface Promotion {
   places?: number /* int */[];
   of?: string;
   /**
-   * OfName is the archetype's, pairing's or base material's name.
+   * OfName is what Of names, in words: an archetype, pairing or trait, base
+   * material, legend's creature or item, class, puzzle family or site kind.
    */
   ofName?: string;
   resists?: string;

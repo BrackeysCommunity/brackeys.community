@@ -19,9 +19,6 @@ const (
 	CodeNameClosed = "name-closed"
 )
 
-// PromotionKinds are the facts the chronicle channel posts as they happen.
-var PromotionKinds = []string{"promotion", "legend.laid", "custom.held", "season.added"}
-
 // Promotion is a trace that crossed its line (GDD 13.2) and what it became.
 // Places are a route's two ends. It never names its first to anyone else.
 type Promotion struct {
@@ -32,7 +29,8 @@ type Promotion struct {
 	At     *Hex   `json:"at,omitempty"`
 	Places []int  `json:"places,omitempty"`
 	Of     string `json:"of,omitempty"`
-	// OfName is the archetype's, pairing's or base material's name.
+	// OfName is what Of names, in words: an archetype, pairing or trait, base
+	// material, legend's creature or item, class, puzzle family or site kind.
 	OfName   string `json:"ofName,omitempty"`
 	Resists  string `json:"resists,omitempty"`
 	Material string `json:"material,omitempty"`

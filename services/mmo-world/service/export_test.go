@@ -18,5 +18,5 @@ var PlayerFacts = playerFacts
 // VariantSeen is the name and row a fight shows for a region's variant.
 var VariantSeen = variantSeen
 
-// ScrubFirsts drops other characters from the promotion facts a reply holds.
+// ScrubFirsts drops other characters from the FirstKinds facts a reply holds.
 var ScrubFirsts = scrubFirsts

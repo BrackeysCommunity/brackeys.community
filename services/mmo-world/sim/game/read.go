@@ -202,7 +202,7 @@ func (r *Rules) CardNumbers() CardNumbers {
 	}
 	if r.Emerge != nil {
 		out.RoadEnterTicks, out.CampTier, out.MastersEase = r.Emerge.P.RoadEnterTicks, r.firstTier(), r.Emerge.P.MastersEase
-		out.CustomSeasons = r.Emerge.Lines[string(emerge.Custom)].Count
+		out.CustomSeasons = r.Emerge.Lines.Line(emerge.Custom).Count
 	}
 	return out
 }

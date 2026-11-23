@@ -38,7 +38,7 @@ func customsClose(g *Game, _ int64) error {
 		return nil
 	}
 	e := g.Emergence
-	need := g.r.Emerge.Lines[string(emerge.Custom)].Count
+	need := g.r.Emerge.Lines.Line(emerge.Custom).Count
 	for _, sig := range slices.Sorted(maps.Keys(e.Lines)) {
 		l := e.Lines[sig]
 		x := g.GoalOf(l.Goal)

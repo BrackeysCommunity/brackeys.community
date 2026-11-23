@@ -37,7 +37,7 @@ func (g *Game) notePassage(c *Char, h hex.Hex, t int64) error {
 		return nil
 	}
 	s, r := g.Emergence, g.r.Emerge
-	line := r.Lines[string(emerge.Road)]
+	line := r.Lines.Line(emerge.Road)
 	day, season := g.traceAt(t)
 	sp := s.Passage[h]
 	if sp == nil {
@@ -141,7 +141,7 @@ func (g *Game) noteClearing(c *Char, e *fight.Encounter, t int64) error {
 		return nil
 	}
 	s, r := g.Emergence, g.r.Emerge
-	line := r.Lines[string(emerge.Camp)]
+	line := r.Lines.Line(emerge.Camp)
 	day, season := g.traceAt(t)
 	sp := s.Clearing[h]
 	if sp == nil {
@@ -174,7 +174,7 @@ func (g *Game) noteLoss(c *Char, e *fight.Encounter, t int64) error {
 	if !g.siteTrace(e, h) {
 		return nil
 	}
-	line := r.Lines[string(emerge.Haunt)]
+	line := r.Lines.Line(emerge.Haunt)
 	sp := s.Loss[h]
 	if sp == nil {
 		sp = &emerge.Spot{Hex: h}
@@ -228,7 +228,7 @@ func (g *Game) noteHaul(c *Char, n int, t int64) error {
 		return nil
 	}
 	s, r := g.Emergence, g.r.Emerge
-	line := r.Lines[string(emerge.Route)]
+	line := r.Lines.Line(emerge.Route)
 	day, season := g.traceAt(t)
 	k := emerge.PairOf(last.Settlement, n)
 	p := s.Pairs[k]
@@ -306,7 +306,7 @@ func (g *Game) noteReliance(c *Char, e *fight.Encounter, o fight.Option, t int64
 		st.Chars, st.Qual = nil, emerge.Recent{}
 	}
 	st.Count.Add(day, season, 1, decay)
-	line := r.Lines[string(emerge.Style)]
+	line := r.Lines.Line(emerge.Style)
 	if st.Chars == nil {
 		st.Chars = map[string]emerge.Wins{}
 	}

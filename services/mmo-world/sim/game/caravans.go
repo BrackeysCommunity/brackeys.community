@@ -186,8 +186,8 @@ func orient(rt *emerge.RouteRec, from int) []hex.Hex {
 }
 
 // legs are the ticks from a path's first tile to each of its tiles on a
-// world day: an open road tile, as travel reads it, takes road-enter-ticks
-// to enter, any other what it costs on foot, low water included.
+// world day, each step at its ground cost as travel reads it
+// (road-enter-ticks where groundTicks finds none).
 func (g *Game) legs(path []hex.Hex, day int64) []int64 {
 	p := g.r.Emerge.P
 	out := make([]int64, len(path))

@@ -18,6 +18,9 @@ type LineRow struct {
 // Lines are the promotion lines by emergence.promotions id.
 type Lines map[string]LineRow
 
+// Line is the promotion line of a type.
+func (l Lines) Line(t Type) LineRow { return l[string(t)] }
+
 // Params are emergence.params, read once.
 type Params struct {
 	KeepDays, RoadEnterTicks, RoadInReach, RoadPatrolRisk, PatrolDays, TollCoin, TollDays, CutDays,

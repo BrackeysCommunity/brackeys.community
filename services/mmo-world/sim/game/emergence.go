@@ -48,6 +48,12 @@ const (
 	datumOfName = "of-name"
 )
 
+// ChronicleKinds are the facts the chronicle channel posts as they happen.
+var ChronicleKinds = []string{factPromotion, factLegendLaid, factCustomHeld, factSeasonAdded}
+
+// RefPromotion is the ref kind a fact names a promotion by.
+const RefPromotion = refPromotion
+
 func promotionRef(id string) fact.Ref { return fact.Ref{Kind: refPromotion, ID: id} }
 
 // emergeOn reports whether the world keeps emergence.
@@ -86,8 +92,8 @@ func (g *Game) emergenceStart(Command) error {
 }
 
 // wireEmergence builds the game's found-material registry, points the item
-// and price rules at it and stages the log's facts, or clears all three for
-// a world without emergence.
+// and price rules at it and sets the log's staged stamp, or clears all
+// three for a world without emergence.
 func (g *Game) wireEmergence() {
 	r := g.r
 	if g.Emergence == nil {

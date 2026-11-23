@@ -402,7 +402,7 @@ func TestRaidCutsRoad(t *testing.T) {
 	if rec.CutUntil != day+p.CutDays || len(cut) != 1 || !slices.Contains(cut[0].Causes, f.ID) {
 		t.Fatalf("the raid: record %+v, cut facts %+v", rec, cut)
 	}
-	if g.roadOpen(to) {
+	if g.onRoad(to, g.Tick()/sheets.TicksPerDay) {
 		t.Fatal("a cut road is open")
 	}
 	c := feedChars(t, g, 1, from)[0]
@@ -413,7 +413,7 @@ func TestRaidCutsRoad(t *testing.T) {
 		t.Fatalf("a cut road costs %d ticks, ground %d, and took %d coin", cost, ground, coin-c.C.Coin)
 	}
 	// It stays a road and opens again once the cut is over.
-	if _, ok := g.roadAt(to); !ok || !g.roadOpenOn(to, day+p.CutDays) || g.roadOpenOn(to, day+p.CutDays-1) {
+	if _, ok := g.roadAt(to); !ok || !g.onRoad(to, day+p.CutDays) || g.onRoad(to, day+p.CutDays-1) {
 		t.Fatal("the cut did not last exactly cut-days")
 	}
 }

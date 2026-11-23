@@ -23,6 +23,29 @@ export function plural(n: number, one: string, many = `${one}s`): string {
   return amount(n, n === 1 ? one : many);
 }
 
+const SMALL = [
+  "no",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+  "eleven",
+  "twelve",
+];
+
+/** A count in words, "two styles", for things the bare-number rule knows no unit for. */
+export function countWords(n: number, one: string, many = `${one}s`): string {
+  const word = SMALL[n] ?? n.toLocaleString("en-US");
+  if (n === 1) return `${/^[aeiou]/.test(one) ? "an" : "a"} ${one}`;
+  return `${word} ${many}`;
+}
+
 /** A value that changed, shown as the change. */
 export function change(from: number, to: number, unit: string, of?: number): string {
   const tail = of === undefined ? unit : `of ${num(of)} ${unit}`;

@@ -1,6 +1,7 @@
 import { names } from "virtual:pack";
 
 import { clueLine as storyClue } from "../../../packages/mmo-words/src/story.ts";
+import { countWords } from "../../../packages/mmo-words/src/units.ts";
 import {
   UnitBeats,
   UnitEncounter,
@@ -83,16 +84,12 @@ export function roadLine(t: Pick<Tile, "roadName" | "cut" | "toll">): string {
   return `On ${t.roadName}`;
 }
 
-const STEPS = ["no", "one", "two", "three", "four", "five", "six"];
-
 /**
  * The band steps a region's adaptation took off an option (GDD 13.2), in
  * words: a step is not a unit the bare-number rule knows.
  */
 export function adaptedLine(steps: number): string {
-  const n = Math.abs(Math.trunc(steps));
-  const count = STEPS[n] ?? num(n);
-  return `The creatures here have adapted against it: ${count} ${n === 1 ? "band" : "bands"} worse`;
+  return `The creatures here have adapted against it: ${countWords(Math.abs(Math.trunc(steps)), "band")} worse`;
 }
 
 function state(h: HaywireLine): string {

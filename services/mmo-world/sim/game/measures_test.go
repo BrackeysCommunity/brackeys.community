@@ -139,6 +139,21 @@ func TestMeasures(t *testing.T) {
 	}
 }
 
+// A closed week's verdict reads its own count, not the rounded reading:
+// a few new kinds in a large world still count.
+func TestMeasuresFewKindsHealthy(t *testing.T) {
+	g := guardGame(t)
+	e := g.Emergence
+	e.Weeks = []emerge.Week{{Active: 10000, Kinds: 5}, {From: weekDays}}
+	d, ok := g.Measures()
+	if !ok {
+		t.Fatal("no dashboard with emergence on")
+	}
+	if len(d.KindsPerMille) != 2 || d.KindsPerMille[0] != 0 || !d.KindsHealthy {
+		t.Fatalf("kinds per mille %v healthy %v", d.KindsPerMille, d.KindsHealthy)
+	}
+}
+
 // Renown counts each heavy fact on every item, notable and character it
 // names (GDD 13.1); an item's heavy facts count per season, as an item
 // legend reads them, and its renown outlives keep-days inside the season

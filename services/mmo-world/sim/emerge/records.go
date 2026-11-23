@@ -74,6 +74,7 @@ func PairOf(m, n int) PairKey {
 
 func cmpPair(x, y PairKey) int { return cmp.Or(cmp.Compare(x.A, y.A), cmp.Compare(x.B, y.B)) }
 
+// Pair is the haulage trace between two places.
 type Pair struct {
 	Key    PairKey `json:"key"`
 	Count  Counter `json:"count"`
@@ -146,7 +147,7 @@ type StyleTrace struct {
 	Done     string           `json:"done,omitempty"`    // the style's promotion id
 	Beaten   map[string]int64 `json:"beaten,omitempty"`  // archetype: wins since named
 	Adapt    int64            `json:"adapt"`             // percent 0..100
-	Today    Daily            `json:"today"`             // wins with it today
+	Today    Daily            `json:"today"`             // wins with it today and the day before
 	Variant  string           `json:"variant,omitempty"` // the variant's promotion id
 }
 
@@ -166,7 +167,7 @@ func (s *StyleTrace) MostBeaten() (string, bool) {
 type RegionTally struct {
 	Region   int     `json:"region"`
 	Reliance Counter `json:"reliance"` // all styles
-	Today    Daily   `json:"today"`
+	Today    Daily   `json:"today"`    // won beats today and the day before
 	Downs    Counter `json:"downs"`
 }
 
@@ -213,6 +214,7 @@ type Due struct {
 	Keys []DueKey `json:"keys"`
 }
 
+// DueKey names one trace entry: its trace and the key field that trace uses.
 type DueKey struct {
 	Trace  string    `json:"trace"`
 	Hex    *hex.Hex  `json:"hex,omitempty"`

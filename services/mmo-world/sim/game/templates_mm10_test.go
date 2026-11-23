@@ -287,7 +287,7 @@ func TestRoadWar(t *testing.T) {
 					t.Fatalf("the patrol left %+v, %d cuts, %d tolls", rec, len(cuts), len(tolls))
 				}
 			case "prey-on-it":
-				if rec.CutUntil != day+p.CutDays || g.roadOpen(road) || len(cuts) != 1 || len(tolls) != 0 {
+				if rec.CutUntil != day+p.CutDays || g.onRoad(road, g.Tick()/sheets.TicksPerDay) || len(cuts) != 1 || len(tolls) != 0 {
 					t.Fatalf("the raiders left %+v, %d cuts", rec, len(cuts))
 				}
 				f := cuts[0]
@@ -298,7 +298,7 @@ func TestRoadWar(t *testing.T) {
 					t.Fatal("the first settlement's only road is cut, and no road cut reads")
 				}
 			default:
-				if rec.TollUntil != day+p.TollDays || !g.roadOpen(road) || len(tolls) != 1 || len(cuts) != 0 {
+				if rec.TollUntil != day+p.TollDays || !g.onRoad(road, g.Tick()/sheets.TicksPerDay) || len(tolls) != 1 || len(cuts) != 0 {
 					t.Fatalf("the lapse left %+v, %d tolls", rec, len(tolls))
 				}
 				f := tolls[0]
@@ -312,6 +312,45 @@ func TestRoadWar(t *testing.T) {
 					t.Fatalf("crossing the tolled road cost %d: %v", coin-c.C.Coin, err)
 				}
 				audit(t, g)
+			}
+		})
+}
+
+// TestRoadWarHoldsAFarFoundedRoad: the busiest road was founded in another
+// region, so the war's region lists none of its roads, and the road on the
+// war's tile is still the one held.
+func TestRoadWarHoldsAFarFoundedRoad(t *testing.T) {
+	var road hex.Hex
+	var id string
+	mmRun(t, "the-road-war",
+		func(t *testing.T, g *Game) {
+			road, id = mmRoadWarState(t, g)
+			rec := g.Emergence.RoadRecs[id]
+			if rec.Region = 1; g.World.RegionAt(road) == 1 {
+				rec.Region = 2
+			}
+		},
+		func(t *testing.T, g *Game, c arc.Candidate) {
+			mmWant(t, c, map[string]fact.Ref{"road": arc.TileRef(road), "raider": arc.FactionRef(2), seatRole: arc.SettlementRef(0)})
+		},
+		func(t *testing.T, g *Game, a *Arc, end mmEnd) {
+			p := g.r.Emerge.P
+			rec := g.Emergence.RoadRecs[id]
+			day := end.ended.Tick / sheets.TicksPerDay
+			cuts, tolls := end.mmCited("road.cut"), end.mmCited("road.tolled")
+			switch end.won {
+			case "patrol-it":
+				if rec.PatrolUntil != day+p.PatrolDays || len(cuts)+len(tolls) != 0 {
+					t.Fatalf("the patrol left %+v, %d cuts, %d tolls", rec, len(cuts), len(tolls))
+				}
+			case "prey-on-it":
+				if rec.CutUntil != day+p.CutDays || len(cuts) != 1 || !hasDatum(cuts[0], "id", id) || len(tolls) != 0 {
+					t.Fatalf("the raiders left %+v, cuts %+v", rec, cuts)
+				}
+			default:
+				if rec.TollUntil != day+p.TollDays || len(tolls) != 1 || !hasDatum(tolls[0], "id", id) || len(cuts) != 0 {
+					t.Fatalf("the lapse left %+v, tolls %+v", rec, tolls)
+				}
 			}
 		})
 }

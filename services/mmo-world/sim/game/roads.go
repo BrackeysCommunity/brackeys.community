@@ -38,11 +38,32 @@ const (
 	tollKind   = "toll"
 )
 
-// structural: the holds a region's roads can be put under.
-const (
-	holdToll   = "toll"
-	holdCut    = "cut"
-	holdPatrol = "patrol"
+// roadHold is a hold a road can be put under: the fact that announces it
+// ("" for a patrol, which announces nothing), how it keeps the later
+// until, its default days cell, and whether it names the toll's coin.
+type roadHold struct {
+	kind string
+	set  func(*emerge.RoadRec, int64)
+	days func(emerge.Params) int64
+	coin bool
+}
+
+var (
+	holdToll = roadHold{
+		kind: factRoadTolled,
+		set:  func(r *emerge.RoadRec, u int64) { r.TollUntil = max(r.TollUntil, u) },
+		days: func(p emerge.Params) int64 { return p.TollDays },
+		coin: true,
+	}
+	holdCut = roadHold{
+		kind: factRoadCut,
+		set:  func(r *emerge.RoadRec, u int64) { r.CutUntil = max(r.CutUntil, u) },
+		days: func(p emerge.Params) int64 { return p.CutDays },
+	}
+	holdPatrol = roadHold{
+		set:  func(r *emerge.RoadRec, u int64) { r.PatrolUntil = max(r.PatrolUntil, u) },
+		days: func(p emerge.Params) int64 { return p.PatrolDays },
+	}
 )
 
 func init() {
@@ -76,17 +97,12 @@ func (g *Game) roadAt(h hex.Hex) (*emerge.RoadRec, bool) {
 	return rec, rec != nil
 }
 
-// roadOpen reports whether a tile is a road that is not cut today.
-func (g *Game) roadOpen(h hex.Hex) bool { return g.roadOpenOn(h, g.Tick()/sheets.TicksPerDay) }
+// tollDue reports whether a step onto the road pays a toll today.
+func tollDue(rec *emerge.RoadRec, day int64) bool { return !rec.Cut(day) && rec.Tolled(day) }
 
-func (g *Game) roadOpenOn(h hex.Hex, day int64) bool {
-	rec, ok := g.roadAt(h)
-	return ok && !rec.Cut(day)
-}
-
-// onRoad is whether a tile is a road travel, route risk and mounts read
-// today: one the world holds and no raid has cut. A road with no record
-// cannot be cut, and a world without emergence reads the tile alone.
+// onRoad reports whether a tile is a road a step reads today: one the
+// world holds and no raid has cut. A road with no record cannot be cut,
+// and a world without emergence reads the tile alone.
 func (g *Game) onRoad(h hex.Hex, day int64) bool {
 	if t := g.World.Tile(h); t == nil || t.Road < world.RoadTrack {
 		return false
@@ -308,7 +324,7 @@ func (g *Game) toll(c *Char, h hex.Hex, t int64) error {
 	}
 	day := t / sheets.TicksPerDay
 	rec, ok := g.roadAt(h)
-	if !ok || rec.Cut(day) || !rec.Tolled(day) || !g.Emergence.PayToll(c.C.ID, rec.ID, day) {
+	if !ok || !tollDue(rec, day) || !g.Emergence.PayToll(c.C.ID, rec.ID, day) {
 		return nil
 	}
 	key := ledger.SubKey(tollKind, c.C.ID, rec.ID, i64(day))
@@ -343,38 +359,30 @@ func roadsFact(g *Game, f fact.Fact) error {
 	day := f.Tick / sheets.TicksPerDay
 	switch f.Kind {
 	case factPatrolled:
-		return g.holdRoads(region, holdPatrol, day+1, 0, nil)
+		return g.holdRoads(region, holdPatrol, day, day+1, 0, nil)
 	case factRaided:
-		cut := g.r.Emerge.P.CutDays
-		return g.holdRoads(region, holdCut, day+cut, f.ID, nil, fact.N("days", cut))
+		return g.holdRoads(region, holdCut, day, day+g.r.Emerge.P.CutDays, f.ID, nil)
 	}
 	return nil
 }
 
-// holdRoads tolls, cuts or patrols every road recorded in a region until a
-// day, and announces a cut or a toll.
-func (g *Game) holdRoads(region int, hold string, until int64, cause fact.ID, subjects []fact.Ref, data ...fact.Datum) error {
-	return g.holdIDs(region, g.regionRoads(region), hold, until, cause, subjects, data...)
+// holdRoads puts every road recorded in a region under a hold until a day.
+func (g *Game) holdRoads(region int, h roadHold, day, until int64, cause fact.ID, subjects []fact.Ref) error {
+	return g.holdIDs(region, g.regionRoads(region), h, day, until, cause, subjects)
 }
 
-// holdIDs holds the given roads of a region, in the order given.
-func (g *Game) holdIDs(region int, ids []string, hold string, until int64, cause fact.ID, subjects []fact.Ref, data ...fact.Datum) error {
+// holdIDs puts the given roads under a hold in the order given, announcing it.
+func (g *Game) holdIDs(region int, ids []string, h roadHold, day, until int64, cause fact.ID, subjects []fact.Ref) error {
 	for _, id := range ids {
-		rec := g.Emergence.RoadRecs[id]
-		kind := ""
-		switch hold {
-		case holdToll:
-			rec.TollUntil = max(rec.TollUntil, until)
-			kind = factRoadTolled
-		case holdCut:
-			rec.CutUntil = max(rec.CutUntil, until)
-			kind = factRoadCut
-		default:
-			rec.PatrolUntil = max(rec.PatrolUntil, until)
+		h.set(g.Emergence.RoadRecs[id], until)
+		if h.kind == "" {
 			continue
 		}
-		head := []fact.Datum{fact.S("id", id), fact.S("name", g.promotionShown(id))}
-		if err := g.roadFact(kind, nil, region, append([]fact.Ref{promotionRef(id)}, subjects...), cause, append(head, data...)...); err != nil {
+		data := []fact.Datum{fact.S("id", id), fact.S("name", g.promotionShown(id)), fact.N("days", until-day)}
+		if h.coin {
+			data = append(data, fact.N("coin", g.r.Emerge.P.TollCoin))
+		}
+		if err := g.roadFact(h.kind, nil, region, append([]fact.Ref{promotionRef(id)}, subjects...), cause, data...); err != nil {
 			return err
 		}
 	}
@@ -417,7 +425,7 @@ func roadsDay(g *Game, day, _ int64) error {
 		}
 	}
 	for _, region := range slices.Sorted(maps.Keys(byRegion)) {
-		if err := g.holdIDs(region, byRegion[region], holdPatrol, day+1, 0, nil); err != nil {
+		if err := g.holdIDs(region, byRegion[region], holdPatrol, day, day+1, 0, nil); err != nil {
 			return err
 		}
 	}

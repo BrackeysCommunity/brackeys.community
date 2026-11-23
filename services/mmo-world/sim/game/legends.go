@@ -43,7 +43,7 @@ func legendsClose(g *Game, _ int64) error {
 		return nil
 	}
 	e := g.Emergence
-	need := g.r.Emerge.Lines[string(emerge.Legend)].Count
+	need := g.r.Emerge.Lines.Line(emerge.Legend).Count
 	for _, sig := range slices.Sorted(maps.Keys(e.Lines)) {
 		l := e.Lines[sig]
 		if l.Met || l.Archetype == "" || l.Attempts.Season != e.Season || int64(len(l.Attempts.IDs)) < need || !g.lineStood(l, c) {
@@ -68,7 +68,7 @@ func legendsClose(g *Game, _ int64) error {
 // itemLegend makes a legend of an item once enough heavy facts in a season
 // have named it, its holder its first.
 func itemLegend(g *Game, s *emerge.Subject, f fact.Fact) error {
-	if s.Ref.Kind != renownItem || s.Done != "" || s.HeavyIn(g.Emergence.Season) < g.r.Emerge.Lines[string(emerge.Legend)].Heavy {
+	if s.Ref.Kind != renownItem || s.Done != "" || s.HeavyIn(g.Emergence.Season) < g.r.Emerge.Lines.Line(emerge.Legend).Heavy {
 		return nil
 	}
 	p := Promoting{Type: emerge.Legend, Region: s.Region, Of: s.Ref.String(), Cause: f.ID}

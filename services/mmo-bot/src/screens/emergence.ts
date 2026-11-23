@@ -1,5 +1,5 @@
 import type { EmbedField, Modal } from "../../../../packages/discord-kit/src/index.ts";
-import { seasonAdded } from "../../../../packages/mmo-words/src/index.ts";
+import { countWords, seasonAdded } from "../../../../packages/mmo-words/src/index.ts";
 import type * as api from "../api.ts";
 import { WhyAdapted } from "../api.ts";
 import { authorLine, type Card, COLOUR } from "../card.ts";
@@ -21,32 +21,6 @@ import { CHRONICLE_CHANNEL } from "./story.ts";
 export const NAME_INPUT = "name";
 /** The longest name the modal takes: the board's title length. */
 export const NAME_MOST = 60;
-
-const SMALL = [
-  "no",
-  "one",
-  "two",
-  "three",
-  "four",
-  "five",
-  "six",
-  "seven",
-  "eight",
-  "nine",
-  "ten",
-  "eleven",
-  "twelve",
-];
-
-/**
- * A count in words, "two styles": what a season adds is counted in things
- * that are no unit the bare-number rule knows.
- */
-export function countWords(n: number, one: string, many = `${one}s`): string {
-  const word = SMALL[n] ?? n.toLocaleString("en-US");
-  if (n === 1) return `${/^[aeiou]/.test(one) ? "an" : "a"} ${one}`;
-  return `${word} ${many}`;
-}
 
 /** A tag as a card writes it: the setting's trait name, else the id in words. */
 export function tagName(tag: string, lex: Lexicon): string {

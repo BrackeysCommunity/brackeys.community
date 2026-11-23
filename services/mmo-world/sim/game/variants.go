@@ -84,7 +84,7 @@ func (g *Game) promotedStyles(region int) []*emerge.StyleTrace {
 func adaptationDay(g *Game, day, _ int64) error {
 	e, r := g.Emergence, g.r.Emerge
 	yesterday := day - 1
-	percent := r.Lines[string(emerge.Variant)].Percent
+	percent := r.Lines.Line(emerge.Variant).Percent
 	for _, st := range g.promotedStyles(-1) {
 		share := int64(0)
 		if rt := e.Regions[st.Key.Region]; rt != nil {

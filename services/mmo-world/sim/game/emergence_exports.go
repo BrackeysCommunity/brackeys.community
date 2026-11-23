@@ -25,9 +25,9 @@ const (
 // PromotionRef is the ref a promotion is a fact's subject by.
 func PromotionRef(id string) fact.Ref { return promotionRef(id) }
 
-// RoadState is the road a tile is on as a step reads it today: its shown
-// name, whether a raid has cut it, and the toll a step pays while it is
-// tolled and not cut; "" off a road.
+// RoadState is a tile's recorded road today: its shown name, whether a
+// raid has cut it, and the toll a step pays while it is tolled and not
+// cut; "" off a recorded road.
 func (g *Game) RoadState(h hex.Hex) (name string, cut bool, toll int64) {
 	rec, ok := g.roadAt(h)
 	if !ok {
@@ -35,7 +35,7 @@ func (g *Game) RoadState(h hex.Hex) (name string, cut bool, toll int64) {
 	}
 	day := g.Tick() / sheets.TicksPerDay
 	cut = rec.Cut(day)
-	if !cut && rec.Tolled(day) {
+	if tollDue(rec, day) {
 		toll = g.r.Emerge.P.TollCoin
 	}
 	return g.Emergence.Shown(rec.ID), cut, toll

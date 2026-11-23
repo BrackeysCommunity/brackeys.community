@@ -79,7 +79,7 @@ func (g *Game) Measures() (Dashboard, bool) {
 			per = w.Kinds * perMille / active
 		}
 		d.KindsPerMille = append(d.KindsPerMille, per)
-		if !current && per == 0 {
+		if !current && w.Kinds == 0 {
 			d.KindsHealthy = false
 		}
 	}

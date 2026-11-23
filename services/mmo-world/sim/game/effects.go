@@ -759,41 +759,51 @@ func (g *Game) sickShare(n int, t int64) int64 {
 // The emergence effects (GDD 12.9, 13.2) act on emergence's records and
 // the ledger alone, and do nothing in a world without emergence.
 
-// roads tolls, cuts or patrols every road of the role's region for the
-// effect's days, or the emergence.params cell's.
+// roads holds the roads of the role's regions, and a tile role's own road,
+// for the effect's days, else the hold's emergence.params cell.
 func (x effect) roads() error {
 	g := x.g
-	e := g.Emergence
-	if e == nil {
+	if g.Emergence == nil {
 		return nil
 	}
-	p := g.r.Emerge.P
+	h := holdPatrol
+	switch x.e.Kind {
+	case effToll:
+		h = holdToll
+	case effCut:
+		h = holdCut
+	}
 	days := x.e.Amount
 	if days <= 0 {
-		switch x.e.Kind {
-		case effToll:
-			days = p.TollDays
-		case effCut:
-			days = p.CutDays
-		default:
-			days = p.PatrolDays
+		days = h.days(g.r.Emerge.P)
+	}
+	today := x.t / sheets.TicksPerDay
+	until := today + days
+	var cause fact.ID
+	var subjects []fact.Ref
+	if h.kind != "" {
+		cause, subjects = x.cause, []fact.Ref{arcRef(x.a.ID)}
+	}
+	// A road keeps the region of its first tile, so the tile's own road
+	// may be recorded outside every region the role reaches.
+	own, at := "", hex.Hex{}
+	if ref, ok := x.ref(); ok && ref.Kind == kindTile {
+		if t, ok := hex.ParseRef(ref.ID); ok {
+			if rec, ok := g.roadAt(t); ok {
+				own, at = rec.ID, t
+			}
 		}
 	}
-	until := x.t/sheets.TicksPerDay + days
-	subjects := []fact.Ref{arcRef(x.a.ID)}
+	held := false
 	for _, r := range x.regions() {
-		var err error
-		switch x.e.Kind {
-		case effToll:
-			err = g.holdRoads(r, holdToll, until, x.cause, subjects, fact.N("days", days), fact.N("coin", p.TollCoin))
-		case effCut:
-			err = g.holdRoads(r, holdCut, until, x.cause, subjects, fact.N("days", days))
-		default:
-			err = g.holdRoads(r, holdPatrol, until, 0, nil)
-		}
-		if err != nil {
+		ids := g.regionRoads(r)
+		held = held || slices.Contains(ids, own)
+		if err := g.holdIDs(r, ids, h, today, until, cause, subjects); err != nil {
 			return err
 		}
+	}
+	if own != "" && !held {
+		return g.holdIDs(g.World.RegionAt(at), []string{own}, h, today, until, cause, subjects)
 	}
 	return nil
 }

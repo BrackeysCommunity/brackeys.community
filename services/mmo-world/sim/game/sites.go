@@ -55,7 +55,7 @@ func hauntPromoted(g *Game, p *emerge.Promotion) error {
 // scavenger is the archetype a haunt on h is led by: one carrying the haunt
 // line's tag, drawn under emergence.haunt; "" when no archetype carries it.
 func (g *Game) scavenger(h hex.Hex) string {
-	tag := g.r.Emerge.Lines[string(emerge.Haunt)].Tag
+	tag := g.r.Emerge.Lines.Line(emerge.Haunt).Tag
 	carries := func(c *sheets.Creature) bool { return c != nil && slices.Contains(c.Tags, tag) }
 	rows := sheets.Lookup(g.r.Book.Creatures)
 	var pool []string

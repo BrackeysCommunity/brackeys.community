@@ -25,7 +25,7 @@ export interface Config {
   chronicleChannel?: string;
   /** The opt-in role a raid's start mentions; it must exist and sit below the bot's own role. */
   eventsAlarmRole?: string;
-  /** How often the lexicon is read again, so found names reach the cards; the default when unset. */
+  /** How often the lexicon is read again, so found names reach the cards; unset is LEXICON_REFRESH_MS. */
   lexiconRefreshMs?: number;
 }
 

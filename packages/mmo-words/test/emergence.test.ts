@@ -6,6 +6,7 @@ import {
   arcWords,
   bareNumbers,
   chronicleLine,
+  countWords,
   emergenceWords,
   list,
   PROMOTION_TYPES,
@@ -235,5 +236,16 @@ describe("list", () => {
     expect(list(["a"])).toBe("a");
     expect(list(["a", "b"])).toBe("a and b");
     expect(list(["a", "b", "c"])).toBe("a, b and c");
+  });
+});
+
+describe("countWords", () => {
+  test("small counts in words, larger in digits, one with its article", () => {
+    expect(countWords(0, "style")).toBe("no styles");
+    expect(countWords(1, "style")).toBe("a style");
+    expect(countWords(1, "item")).toBe("an item");
+    expect(countWords(2, "style")).toBe("two styles");
+    expect(countWords(13, "style")).toBe("13 styles");
+    expect(countWords(3, "ally", "allies")).toBe("three allies");
   });
 });

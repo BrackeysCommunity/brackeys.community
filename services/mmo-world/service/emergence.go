@@ -15,10 +15,11 @@ import (
 	"jams.team/mmo-world/sim/world"
 )
 
-// Ids emergence writes.
+// structural: a sheet material's pack-key prefix, and the separator in a
+// caravan's id (its route's and its departure day).
 const (
 	sheetMaterial = "items.materials:"
-	caravanSep    = "@" // a caravan's id is its route's and its departure day
+	caravanSep    = "@"
 )
 
 // apiPromotion is a promotion as anyone may read it: never its first.
@@ -104,7 +105,7 @@ func promotionOf(g *game.Game, f fact.Fact) *api.Promotion {
 		return nil
 	}
 	for _, s := range f.Subjects {
-		if s.Kind != game.PromotionRef("").Kind {
+		if s.Kind != game.RefPromotion {
 			continue
 		}
 		if p := g.Emergence.Promotion(s.ID); p != nil {
@@ -166,21 +167,16 @@ func foundNames(g *game.Game, ids []string) map[string]string {
 	if e == nil || len(e.Materials) == 0 {
 		return nil
 	}
-	want := map[string]bool{}
+	var out map[string]string
 	for _, id := range ids {
 		for _, m := range e.Materials {
 			if m.ID == id {
-				want[id] = true
+				if out == nil {
+					out = map[string]string{}
+				}
+				out[sheetMaterial+id] = g.MaterialName(id)
+				break
 			}
-		}
-	}
-	if len(want) == 0 {
-		return nil
-	}
-	out := map[string]string{}
-	for i := range e.Promotions {
-		if p := &e.Promotions[i]; p.Type == emerge.Material && want[p.Of] {
-			out[sheetMaterial+p.Of] = p.Shown()
 		}
 	}
 	return out
@@ -193,10 +189,8 @@ func materialNames(g *game.Game) map[string]string {
 	if g.Emergence == nil {
 		return out
 	}
-	for i := range g.Emergence.Promotions {
-		if p := &g.Emergence.Promotions[i]; p.Type == emerge.Material {
-			out[sheetMaterial+p.Of] = p.Shown()
-		}
+	for _, m := range g.Emergence.Materials {
+		out[sheetMaterial+m.ID] = g.MaterialName(m.ID)
 	}
 	return out
 }
@@ -237,7 +231,7 @@ func (s *Server) storyPromotions(w http.ResponseWriter, r *http.Request) {
 		}
 		after = n
 	}
-	facts, err := s.st.StoryFactsSince(r.Context(), api.PromotionKinds, fact.ID(after), eventsMost)
+	facts, err := s.st.StoryFactsSince(r.Context(), game.ChronicleKinds, fact.ID(after), eventsMost)
 	if err != nil {
 		s.internal(w, err)
 		return

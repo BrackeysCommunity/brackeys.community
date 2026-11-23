@@ -3,8 +3,10 @@ package game
 import (
 	"cmp"
 	"slices"
+	"strings"
 
 	"jams.team/mmo-world/sim/char"
+	"jams.team/mmo-world/sim/emerge"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/gen"
@@ -305,8 +307,31 @@ func (g *Game) sellItem(c *Char, cmd Command) error {
 	return g.offer(l, cmd.Key)
 }
 
-// MaterialName is what a material is called.
-func (g *Game) MaterialName(id string) string { return g.r.Name("items.materials:" + id) }
+// MaterialName is what a material is called: its sheet name, a found
+// material's promoted name, else the new material made of its base.
+func (g *Game) MaterialName(id string) string {
+	if n := g.sheetMaterialName(id); n != "" {
+		return n
+	}
+	if g.Emergence == nil {
+		return ""
+	}
+	_, base, ok := emerge.ParseMaterialID(id)
+	if !ok {
+		return ""
+	}
+	for i := range g.Emergence.Promotions {
+		if p := &g.Emergence.Promotions[i]; p.Type == emerge.Material && p.Of == id {
+			return p.Shown()
+		}
+	}
+	return "a new material made of " + strings.ToLower(cmp.Or(g.sheetMaterialName(base), base))
+}
+
+// sheetMaterialName is a material's sheet name alone, "" for a found one.
+// Names the sim stores read it, so a later promotion never reads differently
+// from what was frozen.
+func (g *Game) sheetMaterialName(id string) string { return g.r.Name("items.materials:" + id) }
 
 // KindName is what a kind is called, or its id before anyone named it.
 func (g *Game) KindName(id string) string {
