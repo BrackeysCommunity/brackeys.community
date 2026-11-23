@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -127,10 +128,47 @@ func (s *Store) Audit(ctx context.Context) ([]string, error) {
 		if err != nil {
 			return err
 		}
-		out = append(out, ledger.Audit(bal, game.HoldingsOf(chars))...)
+		held := game.HoldingsOf(chars)
+		w, err := q.GetWorld(ctx, s.World)
+		if err != nil {
+			return err
+		}
+		live, err := liveCaravans(w.Sim)
+		if err != nil {
+			return err
+		}
+		for _, b := range bal {
+			if live[b.Account] {
+				held = append(held, b)
+			}
+		}
+		out = append(out, ledger.Audit(bal, held)...)
 		return nil
 	})
 	return out, err
+}
+
+// liveCaravans is the pool of every caravan still on the road in a stored
+// sim. A pool left behind by one that came in is not listed, so the audit
+// still reads it as a discrepancy.
+func liveCaravans(sim []byte) (map[string]bool, error) {
+	var sm struct {
+		Emergence *struct {
+			Caravans []struct {
+				ID string `json:"id"`
+			} `json:"caravans"`
+		} `json:"emergence"`
+	}
+	if err := json.Unmarshal(sim, &sm); err != nil {
+		return nil, err
+	}
+	out := map[string]bool{}
+	if sm.Emergence != nil {
+		for _, cv := range sm.Emergence.Caravans {
+			out[ledger.CaravanPool(cv.ID)] = true
+		}
+	}
+	return out, nil
 }
 
 // FindText reports which mmo tables hold any of the needles anywhere in a
