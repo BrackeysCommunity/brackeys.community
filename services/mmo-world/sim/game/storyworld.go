@@ -6,6 +6,7 @@ import (
 
 	"jams.team/mmo-world/sim/arc"
 	"jams.team/mmo-world/sim/char"
+	"jams.team/mmo-world/sim/emerge"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
@@ -362,4 +363,135 @@ func (g *Game) streakOf(r int) *Streak {
 		return nil
 	}
 	return &g.Story.Streaks[i]
+}
+
+// emergentView is the story view with what emergence adds (GDD 13): roads,
+// caravans, legends and contests. Only a world keeping emergence is read
+// through it, so without one the road and caravan templates find nothing
+// and the shortage and the caravan read as they did before.
+type emergentView struct{ *storyView }
+
+var _ arc.Emergent = emergentView{}
+
+// directorView is the view the director casts from.
+func (g *Game) directorView() arc.World {
+	v := g.storyView()
+	if g.Emergence == nil {
+		return v
+	}
+	return emergentView{v}
+}
+
+func (v emergentView) RoadLoad(region int) (int64, hex.Hex, bool) {
+	e := v.g.Emergence
+	rl := e.RoadLoad[region]
+	if rl == nil {
+		return 0, hex.Hex{}, false
+	}
+	if _, ok := v.g.roadAt(rl.Busiest); !ok {
+		return 0, hex.Hex{}, false
+	}
+	return rl.Window.Sum(v.Day(), e.Season, v.g.r.Emerge.P.RoadWarDays), rl.Busiest, true
+}
+
+// Raider is the standing faction not holding region that holds a region
+// whose centre is within rival-distance of its busiest road: the one with
+// most holdings, the lowest index on a tie.
+func (v emergentView) Raider(region int) (int, bool) {
+	_, busiest, ok := v.RoadLoad(region)
+	if !ok {
+		return -1, false
+	}
+	w := v.g.World
+	holder := v.Holder(region)
+	held := make([]int, len(w.Factions))
+	near := make([]bool, len(w.Factions))
+	for r := range w.Regions {
+		h := w.Regions[r].Holder
+		if h < 0 || h >= len(held) {
+			continue
+		}
+		held[h]++
+		if h != holder && hex.Distance(v.RegionHex(r), busiest) <= v.g.r.Story.RivalDistance {
+			near[h] = true
+		}
+	}
+	best := -1
+	for f := range w.Factions {
+		if near[f] && !w.Factions[f].Fallen && (best < 0 || held[f] > held[best]) {
+			best = f
+		}
+	}
+	return best, best >= 0
+}
+
+func (v emergentView) Caravans() []arc.CaravanView {
+	g := v.g
+	t := g.Tick()
+	out := make([]arc.CaravanView, 0, len(g.Emergence.Caravans))
+	for _, cv := range g.Emergence.Caravans {
+		at := g.caravanAt(cv, t)
+		out = append(out, arc.CaravanView{ID: cv.ID, At: at, Ahead: g.caravanAhead(cv, at), To: cv.To, Halted: cv.Halted != 0})
+	}
+	return out
+}
+
+// roadsNear reports whether any road tile within road-in-reach of place n
+// is open, and whether any is cut.
+func (v emergentView) roadsNear(n int) (open, cut bool) {
+	g := v.g
+	if n < 0 || n >= len(g.Places) {
+		return false, false
+	}
+	for _, h := range hex.DiscAt(g.Places[n].Hex, g.r.Emerge.P.RoadInReach) {
+		if _, ok := g.roadAt(h); !ok {
+			continue
+		}
+		if g.roadOpen(h) {
+			open = true
+		} else {
+			cut = true
+		}
+	}
+	return open, cut
+}
+
+func (v emergentView) RoadCut(place int) bool {
+	open, cut := v.roadsNear(place)
+	return cut && !open
+}
+
+func (v emergentView) RoadIn(place int) bool {
+	if open, _ := v.roadsNear(place); open {
+		return true
+	}
+	return slices.ContainsFunc(v.g.Emergence.Routes, func(rt *emerge.RouteRec) bool { return rt.A == place || rt.B == place })
+}
+
+// Legends are the newest legends-kept legends not laid to rest, oldest
+// first.
+func (v emergentView) Legends() []arc.LegendView {
+	e := v.g.Emergence
+	p := v.g.r.Emerge.P
+	day := v.Day()
+	var out []arc.LegendView
+	for i := len(e.Legends) - 1; i >= 0 && int64(len(out)) < p.LegendsKept; i-- {
+		l := e.Legends[i]
+		if l.Laid != 0 {
+			continue
+		}
+		out = append(out, arc.LegendView{ID: l.ID, Region: l.Region, At: l.At, Rested: l.Cast != 0 && day < l.Cast+p.LegendRestDays})
+	}
+	slices.Reverse(out)
+	return out
+}
+
+func (v emergentView) Contests() []arc.ContestView {
+	var out []arc.ContestView
+	for _, c := range v.g.contests() {
+		if !c.Cast {
+			out = append(out, arc.ContestView{A: c.A, B: c.B, SeatA: c.SeatA, SeatB: c.SeatB, Region: c.Region, Tag: c.Tag})
+		}
+	}
+	return out
 }

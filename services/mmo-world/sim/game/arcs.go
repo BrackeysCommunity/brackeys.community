@@ -10,6 +10,7 @@ import (
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/econ"
+	"jams.team/mmo-world/sim/emerge"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/goal"
@@ -75,6 +76,8 @@ const (
 	kindNPC        = "npc"
 	kindCharacter  = "character"
 	kindTile       = "tile"
+	kindCaravan    = "caravan"
+	kindLegend     = "legend"
 )
 
 // structural: the roles a trouble binds.
@@ -207,7 +210,7 @@ func (g *Game) storyDay(t int64) error {
 		return err
 	}
 	g.storyKept(t)
-	w := g.storyView()
+	w := g.directorView()
 	if err := g.castSettlements(w, t); err != nil {
 		return err
 	}
@@ -378,6 +381,11 @@ func (g *Game) holdsRef(ref fact.Ref) bool {
 	case kindTile:
 		_, ok := hex.ParseRef(ref.ID)
 		return ok
+	case kindCaravan:
+		return g.castCaravan(ref.ID) != nil
+	case kindLegend:
+		l := g.castLegend(ref.ID)
+		return l != nil && l.Laid == 0
 	}
 	return false
 }
@@ -402,7 +410,7 @@ func (g *Game) notableFaction(id string) (int, int) {
 // when it finds the same cast today, else one built from the refs.
 func (g *Game) candidateFor(tpl arc.Template, cast arc.Cast, seat hex.Hex) arc.Candidate {
 	key := cast.Key()
-	for _, c := range tpl.When(g.storyView(), tpl.Row, g.r.Story) {
+	for _, c := range tpl.When(g.directorView(), tpl.Row, g.r.Story) {
 		if c.Cast.Key() == key {
 			c.Cast, c.Seat = cast, seat
 			return c
@@ -473,6 +481,7 @@ func (g *Game) castFrom(tpl arc.Template, c arc.Candidate, by string, t int64) (
 	if err := g.wakeCast(a, t); err != nil {
 		return nil, err
 	}
+	g.castEmergent(a, t)
 	if err := g.startStage(a, t); err != nil {
 		return nil, err
 	}
@@ -496,6 +505,87 @@ func (g *Game) bandsLeft(tpl arc.Template, t int64) error {
 		return refuse(SlotBusy, "too few of this season's stage bands are left for %s", tpl.Row.ID)
 	}
 	return nil
+}
+
+// structural: the rival claims' roles, by which its contest is found.
+const (
+	roleSeatA = "seat-a"
+	roleSeatB = "seat-b"
+	roleFront = "front"
+)
+
+// castCaravan is a live caravan by id.
+func (g *Game) castCaravan(id string) *emerge.Caravan {
+	if g.Emergence == nil {
+		return nil
+	}
+	i := slices.IndexFunc(g.Emergence.Caravans, func(cv *emerge.Caravan) bool { return cv.ID == id })
+	if i < 0 {
+		return nil
+	}
+	return g.Emergence.Caravans[i]
+}
+
+// castLegend is a legend by id.
+func (g *Game) castLegend(id string) *emerge.LegendRec {
+	if g.Emergence == nil {
+		return nil
+	}
+	i := slices.IndexFunc(g.Emergence.Legends, func(l *emerge.LegendRec) bool { return l.ID == id })
+	if i < 0 {
+		return nil
+	}
+	return g.Emergence.Legends[i]
+}
+
+// castDay is the world day a legend's cast or rest is stamped with; 0
+// reads as never, so the first day counts as 1.
+func castDay(t int64) int64 { return max(t/sheets.TicksPerDay, 1) }
+
+// castEmergent holds what an emergence template casts: its caravan halts
+// where it stands until the arc lets it go, and its legend, or the
+// contest its seats and front name, is marked cast so the predicate does
+// not find it again.
+func (g *Game) castEmergent(a *Arc, t int64) {
+	e := g.Emergence
+	if e == nil {
+		return
+	}
+	for _, b := range a.Cast {
+		switch b.Ref.Kind {
+		case kindCaravan:
+			if cv := g.castCaravan(b.Ref.ID); cv != nil && cv.Halted == 0 {
+				cv.Halted, cv.Arc = max(t, cv.Depart, 1), a.ID
+			}
+		case kindLegend:
+			if l := g.castLegend(b.Ref.ID); l != nil {
+				l.Cast = castDay(t)
+			}
+		}
+	}
+	sa, okA := a.Cast.Get(roleSeatA)
+	sb, okB := a.Cast.Get(roleSeatB)
+	front, okF := a.Cast.Get(roleFront)
+	if !okA || !okB || !okF {
+		return
+	}
+	na, _ := arc.RefIndex(sa)
+	nb, _ := arc.RefIndex(sb)
+	r, _ := arc.RefIndex(front)
+	for _, c := range g.contests() {
+		if c.Region == r && (c.SeatA == na && c.SeatB == nb || c.SeatA == nb && c.SeatB == na) {
+			c.Cast = true
+		}
+	}
+}
+
+// releaseCast lets an ended arc's caravan move on if no effect did.
+func (g *Game) releaseCast(a *Arc, t int64) {
+	for _, b := range a.Cast {
+		if cv := g.castCaravan(b.Ref.ID); b.Ref.Kind == kindCaravan && cv != nil && cv.Arc == a.ID {
+			g.resumeCaravan(cv, t)
+		}
+	}
 }
 
 // wakeCast wakes a dormant NPC the arc casts (GDD 4.18).
@@ -613,7 +703,7 @@ func cmpRest(a, b ScopeRest) int {
 // castSettlements gives each standing place with room the first trouble
 // in sheet order whose predicate finds it and whose chance passes; a place
 // no trouble came to may have an occasion instead.
-func (g *Game) castSettlements(w *storyView, t int64) error {
+func (g *Game) castSettlements(w arc.World, t int64) error {
 	day := t / sheets.TicksPerDay
 	type option struct {
 		tpl arc.Template
@@ -670,7 +760,7 @@ func (g *Game) castSettlements(w *storyView, t int64) error {
 // castPersonal casts each character's thread from its pending candidates,
 // the templates in sheet order, one thread a character, and takes the
 // candidate it was cast from off the queue.
-func (g *Game) castPersonal(w *storyView, t int64) error {
+func (g *Game) castPersonal(w arc.World, t int64) error {
 	day := t / sheets.TicksPerDay
 	for _, tpl := range g.r.Templates {
 		if tpl.Row.Scope != arc.Personal {
@@ -710,7 +800,7 @@ func (g *Game) unpend(c arc.Candidate) {
 // castRegions fills the free region slots: each region template in sheet
 // order offers its hardest-pressed candidate, a tie drawn, which is cast if
 // it clashes with no running region arc and its chance passes.
-func (g *Game) castRegions(w *storyView, t int64) error {
+func (g *Game) castRegions(w arc.World, t int64) error {
 	day := t / sheets.TicksPerDay
 	slots := g.regionSlots()
 	for _, tpl := range g.r.Templates {
@@ -1061,7 +1151,8 @@ func (g *Game) roleRef(a *Arc, role string) (fact.Ref, bool) {
 
 // refRegions are the regions a ref stands for: a region or holding, a
 // faction's holdings, a settlement's or tile's region, a notable's
-// faction's holdings, an NPC's home's, a character's.
+// faction's holdings, an NPC's home's, a character's, a caravan's tile's,
+// a legend's.
 func (g *Game) refRegions(ref fact.Ref) []int {
 	in := func(h hex.Hex) []int {
 		if r := g.World.RegionAt(h); r >= 0 {
@@ -1099,6 +1190,14 @@ func (g *Game) refRegions(ref fact.Ref) []int {
 		if c := g.Char(ref.ID); c != nil {
 			return in(c.C.At)
 		}
+	case kindCaravan:
+		if cv := g.castCaravan(ref.ID); cv != nil {
+			return in(g.caravanAt(cv, g.Tick()))
+		}
+	case kindLegend:
+		if l := g.castLegend(ref.ID); l != nil && l.Region >= 0 && l.Region < len(g.World.Regions) {
+			return []int{l.Region}
+		}
 	}
 	return nil
 }
@@ -1119,7 +1218,7 @@ func (g *Game) regionHex(r int) hex.Hex { return g.r.Gen.Region(g.World.Regions[
 
 // refHexOf is the tile a ref stands on: a settlement's, a tile, a region's
 // or holding's centre, a faction's or a notable's seat, an NPC's home, a
-// character's.
+// character's, a caravan's, a legend's.
 func (g *Game) refHexOf(ref fact.Ref) (hex.Hex, bool) {
 	n, indexed := arc.RefIndex(ref)
 	switch ref.Kind {
@@ -1148,6 +1247,14 @@ func (g *Game) refHexOf(ref fact.Ref) (hex.Hex, bool) {
 	case kindCharacter:
 		if c := g.Char(ref.ID); c != nil {
 			return c.C.At, true
+		}
+	case kindCaravan:
+		if cv := g.castCaravan(ref.ID); cv != nil {
+			return g.caravanAt(cv, g.Tick()), true
+		}
+	case kindLegend:
+		if l := g.castLegend(ref.ID); l != nil {
+			return l.At, true
 		}
 	}
 	return hex.Hex{}, false
@@ -1529,6 +1636,7 @@ func (g *Game) endArc(a *Arc, won string, last fact.ID, t int64) error {
 		}
 	}
 	g.unmark(a)
+	g.releaseCast(a, t)
 	switch a.Scope {
 	case arc.Region:
 		for _, r := range a.Regions {

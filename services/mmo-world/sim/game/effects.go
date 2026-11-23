@@ -6,6 +6,7 @@ import (
 
 	"jams.team/mmo-world/sim/arc"
 	"jams.team/mmo-world/sim/char"
+	"jams.team/mmo-world/sim/emerge"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/goal"
@@ -54,7 +55,21 @@ const (
 	effOrdersStop  = "orders-stop"
 	effPrices      = "prices"
 	effSick        = "sick"
+	effToll        = "toll"
+	effCut         = "cut"
+	effPatrolRoad  = "patrol-road"
+	effCaravanOn   = "caravan-on"
+	effSalvage     = "salvage"
+	effCaravanLost = "caravan-lost"
+	effLayLegend   = "lay-legend"
 	effNothing     = "nothing"
+)
+
+// Facts the emergence effects write.
+const (
+	factRoadTolled  = "road.tolled"
+	factCaravanLost = "caravan.lost"
+	factLegendLaid  = "legend.laid"
 )
 
 // structural: the NPC memories a disposition leaves, and the holdings a
@@ -142,6 +157,18 @@ func (x effect) run() error {
 		return x.damage()
 	case effFees, effOrdersStop, effPrices, effSick:
 		x.stake()
+	case effToll, effCut, effPatrolRoad:
+		return x.roads()
+	case effCaravanOn:
+		if cv := x.caravan(); cv != nil {
+			x.g.resumeCaravan(cv, x.t)
+		}
+	case effSalvage:
+		return x.salvage()
+	case effCaravanLost:
+		return x.caravanLost()
+	case effLayLegend:
+		return x.layLegend()
 	case effNothing:
 	}
 	return nil
@@ -727,4 +754,148 @@ func (g *Game) sickShare(n int, t int64) int64 {
 		return g.r.Story.SickShare
 	}
 	return fixed.Hundredths
+}
+
+// The emergence effects (GDD 12.9, 13.2) act on emergence's records and
+// the ledger alone, and do nothing in a world without emergence.
+
+// roads tolls, cuts or patrols every road of the role's region for the
+// effect's days, or the emergence.params cell's.
+func (x effect) roads() error {
+	g := x.g
+	e := g.Emergence
+	if e == nil {
+		return nil
+	}
+	p := g.r.Emerge.P
+	days := x.e.Amount
+	if days <= 0 {
+		switch x.e.Kind {
+		case effToll:
+			days = p.TollDays
+		case effCut:
+			days = p.CutDays
+		default:
+			days = p.PatrolDays
+		}
+	}
+	until := x.t/sheets.TicksPerDay + days
+	for _, r := range x.regions() {
+		for _, id := range g.regionRoads(r) {
+			rec := e.RoadRecs[id]
+			kind, data := "", []fact.Datum{fact.S("id", rec.ID), fact.S("name", g.promotionShown(rec.ID)), fact.N("days", days)}
+			switch x.e.Kind {
+			case effToll:
+				rec.TollUntil = max(rec.TollUntil, until)
+				kind, data = factRoadTolled, append(data, fact.N("coin", p.TollCoin))
+			case effCut:
+				rec.CutUntil = max(rec.CutUntil, until)
+				kind = factRoadCut
+			default:
+				rec.PatrolUntil = max(rec.PatrolUntil, until)
+			}
+			if kind == "" {
+				continue
+			}
+			if _, err := g.regionFact(world.RegionRef(r), kind, []fact.Ref{promotionRef(rec.ID), arcRef(x.a.ID)}, []fact.ID{x.cause}, data...); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// promotionShown is a promotion's shown name, else its id.
+func (g *Game) promotionShown(id string) string {
+	if p := g.Emergence.Promotion(id); p != nil {
+		return p.Shown()
+	}
+	return id
+}
+
+// caravan is the live caravan the effect's role binds.
+func (x effect) caravan() *emerge.Caravan {
+	ref, ok := x.ref()
+	if !ok || ref.Kind != kindCaravan {
+		return nil
+	}
+	return x.g.castCaravan(ref.ID)
+}
+
+// salvage splits a caravan's goods among the winning side's backers by
+// what each gave, each share awaiting its taker on the caravan's tile, and
+// ends the caravan; with nobody to take them they are lost.
+func (x effect) salvage() error {
+	g := x.g
+	cv := x.caravan()
+	if cv == nil {
+		return nil
+	}
+	var w *Goal
+	if x.won != nil {
+		w = g.GoalOf(x.won.Goal)
+	}
+	if w == nil || w.Total() <= 0 {
+		return x.caravanLost()
+	}
+	at := g.caravanAt(cv, x.t)
+	pool := ledger.CaravanPool(cv.ID)
+	var legs []ledger.Leg
+	for _, b := range g.caravanGoods(cv) {
+		for j, part := range splitUnits(b.Units, w.Progress) {
+			if part > 0 {
+				legs = append(legs, ledger.Pair(pool, g.handTo(w.Progress[j].Key, at), b.Asset, part)...)
+			}
+		}
+	}
+	if len(legs) > 0 {
+		if err := g.postAll(ledger.Txn{Key: ledger.SubKey(x.key, "salvage"), Kind: "caravan-salvage", Tick: x.t, Fact: x.cause, Legs: ledger.Merge(legs)}); err != nil {
+			return err
+		}
+	}
+	for _, p := range w.Progress {
+		if p.N > 0 {
+			g.awaits(p.Key, at)
+		}
+	}
+	return g.endCaravan(cv)
+}
+
+// caravanLost leaves a caravan's goods in its tile's spoils and ends it.
+func (x effect) caravanLost() error {
+	g := x.g
+	cv := x.caravan()
+	if cv == nil {
+		return nil
+	}
+	at, units, err := g.caravanSpill(cv, fixed.Hundredths, ledger.SubKey(x.key, "caravan-lost"), x.cause, x.t)
+	if err != nil {
+		return err
+	}
+	data := append(g.caravanData(cv, units), fact.At(at)...)
+	if _, err := g.worldFact(at, factCaravanLost, []fact.Ref{promotionRef(cv.Route), arcRef(x.a.ID)}, []fact.ID{x.cause}, data...); err != nil {
+		return err
+	}
+	return g.endCaravan(cv)
+}
+
+// layLegend lays the role's legend to rest.
+func (x effect) layLegend() error {
+	g := x.g
+	ref, ok := x.ref()
+	if !ok || ref.Kind != kindLegend {
+		return nil
+	}
+	l := g.castLegend(ref.ID)
+	if l == nil || l.Laid != 0 {
+		return nil
+	}
+	l.Laid = castDay(x.t)
+	region := ""
+	if l.Region >= 0 {
+		region = world.RegionRef(l.Region)
+	}
+	_, err := g.regionFact(region, factLegendLaid, []fact.Ref{promotionRef(l.ID), arcRef(x.a.ID)}, []fact.ID{x.cause},
+		append([]fact.Datum{fact.S("id", l.ID), fact.S("name", g.promotionShown(l.ID))}, fact.At(l.At)...)...)
+	return err
 }
