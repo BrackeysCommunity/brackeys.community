@@ -149,6 +149,20 @@ func (h *HTTP) StoryEvents(ctx context.Context, after int64) (api.StoryEvents, e
 	return out, Refused("story events", ref, err)
 }
 
+// StoryPromotions is a page of the chronicle's promotions after a fact id.
+func (h *HTTP) StoryPromotions(ctx context.Context, after int64) (api.StoryEvents, error) {
+	var out api.StoryEvents
+	ref, err := h.Do(ctx, http.MethodGet, api.PathStoryPromotions+"?after="+strconv.FormatInt(after, 10), nil, &out)
+	return out, Refused("story promotions", ref, err)
+}
+
+// OperatorEmergence is the operator's emergence dashboard.
+func (h *HTTP) OperatorEmergence(ctx context.Context) (api.Emergence, error) {
+	var out api.Emergence
+	ref, err := h.Do(ctx, http.MethodGet, api.PathOperatorEmergence, nil, &out)
+	return out, Refused("operator emergence", ref, err)
+}
+
 // Refused turns a refusal into an error, for calls that expect none.
 func Refused(what string, ref *api.Refusal, err error) error {
 	if err == nil && ref != nil {

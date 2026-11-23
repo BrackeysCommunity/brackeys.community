@@ -255,6 +255,9 @@ type ActivityState struct {
 	Hunt      *HuntView    `json:"hunt,omitempty"`
 	// Pattern is the pattern point the character stands on.
 	Pattern *PatternPoint `json:"pattern,omitempty"`
+	// Names are the names of found ids the state shows, "sheet:id" to name:
+	// what the pack cannot know.
+	Names map[string]string `json:"names,omitempty"`
 }
 
 // ActivityHere is the tile the character stands on, and how busy it is.

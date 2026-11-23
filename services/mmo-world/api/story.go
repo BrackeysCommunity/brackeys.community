@@ -40,6 +40,7 @@ var EventKinds = []string{
 	"season.began", "season.finale", "season.closed",
 	"city.raised", "city.fell-back", "settlement.ruined", "faction.city",
 	"core.opened", "pattern.solved",
+	"road.cut", "road.tolled", "caravan.robbed",
 }
 
 // Refusal codes of the story.
@@ -236,12 +237,14 @@ type FactCauses struct {
 
 // StoryEvent is one fact for the events channel, with a snapshot of its arc
 // or trouble. Alarm says a raid's start that mentions the alarm role.
+// Promotion is set on the chronicle's promotions.
 type StoryEvent struct {
-	Fact    Fact     `json:"fact"`
-	Arc     *Arc     `json:"arc,omitempty"`
-	Trouble *Trouble `json:"trouble,omitempty"`
-	Place   string   `json:"place,omitempty"`
-	Alarm   bool     `json:"alarm,omitempty"`
+	Fact      Fact       `json:"fact"`
+	Arc       *Arc       `json:"arc,omitempty"`
+	Trouble   *Trouble   `json:"trouble,omitempty"`
+	Place     string     `json:"place,omitempty"`
+	Alarm     bool       `json:"alarm,omitempty"`
+	Promotion *Promotion `json:"promotion,omitempty"`
 }
 
 // StoryEvents are the events after a fact id; Last is the id to ask after

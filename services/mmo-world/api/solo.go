@@ -312,11 +312,13 @@ type Known struct {
 
 // RecapLine is one line of what happened while away (GDD 3.3). Kind marks
 // an arc that ended or a trouble at one of the character's places.
+// Promotion is the id of a promotion the viewer may still name.
 type RecapLine struct {
-	Rule int    `json:"rule"`
-	Kind string `json:"kind,omitempty"`
-	Fact *Fact  `json:"fact,omitempty"`
-	NPC  string `json:"npc,omitempty"`
+	Rule      int    `json:"rule"`
+	Kind      string `json:"kind,omitempty"`
+	Fact      *Fact  `json:"fact,omitempty"`
+	NPC       string `json:"npc,omitempty"`
+	Promotion string `json:"promotion,omitempty"`
 }
 
 // Kinds of recap line the story adds.

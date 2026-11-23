@@ -116,6 +116,10 @@ type Goal struct {
 	Vow    bool           `json:"vow,omitempty"`
 	// Even: a pooled goal pays everyone the same, not by contribution.
 	Even bool `json:"even,omitempty"`
+	// Legend names the legend the goal's target became; Custom, the custom
+	// the world posts it as.
+	Legend string `json:"legend,omitempty"`
+	Custom string `json:"custom,omitempty"`
 	// Evolved marks the world day its target evolved, when its issuer may
 	// withdraw it whatever has been claimed.
 	Evolved bool `json:"evolved,omitempty"`
@@ -475,6 +479,9 @@ type Class struct {
 	Level  int64  `json:"level"`
 	Needs  []Need `json:"needs"`
 	Tiers  []Tier `json:"tiers"`
+	// Found marks a hidden class someone has crossed (GDD 5.8); one not yet
+	// found is never sent.
+	Found bool `json:"found,omitempty"`
 }
 
 // Classes is /classes: every class found so far, earned or not, and how

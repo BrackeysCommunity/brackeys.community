@@ -345,6 +345,11 @@ export interface ActivityState {
    * Pattern is the pattern point the character stands on.
    */
   pattern?: PatternPoint;
+  /**
+   * Names are the names of found ids the state shows, "sheet:id" to name:
+   * what the pack cannot know.
+   */
+  names?: { [key: string]: string };
 }
 /**
  * ActivityHere is the tile the character stands on, and how busy it is.
@@ -941,6 +946,12 @@ export interface Fight {
   party?: PartyMember[];
   hidden?: boolean;
   /**
+   * CreatureName is the creature's name where the pack cannot know it,
+   * as a region's variant; Variant is the variant row it is.
+   */
+  creatureName?: string;
+  variant?: string;
+  /**
    * Decks are those Second slot may swap in now: before the viewer's pick,
    * once a beat.
    */
@@ -1081,6 +1092,10 @@ export interface Fact {
    * Causes are the ids of the facts it was caused by, where they are known.
    */
   causes?: number /* int64 */[];
+  /**
+   * Staged marks a fact an operator or placed content caused (GDD 14.5).
+   */
+  staged?: boolean;
 }
 /**
  * TileQuery asks for the discovered tiles within Radius of Centre.
@@ -1106,6 +1121,18 @@ export interface Tile {
   found: number /* int64 */; // the tick it was first entered
   siteKind?: string;
   placed?: Placed;
+  /**
+   * RoadName is the named road the tile is on; Cut while it is cut, and
+   * Toll the coin a crossing costs while it is tolled.
+   */
+  roadName?: string;
+  cut?: boolean;
+  toll?: number /* int64 */;
+  /**
+   * Camp is the name of a camp on the site; Haunted, a haunt over it.
+   */
+  camp?: string;
+  haunted?: boolean;
 }
 /**
  * Tiles is the reply to a TileQuery.
@@ -1326,6 +1353,109 @@ export interface Pin {
  */
 export interface Pins {
   pins: Pin[];
+}
+
+//////////
+// source: emergence.go
+
+/**
+ * PathStoryPromotions takes ?after=<fact id>; it is the bot's alone and
+ * answers StoryEvents carrying their Promotion.
+ */
+export const PathStoryPromotions = "/v1/story/promotions";
+/**
+ * Paths of emergence (GDD 13): promotions as they happen and the
+ * operator's dashboard of the four measures.
+ */
+export const PathOperatorEmergence = "/v1/operator/emergence";
+/**
+ * ActPromoteName renames a promotion once, by its first, within the
+ * rename days: Option is the promotion id and Text the name (GDD 4.17).
+ */
+export const ActPromoteName = "promote-name";
+/**
+ * Refusal codes of emergence.
+ */
+export const CodeNotFirst = "not-first";
+/**
+ * Refusal codes of emergence.
+ */
+export const CodeNameClosed = "name-closed";
+/**
+ * Promotion is a trace that crossed its line (GDD 13.2) and what it became.
+ * Places are a route's two ends. It never names its first to anyone else.
+ */
+export interface Promotion {
+  id: string;
+  type: string;
+  name: string;
+  region?: string;
+  at?: Hex;
+  places?: number /* int */[];
+  of?: string;
+  /**
+   * OfName is the archetype's, pairing's or base material's name.
+   */
+  ofName?: string;
+  resists?: string;
+  material?: string;
+  day: number /* int64 */;
+  /**
+   * Yours: the viewer is its first; Renamable: and may still rename it.
+   */
+  yours?: boolean;
+  renamable?: boolean;
+}
+/**
+ * Emergence is the operator's dashboard (GDD 13.5): the four measures with
+ * their healthy lines, the stored traces and the newest promotions.
+ */
+export interface Emergence {
+  day: number /* int64 */;
+  season: number /* int64 */;
+  active: number /* int64 */;
+  /**
+   * KindsPerMille is new kinds per active character a week, oldest first.
+   */
+  kindsPerMille: number /* int64 */[];
+  kindsHealthy: boolean;
+  /**
+   * Promotions are this season's, the eight types in order, each against
+   * Need.
+   */
+  promotions: TypeCount[];
+  need: number /* int64 */;
+  promotionsHealthy: boolean;
+  heavy: number /* int64 */;
+  heavyPlayer: number /* int64 */;
+  heavyHealthy: boolean;
+  pairing: RegionShare[];
+  pairingHealthy: boolean;
+  /**
+   * Traces are the stored entries per trace.
+   */
+  traces: TypeCount[];
+  /**
+   * Recent are the newest 20 promotions.
+   */
+  recent: Promotion[];
+}
+/**
+ * TypeCount is a count by promotion or trace type.
+ */
+export interface TypeCount {
+  type: string;
+  count: number /* int64 */;
+}
+/**
+ * RegionShare is a region's most common style and its share of the
+ * region's wins.
+ */
+export interface RegionShare {
+  region: string;
+  style: string;
+  name: string;
+  percent: number /* int64 */;
 }
 
 //////////
@@ -2377,6 +2507,12 @@ export interface Goal {
    */
   even?: boolean;
   /**
+   * Legend names the legend the goal's target became; Custom, the custom
+   * the world posts it as.
+   */
+  legend?: string;
+  custom?: string;
+  /**
    * Evolved marks the world day its target evolved, when its issuer may
    * withdraw it whatever has been claimed.
    */
@@ -2826,6 +2962,11 @@ export interface Class {
   level: number /* int64 */;
   needs: Need[];
   tiers: Tier[];
+  /**
+   * Found marks a hidden class someone has crossed (GDD 5.8); one not yet
+   * found is never sent.
+   */
+  found?: boolean;
 }
 /**
  * Classes is /classes: every class found so far, earned or not, and how
@@ -3287,12 +3428,14 @@ export interface Known {
 /**
  * RecapLine is one line of what happened while away (GDD 3.3). Kind marks
  * an arc that ended or a trouble at one of the character's places.
+ * Promotion is the id of a promotion the viewer may still name.
  */
 export interface RecapLine {
   rule: number /* int */;
   kind?: string;
   fact?: Fact;
   npc?: string;
+  promotion?: string;
 }
 /**
  * Kinds of recap line the story adds.
@@ -3711,6 +3854,7 @@ export interface FactCauses {
 /**
  * StoryEvent is one fact for the events channel, with a snapshot of its arc
  * or trouble. Alarm says a raid's start that mentions the alarm role.
+ * Promotion is set on the chronicle's promotions.
  */
 export interface StoryEvent {
   fact: Fact;
@@ -3718,6 +3862,7 @@ export interface StoryEvent {
   trouble?: Trouble;
   place?: string;
   alarm?: boolean;
+  promotion?: Promotion;
 }
 /**
  * StoryEvents are the events after a fact id; Last is the id to ask after

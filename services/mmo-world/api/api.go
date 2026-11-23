@@ -281,6 +281,10 @@ type Fight struct {
 	Shared   bool          `json:"shared,omitempty"`
 	Party    []PartyMember `json:"party,omitempty"`
 	Hidden   bool          `json:"hidden,omitempty"`
+	// CreatureName is the creature's name where the pack cannot know it,
+	// as a region's variant; Variant is the variant row it is.
+	CreatureName string `json:"creatureName,omitempty"`
+	Variant      string `json:"variant,omitempty"`
 	// Decks are those Second slot may swap in now: before the viewer's pick,
 	// once a beat.
 	Decks []DeckView `json:"decks,omitempty"`
@@ -402,6 +406,8 @@ type Fact struct {
 	Weight   int64   `json:"weight"`
 	// Causes are the ids of the facts it was caused by, where they are known.
 	Causes []int64 `json:"causes,omitempty"`
+	// Staged marks a fact an operator or placed content caused (GDD 14.5).
+	Staged bool `json:"staged,omitempty"`
 }
 
 // TileQuery asks for the discovered tiles within Radius of Centre.
@@ -425,6 +431,14 @@ type Tile struct {
 	Found      int64    `json:"found"` // the tick it was first entered
 	SiteKind   string   `json:"siteKind,omitempty"`
 	Placed     *Placed  `json:"placed,omitempty"`
+	// RoadName is the named road the tile is on; Cut while it is cut, and
+	// Toll the coin a crossing costs while it is tolled.
+	RoadName string `json:"roadName,omitempty"`
+	Cut      bool   `json:"cut,omitempty"`
+	Toll     int64  `json:"toll,omitempty"`
+	// Camp is the name of a camp on the site; Haunted, a haunt over it.
+	Camp    string `json:"camp,omitempty"`
+	Haunted bool   `json:"haunted,omitempty"`
 }
 
 // Tiles is the reply to a TileQuery.
