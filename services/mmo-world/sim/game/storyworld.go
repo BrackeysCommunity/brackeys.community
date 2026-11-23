@@ -388,10 +388,34 @@ func (v emergentView) RoadLoad(region int) (int64, hex.Hex, bool) {
 	if rl == nil {
 		return 0, hex.Hex{}, false
 	}
-	if _, ok := v.g.roadAt(rl.Busiest); !ok {
+	if _, ok := v.g.roadAt(rl.Busiest); !ok || v.warCast(region) {
 		return 0, hex.Hex{}, false
 	}
 	return rl.Window.Sum(v.Day(), e.Season, v.g.r.Emerge.P.RoadWarDays), rl.Busiest, true
+}
+
+// warCast reports a road war cast on region's roads within road-war-days.
+// The load that cast it is spent: neither side lowers a road's load, so
+// without this the same load recasts the war after every rest.
+func (v emergentView) warCast(region int) bool {
+	if v.g.Story == nil {
+		return false
+	}
+	since := (v.Day() - v.g.r.Emerge.P.RoadWarDays) * sheets.TicksPerDay
+	for _, a := range v.g.Story.Arcs {
+		if a.Began <= since || a.Scope != arc.Region {
+			continue
+		}
+		if tpl, ok := v.g.template(a.Template); !ok || tpl.Row.When != arc.RoadBusy {
+			continue
+		}
+		if ref, ok := a.Cast.Get(arc.RoleRoad); ok {
+			if h, ok := v.g.refHexOf(ref); ok && v.g.World.RegionAt(h) == region {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Raider is the standing faction not holding region that holds a region

@@ -334,6 +334,28 @@ func TestRoadWarNeedsLoadAndRaider(t *testing.T) {
 	}
 }
 
+// TestRoadWarSpendsItsLoad: a road war cast on a region's roads, even one
+// won the day it was cast, holds off another there for road-war-days, since no side lowers the load that cast
+// it; once that window has passed the same load casts again.
+func TestRoadWarSpendsItsLoad(t *testing.T) {
+	g := mmGame(t)
+	road, _ := mmRoadWarState(t, g)
+	if cs := mmFound(g, "the-road-war", g.directorView()); len(cs) != 1 {
+		t.Fatalf("the busy road casts %d road wars", len(cs))
+	}
+	war := &Arc{ID: "arc-war", Template: "the-road-war", Scope: arc.Region, Regions: []int{0},
+		Cast: arc.Cast{{Role: arc.RoleRoad, Ref: arc.TileRef(road)}}, Began: g.Tick(), Ended: g.Tick(), Outcome: "prey-on-it"}
+	g.Story.Arcs = append(g.Story.Arcs, war)
+	if cs := mmFound(g, "the-road-war", g.directorView()); len(cs) != 0 {
+		t.Fatalf("a road war cast today leaves another to cast: %+v", cs)
+	}
+	war.Began = (g.Tick()/sheets.TicksPerDay - g.r.Emerge.P.RoadWarDays) * sheets.TicksPerDay
+	war.Ended = war.Began
+	if cs := mmFound(g, "the-road-war", g.directorView()); len(cs) != 1 {
+		t.Fatalf("a road war road-war-days ago still holds the road: %d found", len(cs))
+	}
+}
+
 // mmCaravanState: a route from the first settlement to a second, whose
 // caravan has just left into a region at caravan-threat.
 func mmCaravanState(t *testing.T, g *Game) *emerge.Caravan {

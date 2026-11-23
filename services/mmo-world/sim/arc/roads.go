@@ -1,13 +1,16 @@
 package arc
 
+// RoadBusy is the road war's predicate.
+const RoadBusy = "road-busy"
+
 func init() {
-	Predicates["road-busy"] = roadBusy
+	Predicates[RoadBusy] = roadBusy
 	Predicates["caravan-threatened"] = caravanThreatened
 }
 
 // Roles the road and caravan templates bind.
 const (
-	roleRoad    = "road"
+	RoleRoad    = "road"
 	roleRaider  = "raider"
 	roleCaravan = "caravan"
 	roleFront   = "front"
@@ -38,7 +41,7 @@ func roadBusy(w World, row Row, p Params) []Candidate {
 		}
 		causes := recalled(w, p.MemoryDays, []string{memRaided, memRaids}, inRegions([]int{r}))
 		out = append(out, candidate(at, regionSet(r, w.RegionOf(busiest), w.RegionOf(at)), load, causes,
-			bind(roleRoad, TileRef(busiest)), bind(roleRaider, FactionRef(raider)), seat))
+			bind(RoleRoad, TileRef(busiest)), bind(roleRaider, FactionRef(raider)), seat))
 	}
 	return found(w, row, out)
 }
