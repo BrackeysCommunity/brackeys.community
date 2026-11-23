@@ -9,8 +9,8 @@ import (
 // riskBand is the route-risk band of entering a tile for a character (GDD
 // 10.7): by its region's threat or a gauge line it is past, raised one
 // band by cover, or lowered one for a character its abilities hide there,
-// and moved on a road by its road-risk. Where nothing lives there is no
-// band. It returns the band's index too, safest first.
+// and moved on an open road by its road-risk and a patrol. Where nothing
+// lives there is no band. It returns the band's index too, safest first.
 func (g *Game) riskBand(c *Char, h hex.Hex) (sheets.RouteRisk, int, bool) {
 	bands := g.r.Book.RouteRisks
 	if len(bands) == 0 || len(g.Creatures(h)) == 0 {
@@ -34,8 +34,13 @@ func (g *Game) riskBand(c *Char, h hex.Hex) (sheets.RouteRisk, int, bool) {
 	case i > 0 && cover >= g.mp("cover-raise"):
 		i = min(i+1, len(bands)-1)
 	}
-	if t := g.World.Tile(h); t != nil && t.Road > 0 {
-		i = max(0, i+int(g.charScale(c, "road-risk", 0)))
+	// A cut road is no road; a patrolled one is safer still (GDD 10.7).
+	if day := g.Tick() / sheets.TicksPerDay; g.onRoad(h, day) {
+		shift := g.charScale(c, "road-risk", 0)
+		if g.roadPatrolled(h, day) {
+			shift += g.r.Emerge.P.RoadPatrolRisk
+		}
+		i = max(0, i+int(shift))
 	}
 	return bands[i], i, true
 }

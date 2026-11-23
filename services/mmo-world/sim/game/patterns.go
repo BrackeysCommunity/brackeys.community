@@ -69,6 +69,7 @@ const (
 	openFact    = "fact"
 	openSight   = "sight"
 	openSeam    = "seam"
+	openRoad    = "road"
 )
 
 // PatternArm is the point an armed pattern machine sets, and the value
@@ -561,6 +562,8 @@ func (g *Game) patternSolved(b *Board, row *sheets.PatternPuzzle, cause fact.ID,
 			g.patternSight(b, o.N)
 		case openSeam:
 			g.patternSeam(b, o.N, solved)
+		case openRoad:
+			err = g.patternRoad(b, solved)
 		}
 		if err != nil {
 			return err

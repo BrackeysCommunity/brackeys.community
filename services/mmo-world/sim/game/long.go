@@ -67,7 +67,7 @@ const (
 )
 
 // EnterCost is what stepping from one tile onto the next costs a character
-// now, and why: terrain, a suited mount, hunger.
+// now, and why: terrain or an open road, a suited mount, hunger.
 func (g *Game) EnterCost(c *Char, from, to hex.Hex, tick int64) (int64, []Part, bool) {
 	var why []Part
 	cost, ok := g.enterCost(c, from, to, tick, g.Laden(c), &why)
@@ -86,13 +86,24 @@ func (g *Game) enterCost(c *Char, from, to hex.Hex, tick int64, laden bool, why 
 			*why = append(*why, Part{what, n, unitTicks})
 		}
 	}
-	part("terrain", cost)
-	if low, ok := g.lowWater(to, cost); ok {
-		part(TrigLowWater, low-cost)
-		cost = low
+	// An open road takes the same ticks whatever the ground, the water or
+	// the weather (GDD 3.4), and no mount takes it lower (GDD 9.9).
+	day := tick / sheets.TicksPerDay
+	road := g.Emergence != nil && g.onRoad(to, day)
+	floor := int64(0)
+	if road {
+		cost = g.r.Emerge.P.RoadEnterTicks
+		floor = cost
+		part(partRoad, cost)
+	} else {
+		part("terrain", cost)
+		if low, ok := g.lowWater(to, cost); ok {
+			part(TrigLowWater, low-cost)
+			cost = low
+		}
 	}
 	if m := c.C.In(char.Mount, 0); m != nil {
-		if r := g.r.Mounts.EnterTicks(m, cost, g.ground(to), c.Fed()); r != cost {
+		if r := max(floor, g.r.Mounts.EnterTicks(m, cost, g.ground(to, day), c.Fed())); r != cost {
 			part("mount", r-cost)
 			cost = r
 		}
@@ -110,14 +121,11 @@ func (g *Game) enterCost(c *Char, from, to hex.Hex, tick int64, laden bool, why 
 	return cost, true
 }
 
-// ground is what a mount reads of a tile.
-func (g *Game) ground(h hex.Hex) item.Ground {
+// ground is what a mount reads of a tile on a world day; a cut road is no
+// road.
+func (g *Game) ground(h hex.Hex, day int64) item.Ground {
 	b := g.r.Gen.Baseline(h)
-	at := item.Ground{Terrain: b.Terrain, River: b.River}
-	if t := g.World.Tile(h); t != nil {
-		at.Road = t.Road > 0
-	}
-	return at
+	return item.Ground{Terrain: b.Terrain, River: b.River, Road: g.onRoad(h, day)}
 }
 
 // Route is the quickest known way to a tile: only tiles someone has
@@ -406,7 +414,7 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 	acts = append(acts, world.Action{Kind: world.ActVisit, Hex: to, By: char.Ref(c.C.ID), Dir: &dir, Quiet: g.charScale(c, "tracks-left", fixed.Hundredths) <= 0})
 	c.C.Deeds.Bump(DeedHauled, c.Carried())
 	if m := c.C.In(char.Mount, 0); m != nil && c.Fed() {
-		g.r.Mounts.Ridden(m, g.ground(to), g.Laden(c))
+		g.r.Mounts.Ridden(m, g.ground(to, t/sheets.TicksPerDay), g.Laden(c))
 		c.Rode += l.StepTicks
 	}
 	c.C.Practise("travel", 1, g.r.Growth.Params())
@@ -428,6 +436,9 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 		return acts, err
 	}
 	if err := g.notePassage(c, to, t); err != nil {
+		return acts, err
+	}
+	if err := g.toll(c, to, t); err != nil {
 		return acts, err
 	}
 	if c.Carrying != "" {
