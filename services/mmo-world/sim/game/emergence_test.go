@@ -256,7 +256,7 @@ func TestSeasonFadesTraces(t *testing.T) {
 // fact hooks of a kind after the core's counts, and the day hooks at the
 // day turn. A name registers once.
 func TestEmergeHooksInOrder(t *testing.T) {
-	hooks, kinds := emergeHooks, emergeKinds
+	hooks, kinds := slices.Clone(emergeHooks), emergeKinds
 	defer func() { emergeHooks, emergeKinds = hooks, kinds }()
 	g := guardGame(t)
 	var calls []string

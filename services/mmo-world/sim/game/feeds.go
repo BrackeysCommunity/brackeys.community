@@ -20,7 +20,7 @@ const tagStaged = "staged"
 
 // lastFact is the newest fact, the cause a line crossed on.
 func (g *Game) lastFact() fact.ID {
-	return fact.ID(max(g.Log.Len()-1, 0))
+	return fact.ID(g.Log.Len())
 }
 
 // notePassage counts a character's step onto a tile toward a road: 60
