@@ -140,3 +140,29 @@ func TestEmbeddedPromoted(t *testing.T) {
 		t.Fatalf("%s %v", got, err)
 	}
 }
+
+// A map keyed by a struct encodes as key-sorted [key, value] pairs whatever
+// the insertion order; an empty one stays {}.
+func TestStructKeyedMap(t *testing.T) {
+	type tile struct{ Q, R int }
+	r := rand.New(rand.NewPCG(7, 8))
+	keys := []tile{{2, 1}, {-1, 3}, {0, 0}, {2, -4}}
+	for range 50 {
+		m := map[tile]string{}
+		for _, j := range r.Perm(len(keys)) {
+			m[keys[j]] = string(rune('a' + j))
+		}
+		b, err := Marshal(m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := `[[{"Q":-1,"R":3},"b"],[{"Q":0,"R":0},"c"],[{"Q":2,"R":-4},"d"],[{"Q":2,"R":1},"a"]]`
+		if string(b) != want {
+			t.Fatalf("got %s", b)
+		}
+	}
+	b, err := Marshal(map[tile]int{})
+	if err != nil || string(b) != "{}" {
+		t.Fatalf("empty: %s %v", b, err)
+	}
+}

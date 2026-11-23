@@ -5,6 +5,7 @@
 package canon
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -148,6 +149,9 @@ func (e *Encoder) encodeMembers(b []byte, ms []member) ([]byte, error) {
 
 func (e *Encoder) encodeMap(b []byte, v reflect.Value) ([]byte, error) {
 	keys := v.MapKeys()
+	if len(keys) > 0 && !nameKey(v.Type().Key().Kind()) {
+		return e.encodePairs(b, v, keys)
+	}
 	ms := make([]member, 0, len(keys))
 	for _, k := range keys {
 		var name string
@@ -158,12 +162,57 @@ func (e *Encoder) encodeMap(b []byte, v reflect.Value) ([]byte, error) {
 			name = strconv.FormatInt(k.Int(), base10)
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 			name = strconv.FormatUint(k.Uint(), base10)
-		default:
-			return nil, fmt.Errorf("canon: map key %s", k.Type())
 		}
 		ms = append(ms, member{name, v.MapIndex(k)})
 	}
 	return e.encodeMembers(b, ms)
+}
+
+func nameKey(k reflect.Kind) bool {
+	switch k {
+	case reflect.String,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return true
+	}
+	return false
+}
+
+// encodePairs writes a map whose keys JSON cannot name (a tile, a struct)
+// as a list of [key, value] pairs sorted by the key's canonical bytes. An
+// empty one stays {} so a digest from before such maps held entries holds.
+func (e *Encoder) encodePairs(b []byte, v reflect.Value, keys []reflect.Value) ([]byte, error) {
+	type pair struct {
+		key []byte
+		val reflect.Value
+	}
+	ps := make([]pair, 0, len(keys))
+	for _, k := range keys {
+		kb, err := e.encode(nil, k)
+		if err != nil {
+			return nil, err
+		}
+		ps = append(ps, pair{kb, v.MapIndex(k)})
+	}
+	slices.SortFunc(ps, func(x, y pair) int { return bytes.Compare(x.key, y.key) })
+	b = append(b, '[')
+	for i, p := range ps {
+		if i > 0 {
+			if bytes.Equal(ps[i-1].key, p.key) {
+				return nil, fmt.Errorf("canon: duplicate key %s", p.key)
+			}
+			b = append(b, ',')
+		}
+		b = append(b, '[')
+		b = append(b, p.key...)
+		b = append(b, ',')
+		var err error
+		if b, err = e.encode(b, p.val); err != nil {
+			return nil, err
+		}
+		b = append(b, ']')
+	}
+	return append(b, ']'), nil
 }
 
 func (e *Encoder) encodeStruct(b []byte, v reflect.Value) ([]byte, error) {
