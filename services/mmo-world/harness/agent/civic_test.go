@@ -460,7 +460,7 @@ func TestEarnerGoesToASideWithinReach(t *testing.T) {
 	d := &Dice{d: drawerFor("civic-test"), player: "p"}
 	far := api.Hex{Q: 4}
 	o := api.Options{CharacterID: "c-1", Moves: []api.Move{{Dir: 0, To: api.Hex{Q: 1}, Open: true}, {Dir: 3, To: api.Hex{Q: -1}, Open: true}},
-		Purse: api.Purse{Provisions: 20, Load: api.Load{Capacity: 100, Carried: 10}},
+		Purse: api.Purse{Market: true, Provisions: 20, Load: api.Load{Capacity: 100, Carried: 10}},
 		Sides: []api.SideOption{{Goal: "q-3", Arc: "arc-2", Side: "hold", Wants: "beats", Left: 50, At: far}}}
 	if req, ok := e.back(o, e.tripOf(o, d)); !ok || req.Kind != api.ActStep || req.Dir != 0 {
 		t.Fatalf("a beats side 4 tiles off: %+v %v, want a step toward it", req, ok)

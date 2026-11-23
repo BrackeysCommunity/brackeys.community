@@ -82,6 +82,7 @@ const (
 	memCoreOpened   = "core.opened"
 	memArcCast      = "arc.cast"
 	memArcEnded     = "arc.ended"
+	memStageEnded   = "arc.stage-ended"
 	memTroubleLost  = "trouble.lost"
 	memSurge        = "region.surge"
 	memRaids        = "region.raids"
@@ -98,7 +99,7 @@ const (
 // them whatever their weight, and only age takes them out.
 var Remembered = []string{
 	memNotableDied, memBetrayed, memRaided, memBesieged, memHoldingFell, memStarving,
-	memSeasonTurned, memSeasonBegan, memCoreOpened, memArcCast, memArcEnded, memTroubleLost,
+	memSeasonTurned, memSeasonBegan, memCoreOpened, memArcCast, memArcEnded, memStageEnded, memTroubleLost,
 	memSurge, memRaids, memUnrest, memOverrun, memCorruption, memStructure,
 }
 
@@ -523,11 +524,12 @@ func coreOpen(w World, row Row, p Params) []Candidate {
 }
 
 // struck is the regions, with the lapse facts, that a world arc's lapse
-// struck: arc.ended memories naming the world scope with N lapsedN.
+// struck: arc.ended and arc.stage-ended memories naming the world scope
+// with N lapsedN, so a lapsed stage counts as well as a lapsed arc.
 func struck(w World, p Params) map[int][]fact.ID {
 	out := map[int][]fact.ID{}
 	world := fact.Ref{Kind: scopeSubject, ID: ScopeWorld}
-	for _, m := range w.Recall(memArcEnded, p.MemoryDays) {
+	for _, m := range slices.Concat(w.Recall(memArcEnded, p.MemoryDays), w.Recall(memStageEnded, p.MemoryDays)) {
 		if m.N != lapsedN || !names(m, world) {
 			continue
 		}

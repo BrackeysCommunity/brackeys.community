@@ -10,10 +10,11 @@ import (
 )
 
 // Backer is how an Earner serves the arc sides its options list (GDD
-// 12.2), before its own errand: it brings goods it can spare to a goods
-// side where it stands, declares for a beats side in that side's region,
-// and with nothing pressing goes out of its way to a side within Reach.
-// It backs one side of a stage, never two.
+// 12.2), before its own errand: it chooses a stage's side at a market by
+// what it can serve, brings goods it can spare to a goods side where it
+// stands, declares for a beats side in that side's region, and with
+// nothing pressing goes out of its way to a side within Reach. It backs
+// one side of a stage, never two.
 type Backer struct {
 	// Tags are the tags each material holds, from the sheets.
 	Tags map[string][]string
@@ -43,8 +44,8 @@ func MaterialTags(b *sheets.Book) map[string][]string {
 }
 
 // sides are the options an earner may serve: of each arc, the side it
-// backs, else the one it set out for, else every one.
-func (t *trip) sides(o api.Options) []api.SideOption {
+// backs, else the one it set out for, else the one it chooses.
+func (e *Earner) sides(o api.Options, t *trip) []api.SideOption {
 	byArc := map[string][]api.SideOption{}
 	for _, s := range o.Sides {
 		byArc[s.Arc] = append(byArc[s.Arc], s)
@@ -54,6 +55,7 @@ func (t *trip) sides(o api.Options) []api.SideOption {
 			delete(t.aims, a)
 		}
 	}
+	chosen := map[string]string{}
 	var out []api.SideOption
 	for _, s := range o.Sides {
 		of := byArc[s.Arc]
@@ -67,11 +69,69 @@ func (t *trip) sides(o api.Options) []api.SideOption {
 				out = append(out, s)
 			}
 		default:
-			out = append(out, s)
+			if _, ok := chosen[s.Arc]; !ok {
+				chosen[s.Arc] = e.choose(o.Purse, of)
+			}
+			if chosen[s.Arc] == s.Goal {
+				out = append(out, s)
+			}
 		}
 	}
 	slices.SortStableFunc(out, func(a, b api.SideOption) int { return cmp.Compare(hexDistance(o.At, a.At), hexDistance(o.At, b.At)) })
 	return out
+}
+
+// choose is the side of a stage an earner sets out for when it backs
+// none. It reads the stage at a market, where it sees what it carries: a
+// side ahead of the rest that it can serve, so backers converge and a mark
+// gets met; else the goods side it can give most to; else the first whose
+// deeds it can do. Away from a market it has not chosen yet.
+func (e *Earner) choose(p api.Purse, of []api.SideOption) string {
+	if !p.Market {
+		return ""
+	}
+	serves := func(s api.SideOption) bool {
+		switch s.Wants {
+		case arc.WantGoods:
+			_, units := e.spare(p, s.Tag)
+			return units > 0
+		case arc.WantBeats, arc.WantReach:
+			return true
+		}
+		return false
+	}
+	for _, s := range of {
+		if s.Wants == arc.WantReach || !serves(s) {
+			continue
+		}
+		ahead := true
+		for _, x := range of {
+			if x.Goal != s.Goal && x.Wants != arc.WantReach && x.Left <= s.Left {
+				ahead = false
+			}
+		}
+		if ahead {
+			return s.Goal
+		}
+	}
+	goal, most := "", int64(0)
+	for _, s := range of {
+		if s.Wants != arc.WantGoods {
+			continue
+		}
+		if _, units := e.spare(p, s.Tag); units > most {
+			goal, most = s.Goal, units
+		}
+	}
+	if goal != "" {
+		return goal
+	}
+	for _, s := range of {
+		if s.Wants != arc.WantGoods && serves(s) {
+			return s.Goal
+		}
+	}
+	return ""
 }
 
 // aim keeps an arc to the one side the earner chose.
@@ -124,7 +184,7 @@ func (e *Earner) back(o api.Options, t *trip) (api.ActionRequest, bool) {
 	if t.backTo != nil && *t.backTo == o.At {
 		t.backTo, t.backWalk = nil, false
 	}
-	sides := t.sides(o)
+	sides := e.sides(o, t)
 	for _, s := range sides {
 		if s.At != o.At || s.Left <= 0 {
 			continue

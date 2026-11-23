@@ -426,3 +426,83 @@ func TestTroubleLostOnTheCloseTick(t *testing.T) {
 		t.Fatalf("the next season starts with %d troubles lost at the place", g.Story.At[0].Lost)
 	}
 }
+
+// worldArc is the season's world arc other than its finale, if one was cast.
+func worldArc(g *game.Game) *game.Arc {
+	for _, a := range g.Story.Arcs {
+		if a.Scope == arc.ScopeWorld && a.By != game.ByFinale {
+			return a
+		}
+	}
+	return nil
+}
+
+// A world nothing has shaped yet still has its world arc: the waking
+// tower on the first rising day, and its lapses strike where the finale
+// is cast.
+func TestTheWakingTowerFillsAnEmptySeason(t *testing.T) {
+	g, err := game.New(rules(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, tb, _ := g.Season()
+	i := slices.IndexFunc(tb, func(s season.Span) bool { return s.Band == season.Rising })
+	rising := c.Start + tb[i].From - 1
+	advanceDays(t, g, rising)
+	a := worldArc(g)
+	if a == nil || a.Template != "the-waking-tower" || a.By != game.ByDirector || a.Began != rising*sheets.TicksPerDay {
+		t.Fatalf("the first rising day cast %+v", a)
+	}
+	if tower, ok := a.Cast.Get("tower"); !ok || tower.Kind != "tile" {
+		t.Fatalf("the waking tower binds no tower: %v", a.Cast)
+	}
+	finaleDay := c.Start + tb.FinaleFrom() - 1
+	advanceDays(t, g, finaleDay-rising)
+	if a.Outcome != "lapsed" {
+		t.Fatalf("nobody played, yet the waking tower ended %q", a.Outcome)
+	}
+	var finale *game.Arc
+	for _, x := range g.Story.Arcs {
+		if x.By == game.ByFinale {
+			finale = x
+		}
+	}
+	if finale == nil || finale.Template != "the-last-stand" {
+		t.Fatalf("the finale is %+v, want the last stand where the tower's lapse struck", finale)
+	}
+	if !slices.ContainsFunc(finale.Regions, func(r int) bool { return slices.Contains(a.Regions, r) }) {
+		t.Fatalf("the last stand holds %v, the tower struck %v", finale.Regions, a.Regions)
+	}
+}
+
+// structural: a test predicate that fits every world with a place.
+const fitsWhen = "test-fits"
+
+// While another world template fits, the waking tower waits for it, to the
+// last day a whole arc still fits the bands.
+func TestTheWakingTowerWaitsForAFittingTemplate(t *testing.T) {
+	arc.Predicates[fitsWhen] = func(w arc.World, row arc.Row, p arc.Params) []arc.Candidate {
+		pl := w.Places()[0]
+		return []arc.Candidate{{Cast: arc.Cast{{Role: "seat", Ref: arc.SettlementRef(pl.N)}}, Regions: []int{pl.Region}, Seat: pl.Hex, Place: -1}}
+	}
+	b := *testkit.Book(t)
+	b.Arcs = slices.Clone(b.Arcs)
+	i := slices.IndexFunc(b.Arcs, func(r sheets.ArcRow) bool { return r.ID == "the-waking-tower" })
+	never := b.Arcs[i]
+	never.ID, never.When, never.Chance = "the-unlucky", fitsWhen, 0
+	b.Arcs = append(b.Arcs, never)
+	g, err := game.New(testkit.Rules(t, &b, keys.Throwaway("game-test")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, tb, _ := g.Season()
+	last := c.Start + tb.StageEnds(0) - 1
+	advanceDays(t, g, last-1)
+	if a := worldArc(g); a != nil {
+		t.Fatalf("%s was cast on day %d while another template fit", a.Template, a.Began/sheets.TicksPerDay)
+	}
+	advanceDays(t, g, 1)
+	if a := worldArc(g); a == nil || a.Template != "the-waking-tower" || a.Began != last*sheets.TicksPerDay {
+		t.Fatalf("on the last day a whole arc fits, the director cast %+v", a)
+	}
+}

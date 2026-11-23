@@ -2,18 +2,30 @@ package game
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
 	"jams.team/mmo-world/sim/arc"
+	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/sheets"
 )
 
 // A world arc cast once the season has fewer stage bands left than the
 // arc has stages is refused, the game unchanged; the finale is still cast
-// on the finale band's first day.
+// on the finale band's first day. Without the waking tower the slot stays
+// free in a world nothing has shaped.
 func TestWorldArcTooLateForItsStages(t *testing.T) {
 	g := guardGame(t)
+	b := *g.r.Book
+	b.Arcs = slices.DeleteFunc(slices.Clone(b.Arcs), func(r sheets.ArcRow) bool { return r.When == arc.RingWhen })
+	rules, err := NewRules(&b, keys.Throwaway("guards"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g, err = New(rules); err != nil {
+		t.Fatal(err)
+	}
 	c, tb, ok := g.Season()
 	if !ok || tb.StageEnds(0) == 0 {
 		t.Fatal("season zero has no stage bands")

@@ -199,6 +199,15 @@ func TestPressureRegion(t *testing.T) {
 		t.Fatalf("pressures %d %d causes %v", cs[0].Pressure, cs[1].Pressure, cs[0].Causes)
 	}
 
+	// A world stage that lapsed strikes as the arc's own lapse does.
+	stage := w.remember(memStageEnded, 18, 0, fact.Ref{Kind: scopeSubject, ID: ScopeWorld}, RegionRef(0))
+	w.memory[len(w.memory)-1].N = lapsedN
+	cs = run(t, w, "pressure-region", lastStandRow)
+	i := slices.IndexFunc(cs, func(c Candidate) bool { k, _ := c.Cast.Get("front"); return k == RegionRef(0) })
+	if i < 0 || cs[i].Pressure != params.FinaleLapseBonus || !slices.Contains(cs[i].Causes, stage) {
+		t.Fatalf("a lapsed world stage did not strike r-0: %+v", cs)
+	}
+
 	none(t, run(t, plain{w}, "pressure-region", lastStandRow))
 }
 

@@ -1456,8 +1456,15 @@ func (g *Game) stageEnded(a *Arc, row sheets.StageRow, won string, backers, unit
 		data = append(data, fact.N("settlement", int64(n)))
 	}
 	subjects := g.arcSubjects(a)
-	if a.Scope == arc.Personal {
+	switch a.Scope {
+	case arc.Personal:
 		subjects = append(subjects, fact.Ref{Kind: scopeSubject, ID: a.Scope})
+	case arc.ScopeWorld:
+		// Where a world stage's lapse struck, for the finale.
+		subjects = append(subjects, fact.Ref{Kind: scopeSubject, ID: a.Scope})
+		for _, r := range a.Regions {
+			subjects = append(subjects, arc.RegionRef(r))
+		}
 	}
 	return g.worldFact(a.Seat, kind, subjects, []fact.ID{a.Stages[a.Stage].Fact}, data...)
 }

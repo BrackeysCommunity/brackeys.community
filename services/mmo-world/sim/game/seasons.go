@@ -218,8 +218,9 @@ func refusedIsNothing(err error) error {
 
 // castWorldArc casts the season's world arc on a rising day while none has
 // been: the opening first, then the eligible template whose cast presses
-// hardest, a tie drawn under arc.cast. A day with none eligible leaves it
-// to the next.
+// hardest, a tie drawn under arc.cast. Every season has one: when no other
+// template fits, or on the last day a whole arc still fits the bands, the
+// waking tower is cast.
 func (g *Game) castWorldArc(c season.Clock, t int64) error {
 	from := c.Start * sheets.TicksPerDay
 	for _, a := range g.Story.Arcs {
@@ -235,17 +236,25 @@ func (g *Game) castWorldArc(c season.Clock, t int64) error {
 	}
 	var opts []option
 	var ps []season.Pressure
+	var fallback *option
+	fits := false
 	for _, tpl := range g.r.Templates {
 		if tpl.Row.Scope != arc.ScopeWorld || tpl.Row.Arc == nil || tpl.Row.Arc.Finale {
 			continue
 		}
 		cand, ok := arc.Pick(tpl.When(w, tpl.Row, g.r.Story), g.r.draw, tpl.Row.ID, arc.ScopeWorld, day)
+		ring := tpl.Row.When == arc.RingWhen
+		fits = fits || (ok && !ring)
 		if !ok || !arc.Chance(g.r.draw, tpl.Row.ID, arc.ScopeWorld, day, tpl.Row.Chance) {
 			continue
 		}
-		if tpl.Row.When == openingWhen {
+		switch {
+		case tpl.Row.When == openingWhen:
 			_, err := g.castFrom(tpl, cand, ByOpening, t)
 			return refusedIsNothing(err)
+		case ring:
+			fallback = &option{tpl, cand}
+			continue
 		}
 		opts = append(opts, option{tpl, cand})
 		ps = append(ps, season.Pressure{Kind: tpl.Row.ID, Score: cand.Pressure})
@@ -253,10 +262,16 @@ func (g *Game) castWorldArc(c season.Clock, t int64) error {
 	k, ok := season.LargestAt(ps, func(n int) int {
 		return int(g.r.draw.Below(uint64(n), arc.CastDraw, draw.Str(arc.ScopeWorld), draw.Int(day), draw.Str(templatesPart)))
 	})
-	if !ok {
+	if ok {
+		_, err := g.castFrom(opts[k].tpl, opts[k].cand, ByDirector, t)
+		return refusedIsNothing(err)
+	}
+	// A template that fits but missed its chance is waited for while a
+	// whole arc would still fit tomorrow.
+	if fallback == nil || (fits && g.bandsLeft(fallback.tpl, t+sheets.TicksPerDay) == nil) {
 		return nil
 	}
-	_, err := g.castFrom(opts[k].tpl, opts[k].cand, ByDirector, t)
+	_, err := g.castFrom(fallback.tpl, fallback.cand, ByDirector, t)
 	return refusedIsNothing(err)
 }
 

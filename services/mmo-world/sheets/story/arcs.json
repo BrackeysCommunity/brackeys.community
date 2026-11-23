@@ -625,6 +625,153 @@
       "note": "GDD 12.9 and 4.13: the ring's core opens; it stays open for a season if it lapses. Seal it with goods and beats; go through counts distinct characters on the core tile. Threat steps provisional."
     },
     {
+      "id": "the-waking-tower",
+      "scope": "world",
+      "when": "ring-stands",
+      "chance": 100,
+      "cast": [
+        {
+          "role": "tower",
+          "kind": "tile",
+          "pick": "nearest"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-signal",
+          "sides": [
+            {
+              "id": "keep-watch",
+              "wants": "goods",
+              "tag": "metal",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "regions",
+                  "gauge": "unrest",
+                  "amount": -30
+                }
+              ]
+            },
+            {
+              "id": "hunt-its-kin",
+              "wants": "beats",
+              "per": 25,
+              "at": "tower",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "regions",
+                  "gauge": "threat",
+                  "amount": -30
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "gauge",
+              "role": "regions",
+              "gauge": "threat",
+              "amount": 30
+            }
+          ]
+        },
+        {
+          "id": "the-call",
+          "sides": [
+            {
+              "id": "keep-watch",
+              "wants": "goods",
+              "tag": "timber",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "regions",
+                  "gauge": "unrest",
+                  "amount": -30
+                }
+              ]
+            },
+            {
+              "id": "hunt-its-kin",
+              "wants": "beats",
+              "per": 25,
+              "at": "tower",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "regions",
+                  "gauge": "threat",
+                  "amount": -30
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "gauge",
+              "role": "regions",
+              "gauge": "threat",
+              "amount": 30
+            }
+          ]
+        },
+        {
+          "id": "the-guardian-walks",
+          "sides": [
+            {
+              "id": "wall-it-in",
+              "wants": "goods",
+              "tag": "stone",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "regions",
+                  "gauge": "unrest",
+                  "amount": -50
+                }
+              ]
+            },
+            {
+              "id": "face-it",
+              "wants": "reach",
+              "per": 1,
+              "at": "tower",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "regions",
+                  "gauge": "threat",
+                  "amount": -50
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "gauge",
+              "role": "regions",
+              "gauge": "threat",
+              "amount": 60
+            }
+          ]
+        }
+      ],
+      "note": "GDD 4.13 and 12.6: a relay tower of the ring of eight wakes, the one nearest the busiest settlement, while the core is shut. Every world has the ring, so the director casts it when no other world template fits, and every season has its world arc. Threat in its regions if it lapses, which the finale reads. Tags and gauge steps provisional."
+    },
+    {
       "id": "the-last-stand",
       "scope": "world",
       "when": "pressure-region",
