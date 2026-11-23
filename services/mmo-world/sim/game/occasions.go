@@ -39,6 +39,28 @@ func (g *Game) occasionOpens(row *sheets.OccasionRow, n int, cause fact.ID, _ in
 	return nil
 }
 
+// caravanCame opens the caravan occasion at place n for its row's days
+// when a route's caravan comes in (GDD 13.2): the same bids, cast by the
+// arrival rather than drawn. A caravan occasion already there runs on to
+// the new one's end; another occasion or a trouble keeps the place.
+func (g *Game) caravanCame(n int, cause fact.ID, t int64) error {
+	tpl, ok := g.template(occasionCaravan)
+	ps := g.placeStory(n)
+	if !ok || tpl.Row.Occasion == nil || ps == nil {
+		return nil
+	}
+	if ps.Occasion != nil {
+		if ps.Occasion.Kind == occasionCaravan {
+			ps.Occasion.Ends = max(ps.Occasion.Ends, t+tpl.Row.Occasion.Days*sheets.TicksPerDay)
+		}
+		return nil
+	}
+	if g.placeTaken(n) {
+		return nil
+	}
+	return g.beginOccasion(tpl, arc.Candidate{Place: n, Causes: []fact.ID{cause}}, t)
+}
+
 // seamAt queues units of stock on the node nearest h within seam-radius:
 // the first free, passable tile out from h, on the material its region
 // yields that is most worked there. False when none lies in reach.
