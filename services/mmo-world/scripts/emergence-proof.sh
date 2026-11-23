@@ -5,8 +5,8 @@
 # build (MMO_SHEETS_FROM re-stamps the sheets, the open sends the one-shot
 # emergence-start), and checks the log says EMERGENCE STARTED once, the
 # start is one recorded world command, the operator's dashboard is served
-# and empty, the character walks on, and a second open sends no second
-# start.
+# and empty, the character walks on and its step feeds a passage trace,
+# and a second open sends no second start.
 #
 #   scripts/emergence-proof.sh <base commit> <out dir>
 #
@@ -191,7 +191,9 @@ say "dashboard: $(jq -c '{day, season, active, traces}' "$OUT/emergence.json")"
 walk 1
 [ "$WALKED" = 1 ] || fail "the character could not walk on after emergence started"
 [ "$(tick)" -gt "$after" ] || fail "the world does not tick on"
-say "the character walked on at tick $(tick)"
+passages="$(dashboard | jq -r '[.traces[] | select(.type == "passage") | .count][0] // 0')"
+[ "$passages" -gt 0 ] || fail "the step after the start fed no passage trace"
+say "the character walked on at tick $(tick), and $passages passage trace(s) are kept"
 
 stop_world
 start_world "$OUT/world-new" "$PWD"
