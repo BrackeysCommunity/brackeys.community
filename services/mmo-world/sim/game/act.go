@@ -416,6 +416,8 @@ func (g *Game) act(c *Char, cmd Command) ([]fight.Pressed, error) {
 		return nil, g.dungeonName(c, cmd)
 	case PromoteName:
 		return nil, g.promoteName(c, cmd)
+	case KindName:
+		return nil, g.kindName(c, cmd)
 	case KeyMake:
 		return nil, g.keyMake(c, cmd)
 	case HuntPress:

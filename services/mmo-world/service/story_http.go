@@ -222,6 +222,51 @@ func castName(g *game.Game, ref fact.Ref, viewer string) string {
 	return ""
 }
 
+// settlementData are the data keys a fact names a settlement by, past
+// its settlement datum, by the fact kinds whose lines read them.
+var settlementData = map[string][]string{
+	"caravan.departed": {"from", "to"}, "caravan.arrived": {"from", "to"}, "caravan.robbed": {"from", "to"}, "caravan.lost": {"from", "to"},
+	game.FactPromotion: {"a", "b"},
+}
+
+// nameFacts adds to names what the facts' refs are called to viewer, keyed
+// "kind:id" as the bot keys them: each subject, the region, and the
+// settlements and region the data name. A ref the world gives no name to
+// is left out, so with no viewer a character never is.
+func nameFacts(g *game.Game, viewer string, names map[string]string, fs ...api.Fact) {
+	add := func(kind, id string) {
+		if n := castName(g, fact.Ref{Kind: kind, ID: id}, viewer); n != "" {
+			names[kind+":"+id] = n
+		}
+	}
+	for _, f := range fs {
+		for _, sub := range f.Subjects {
+			add(sub.Kind, sub.ID)
+		}
+		if f.Region != "" {
+			add(kindRegion, f.Region)
+		}
+		for _, d := range f.Data {
+			switch {
+			case d.Key == kindRegion && d.S != "":
+				add(kindRegion, d.S)
+			case d.Key == kindSettlement || slices.Contains(settlementData[f.Kind], d.Key):
+				add(kindSettlement, strconv.FormatInt(d.N, 10))
+			}
+		}
+	}
+}
+
+// factNames are nameFacts' names as a new map, nil when there are none.
+func factNames(g *game.Game, viewer string, fs ...api.Fact) map[string]string {
+	names := map[string]string{}
+	nameFacts(g, viewer, names, fs...)
+	if len(names) == 0 {
+		return nil
+	}
+	return names
+}
+
 // arcs are the open and lately ended arcs, the season, and the side goals
 // the viewer backs. A personal thread is shown only to its character.
 func (s *Server) arcs(w http.ResponseWriter, r *http.Request) {
@@ -417,6 +462,11 @@ func (s *Server) chronicle(w http.ResponseWriter, r *http.Request) {
 		v, _ := seen(s.g, "", apiFact(f))
 		out.Lines = append(out.Lines, api.ChronicleLine{Fact: v, Here: here[f.ID], Causes: int64(len(f.Causes))})
 	}
+	lines := make([]api.Fact, len(out.Lines))
+	for i, l := range out.Lines {
+		lines[i] = l.Fact
+	}
+	out.Names = factNames(s.g, "", lines...)
 	reply(w, http.StatusOK, out)
 }
 
@@ -461,6 +511,7 @@ func (s *Server) chronicleFact(w http.ResponseWriter, r *http.Request) {
 			out.Causes = append(out.Causes, v)
 		}
 	}
+	out.Names = factNames(s.g, "", append([]api.Fact{top}, out.Causes...)...)
 	reply(w, http.StatusOK, out)
 }
 
@@ -506,7 +557,7 @@ func storyEvent(g *game.Game, f fact.Fact) (api.StoryEvent, bool) {
 	if !ok {
 		return api.StoryEvent{}, false
 	}
-	ev := api.StoryEvent{Fact: v, Promotion: promotionOf(g, f)}
+	ev := api.StoryEvent{Fact: v, Promotion: promotionOf(g, f), Names: factNames(g, "", v)}
 	if d, ok := f.Get("arc"); ok {
 		if a := g.ArcByID(d.S); a != nil && a.Scope == arc.Settlement {
 			ev.Trouble = troubleView(g, a)

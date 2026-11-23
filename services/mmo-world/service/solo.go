@@ -454,7 +454,8 @@ func (s *Server) recipes(w http.ResponseWriter, r *http.Request) {
 		add := func(id string, first bool) {
 			if k, ok := s.g.Kinds.Kind(id); ok && !seen[id] {
 				seen[id] = true
-				out.Known = append(out.Known, api.Known{Kind: id, Name: s.g.Kinds.Name(id), Recipe: apiRecipe(k.Recipe), First: first})
+				_, refused := s.g.CanNameKind(id, c.C.ID)
+				out.Known = append(out.Known, api.Known{Kind: id, Name: s.g.Kinds.Name(id), Recipe: apiRecipe(k.Recipe), First: first, Renamable: refused == nil})
 			}
 		}
 		for _, id := range c.C.Discovered {
@@ -471,9 +472,10 @@ func (s *Server) recipes(w http.ResponseWriter, r *http.Request) {
 // from them under it.
 func (s *Server) recap(w http.ResponseWriter, r *http.Request) {
 	var id string
-	var since, weight int64
+	var since, seenAt, weight int64
 	if !s.withChar(w, r, func(c *game.Char) {
 		id, since, weight = c.C.ID, max(c.Seen, s.g.Tick()-s.g.RecapWindow()), s.g.NewsWeight()
+		seenAt = c.Seen
 	}) {
 		return
 	}
@@ -486,15 +488,20 @@ func (s *Server) recap(w http.ResponseWriter, r *http.Request) {
 		view := *c
 		view.Seen = since
 		rc := s.g.Recap(&view, own, heavy)
-		out := api.Recap{Since: rc.Since, Tick: s.g.Tick(), Lines: []api.RecapLine{}, More: rc.More}
+		t := s.g.Tick()
+		out := api.Recap{Since: rc.Since, Tick: t, Lines: []api.RecapLine{}, More: rc.More,
+			Day: t / sheets.TicksPerDay, AwayHours: (t - seenAt) / sheets.TicksPerHour}
+		var told []api.Fact
 		for _, l := range rc.Lines {
 			x := api.RecapLine{Rule: l.Rule, Kind: l.Kind, NPC: l.NPC}
 			if l.NPC == "" {
 				f, _ := seen(s.g, c.C.ID, apiFact(l.Fact))
 				x.Fact, x.Promotion = &f, renamable(s.g, c.C.ID, l.Fact)
+				told = append(told, f)
 			}
 			out.Lines = append(out.Lines, x)
 		}
+		out.Names = factNames(s.g, c.C.ID, told...)
 		reply(w, http.StatusOK, out)
 	})
 }
@@ -505,11 +512,19 @@ func (s *Server) npcHandler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	if !s.withChar(w, r, func(c *game.Char) {
 		var conv game.Conversation
-		conv, err = s.g.Converse(c, r.URL.Query().Get("npc"))
+		id := r.URL.Query().Get("npc")
+		conv, err = s.g.Converse(c, id)
 		if err != nil {
 			return
 		}
 		out = api.Conversation{NPC: apiPerson(s.g, game.Person{Stub: conv.NPC, Saved: true}), Topics: []api.Topic{}, Last: conv.Last, Met: conv.Met, Digest: conv.Digest}
+		if r.URL.Query().Get("dossier") == "1" {
+			var d game.DossierView
+			if d, err = s.g.Dossier(c, id); err != nil {
+				return
+			}
+			out.Dossier = apiDossier(d)
+		}
 		for _, t := range conv.Topics {
 			x := api.Topic{ID: t.ID, Line: t.Line, Own: t.Own, Choices: []api.Choice{}}
 			for _, ch := range t.Choices {
@@ -531,6 +546,27 @@ func (s *Server) npcHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reply(w, http.StatusOK, out)
+}
+
+// apiDossier is a dossier as the wire carries it.
+func apiDossier(d game.DossierView) *api.Dossier {
+	out := &api.Dossier{Day: d.Day, Role: d.Role, Traits: slices.Clone(d.Traits), Faction: d.Faction, Place: d.Place,
+		About: apiMemories(d.About), World: apiMemories(d.World), Oldest: apiMemories(d.Oldest), FoldedTotal: d.FoldedTotal, Names: d.Names}
+	if out.Traits == nil {
+		out.Traits = []string{}
+	}
+	for _, x := range d.Folded {
+		out.Folded = append(out.Folded, api.TypeCount{Type: x.Key, Count: x.N})
+	}
+	return out
+}
+
+func apiMemories(ms []game.MemoryView) []api.Memory {
+	out := make([]api.Memory, len(ms))
+	for i, m := range ms {
+		out[i] = api.Memory{Kind: m.Kind, Tick: m.Tick, Fact: m.Fact, Thing: m.Thing, Who: m.Who, N: m.N, Unit: m.Unit}
+	}
+	return out
 }
 
 func (s *Server) mapHandler(w http.ResponseWriter, r *http.Request) {

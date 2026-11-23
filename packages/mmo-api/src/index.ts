@@ -964,6 +964,10 @@ export interface Fight {
    * once a beat.
    */
   decks?: DeckView[];
+  /**
+   * Portrait is the creature's picture, a media key.
+   */
+  portrait?: string;
 }
 /**
  * Options is everything a character can do now. Version is the row
@@ -1767,6 +1771,67 @@ export interface Flagged {
   characterId: string;
   flags: string[];
   streak: number /* int64 */;
+}
+
+//////////
+// source: narration.go
+
+/**
+ * ActKindName names a kind once, by its first maker, within its days:
+ * Option is the kind id, Note the name.
+ */
+export const ActKindName = "kind-name";
+/**
+ * PathArcKit is what an arc proposal may use: the operator's alone.
+ */
+export const PathArcKit = "/v1/operator/arc-kit";
+/**
+ * Art is an authored picture for a slot, and the slot it fills.
+ */
+export interface Art {
+  key: string;
+  slot: string;
+}
+/**
+ * Dossier is what an NPC brings to a conversation beyond its topics: who
+ * it is, what it remembers of the viewer and of the world, and what it has
+ * folded away (GDD 4.18). Another player is named only as their consent
+ * allows.
+ */
+export interface Dossier {
+  day: number /* int64 */;
+  role: string;
+  traits: string[];
+  faction?: string;
+  place: string;
+  about: Memory[]; // most salient about the viewer
+  world: Memory[]; // most salient about the world
+  oldest: Memory[]; // the oldest kept
+  folded?: TypeCount[];
+  foldedTotal: number /* int64 */;
+  names: { [key: string]: string };
+}
+/**
+ * Memory is one remembered entry as a client may tell it.
+ */
+export interface Memory {
+  kind: string;
+  tick: number /* int64 */;
+  fact?: number /* int64 */;
+  thing?: string; // a name
+  who?: string; // "you", a consented name, or "a traveller from <guild>"
+  n?: number /* int64 */;
+  unit?: string;
+}
+/**
+ * ArcKit is what a proposed story.arcs row may name.
+ */
+export interface ArcKit {
+  season: number /* int64 */;
+  templates: string[];
+  when: string[];
+  effects: string[];
+  schema: string; // the story.arcs row schema, as JSON
 }
 
 //////////
@@ -3433,6 +3498,10 @@ export interface Known {
   name: string;
   recipe: Recipe;
   first: boolean; // they discovered it
+  /**
+   * Renamable: they made it first and may still give it a name.
+   */
+  renamable?: boolean;
 }
 /**
  * RecapLine is one line of what happened while away (GDD 3.3). Kind marks
@@ -3455,13 +3524,20 @@ export const RecapArc = "arc";
  */
 export const RecapTrouble = "trouble";
 /**
- * Recap is since you left.
+ * Recap is since you left. Day is the world day now; AwayHours is how
+ * long since the hub was last opened, whatever the window the lines cover.
  */
 export interface Recap {
   since: number /* int64 */;
   tick: number /* int64 */;
   lines: RecapLine[];
   more: number /* int */;
+  day: number /* int64 */;
+  awayHours: number /* int64 */;
+  /**
+   * Names are what the lines' refs are called, as the viewer may read them.
+   */
+  names?: { [key: string]: string };
 }
 /**
  * Conversation is an NPC's topics for a character, voiced from
@@ -3474,6 +3550,10 @@ export interface Conversation {
   met: number /* int64 */;
   digest: string;
   banner: string;
+  /**
+   * Dossier is set when asked for with dossier=1.
+   */
+  dossier?: Dossier;
 }
 /**
  * Topic is one thing an NPC brings up.
@@ -3855,6 +3935,12 @@ export interface Chronicle {
   lines: ChronicleLine[];
   more: number /* int64 */;
   earlier: number /* int64 */[];
+  /**
+   * Names are what the lines' refs are called, keyed "kind:id"; a
+   * character is never among them.
+   */
+  names?: { [key: string]: string };
+  cover?: Art;
 }
 /**
  * FactCauses is a fact and its causes, one level deep; each cause opens the
@@ -3863,6 +3949,11 @@ export interface Chronicle {
 export interface FactCauses {
   fact: Fact;
   causes: Fact[];
+  /**
+   * Names are what the fact's and its causes' refs are called, as on the
+   * chronicle.
+   */
+  names?: { [key: string]: string };
 }
 /**
  * StoryEvent is one fact for the events channel, with a snapshot of its arc
@@ -3876,6 +3967,11 @@ export interface StoryEvent {
   place?: string;
   alarm?: boolean;
   promotion?: Promotion;
+  /**
+   * Names are what the fact's refs are called, as on the chronicle.
+   */
+  names?: { [key: string]: string };
+  art?: Art;
 }
 /**
  * StoryEvents are the events after a fact id; Last is the id to ask after

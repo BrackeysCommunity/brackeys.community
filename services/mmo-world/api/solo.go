@@ -308,6 +308,8 @@ type Known struct {
 	Name   string `json:"name"`
 	Recipe Recipe `json:"recipe"`
 	First  bool   `json:"first"` // they discovered it
+	// Renamable: they made it first and may still give it a name.
+	Renamable bool `json:"renamable,omitempty"`
 }
 
 // RecapLine is one line of what happened while away (GDD 3.3). Kind marks
@@ -327,12 +329,17 @@ const (
 	RecapTrouble = "trouble"
 )
 
-// Recap is since you left.
+// Recap is since you left. Day is the world day now; AwayHours is how
+// long since the hub was last opened, whatever the window the lines cover.
 type Recap struct {
-	Since int64       `json:"since"`
-	Tick  int64       `json:"tick"`
-	Lines []RecapLine `json:"lines"`
-	More  int         `json:"more"`
+	Since     int64       `json:"since"`
+	Tick      int64       `json:"tick"`
+	Lines     []RecapLine `json:"lines"`
+	More      int         `json:"more"`
+	Day       int64       `json:"day"`
+	AwayHours int64       `json:"awayHours"`
+	// Names are what the lines' refs are called, as the viewer may read them.
+	Names map[string]string `json:"names,omitempty"`
 }
 
 // Conversation is an NPC's topics for a character, voiced from
@@ -344,6 +351,8 @@ type Conversation struct {
 	Met    int64   `json:"met"`
 	Digest string  `json:"digest"`
 	Banner string  `json:"banner"`
+	// Dossier is set when asked for with dossier=1.
+	Dossier *Dossier `json:"dossier,omitempty"`
 }
 
 // Topic is one thing an NPC brings up.

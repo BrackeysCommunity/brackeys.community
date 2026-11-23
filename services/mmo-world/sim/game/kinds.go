@@ -22,6 +22,8 @@ type KindCount struct {
 	N     int64  `json:"n"`
 	Name  string `json:"name,omitempty"`
 	Named string `json:"named,omitempty"` // the character who named it
+	// Given: the first maker gave it a name of their own over the plain one.
+	Given bool `json:"given,omitempty"`
 }
 
 func (k *Kinds) kindAt(id string) (int, bool) {
@@ -84,4 +86,20 @@ func (k *Kinds) SetName(id, name, by string) bool {
 	}
 	c.Name, c.Named = name, by
 	return true
+}
+
+// Give is the first maker's own name for a kind, once.
+func (k *Kinds) Give(id, name string) bool {
+	i, ok := k.madeAt(id)
+	if !ok || k.Made[i].Given {
+		return false
+	}
+	k.Made[i].Name, k.Made[i].Given = name, true
+	return true
+}
+
+// given reports whether a kind's first maker has given it a name.
+func (k *Kinds) given(id string) bool {
+	i, ok := k.madeAt(id)
+	return ok && k.Made[i].Given
 }

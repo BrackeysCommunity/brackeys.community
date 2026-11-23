@@ -73,6 +73,7 @@ func (s *Server) Handler() http.Handler {
 	op("GET "+api.PathOperatorEconomy, s.flags)
 	op("GET "+api.PathOperatorStory, s.operatorStory)
 	op("GET "+api.PathOperatorEmergence, s.operatorEmergence)
+	op("GET "+api.PathArcKit, s.arcKit)
 	op("POST "+api.PathOperatorReset, s.reset)
 	op("POST "+api.PathOperatorClock, s.clock)
 	return mux

@@ -226,6 +226,10 @@ type Chronicle struct {
 	Lines   []ChronicleLine `json:"lines"`
 	More    int64           `json:"more"`
 	Earlier []int64         `json:"earlier"`
+	// Names are what the lines' refs are called, keyed "kind:id"; a
+	// character is never among them.
+	Names map[string]string `json:"names,omitempty"`
+	Cover *Art              `json:"cover,omitempty"`
 }
 
 // FactCauses is a fact and its causes, one level deep; each cause opens the
@@ -233,6 +237,9 @@ type Chronicle struct {
 type FactCauses struct {
 	Fact   Fact   `json:"fact"`
 	Causes []Fact `json:"causes"`
+	// Names are what the fact's and its causes' refs are called, as on the
+	// chronicle.
+	Names map[string]string `json:"names,omitempty"`
 }
 
 // StoryEvent is one fact for the events channel, with a snapshot of its arc
@@ -245,6 +252,9 @@ type StoryEvent struct {
 	Place     string     `json:"place,omitempty"`
 	Alarm     bool       `json:"alarm,omitempty"`
 	Promotion *Promotion `json:"promotion,omitempty"`
+	// Names are what the fact's refs are called, as on the chronicle.
+	Names map[string]string `json:"names,omitempty"`
+	Art   *Art              `json:"art,omitempty"`
 }
 
 // StoryEvents are the events after a fact id; Last is the id to ask after

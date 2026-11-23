@@ -288,6 +288,8 @@ type Fight struct {
 	// Decks are those Second slot may swap in now: before the viewer's pick,
 	// once a beat.
 	Decks []DeckView `json:"decks,omitempty"`
+	// Portrait is the creature's picture, a media key.
+	Portrait string `json:"portrait,omitempty"`
 }
 
 // Options is everything a character can do now. Version is the row
