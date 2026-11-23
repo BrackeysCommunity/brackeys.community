@@ -186,21 +186,31 @@ func (w Wins) Qualifies(day, length, need int64) (int64, bool) {
 	return d, d > day-length && d <= day
 }
 
-// Daily is a count for one world day.
+// Daily is a count for one world day, keeping the day before so a day turn
+// that runs after the new day's first count still reads the day just ended.
 type Daily struct {
-	N   int64 `json:"n"`
-	Day int64 `json:"day"`
+	N       int64 `json:"n"`
+	Day     int64 `json:"day"`
+	Prev    int64 `json:"prev,omitempty"`
+	PrevDay int64 `json:"prevDay,omitempty"`
 }
 
 func (d Daily) On(day int64) int64 {
-	if d.Day != day {
-		return 0
+	switch {
+	case d.Day == day:
+		return d.N
+	case d.PrevDay == day && d.Prev != 0:
+		return d.Prev
 	}
-	return d.N
+	return 0
 }
 
 func (d *Daily) Add(day, n int64) {
 	if d.Day != day {
+		d.Prev, d.PrevDay = 0, 0
+		if d.Day == day-1 {
+			d.Prev, d.PrevDay = d.N, d.Day
+		}
 		d.N, d.Day = 0, day
 	}
 	d.N += n

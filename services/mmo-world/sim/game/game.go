@@ -56,8 +56,8 @@ type Rules struct {
 	structures map[string]*sheets.Structure
 	works      map[string]*sheets.GuildWork
 	matTags    map[string][]string
-	// materials are the sheet's material ids, found ones aside.
-	materials map[string]bool
+	// materials are the sheet's materials by id, found ones aside.
+	materials map[string]*sheets.Material
 	// processStations lists the stations each process is done at.
 	processStations map[string][]string
 	draw            *draw.Drawer
@@ -110,10 +110,10 @@ func NewRules(b *sheets.Book, k keys.Set) (*Rules, error) {
 	}
 	// Provisions are their own tag, beside the materials'.
 	r.matTags = map[string][]string{ledger.Provisions: {ledger.Provisions}}
-	r.materials = make(map[string]bool, len(b.Materials))
-	for _, m := range b.Materials {
-		r.matTags[m.ID] = m.Tags
-		r.materials[m.ID] = true
+	r.materials = make(map[string]*sheets.Material, len(b.Materials))
+	for i := range b.Materials {
+		r.matTags[b.Materials[i].ID] = b.Materials[i].Tags
+		r.materials[b.Materials[i].ID] = &b.Materials[i]
 	}
 	for i := range b.GuildWorks {
 		r.works[b.GuildWorks[i].ID] = &b.GuildWorks[i]
@@ -261,7 +261,8 @@ type Game struct {
 	// marked are world-arc backers marked during a credit pass, told once
 	// it ends.
 	marked []markedBy
-	// foundReg is Emergence.Materials as the item and price rules read them.
+	// foundReg is Emergence.Materials by id, for item lookup, prices and
+	// material tags.
 	foundReg *item.Found
 	// stagedBy is the stamp of the command being applied, if it is
 	// staged; ownCmd whether it is a character's own. playerFacts are the

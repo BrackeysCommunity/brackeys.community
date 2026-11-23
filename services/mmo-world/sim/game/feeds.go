@@ -17,13 +17,21 @@ import (
 // structural: goods a staged source made are never haulage (GDD 14.5).
 const tagStaged = "staged"
 
+// steppedOnto is what a step onto a tile feeds: its passage, then any toll.
+func (g *Game) steppedOnto(c *Char, to hex.Hex, t int64) error {
+	if err := g.notePassage(c, to, t); err != nil {
+		return err
+	}
+	return g.toll(c, to, t)
+}
+
 // lastFact is the newest fact, the cause a line crossed on.
 func (g *Game) lastFact() fact.ID {
 	return fact.ID(g.Log.Len())
 }
 
 // notePassage counts a character's step onto a tile toward the road line
-// (GDD 13.2). A step onto a road tile is also road load.
+// (GDD 13.2). A step onto an open road tile is also road load.
 func (g *Game) notePassage(c *Char, h hex.Hex, t int64) error {
 	if !g.traced(c, h) {
 		return nil
@@ -68,8 +76,8 @@ func promotedID(p *emerge.Promotion, joined string) string {
 	return string(emerge.Road)
 }
 
-// noteRoadLoad is a step onto a road tile: the load carried counts on the
-// region's road load (the road war reads it) and the step is a road step.
+// noteRoadLoad counts a step onto an open road tile: its load on the
+// region's road load (the road war reads it) and a road step.
 func (g *Game) noteRoadLoad(c *Char, h hex.Hex, t int64) error {
 	if !g.traced(c, h) {
 		return nil
@@ -246,10 +254,10 @@ func (g *Game) noteHaul(c *Char, n int, t int64) error {
 	return nil
 }
 
-// noteReliance counts a won press: the region's won beats, and the style
-// the pressed option makes toward the style line (GDD 13.2). Once named,
-// the style keeps a tally of what it beats there, which its variant is
-// drawn from.
+// noteReliance counts a won press other than a way-out: the region's won
+// beats, and the style the pressed option makes toward the style line
+// (GDD 13.2). Once named, the style keeps a tally of what it beats there,
+// which its variant is drawn from.
 func (g *Game) noteReliance(c *Char, e *fight.Encounter, o fight.Option, t int64) error {
 	h := c.C.At
 	if !g.traced(c, h) {
@@ -257,6 +265,9 @@ func (g *Game) noteReliance(c *Char, e *fight.Encounter, o fight.Option, t int64
 	}
 	region := g.World.RegionAt(h)
 	if region < 0 {
+		return nil
+	}
+	if o.Kind == fight.WayOut {
 		return nil
 	}
 	s, r := g.Emergence, g.r.Emerge

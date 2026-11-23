@@ -42,9 +42,10 @@ const (
 	datumStyle    = "style"
 	datumVariant  = "variant"
 	datumBase     = "base"
-	// the archetype an encounter's end names
-	datumArchetype = "archetype"
 )
+
+// datumArchetype is the archetype an encounter's end names.
+const datumArchetype = "archetype"
 
 // encounterEnds are the facts an encounter's end writes, after which its
 // haul is held.
@@ -128,9 +129,9 @@ func (g *Game) makeVariant(st *emerge.StyleTrace) error {
 	var found sheets.Material
 	base := ""
 	if c, ok := sheets.Lookup(g.r.Book.Creatures)[arch]; ok && len(c.Drops) > 0 {
-		if m, ok := sheets.Lookup(g.r.Book.Materials)[c.Drops[0]]; ok {
+		if m, ok := g.material(c.Drops[0]); ok {
 			base = m.ID
-			found, _ = r.Found(*m, row)
+			found, _ = r.Found(m, row)
 		}
 	}
 	isNew := found.ID != "" && !g.knownMaterial(found.ID)

@@ -1,4 +1,4 @@
-import type { MachineView, Option } from "../api.ts";
+import { type MachineView, type Option, WhyAdapted } from "../api.ts";
 import { button, el, lines, panel } from "../dom.ts";
 import { adds, band, bandShort, level, seconds } from "../units.ts";
 import {
@@ -10,9 +10,6 @@ import {
   riskLine,
   sentence,
 } from "../words.ts";
-
-// The why label of the band steps a region's adaptation took off.
-const ADAPTED = "adapted";
 
 /**
  * The why view (GDD 8.4): the chain behind a modifier, each line a fact
@@ -27,7 +24,7 @@ export function optionWhy(o: Option, back: () => void): HTMLElement {
     list.append(
       el("li", {
         text:
-          p.label === ADAPTED
+          p.label === WhyAdapted
             ? adaptedLine(p.value)
             : `${sentence(p.label)}: ${adds(p.value, p.unit)}`,
       }),

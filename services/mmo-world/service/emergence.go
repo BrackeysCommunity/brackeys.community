@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/sim/emerge"
@@ -16,11 +15,8 @@ import (
 	"jams.team/mmo-world/sim/world"
 )
 
-// Ref kinds and ids emergence writes, as sim/game names them.
+// Ids emergence writes.
 const (
-	kindPromotion = "promotion"
-	kindCreature  = "creature"
-	kindItem      = "item"
 	sheetMaterial = "items.materials:"
 	caravanSep    = "@" // a caravan's id is its route's and its departure day
 )
@@ -83,13 +79,17 @@ func foundBase(id string) (string, bool) {
 // legendOfName is what a legend was made of: its creature's name, or the
 // kind of the item its holder carries.
 func legendOfName(g *game.Game, p *emerge.Promotion) string {
-	kind, id, _ := strings.Cut(p.Of, ":")
-	switch kind {
-	case kindCreature:
-		return g.Rules().Name("creatures.archetypes:" + id)
-	case kindItem:
+	rec := g.Emergence.Legend(p.ID)
+	if rec == nil {
+		return ""
+	}
+	of := rec.Of
+	switch of.Kind {
+	case game.LegendCreature:
+		return g.Rules().Name("creatures.archetypes:" + of.ID)
+	case game.LegendItem:
 		if c := g.Char(p.First); c != nil {
-			if in := c.C.Item(id); in != nil {
+			if in := c.C.Item(of.ID); in != nil {
 				return g.KindName(in.Kind)
 			}
 		}
@@ -104,7 +104,7 @@ func promotionOf(g *game.Game, f fact.Fact) *api.Promotion {
 		return nil
 	}
 	for _, s := range f.Subjects {
-		if s.Kind != kindPromotion {
+		if s.Kind != game.PromotionRef("").Kind {
 			continue
 		}
 		if p := g.Emergence.Promotion(s.ID); p != nil {
@@ -115,14 +115,6 @@ func promotionOf(g *game.Game, f fact.Fact) *api.Promotion {
 	return nil
 }
 
-// shownPromotion is a promotion record's shown name, or "".
-func shownPromotion(e *emerge.State, id string) string {
-	if p := e.Promotion(id); p != nil {
-		return p.Shown()
-	}
-	return ""
-}
-
 // emergentTile adds what emergence made of a tile: its road, a cut or a
 // toll on it today, a camp and a haunt.
 func emergentTile(g *game.Game, h hex.Hex, out *api.Tile) {
@@ -130,17 +122,9 @@ func emergentTile(g *game.Game, h hex.Hex, out *api.Tile) {
 	if e == nil {
 		return
 	}
-	day := g.Tick() / sheets.TicksPerDay
-	if id := e.Roads[h]; id != "" && out.Road >= world.RoadTrack {
-		if rec := e.RoadRecs[id]; rec != nil {
-			out.RoadName, out.Cut = shownPromotion(e, rec.ID), rec.Cut(day)
-			if !out.Cut && rec.Tolled(day) {
-				out.Toll = g.Rules().Emerge.P.TollCoin
-			}
-		}
-	}
+	out.RoadName, out.Cut, out.Toll = g.RoadState(h)
 	if c := e.Camps[h]; c != nil {
-		out.Camp = shownPromotion(e, c.ID)
+		out.Camp = e.Shown(c.ID)
 	}
 	out.Haunted = e.Haunts[h] != nil
 }
@@ -155,21 +139,21 @@ func variantSeen(g *game.Game, h hex.Hex, e *fight.Encounter) (string, string) {
 	if !ok {
 		return "", ""
 	}
-	return shownPromotion(g.Emergence, v.ID), v.Row
+	return g.Emergence.Shown(v.ID), v.Row
 }
 
 // renamable is the id of the promotion a fact announces when the viewer is
 // its first and may still name it.
 func renamable(g *game.Game, viewer string, f fact.Fact) string {
-	if g.Emergence == nil || f.Kind != kindPromotion {
+	if g.Emergence == nil || f.Kind != game.FactPromotion {
 		return ""
 	}
 	d, ok := f.Get("id")
 	if !ok {
 		return ""
 	}
-	p := g.Emergence.Promotion(d.S)
-	if p == nil || g.CanRename(p, viewer) != nil {
+	p, err := g.CanRename(d.S, viewer)
+	if err != nil {
 		return ""
 	}
 	return p.ID

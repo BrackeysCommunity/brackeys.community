@@ -381,6 +381,17 @@ func TestFeedNoStyleWithoutAxis(t *testing.T) {
 	}
 }
 
+func TestFeedWayOutIsNoReliance(t *testing.T) {
+	g := feedGame(t)
+	h := openTiles(t, g, 1)[0]
+	c := feedChars(t, g, 1, h)[0]
+	e := &fight.Encounter{Creature: fight.Creature{Archetype: g.Creatures(h)[0]}}
+	mustFeed(t, g.noteReliance(c, e, fight.Option{ID: "run", Kind: fight.WayOut}, g.Tick()))
+	if rt := g.Emergence.Regions[g.World.RegionAt(h)]; rt != nil || len(g.Emergence.Styles) != 0 {
+		t.Fatalf("a way-out counted: region %+v, styles %v", rt, g.Emergence.Styles)
+	}
+}
+
 func TestFeedRoadLoad(t *testing.T) {
 	g := feedGame(t)
 	h := openTiles(t, g, 1)[0]

@@ -282,6 +282,14 @@ const (
 	UnitEncounter = "encounter"
 )
 
+// Why part labels emergence adds.
+const (
+	// WhyAdapted is the band steps a region's adaptation takes off an option.
+	WhyAdapted = "adapted"
+	// WhyRoad is a step onto an open road.
+	WhyRoad = "road"
+)
+
 // HaywireLine is what a machine does when it fails. Unit is the row's own,
 // or for a state one of the two above.
 type HaywireLine struct {

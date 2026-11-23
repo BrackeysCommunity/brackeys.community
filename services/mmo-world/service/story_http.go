@@ -211,12 +211,12 @@ func castName(g *game.Game, ref fact.Ref, viewer string) string {
 		}
 	case kindLegend:
 		if g.Emergence != nil {
-			return shownPromotion(g.Emergence, ref.ID)
+			return g.Emergence.Shown(ref.ID)
 		}
 	case kindCaravan:
 		if g.Emergence != nil {
 			route, _, _ := strings.Cut(ref.ID, caravanSep)
-			return shownPromotion(g.Emergence, route)
+			return g.Emergence.Shown(route)
 		}
 	}
 	return ""

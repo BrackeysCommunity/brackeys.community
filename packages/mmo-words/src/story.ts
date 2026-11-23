@@ -264,7 +264,7 @@ function promotionLine(r: Reading): string {
     case "road":
       return r.s("via") === "pattern"
         ? `Solving a pattern laid ${named}${r.where()}: a road to the nearest settlement.`
-        : `${capital(named)} formed${r.where()}: walked so often that it became a road, one tick a tile.`;
+        : `${capital(named)} formed${r.where()}: walked so often that it became a road.`;
     case "camp":
       return `${capital(named)} took shape${r.where()}: ${site()} there was cleared so often that it gained a station.`;
     case "haunt":
@@ -291,12 +291,12 @@ function promotionLine(r: Reading): string {
         ? `${capital(named)} became a legend: an item named in so many great deeds this season.`
         : `${capital(named)} became a legend${r.where()}: so many tried and failed to bring it down that it lives on in the telling.`;
     case "custom":
-      return `${capital(named)} became a custom: posted three seasons running, it is now posted by the world each season.`;
+      return `${capital(named)} became a custom: posted season after season, it is now posted by the world each season.`;
     case "class":
       return `A hidden class was found: ${r.row("classes.classes", of) || named}. Its path is open to everyone now.`;
     case "masters": {
       const family = r.row("puzzles.families", of);
-      return `${capital(named)}: so many masters${family ? ` of ${family}` : ""} call it home that its bench sets those puzzles a level easier.`;
+      return `${capital(named)}: so many masters${family ? ` of ${family}` : ""} call it home that its bench sets those puzzles easier.`;
     }
     default:
       return `Something new became part of the world${r.where()}${name ? `: ${name}` : ""}.`;

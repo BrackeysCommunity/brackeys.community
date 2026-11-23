@@ -79,13 +79,8 @@ func (g *Game) event(f fact.Fact) (goal.Event, bool) {
 			e.Dungeon = h.Ref()
 		}
 	case "hunt.slain":
-		e.Verb, e.Kind = goal.Defeat, str("archetype")
-		if e.Kind == "" {
-			e.Kind = str("creature")
-		}
-		if t := str("tags"); t != "" {
-			e.Tags = strings.Split(t, ",")
-		}
+		e.Verb = goal.Defeat
+		e.Kind, e.Tags = defeated(f)
 	case "craft.made":
 		k, ok := g.Kinds.Kind(subjectID(f, "kind"))
 		if !ok {
@@ -97,8 +92,8 @@ func (g *Game) event(f fact.Fact) (goal.Event, bool) {
 			e.Tags = append(e.Tags, k.Slot)
 		}
 	case "encounter.won":
-		e.Verb, e.Kind = goal.Defeat, str("archetype")
-		e.Tags = strings.Split(str("tags"), ",")
+		e.Verb = goal.Defeat
+		e.Kind, e.Tags = defeated(f)
 	case "item.equipped":
 		in := g.itemOf(who, str("item"))
 		if in == nil {
@@ -876,6 +871,22 @@ const (
 	factEncounterLeft = "encounter.left"
 )
 
+// defeated is the creature kind and tags a Defeat event reads from an
+// encounter's or a hunt's fact: its archetype, else its creature.
+func defeated(f fact.Fact) (string, []string) {
+	a, _ := f.Get("archetype")
+	kind := a.S
+	if kind == "" {
+		c, _ := f.Get("creature")
+		kind = c.S
+	}
+	var tags []string
+	if t, _ := f.Get("tags"); t.S != "" {
+		tags = strings.Split(t.S, ",")
+	}
+	return kind, tags
+}
+
 // linesFact counts an encounter lost or left as an attempt on every Defeat
 // line it is fought under: its archetype, its tags and its place.
 func linesFact(g *Game, f fact.Fact) error {
@@ -884,11 +895,8 @@ func linesFact(g *Game, f fact.Fact) error {
 		return nil
 	}
 	e := g.Emergence
-	arch, _ := f.Get("archetype")
-	ev := goal.Event{Fact: f.ID, Verb: goal.Defeat, Kind: arch.S, Hex: h, Places: g.placesOf(h)}
-	if t, _ := f.Get("tags"); t.S != "" {
-		ev.Tags = strings.Split(t.S, ",")
-	}
+	kind, tags := defeated(f)
+	ev := goal.Event{Fact: f.ID, Verb: goal.Defeat, Kind: kind, Tags: tags, Hex: h, Places: g.placesOf(h)}
 	day := f.Tick / sheets.TicksPerDay
 	for _, sig := range slices.Sorted(maps.Keys(e.Lines)) {
 		l := e.Lines[sig]
@@ -897,7 +905,7 @@ func linesFact(g *Game, f fact.Fact) error {
 			continue
 		}
 		if l.Archetype == "" {
-			l.Archetype = arch.S
+			l.Archetype = kind
 		}
 		for _, s := range f.Subjects {
 			if s.Kind == renownCharacter {

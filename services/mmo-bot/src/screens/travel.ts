@@ -5,6 +5,7 @@ import {
 } from "../../../../packages/discord-kit/src/index.ts";
 import { sideName } from "../../../../packages/mmo-words/src/index.ts";
 import type * as api from "../api.ts";
+import { WhyRoad } from "../api.ts";
 import type { Card } from "../card.ts";
 import { encodeId, target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
@@ -18,7 +19,7 @@ import {
   SELECT_MOST,
   timeLeft,
 } from "./common.ts";
-import { ROAD_PART, roadLine } from "./emergence.ts";
+import { roadLine } from "./emergence.ts";
 
 /** The most arc sides the go-to select offers before the sites seen. */
 const SIDES_SHOWN = 5;
@@ -82,7 +83,7 @@ export function travelCard(
     conditionsField(o),
     { name: "Seen around you", value: amount(map.tiles.length, "tiles"), inline: true },
   ];
-  const road = roadLine(here.place.tile);
+  const road = roadLine(here.place.tile, lex);
   if (road) fields.push({ name: "The road", value: road });
   if (here.suggest && !o.long) {
     const d = DIRECTIONS[here.suggest.dir]!;
@@ -126,7 +127,7 @@ export function travelCard(
 
 /** What a step's button adds for a road: on it, tolled or cut. */
 function roadMark(m: api.Move, to: api.Tile | undefined): string {
-  if (m.why.parts.some((p) => p.label === ROAD_PART))
+  if (m.why.parts.some((p) => p.label === WhyRoad))
     return to?.toll ? ` · road, ${amount(to.toll, "coin")} toll` : " · road";
   return to?.roadName && to.cut ? " · road cut" : "";
 }

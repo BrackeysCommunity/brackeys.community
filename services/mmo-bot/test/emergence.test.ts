@@ -29,6 +29,10 @@ const NUMBERS: api.Numbers = {
   beatsMax: 6,
   ruinTroubles: 3,
   cityStationCap: 3,
+  roadEnterTicks: 1,
+  campTier: 1,
+  mastersEase: 1,
+  customSeasons: 3,
 };
 /** The lexicon as the world served it before play found anything. */
 const before = (): api.Lexicon => ({
@@ -271,6 +275,7 @@ test("the cards say what each promotion made: the variant names its material, th
   expect(card("a bounty becomes a legend").author).toContain("A bounty becomes a legend");
   expect(card("an item becomes a legend").author).toContain("An item becomes a legend");
   expect(card("a custom").description).toContain("Pylon Camp");
+  expect(card("a custom").description).toContain("three seasons running");
   expect(card("a found class").title).toBe("A class is found: Router");
   expect(card("the masters").description).toContain("rewire");
   expect(card("what a season added").description).toContain("1 style, 2 variants and 2 materials");

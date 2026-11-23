@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"jams.team/mmo-world/sim/emerge"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/store/db"
@@ -153,26 +154,20 @@ func (s *Store) Audit(ctx context.Context) ([]string, error) {
 	return out, err
 }
 
-// caravanManifest is what a live caravan's pool may hold; no material is
-// a caravan saved before it carried its manifest, held to whatever it has.
+// caravanManifest is what a live caravan's pool may hold; an empty
+// material is a save from before manifests were kept, whose pool is
+// trusted.
 type caravanManifest struct {
 	material string
 	units    int64
 }
 
-// liveCaravans is the manifest of every caravan still on the road in a
-// stored sim, by pool, held as the game holds it: its material up to its
-// units. A pool left behind by one that came in is not listed, and a
-// foreign good in a live one is not held, so the audit reads either as a
-// discrepancy.
+// liveCaravans is each live caravan's manifest in a stored sim, by pool.
+// A pool left behind or a foreign good is not held, so the audit flags it.
 func liveCaravans(sim []byte) (map[string]caravanManifest, error) {
 	var sm struct {
 		Emergence *struct {
-			Caravans []struct {
-				ID       string `json:"id"`
-				Material string `json:"material"`
-				Units    int64  `json:"units"`
-			} `json:"caravans"`
+			Caravans []*emerge.Caravan `json:"caravans"`
 		} `json:"emergence"`
 	}
 	if err := json.Unmarshal(sim, &sm); err != nil {

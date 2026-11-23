@@ -56,17 +56,6 @@ type LegendTrait struct {
 	Note string `json:"note,omitempty" unit:"text"`
 }
 
-// EmergenceParamIDs are the emergence.params cells the game reads.
-var EmergenceParamIDs = []string{
-	"keep-days", "road-enter-ticks", "road-in-reach", "road-patrol-risk", "patrol-days",
-	"toll-coin", "toll-days", "cut-days", "raid-caravan-share", "route-path-most",
-	"caravan-days", "caravan-load", "caravan-threat", "road-war-load", "road-war-days",
-	"pattern-road-most", "adapt-rate", "adapt-fade", "adapt-floor", "resist-at",
-	"resist-bands", "variant-resist-bands", "variant-share", "found-tier-step", "legends-kept",
-	"legend-posted-share", "legend-rest-days", "renown-weight", "rename-days", "staged-kept",
-	"measure-weeks", "per-active", "opposed-contributors", "masters-line", "masters-ease",
-}
-
 // structural: the promotion rows a cross-check reads a column of, and the
 // suffix of an axis's lead tag.
 const (
@@ -136,13 +125,6 @@ func (b *Book) emergenceProblems() []string {
 
 	if len(b.LegendTraits) == 0 {
 		p = append(p, "emergence.legend-traits: a legend draws its trait from at least one row")
-	}
-
-	params := Lookup(b.EmergenceParams)
-	for _, id := range EmergenceParamIDs {
-		if params[id] == nil {
-			p = append(p, "emergence.params: no "+id)
-		}
 	}
 	return p
 }

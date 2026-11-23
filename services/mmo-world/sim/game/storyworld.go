@@ -491,8 +491,7 @@ func (v emergentView) RoadIn(place int) bool {
 	return slices.ContainsFunc(v.g.Emergence.Routes, func(rt *emerge.RouteRec) bool { return rt.A == place || rt.B == place })
 }
 
-// Legends are the newest legends-kept goal legends not laid to rest, oldest
-// first. An item legend has no creature to hunt, so it is never cast.
+// Legends are liveLegends, each marked Rested within legend-rest-days of its last cast.
 func (v emergentView) Legends() []arc.LegendView {
 	p := v.g.r.Emerge.P
 	day := v.Day()

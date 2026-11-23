@@ -144,9 +144,7 @@ func (g *Game) pairingShares(day, season int64) ([]RegionShare, bool) {
 		b := best[r]
 		share := RegionShare{Region: r, Style: b.style, Percent: b.v.MulInt(fixed.Hundredths).Div(total).Floor()}
 		if st := e.Styles[emerge.StyleKey{Region: r, Style: b.style}]; st != nil && st.Done != "" {
-			if p := e.Promotion(st.Done); p != nil {
-				share.Name = p.Shown()
-			}
+			share.Name = e.Shown(st.Done)
 		}
 		if share.Percent >= pairingHealthy {
 			healthy = false

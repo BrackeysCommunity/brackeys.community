@@ -85,10 +85,9 @@ func (g *Game) emergenceStart(Command) error {
 	return err
 }
 
-// wireEmergence binds the found materials into the item, price and tag
-// rules and marks the log's facts as they are written, or unbinds both
-// for a world without emergence, so rules shared with another world read
-// only the sheets.
+// wireEmergence builds the game's found-material registry, points the item
+// and price rules at it and stages the log's facts, or clears all three for
+// a world without emergence.
 func (g *Game) wireEmergence() {
 	r := g.r
 	if g.Emergence == nil {
@@ -426,10 +425,10 @@ func (g *Game) promotionName(p Promoting, id string) string {
 	case emerge.Legend:
 		of := datumOf(p.Data, datumOfName)
 		if of == "" {
-			kind, ref, _ := strings.Cut(p.Of, ":")
-			of = ref
-			if kind == kindCreature {
-				of = nameOr("creatures.archetypes:"+ref, ref)
+			ref, _ := fact.ParseRef(p.Of)
+			of = ref.ID
+			if ref.Kind == kindCreature {
+				of = nameOr("creatures.archetypes:"+ref.ID, ref.ID)
 			}
 		}
 		return emerge.LegendName(n, d, of, id)
@@ -447,7 +446,7 @@ func (g *Game) promotionName(p Promoting, id string) string {
 // structural: a legend's creature ref kind.
 const kindCreature = "creature"
 
-// settlementName is an open settlement's name by index.
+// settlementName is settlement n's name, or "" for no such index.
 func (g *Game) settlementName(n int) string {
 	if n < 0 || n >= len(g.Places) {
 		return ""
@@ -481,11 +480,11 @@ func (g *Game) foundParts(id string) (string, sheets.Material, bool) {
 	if !ok {
 		return "", sheets.Material{}, false
 	}
-	m, ok := sheets.Lookup(g.r.Book.Materials)[base]
+	m, ok := g.material(base)
 	if !ok {
 		return "", sheets.Material{}, false
 	}
-	return row, *m, true
+	return row, m, true
 }
 
 // emergenceDay is the traces' day turn: the keys untouched for keep-days

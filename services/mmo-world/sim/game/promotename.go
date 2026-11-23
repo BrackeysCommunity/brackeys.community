@@ -21,23 +21,23 @@ const (
 
 const factPromotionRenamed = "promotion.renamed"
 
-// CanRename is why viewer may not rename a promotion now, or nil.
-func (g *Game) CanRename(p *emerge.Promotion, viewer string) error {
+// CanRename is the promotion viewer may rename now, or why not.
+func (g *Game) CanRename(id, viewer string) (*emerge.Promotion, error) {
+	var p *emerge.Promotion
+	if g.Emergence != nil {
+		p = g.Emergence.Promotion(id)
+	}
 	switch {
 	case p == nil || !emerge.Renamable(p.Type):
-		id := ""
-		if p != nil {
-			id = p.ID
-		}
-		return refuse(NoSuchRow, "no promotion %q to rename", id)
+		return nil, refuse(NoSuchRow, "no promotion %q to rename", id)
 	case viewer == "" || p.First != viewer:
-		return refuse(NotFirst, "only %s's first renames it", p.Shown())
+		return nil, refuse(NotFirst, "only %s's first renames it", p.Shown())
 	case p.Named != "":
-		return refuse(Named, "it is named %s", p.Named)
+		return nil, refuse(Named, "it is named %s", p.Named)
 	case g.Tick() >= p.Tick+g.r.Emerge.P.RenameDays*sheets.TicksPerDay:
-		return refuse(NameClosed, "%s could be renamed for %d days", p.Shown(), g.r.Emerge.P.RenameDays)
+		return nil, refuse(NameClosed, "%s could be renamed for %d days", p.Shown(), g.r.Emerge.P.RenameDays)
 	}
-	return nil
+	return p, nil
 }
 
 // screenName is a given name trimmed, or BadName when the board would not
@@ -53,14 +53,8 @@ func (g *Game) screenName(s string) (string, error) {
 // promoteName renames a style, variant, material or legend for its first,
 // the name screened as a dungeon's is. A refusal changes nothing.
 func (g *Game) promoteName(c *Char, cmd Command) error {
-	var p *emerge.Promotion
-	if g.Emergence != nil {
-		p = g.Emergence.Promotion(cmd.Option)
-	}
-	if err := g.CanRename(p, c.C.ID); err != nil {
-		if p == nil {
-			return refuse(NoSuchRow, "no promotion %q to rename", cmd.Option)
-		}
+	p, err := g.CanRename(cmd.Option, c.C.ID)
+	if err != nil {
 		return err
 	}
 	name, err := g.screenName(cmd.Note)

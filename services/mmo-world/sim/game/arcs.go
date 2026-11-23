@@ -531,11 +531,7 @@ func (g *Game) castLegend(id string) *emerge.LegendRec {
 	if g.Emergence == nil {
 		return nil
 	}
-	i := slices.IndexFunc(g.Emergence.Legends, func(l *emerge.LegendRec) bool { return l.ID == id })
-	if i < 0 {
-		return nil
-	}
-	return g.Emergence.Legends[i]
+	return g.Emergence.Legend(id)
 }
 
 // castDay is the world day a legend's cast or rest is stamped with; 0

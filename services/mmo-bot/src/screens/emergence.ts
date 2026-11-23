@@ -1,10 +1,11 @@
 import type { EmbedField, Modal } from "../../../../packages/discord-kit/src/index.ts";
 import { seasonAdded } from "../../../../packages/mmo-words/src/index.ts";
 import type * as api from "../api.ts";
+import { WhyAdapted } from "../api.ts";
 import { authorLine, type Card, COLOUR } from "../card.ts";
 import { encodeId } from "../ids.ts";
 import { capitalise, type Lexicon, readable } from "../lexicon.ts";
-import { amount } from "../units.ts";
+import { amount, plural } from "../units.ts";
 import { factNum, factStr } from "./common.ts";
 import { CHRONICLE_CHANNEL } from "./story.ts";
 
@@ -65,18 +66,13 @@ export function foundMaterial(id: string, lex: Lexicon): string {
 }
 
 /** The road, toll and cut a tile is on, in one line; "" off a road. */
-export function roadLine(t: Pick<api.Tile, "roadName" | "cut" | "toll">): string {
+export function roadLine(t: Pick<api.Tile, "roadName" | "cut" | "toll">, lex: Lexicon): string {
   if (!t.roadName) return "";
   if (t.cut) return `${capitalise(t.roadName)}, cut: no faster than the land until it is mended`;
   if (t.toll)
     return `${capitalise(t.roadName)}, tolled: ${amount(t.toll, "coin")} a crossing, once a day`;
-  return `${capitalise(t.roadName)}: a tick a tile, whatever the land`;
+  return `${capitalise(t.roadName)}: ${plural(lex.numbers.roadEnterTicks, "tick")} a tile, whatever the land`;
 }
-
-/** The why label of the band steps a region's adaptation took off an option. */
-export const ADAPTED = "adapted";
-/** The why part of a step onto an open road. */
-export const ROAD_PART = "road";
 
 /** The band steps a region's adaptation took off an option, in words. */
 export function adaptedLine(steps: number): string {
@@ -86,7 +82,7 @@ export function adaptedLine(steps: number): string {
 
 /** The steps an option's why says adaptation took off it, 0 for none. */
 export function adaptedSteps(w: api.Why): number {
-  return w.parts.filter((p) => p.label === ADAPTED).reduce((n, p) => n + Math.abs(p.value), 0);
+  return w.parts.filter((p) => p.label === WhyAdapted).reduce((n, p) => n + Math.abs(p.value), 0);
 }
 
 /** The modal a promotion's first renames it with. */
@@ -123,6 +119,9 @@ interface Told {
   footer: string;
 }
 
+const ROAD_TERMS = (lex: Lexicon) =>
+  `A road tile takes ${plural(lex.numbers.roadEnterTicks, "tick")} whatever the land; factions can tax, patrol or raid it.`;
+
 const RENAME_FOOTER =
   "Its first may rename it once, within a few days; the world keeps it either way.";
 
@@ -137,15 +136,15 @@ function told(p: api.Promotion, f: api.Fact, lex: Lexicon, place?: string): Told
         title: `A road forms: ${name}`,
         description:
           factStr(f, "via") === "pattern"
-            ? "A solved pattern laid it to the nearest settlement. A road tile takes a tick whatever the land; factions can tax, patrol or raid it."
-            : "Enough characters walked this ground in a few days that it became a road. A road tile takes a tick whatever the land; factions can tax, patrol or raid it.",
+            ? `A solved pattern laid it to the nearest settlement. ${ROAD_TERMS(lex)}`
+            : `Enough characters walked this ground in a few days that it became a road. ${ROAD_TERMS(lex)}`,
         footer: "A road never fades: a raid only cuts it for a few days.",
       };
     case "camp":
       return {
         author: "A camp",
         title: `A camp: ${name}`,
-        description: `Cleared often enough, ${of ? `the ${of.toLowerCase()}` : "the site"} gained a tier-1 station anyone may work at for a fee.`,
+        description: `Cleared often enough, ${of ? `the ${of.toLowerCase()}` : "the site"} gained a tier-${lex.numbers.campTier} station anyone may work at for a fee.`,
         footer: "A settlement chartered here later takes the camp's place.",
       };
     case "haunt":
@@ -210,7 +209,7 @@ function told(p: api.Promotion, f: api.Fact, lex: Lexicon, place?: string): Told
       return {
         author: "A custom",
         title: `A custom: ${name}`,
-        description: `${place ? `${place} renewed` : "A settlement renewed"} the same goal season after season. Now the world posts it by itself each season, paid from its treasury.`,
+        description: `${place ? `${place} renewed` : "A settlement renewed"} the same goal ${countWords(lex.numbers.customSeasons, "season")} running. Now the world posts it by itself each season, paid from its treasury.`,
         footer: "A treasury short of the reward skips that season.",
       };
     case "class":
@@ -225,7 +224,7 @@ function told(p: api.Promotion, f: api.Fact, lex: Lexicon, place?: string): Told
       return {
         author: "Masters",
         title: capitalise(name),
-        description: `Enough masters of the ${of ? of.toLowerCase() : "family"} live here that its tinker's bench offers those machines a level easier.`,
+        description: `Enough masters of the ${of ? of.toLowerCase() : "family"} live here that its tinker's bench offers those machines ${countWords(lex.numbers.mastersEase, "level")} easier.`,
         footer: "A title is kept for good once held.",
       };
     default:

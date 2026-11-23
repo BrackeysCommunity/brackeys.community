@@ -38,6 +38,13 @@ const (
 	tollKind   = "toll"
 )
 
+// structural: the holds a region's roads can be put under.
+const (
+	holdToll   = "toll"
+	holdCut    = "cut"
+	holdPatrol = "patrol"
+)
+
 func init() {
 	registerEmerge(emergeHook{
 		Name:    "roads",
@@ -334,18 +341,41 @@ func roadsFact(g *Game, f fact.Fact) error {
 		return nil
 	}
 	day := f.Tick / sheets.TicksPerDay
-	p := g.r.Emerge.P
-	for _, id := range g.regionRoads(region) {
+	switch f.Kind {
+	case factPatrolled:
+		return g.holdRoads(region, holdPatrol, day+1, 0, nil)
+	case factRaided:
+		cut := g.r.Emerge.P.CutDays
+		return g.holdRoads(region, holdCut, day+cut, f.ID, nil, fact.N("days", cut))
+	}
+	return nil
+}
+
+// holdRoads tolls, cuts or patrols every road recorded in a region until a
+// day, and announces a cut or a toll.
+func (g *Game) holdRoads(region int, hold string, until int64, cause fact.ID, subjects []fact.Ref, data ...fact.Datum) error {
+	return g.holdIDs(region, g.regionRoads(region), hold, until, cause, subjects, data...)
+}
+
+// holdIDs holds the given roads of a region, in the order given.
+func (g *Game) holdIDs(region int, ids []string, hold string, until int64, cause fact.ID, subjects []fact.Ref, data ...fact.Datum) error {
+	for _, id := range ids {
 		rec := g.Emergence.RoadRecs[id]
-		switch f.Kind {
-		case factPatrolled:
-			rec.PatrolUntil = max(rec.PatrolUntil, day+1)
-		case factRaided:
-			rec.CutUntil = max(rec.CutUntil, day+p.CutDays)
-			if err := g.roadFact(factRoadCut, nil, region, []fact.Ref{promotionRef(id)}, f.ID,
-				fact.S("id", id), fact.S("name", g.promotionShown(id)), fact.N("days", p.CutDays)); err != nil {
-				return err
-			}
+		kind := ""
+		switch hold {
+		case holdToll:
+			rec.TollUntil = max(rec.TollUntil, until)
+			kind = factRoadTolled
+		case holdCut:
+			rec.CutUntil = max(rec.CutUntil, until)
+			kind = factRoadCut
+		default:
+			rec.PatrolUntil = max(rec.PatrolUntil, until)
+			continue
+		}
+		head := []fact.Datum{fact.S("id", id), fact.S("name", g.promotionShown(id))}
+		if err := g.roadFact(kind, nil, region, append([]fact.Ref{promotionRef(id)}, subjects...), cause, append(head, data...)...); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -380,9 +410,15 @@ func roadsDay(g *Game, day, _ int64) error {
 	if len(kept) == 0 {
 		return nil
 	}
+	byRegion := map[int][]string{}
 	for _, id := range slices.Sorted(maps.Keys(e.RoadRecs)) {
-		if rec := e.RoadRecs[id]; kept[rec.Region] {
-			rec.PatrolUntil = max(rec.PatrolUntil, day+1)
+		if r := e.RoadRecs[id].Region; kept[r] {
+			byRegion[r] = append(byRegion[r], id)
+		}
+	}
+	for _, region := range slices.Sorted(maps.Keys(byRegion)) {
+		if err := g.holdIDs(region, byRegion[region], holdPatrol, day+1, 0, nil); err != nil {
+			return err
 		}
 	}
 	return nil

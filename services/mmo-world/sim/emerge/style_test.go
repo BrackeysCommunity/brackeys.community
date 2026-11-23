@@ -2,6 +2,7 @@ package emerge
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"jams.team/mmo-world/sheetfs"
@@ -154,8 +155,14 @@ func TestCompileShippedBook(t *testing.T) {
 	if r.P.KeepDays != 15 || r.P.RoadPatrolRisk != -1 || r.P.MastersEase != 1 {
 		t.Errorf("params: %+v", r.P)
 	}
-	if got := ParamIDs(); !slices.Equal(got, sheets.EmergenceParamIDs) {
-		t.Errorf("params read %v, the sheet lists %v", got, sheets.EmergenceParamIDs)
+	listed := []string{}
+	for _, p := range b.EmergenceParams {
+		listed = append(listed, p.ID)
+	}
+	slices.Sort(listed)
+	read := slices.Sorted(slices.Values(ParamIDs()))
+	if !slices.Equal(read, listed) {
+		t.Errorf("params read %v, the sheet lists %v", read, listed)
 	}
 	if l := r.Lines["road"]; l.Count != 60 || l.Distinct != 20 || l.WindowDays != 9 || l.Trace != Passage {
 		t.Errorf("road line: %+v", l)
@@ -183,10 +190,14 @@ func TestCompileRefusesMissingCells(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b.EmergenceParams = b.EmergenceParams[1:]
+	b.EmergenceParams = slices.DeleteFunc(slices.Clone(b.EmergenceParams), func(p sheets.Param) bool { return p.ID == "adapt-rate" })
 	b.Promotions = slices.DeleteFunc(slices.Clone(b.Promotions), func(p sheets.PromotionRow) bool { return p.ID == "route" })
-	if _, err := Compile(b); err == nil {
+	_, err = Compile(b)
+	if err == nil {
 		t.Fatal("compiled with a missing param and line")
+	}
+	if !strings.Contains(err.Error(), "emergence.params: no adapt-rate") {
+		t.Errorf("the missing param is not named: %v", err)
 	}
 }
 

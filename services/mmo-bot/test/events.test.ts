@@ -37,6 +37,10 @@ const lex = new Lexicon({
     beatsMax: 6,
     ruinTroubles: 3,
     cityStationCap: 3,
+    roadEnterTicks: 1,
+    campTier: 1,
+    mastersEase: 1,
+    customSeasons: 3,
   },
 });
 const names = lex.goodsNames();

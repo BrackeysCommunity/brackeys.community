@@ -396,4 +396,8 @@ type Numbers struct {
 	BeatsMax       int64 `json:"beatsMax"`       // beats in a first-tier encounter
 	RuinTroubles   int64 `json:"ruinTroubles"`   // troubles lost in a season that ruin a guild's settlement
 	CityStationCap int64 `json:"cityStationCap"` // the tier a city's stations rise to
+	RoadEnterTicks int64 `json:"roadEnterTicks"` // ticks a road tile
+	CampTier       int64 `json:"campTier"`       // the tier a camp's station works at
+	MastersEase    int64 `json:"mastersEase"`    // levels a masters' bench takes off its family's machines
+	CustomSeasons  int64 `json:"customSeasons"`  // seasons running a goal is posted before it is a custom
 }

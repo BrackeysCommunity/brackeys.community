@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"strings"
 
 	"jams.team/mmo-world/sim/hex"
 )
@@ -23,6 +24,15 @@ type Ref struct {
 }
 
 func (r Ref) String() string { return r.Kind + ":" + r.ID }
+
+// ParseRef reads a Ref back from its String form.
+func ParseRef(s string) (Ref, bool) {
+	kind, id, ok := strings.Cut(s, ":")
+	if !ok {
+		return Ref{}, false
+	}
+	return Ref{Kind: kind, ID: id}, true
+}
 
 // Datum is one entry of a fact's data: a whole number or a string.
 type Datum struct {

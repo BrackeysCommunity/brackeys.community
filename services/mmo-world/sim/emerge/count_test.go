@@ -132,7 +132,20 @@ func TestDaily(t *testing.T) {
 		t.Errorf("daily: %+v", d)
 	}
 	d.Add(5, 1)
-	if d.On(5) != 1 || d.On(4) != 0 {
+	if d.On(5) != 1 || d.On(4) != 5 || d.On(3) != 0 {
 		t.Errorf("a new day: %+v", d)
+	}
+}
+
+func TestDailyKeepsTheDayBefore(t *testing.T) {
+	var d Daily
+	d.Add(5, 3)
+	d.Add(6, 1)
+	if d.On(5) != 3 || d.On(6) != 1 || d.On(4) != 0 {
+		t.Fatalf("after days 5 and 6: %+v", d)
+	}
+	d.Add(8, 2)
+	if d.On(6) != 0 || d.On(7) != 0 || d.On(8) != 2 {
+		t.Fatalf("after day 8: %+v", d)
 	}
 }

@@ -780,26 +780,19 @@ func (x effect) roads() error {
 		}
 	}
 	until := x.t/sheets.TicksPerDay + days
+	subjects := []fact.Ref{arcRef(x.a.ID)}
 	for _, r := range x.regions() {
-		for _, id := range g.regionRoads(r) {
-			rec := e.RoadRecs[id]
-			kind, data := "", []fact.Datum{fact.S("id", rec.ID), fact.S("name", g.promotionShown(rec.ID)), fact.N("days", days)}
-			switch x.e.Kind {
-			case effToll:
-				rec.TollUntil = max(rec.TollUntil, until)
-				kind, data = factRoadTolled, append(data, fact.N("coin", p.TollCoin))
-			case effCut:
-				rec.CutUntil = max(rec.CutUntil, until)
-				kind = factRoadCut
-			default:
-				rec.PatrolUntil = max(rec.PatrolUntil, until)
-			}
-			if kind == "" {
-				continue
-			}
-			if _, err := g.regionFact(world.RegionRef(r), kind, []fact.Ref{promotionRef(rec.ID), arcRef(x.a.ID)}, []fact.ID{x.cause}, data...); err != nil {
-				return err
-			}
+		var err error
+		switch x.e.Kind {
+		case effToll:
+			err = g.holdRoads(r, holdToll, until, x.cause, subjects, fact.N("days", days), fact.N("coin", p.TollCoin))
+		case effCut:
+			err = g.holdRoads(r, holdCut, until, x.cause, subjects, fact.N("days", days))
+		default:
+			err = g.holdRoads(r, holdPatrol, until, 0, nil)
+		}
+		if err != nil {
+			return err
 		}
 	}
 	return nil

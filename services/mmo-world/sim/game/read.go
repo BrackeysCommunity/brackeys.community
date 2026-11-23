@@ -1,6 +1,7 @@
 package game
 
 import (
+	"jams.team/mmo-world/sim/emerge"
 	"jams.team/mmo-world/sim/fight"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
@@ -175,6 +176,10 @@ type CardNumbers struct {
 	FreeTicks                    int64 // journey ticks before provisions are eaten
 	StepMin, StepMax             int64 // ticks a tile, by terrain
 	FirstBeatsMin, FirstBeatsMax int64 // beats in a first-tier encounter
+	RoadEnterTicks               int64 // ticks a road tile
+	CampTier                     int64 // the tier a camp's station works at
+	MastersEase                  int64 // levels a masters' bench takes off its family's machines
+	CustomSeasons                int64 // seasons running a goal is posted before it is a custom
 }
 
 // CardNumbers reads them from the book.
@@ -194,6 +199,10 @@ func (r *Rules) CardNumbers() CardNumbers {
 		if t.Tier == r.firstTier() {
 			out.FirstBeatsMin, out.FirstBeatsMax = t.BeatsMin, t.BeatsMax
 		}
+	}
+	if r.Emerge != nil {
+		out.RoadEnterTicks, out.CampTier, out.MastersEase = r.Emerge.P.RoadEnterTicks, r.firstTier(), r.Emerge.P.MastersEase
+		out.CustomSeasons = r.Emerge.Lines[string(emerge.Custom)].Count
 	}
 	return out
 }

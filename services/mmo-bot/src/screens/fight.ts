@@ -11,7 +11,7 @@ import type { Lexicon } from "../lexicon.ts";
 import { amount, band, bandShort, num, signed, ticks } from "../units.ts";
 import { back, banner, btn, DIRECTIONS, downButtons, factNum, launch, PRIVATE } from "./common.ts";
 import { dungeonName, floorOf, floorWord } from "./dungeon.ts";
-import { ADAPTED, adaptedLine, adaptedSteps, ROAD_PART } from "./emergence.ts";
+import { adaptedLine, adaptedSteps } from "./emergence.ts";
 
 /** The creature a fight is against: a region's variant by its own name (GDD 4.17). */
 export function creatureName(
@@ -29,8 +29,8 @@ export function adaptedTail(x: api.Option): string {
 
 /** A why part in words: the land, a road, an adaptation, as each is read. */
 function partLine(p: api.Part, value: string): string {
-  if (p.label === ADAPTED) return adaptedLine(p.value);
-  if (p.label === ROAD_PART) return `on the road ${value}`;
+  if (p.label === api.WhyAdapted) return adaptedLine(p.value);
+  if (p.label === api.WhyRoad) return `on the road ${value}`;
   return `${p.label} ${value}`;
 }
 

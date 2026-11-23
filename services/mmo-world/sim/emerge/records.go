@@ -303,7 +303,7 @@ type RouteRec struct {
 	FromA   bool      `json:"fromA"`
 }
 
-// Caravan is one caravan on a route; its tile is a function of its path.
+// Caravan is one caravan on a route; its tile follows from its path, its legs and its clock.
 type Caravan struct {
 	ID     string `json:"id"`
 	Route  string `json:"route"`

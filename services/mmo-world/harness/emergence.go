@@ -330,11 +330,9 @@ func playEmergence(b *sheets.Book, seed string, size int, days int64, timed bool
 	return res, nil
 }
 
-// observer reads a world as it plays, and only reads: the records the
-// world keeps after each tick (the service hands a command's facts to its
-// store as it applies it, so they are gone by then), the clock's own facts
-// before they are let go, and each day's style and region wins before the
-// day turns.
+// observer only reads a world as it plays: its records after each tick
+// (a command's facts are in the store by then), the clock's facts before
+// they are let go, and each day's wins before the day turns.
 type observer struct {
 	b      *sheets.Book
 	g      *game.Game
@@ -346,9 +344,9 @@ type observer struct {
 	// material promotions' indexes by found id.
 	seen      int
 	materials map[string]int
-	staged    fact.ID // the newest staged fact counted
-	kinds     int     // kinds the registry held when last read
-	ancestry  map[string]map[string]bool
+	staged    fact.ID                 // the newest staged fact counted
+	kinds     int                     // kinds the registry held when last read
+	made      map[string][]item.Spoil // a kind's base materials, by kind
 }
 
 // tick reads the clock's facts: what the players' journeys and the day
@@ -458,33 +456,17 @@ func (o *observer) variant(e *emerge.State, p promoted, at int) {
 	res.variants = append(res.variants, v)
 }
 
-// holds reports whether a kind's ancestry takes material m, through every
-// kind it was made from.
+// holds reports whether a kind is made, at any depth, of material m.
 func (o *observer) holds(kind, m string) bool {
-	if o.ancestry == nil {
-		o.ancestry = map[string]map[string]bool{}
+	if o.made == nil {
+		o.made = map[string][]item.Spoil{}
 	}
-	var walk func(id string) map[string]bool
-	walk = func(id string) map[string]bool {
-		if set, ok := o.ancestry[id]; ok {
-			return set
-		}
-		set := map[string]bool{}
-		o.ancestry[id] = set
-		k, ok := o.g.Kinds.Kind(id)
-		if !ok {
-			return set
-		}
-		for _, in := range k.Recipe.Inputs {
-			if _, isKind := o.g.Kinds.Kind(in.Kind); isKind {
-				maps.Copy(set, walk(in.Kind))
-			} else {
-				set[in.Kind] = true
-			}
-		}
-		return set
+	ss, ok := o.made[kind]
+	if !ok {
+		ss = o.g.Rules().Fight.D.Materials(kind)
+		o.made[kind] = ss
 	}
-	return walk(kind)[m]
+	return slices.ContainsFunc(ss, func(s item.Spoil) bool { return s.Material == m })
 }
 
 // daily samples the day just ending: each named style's wins and its
@@ -595,10 +577,7 @@ func share(w winDay) int64 {
 	return w.style * fixed.Hundredths / w.region
 }
 
-// traceCost is trace-cost-flat's timing: the day turns of the week to
-// costDay on copies of a world, as played and with costStale stale
-// entries, each read over a copy without emergence while that copy can
-// play the turn.
+// traceCost is trace-cost-flat's timing, summed over emergenceCost's days.
 type traceCost struct {
 	from, to         int64
 	asPlayed, padded time.Duration
@@ -705,10 +684,10 @@ func (tc *traceCost) reading() (asPlayed, padded time.Duration) {
 	return tc.whole[0], tc.whole[1]
 }
 
-// costSnapshots are a saved world without emergence and with its trace
-// store padded by costStale entries none of its days will touch: tiles
-// and characters it never saw, last written past keep-days in the season
-// before. Neither copy is the played world.
+// costSnapshots are snap without emergence, snap with costStale trace
+// entries none of its days touch (tiles and characters it never saw, last
+// written past keep-days in the season before), and that padded trace
+// store alone.
 func costSnapshots(b *sheets.Book, snap []byte, day int64, centre hex.Hex) (off, padded, stale []byte, err error) {
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(snap, &top); err != nil {
@@ -782,13 +761,21 @@ func (tc *traceCost) ratio() int64 {
 
 // emergenceReadings are the run's four targets. The loop must close on
 // every world of the plan's size with no operator command and no staged
-// fact; every type must fire on some world.
+// fact, and every world's ledger must balance; every type must fire on
+// some world.
 func emergenceReadings(worlds []emergenceWorld, plan emergencePlan) []Measured {
 	var readings []Measured
 
 	loop, seeds := true, 0
 	var chains []string
+	var ledgerNote string
 	for _, w := range worlds {
+		if len(w.audit) > 0 {
+			loop = false
+			if ledgerNote == "" {
+				ledgerNote = fmt.Sprintf("; ledger: seed %q %d discrepancies, first %s", w.seed, len(w.audit), w.audit[0])
+			}
+		}
 		if w.players != plan.players {
 			continue
 		}
@@ -803,7 +790,7 @@ func emergenceReadings(worlds []emergenceWorld, plan emergencePlan) []Measured {
 		ops, staged = ops+w.operator, staged+w.staged
 	}
 	readings = append(readings, Measured{Target: "emergence-loop",
-		Value: fmt.Sprintf("%s players, %d %s: %s; %d operator commands, %d staged facts", comma(int64(plan.players)), seeds, either(seeds == 1, "seed", "seeds"), strings.Join(chains, "; "), ops, staged),
+		Value: fmt.Sprintf("%s players, %d %s: %s; %d operator commands, %d staged facts%s", comma(int64(plan.players)), seeds, either(seeds == 1, "seed", "seeds"), strings.Join(chains, "; "), ops, staged, ledgerNote),
 		Holds: loop && seeds > 0})
 
 	var parts, missing []string
@@ -979,7 +966,7 @@ func worldSection(p func(string, ...any), w emergenceWorld) {
 	p("")
 	p("| Type | Count | First promoted (day, name, region) |")
 	p("| --- | --- | --- |")
-	types := slices.Concat(emerge.Types, []emerge.Type{emerge.Material, emerge.Class, emerge.Masters})
+	types := emerge.AllTypes
 	for _, t := range types {
 		var named []string
 		for _, x := range w.promotions {

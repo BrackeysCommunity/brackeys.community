@@ -379,6 +379,14 @@ export const UnitBeats = "beats";
  */
 export const UnitEncounter = "encounter";
 /**
+ * WhyAdapted is the band steps a region's adaptation takes off an option.
+ */
+export const WhyAdapted = "adapted";
+/**
+ * WhyRoad is a step onto an open road.
+ */
+export const WhyRoad = "road";
+/**
  * HaywireLine is what a machine does when it fails. Unit is the row's own,
  * or for a state one of the two above.
  */
@@ -3522,6 +3530,10 @@ export interface Numbers {
   beatsMax: number /* int64 */; // beats in a first-tier encounter
   ruinTroubles: number /* int64 */; // troubles lost in a season that ruin a guild's settlement
   cityStationCap: number /* int64 */; // the tier a city's stations rise to
+  roadEnterTicks: number /* int64 */; // ticks a road tile
+  campTier: number /* int64 */; // the tier a camp's station works at
+  mastersEase: number /* int64 */; // levels a masters' bench takes off its family's machines
+  customSeasons: number /* int64 */; // seasons running a goal is posted before it is a custom
 }
 
 //////////

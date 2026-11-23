@@ -29,3 +29,18 @@ func TestMemLog(t *testing.T) {
 		t.Fatal("Since")
 	}
 }
+
+func TestParseRef(t *testing.T) {
+	for _, s := range []string{"item:abc", "creature:x:y"} {
+		r, ok := ParseRef(s)
+		if !ok || r.String() != s {
+			t.Fatal(s, r, ok)
+		}
+	}
+	if r, _ := ParseRef("creature:x:y"); r.Kind != "creature" || r.ID != "x:y" {
+		t.Fatal(r)
+	}
+	if _, ok := ParseRef("nocolon"); ok {
+		t.Fatal("no colon parsed")
+	}
+}

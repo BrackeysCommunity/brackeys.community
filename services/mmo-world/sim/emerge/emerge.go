@@ -4,7 +4,11 @@
 // the game; the game feeds it at each source and applies what it returns.
 package emerge
 
-import "jams.team/mmo-world/sim/draw"
+import (
+	"slices"
+
+	"jams.team/mmo-world/sim/draw"
+)
 
 // Trace ids (emergence.traces).
 const (
@@ -41,6 +45,10 @@ const (
 
 // Types are the eight GDD 13.5 counts (a kind's first craft is counted apart).
 var Types = []Type{Road, Camp, Haunt, Route, Style, Variant, Legend, Custom}
+
+// AllTypes are every promotion type: the eight counts, then a found
+// material, a found class and masters.
+var AllTypes = slices.Concat(Types, []Type{Material, Class, Masters})
 
 // Renamable reports whether a type's first may rename it (GDD 4.17).
 func Renamable(t Type) bool {

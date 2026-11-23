@@ -109,10 +109,7 @@ func (g *Game) followTrack(c *Char, cmd Command) error {
 	if _, err := g.fact(c, "track.followed", g.Tick(), append([]fact.Datum{fact.S("creature", k.Creature), fact.N("tick", k.Tick)}, fact.At(k.To)...)...); err != nil {
 		return err
 	}
-	if err := g.notePassage(c, k.To, g.Tick()); err != nil {
-		return err
-	}
-	return g.toll(c, k.To, g.Tick())
+	return g.steppedOnto(c, k.To, g.Tick())
 }
 
 // soloEncounter starts an encounter for a character alone against a

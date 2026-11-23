@@ -373,6 +373,23 @@ func (s *State) Promotion(id string) *Promotion {
 	return nil
 }
 
+// Shown is a promotion's shown name, or "" for no such promotion.
+func (s *State) Shown(id string) string {
+	if p := s.Promotion(id); p != nil {
+		return p.Shown()
+	}
+	return ""
+}
+
+// Legend is a legend's record by id, or nil.
+func (s *State) Legend(id string) *LegendRec {
+	i := slices.IndexFunc(s.Legends, func(l *LegendRec) bool { return l.ID == id })
+	if i < 0 {
+		return nil
+	}
+	return s.Legends[i]
+}
+
 func clamp(d int64) int64 {
 	switch {
 	case d < 0:

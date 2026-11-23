@@ -278,7 +278,7 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
 function emergentFields(here: api.Here, lex: Lexicon): EmbedField[] {
   const t = here.place.tile;
   const out: EmbedField[] = [];
-  const road = roadLine(t);
+  const road = roadLine(t, lex);
   if (road) out.push({ name: "Road", value: road, inline: true });
   if (t.camp) {
     const st = here.stations[0];

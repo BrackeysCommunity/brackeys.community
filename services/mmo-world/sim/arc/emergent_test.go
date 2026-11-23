@@ -248,7 +248,7 @@ func TestShortageOnCutRoad(t *testing.T) {
 }
 
 // TestCaravanOccasionRoadIn: with roads, a road in replaces the passages
-// proxy; without them the proxy stands as before.
+// proxy; without roads the proxy decides.
 func TestCaravanOccasionRoadIn(t *testing.T) {
 	w := troubleWorld()
 	w.regions[1].lines[lineCaravans] = true

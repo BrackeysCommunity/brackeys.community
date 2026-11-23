@@ -10,7 +10,8 @@ import (
 // occasions read World and Extra alone.
 type Emergent interface {
 	// RoadLoad is the load carried onto region's road tiles over
-	// road-war-days, and its busiest road tile; ok is false with no road.
+	// road-war-days and its busiest road tile; ok is false with no road, or
+	// while a road war cast there within road-war-days has spent that load.
 	RoadLoad(region int) (load int64, busiest hex.Hex, ok bool)
 	// Raider is a faction not holding region that holds one within reach
 	// of its busiest road tile.
@@ -21,7 +22,7 @@ type Emergent interface {
 	RoadCut(place int) bool
 	// RoadIn reports an open road within road-in-reach of place, or a route's end.
 	RoadIn(place int) bool
-	// Legends are the newest legends-kept legends not laid to rest.
+	// Legends are the newest legends-kept goal legends not laid to rest.
 	Legends() []LegendView
 	// Contests are the opposed goals not yet cast.
 	Contests() []ContestView
@@ -36,7 +37,7 @@ type CaravanView struct {
 	Halted bool
 }
 
-// LegendView is one unlaid legend.
+// LegendView is one unlaid goal legend.
 type LegendView struct {
 	ID     string
 	Region int

@@ -102,9 +102,6 @@ func TestEmergenceSheets(t *testing.T) {
 			t.Errorf("emergence.params %s is %d, want %d", id, got, want)
 		}
 	}
-	if len(b.EmergenceParams) != len(sheets.EmergenceParamIDs) {
-		t.Errorf("%d emergence params, %d read", len(b.EmergenceParams), len(sheets.EmergenceParamIDs))
-	}
 
 	facts := map[string]int64{}
 	for _, f := range b.FactWeights {
@@ -209,9 +206,6 @@ func TestEmergenceProblems(t *testing.T) {
 		{"an axis's lead tag no row resists", "emergence.adaptations: no row resists ward-led", func(b *sheets.Book) {
 			a := adaptation(b, "fast")
 			a.Resists = slices.DeleteFunc(a.Resists, func(s string) bool { return s == "ward-led" })
-		}},
-		{"a missing param", "emergence.params: no adapt-rate", func(b *sheets.Book) {
-			b.EmergenceParams = slices.DeleteFunc(b.EmergenceParams, func(p sheets.Param) bool { return p.ID == "adapt-rate" })
 		}},
 		{"a style row without perCharacter", "emergence.promotions style: perCharacter", func(b *sheets.Book) {
 			line(b, "style").PerCharacter = 0

@@ -74,10 +74,36 @@ func (g *Game) EnterCost(c *Char, from, to hex.Hex, tick int64) (int64, []Part, 
 	return cost, why, ok
 }
 
+// groundStep is what entering a tile costs before mount, hunger and load.
+type groundStep struct {
+	cost, terrain int64 // ticks in all; the terrain's own
+	road, low     bool  // an open road; low water set the cost
+}
+
+// groundTicks is a step's ground cost on a world day: road-enter-ticks on
+// an open road whatever the ground, the water or the weather (GDD 3.4),
+// else the terrain's ticks with low water. A world without emergence keeps
+// terrain cost on its road tiles.
+func (g *Game) groundTicks(from, to hex.Hex, day int64) (groundStep, bool) {
+	cost, ok := g.World.EnterTicks(from, to)
+	if !ok {
+		return groundStep{}, false
+	}
+	if g.Emergence != nil && g.onRoad(to, day) {
+		return groundStep{cost: g.r.Emerge.P.RoadEnterTicks, terrain: cost, road: true}, true
+	}
+	s := groundStep{cost: cost, terrain: cost}
+	if low, ok := g.lowWater(to, cost); ok {
+		s.cost, s.low = low, true
+	}
+	return s, true
+}
+
 // enterCost is EnterCost for a character whose load is already weighed,
 // so a search over many tiles weighs it once; a nil why keeps no parts.
 func (g *Game) enterCost(c *Char, from, to hex.Hex, tick int64, laden bool, why *[]Part) (int64, bool) {
-	cost, ok := g.World.EnterTicks(from, to)
+	day := tick / sheets.TicksPerDay
+	s, ok := g.groundTicks(from, to, day)
 	if !ok {
 		return 0, false
 	}
@@ -86,22 +112,18 @@ func (g *Game) enterCost(c *Char, from, to hex.Hex, tick int64, laden bool, why 
 			*why = append(*why, Part{what, n, unitTicks})
 		}
 	}
-	// An open road takes the same ticks whatever the ground, the water or
-	// the weather (GDD 3.4), and no mount takes it lower (GDD 9.9).
-	day := tick / sheets.TicksPerDay
-	road := g.Emergence != nil && g.onRoad(to, day)
+	// No mount takes an open road lower (GDD 9.9).
 	floor := int64(0)
-	if road {
-		cost = g.r.Emerge.P.RoadEnterTicks
-		floor = cost
-		part(partRoad, cost)
+	if s.road {
+		floor = s.cost
+		part(partRoad, s.cost)
 	} else {
-		part("terrain", cost)
-		if low, ok := g.lowWater(to, cost); ok {
-			part(TrigLowWater, low-cost)
-			cost = low
+		part("terrain", s.terrain)
+		if s.low {
+			part(TrigLowWater, s.cost-s.terrain)
 		}
 	}
+	cost := s.cost
 	if m := c.C.In(char.Mount, 0); m != nil {
 		if r := max(floor, g.r.Mounts.EnterTicks(m, cost, g.ground(to, day), c.Fed())); r != cost {
 			part("mount", r-cost)
@@ -435,10 +457,7 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 	if _, err := g.fact(c, "travel.entered", t, data...); err != nil {
 		return acts, err
 	}
-	if err := g.notePassage(c, to, t); err != nil {
-		return acts, err
-	}
-	if err := g.toll(c, to, t); err != nil {
+	if err := g.steppedOnto(c, to, t); err != nil {
 		return acts, err
 	}
 	if c.Carrying != "" {

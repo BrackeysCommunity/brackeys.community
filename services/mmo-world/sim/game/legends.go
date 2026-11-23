@@ -3,7 +3,6 @@ package game
 import (
 	"maps"
 	"slices"
-	"strings"
 
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/emerge"
@@ -97,14 +96,14 @@ func itemLegend(g *Game, s *emerge.Subject, f fact.Fact) error {
 // legendMade gives a new legend its trait, drawn by its id, and its place
 // in the cast.
 func legendMade(g *Game, p *emerge.Promotion) error {
-	kind, id, _ := strings.Cut(p.Of, ":")
-	rec := &emerge.LegendRec{ID: p.ID, Trait: g.legendTrait(p.ID), Of: fact.Ref{Kind: kind, ID: id}, Region: p.Region}
+	ref, _ := fact.ParseRef(p.Of)
+	rec := &emerge.LegendRec{ID: p.ID, Trait: g.legendTrait(p.ID), Of: ref, Region: p.Region}
 	if p.At != nil {
 		rec.At = *p.At
 	}
 	g.Emergence.Legends = append(g.Emergence.Legends, rec)
-	if c := g.Char(p.First); kind == renownItem && c != nil {
-		if in := c.C.Item(id); in != nil {
+	if c := g.Char(p.First); ref.Kind == renownItem && c != nil {
+		if in := c.C.Item(ref.ID); in != nil {
 			in.Legend = g.traitTag(rec.Trait)
 		}
 	}

@@ -32,8 +32,14 @@ func (g *Game) registerFound(m sheets.Material) {
 
 // knownMaterial reports whether a material is the sheet's or found.
 func (g *Game) knownMaterial(id string) bool {
-	if _, ok := g.foundReg.Get(id); ok {
-		return true
+	_, ok := g.material(id)
+	return ok
+}
+
+// material is a material by id: the sheet's, else one the world found.
+func (g *Game) material(id string) (sheets.Material, bool) {
+	if m, ok := g.r.materials[id]; ok {
+		return *m, true
 	}
-	return g.r.materials[id]
+	return g.foundReg.Get(id)
 }

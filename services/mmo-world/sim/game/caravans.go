@@ -15,11 +15,10 @@ import (
 
 // Caravans (GDD 13.2): a route runs one every caravan-days, from each end
 // in turn, while both its places stand. Its manifest is minted into its
-// own pool as it leaves and goes to the destination's faction when it
-// comes in, where the caravan occasion bids for a day. Where it is comes
-// from its path and its clock, so nothing moves it tick by tick; its pool
-// is its manifest, and what a raid takes from it lands on the tile it was
-// crossing.
+// own pool as it leaves and handed to the destination's faction on
+// arrival, where the caravan occasion bids for a day. Its tile follows
+// from its path, legs and clock, so nothing moves it tick by tick; a
+// raid's share lands on the tile it is crossing.
 
 const (
 	factCaravanDeparted = "caravan.departed"
@@ -62,10 +61,9 @@ func (g *Game) manifestOf(from int) (string, bool) {
 	return mats[0], true
 }
 
-// caravanHolds is each live caravan's goods as the state has them: its
-// pool, held to its manifest's material and units, so a pool left behind,
-// a foreign good or an over-mint reads as a discrepancy. A caravan saved
-// without its manifest is held to its origin's and to caravan-load.
+// caravanHolds is each live caravan's pool as the state has it, held to
+// its manifest's material and units; one saved without a manifest is held
+// to its origin's material and caravan-load.
 func caravanHolds(g *Game) []ledger.Balance {
 	var out []ledger.Balance
 	for _, cv := range g.Emergence.Caravans {
@@ -188,20 +186,15 @@ func orient(rt *emerge.RouteRec, from int) []hex.Hex {
 }
 
 // legs are the ticks from a path's first tile to each of its tiles on a
-// world day: an open road tile takes road-enter-ticks to enter, any other
-// what it costs on foot, low water included.
+// world day: an open road tile, as travel reads it, takes road-enter-ticks
+// to enter, any other what it costs on foot, low water included.
 func (g *Game) legs(path []hex.Hex, day int64) []int64 {
 	p := g.r.Emerge.P
 	out := make([]int64, len(path))
 	for i := 1; i < len(path); i++ {
 		cost := p.RoadEnterTicks
-		if !g.roadOpenOn(path[i], day) {
-			if c, ok := g.World.EnterTicks(path[i-1], path[i]); ok {
-				cost = c
-				if low, ok := g.lowWater(path[i], c); ok {
-					cost = low
-				}
-			}
+		if s, ok := g.groundTicks(path[i-1], path[i], day); ok {
+			cost = s.cost
 		}
 		out[i] = out[i-1] + cost
 	}

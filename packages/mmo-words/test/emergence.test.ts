@@ -88,11 +88,11 @@ describe("promotion lines", () => {
       promotion("custom", { name: "the Ashford haul" }),
     ].map((f) => chronicleLine(f, NAMES));
     expect(lines).toEqual([
-      "The Ashford road formed in Dunmarch: walked so often that it became a road, one tick a tile.",
+      "The Ashford road formed in Dunmarch: walked so often that it became a road.",
       "Plated scav drone appeared in Dunmarch: the region's scav drone adapted against how it was beaten, and now resists keen. It drops plated hide.",
       "A new material came into the world in Dunmarch: Plated hide, a harder kind of hide scraps, dropped by the region's adapted creatures.",
       "Ashford–Kell's Rest became a trade route: so much was hauled between Ashford and Kell's Rest that caravans now run it.",
-      "The Ashford haul became a custom: posted three seasons running, it is now posted by the world each season.",
+      "The Ashford haul became a custom: posted season after season, it is now posted by the world each season.",
     ]);
     for (const line of lines) expect(line).not.toContain("Wren");
   });
