@@ -23,6 +23,7 @@ import (
 
 	"jams.team/mmo-world/sim/canon"
 	"jams.team/mmo-world/sim/char"
+	"jams.team/mmo-world/sim/emerge"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/hex"
@@ -100,6 +101,8 @@ type sim struct {
 	Society  game.Society    `json:"society"`
 	Delve    game.Delve      `json:"delve"`
 	Story    *game.Story     `json:"story,omitempty"`
+	// Emergence is absent on a world saved before emergence began.
+	Emergence *emerge.State `json:"emergence,omitempty"`
 }
 
 func simOf(g *game.Game) ([]byte, error) {
@@ -110,7 +113,7 @@ func simOf(g *game.Game) ([]byte, error) {
 		return nil, err
 	}
 	return json.Marshal(sim{World: w, Pending: g.Pending, NextChar: g.NextChar, Log: g.Log, Posted: g.Ledger.Posted, Kinds: g.Kinds, Left: g.Left,
-		News: g.News, NPCChain: g.NPCs.Chain, Market: g.Market, Society: g.Society, Delve: g.Delve, Story: g.Story})
+		News: g.News, NPCChain: g.NPCs.Chain, Market: g.Market, Society: g.Society, Delve: g.Delve, Story: g.Story, Emergence: g.Emergence})
 }
 
 func ts(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }
@@ -243,7 +246,7 @@ func (s *Store) Load(ctx context.Context, r *game.Rules) (*game.Game, error) {
 		return nil, err
 	}
 	g := &game.Game{World: &world.State{}, Pending: sm.Pending, NextChar: sm.NextChar, Log: sm.Log, Kinds: sm.Kinds, Left: sm.Left,
-		News: sm.News, NPCs: npc.Book{List: []*npc.NPC{}, Chain: sm.NPCChain}, Market: sm.Market, Society: sm.Society, Delve: sm.Delve, Story: sm.Story}
+		News: sm.News, NPCs: npc.Book{List: []*npc.NPC{}, Chain: sm.NPCChain}, Market: sm.Market, Society: sm.Society, Delve: sm.Delve, Story: sm.Story, Emergence: sm.Emergence}
 	if g.News == nil {
 		g.News = []game.News{}
 	}

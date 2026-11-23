@@ -223,6 +223,9 @@ func (g *Game) dayTurn(t int64) error {
 	if err := g.huntsDay(day); err != nil {
 		return err
 	}
+	if err := g.emergenceDay(t); err != nil {
+		return err
+	}
 	if g.Story != nil {
 		if err := g.storyDay(t); err != nil {
 			return err

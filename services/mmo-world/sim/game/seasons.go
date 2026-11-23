@@ -386,12 +386,18 @@ func (g *Game) seasonClose(t int64) error {
 	for i := range g.Story.At {
 		g.Story.At[i].Lost = 0
 	}
+	if err := g.emergenceClose(day); err != nil {
+		return err
+	}
 	closed, err := g.regionFact("", FactSeasonClosed, nil, nil, fact.N("season", c.N), fact.N("start", c.Start), fact.N("days", c.Days))
 	if err != nil {
 		return err
 	}
 	next := c.Next(day, g.storyDays())
 	*g.Story.Clock = next
-	_, err = g.regionFact("", "season.began", nil, []fact.ID{closed}, fact.N("season", next.N), fact.N("start", next.Start), fact.N("days", next.Days))
-	return err
+	began, err := g.regionFact("", "season.began", nil, []fact.ID{closed}, fact.N("season", next.N), fact.N("start", next.Start), fact.N("days", next.Days))
+	if err != nil {
+		return err
+	}
+	return g.emergenceBegin(day, began)
 }

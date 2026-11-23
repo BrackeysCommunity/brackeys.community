@@ -17,6 +17,7 @@ import (
 	"jams.team/mmo-world/sim/craft"
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/econ"
+	"jams.team/mmo-world/sim/emerge"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/faucet"
 	"jams.team/mmo-world/sim/fight"
@@ -55,6 +56,8 @@ type Rules struct {
 	structures map[string]*sheets.Structure
 	works      map[string]*sheets.GuildWork
 	matTags    map[string][]string
+	// materials are the sheet's material ids, found ones aside.
+	materials map[string]bool
 	// processStations lists the stations each process is done at.
 	processStations map[string][]string
 	draw            *draw.Drawer
@@ -67,6 +70,10 @@ type Rules struct {
 	// occasion rows with their predicates.
 	Story     arc.Params
 	Templates []arc.Template
+	// Emerge is the emergence sheets compiled, and emergeNames the pack's
+	// names and name parts its builders read (GDD 13).
+	Emerge      *emerge.Rules
+	emergeNames emerge.Names
 }
 
 // NewRules wires the systems under a world's keys.
@@ -87,19 +94,26 @@ func NewRules(b *sheets.Book, k keys.Set) (*Rules, error) {
 	if err != nil {
 		return nil, err
 	}
+	emergeRules, err := emerge.Compile(b)
+	if err != nil {
+		return nil, err
+	}
 	r := &Rules{Book: b, Gen: g, Fight: s.Fight, Mounts: s.Mounts, Growth: s.Growth, Crafter: craft.New(b, s.Deriver, s.Growth, k.Roll),
 		Values: econ.New(b), Faucet: faucet.ParamsOf(b.EconomyParams), NPC: npc.New(b, k.Generation, k.Roll), names: map[string]string{}, processStations: map[string][]string{}, draw: draw.NewDrawer(k.Roll),
 		roll: k.Roll, weights: fact.NewWeights(b.FactWeights), limits: char.LimitsOf(s.Growth.Params()),
 		Settle: settle.ParamsOf(b.SettlementParams), Guild: guild.ParamsOf(b.SettlementParams), Class: class.ParamsOf(b.ClassParams),
 		rules: rules, structures: map[string]*sheets.Structure{}, works: map[string]*sheets.GuildWork{}, shifts: map[string]map[string]tags.Shift{},
-		Story: arc.ParamsOf(b), Templates: templates}
+		Story: arc.ParamsOf(b), Templates: templates, Emerge: emergeRules}
+	r.emergeNames = emerge.NewPackNames(b.NameParts, r.Name)
 	for i := range b.Structures {
 		r.structures[b.Structures[i].ID] = &b.Structures[i]
 	}
 	// Provisions are their own tag, beside the materials'.
 	r.matTags = map[string][]string{ledger.Provisions: {ledger.Provisions}}
+	r.materials = make(map[string]bool, len(b.Materials))
 	for _, m := range b.Materials {
 		r.matTags[m.ID] = m.Tags
+		r.materials[m.ID] = true
 	}
 	for i := range b.GuildWorks {
 		r.works[b.GuildWorks[i].ID] = &b.GuildWorks[i]
@@ -234,9 +248,12 @@ type Game struct {
 	Delve
 	// Story is nil on a game saved before the director; such a game runs
 	// without one.
-	Story *Story     `json:"story,omitempty"`
-	Log   *fact.Tail `json:"log"`
-	r     *Rules
+	Story *Story `json:"story,omitempty"`
+	// Emergence is nil on a game saved before emergence; every emergence
+	// rule does nothing until emergence-start gives it one (GDD 13).
+	Emergence *emerge.State `json:"emergence,omitempty"`
+	Log       *fact.Tail    `json:"log"`
+	r         *Rules
 	// touched are the characters the command or tick in hand has changed,
 	// its own actor aside; seen those whose view it changed with no row.
 	touched []string
@@ -244,6 +261,17 @@ type Game struct {
 	// marked are world-arc backers marked during a credit pass, told once
 	// it ends.
 	marked []markedBy
+	// foundReg is Emergence.Materials as the item and price rules read them.
+	foundReg *item.Found
+	// stagedBy is the stamp of the command being applied, if it is
+	// staged; ownCmd whether it is a character's own. playerFacts are the
+	// facts of the batch in hand a player caused, for the measures.
+	stagedBy    *fact.Ref
+	ownCmd      bool
+	playerFacts map[fact.ID]bool
+	// traceErr is the first error a trace hook gave while news was kept,
+	// handed on by takeTraceErr.
+	traceErr error
 }
 
 type markedBy struct {
@@ -280,6 +308,9 @@ type Society struct {
 	// Lessons are the bench solves masters left for others, oldest first
 	// (GDD 7.11).
 	Lessons []Lesson `json:"lessons,omitempty"`
+	// FoundClasses are the hidden classes someone has crossed, so shown to
+	// all (GDD 5.8).
+	FoundClasses []string `json:"foundClasses,omitempty"`
 }
 
 // New founds a world with nobody in it.
@@ -294,6 +325,8 @@ func New(r *Rules) (*Game, error) {
 	g.syncPlaces()
 	g.Market = g.newMarket()
 	g.seasonOpen()
+	g.Emergence = emerge.New(g.Tick()/sheets.TicksPerDay, g.season())
+	g.wireEmergence()
 	return g, g.postFactionOrders(g.Tick())
 }
 
@@ -313,6 +346,7 @@ func (g *Game) Attach(r *Rules) {
 		}
 	}
 	g.attachDelve()
+	g.wireEmergence()
 }
 
 func (g *Game) Rules() *Rules { return g.r }
@@ -348,9 +382,21 @@ func (g *Game) Digest() (canon.Sum, error) {
 // last flush, for a store.
 func (g *Game) Flush() ([]fact.Fact, []ledger.Txn) { return g.Log.Flush(), g.Ledger.Flush() }
 
-// Holdings is what the state says each character holds, as ledger
+// Holdings is what the state says each character holds, and what each
+// emergence hook says its accounts hold (a caravan's goods), as ledger
 // balances, for the conservation check.
-func (g *Game) Holdings() []ledger.Balance { return HoldingsOf(g.Chars) }
+func (g *Game) Holdings() []ledger.Balance {
+	out := HoldingsOf(g.Chars)
+	if g.Emergence == nil {
+		return out
+	}
+	for _, h := range emergeHooks {
+		if h.Holds != nil {
+			out = append(out, h.Holds(g)...)
+		}
+	}
+	return out
+}
 
 // HoldingsOf is what characters hold, as ledger balances.
 func HoldingsOf(chars []*Char) []ledger.Balance {

@@ -33,6 +33,9 @@ const (
 	// character. HideName is an operator's on a dungeon's namer.
 	HuntStart = "hunt-start"
 	HideName  = "hide-name"
+	// EmergenceStart gives a world saved before emergence its traces. The
+	// service sends it once, after season-start (GDD 13).
+	EmergenceStart = "emergence-start"
 )
 
 // Refusal codes the party, dungeon and hunt rules give.
@@ -94,6 +97,8 @@ func worldCommand(kind string) func(*Game, Command) error {
 		return (*Game).seasonEpoch
 	case ArcCast:
 		return (*Game).arcCast
+	case EmergenceStart:
+		return (*Game).emergenceStart
 	}
 	return nil
 }

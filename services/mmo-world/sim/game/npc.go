@@ -42,9 +42,11 @@ type News struct {
 	Placeless bool `json:"placeless,omitempty"`
 }
 
-// keepNews adds the heavy facts among fs to the news ring, counts what
+// keepNews counts fs toward emergence's traces, adds the heavy facts among
+// them (and among what the trace hooks wrote) to the news ring, counts what
 // they built towards crowding, and hands them to the story's memory.
 func (g *Game) keepNews(fs []fact.Fact) {
+	fs = g.traceNews(fs)
 	line, kept := g.NewsWeight(), g.r.wp("news-kept")
 	for _, f := range fs {
 		g.countBuilt(f)
