@@ -191,7 +191,9 @@ export function floorView(st: ActivityState, act: FloorActions): HTMLElement {
         ? "Too many have fallen here lately: it is haunted. Shaken lasts longer, and what fell is easier to find."
         : "",
       f.downed?.length ? `Down on this floor: ${f.downed.join(", ")}.` : "",
-      f.pool?.length ? `Your hoard sense finds what fell here: ${goodsLine(f.pool)}.` : "",
+      f.pool?.length
+        ? `Your hoard sense finds what fell here: ${goodsLine(f.pool, st.names)}.`
+        : "",
       f.placed ? `${placedLine(f.placed)}.` : "",
     ),
     floorMap(st),

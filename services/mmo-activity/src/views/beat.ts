@@ -94,7 +94,7 @@ export function beatView(st: ActivityState, act: BeatActions): HTMLElement {
   const f = st.fight!;
   const mine = f.shared ? st.party?.beat?.mine : undefined;
   const root = panel(
-    `${name("fights.beats", f.kind)}: ${name("creatures.archetypes", f.creature)}`,
+    `${name("fights.beats", f.kind)}: ${f.creatureName || name("creatures.archetypes", f.creature)}`,
   );
   root.append(
     ...lines(

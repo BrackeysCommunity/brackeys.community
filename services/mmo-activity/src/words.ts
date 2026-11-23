@@ -11,6 +11,7 @@ import {
   type PuzzleResult,
   type Reason,
   type Refusal,
+  type Tile,
 } from "./api.ts";
 import {
   adds,
@@ -29,9 +30,19 @@ export { riskLine } from "../../../packages/mmo-words/src/risk.ts";
 export { placedLine } from "../../../packages/mmo-words/src/placed.ts";
 export { heldLine, patternKind } from "../../../packages/mmo-words/src/story.ts";
 
-/** What the pack calls a row; an id it does not name is shown as written. */
-export function name(sheet: string, id: string): string {
-  return names[`${sheet}:${id}`] ?? sentence(id.replace(/-/g, " "));
+/**
+ * Names a state carries, "sheet:id" to name, for what the world found
+ * after the pack was built: a found material.
+ */
+export type Found = Record<string, string> | undefined;
+
+/**
+ * What the pack calls a row, or what the state names it where the pack
+ * cannot know it; an id neither names is shown as written.
+ */
+export function name(sheet: string, id: string, found?: Found): string {
+  const ref = `${sheet}:${id}`;
+  return found?.[ref] ?? names[ref] ?? sentence(id.replace(/-/g, " "));
 }
 
 /** Whether the pack names a row of a sheet. */
@@ -49,19 +60,39 @@ export function practiceLine(p: PracticeLine, title = true): string {
   return `${level(p.level)}${title && p.title ? `, ${p.title}` : ""}, ${uses(p.uses, p.need)} to the next`;
 }
 
-/** Every good's name in lower case, for the bare-number rule. */
-export function goodsNames(): Set<string> {
+/** Every good's name in lower case, found ones included, for the bare-number rule. */
+export function goodsNames(found?: Found): Set<string> {
   const out = new Set<string>();
-  for (const [ref, n] of Object.entries(names))
+  for (const [ref, n] of [...Object.entries(names), ...Object.entries(found ?? {})])
     if (ref.startsWith("items.materials:")) out.add(n.toLowerCase());
   return out;
 }
 
-export function goodsLine(goods: Goods[]): string {
+export function goodsLine(goods: Goods[], found?: Found): string {
   if (goods.length === 0) return "nothing";
   return goods
-    .map((g) => amount(g.units, name("items.materials", g.material).toLowerCase()))
+    .map((g) => amount(g.units, name("items.materials", g.material, found).toLowerCase()))
     .join(", ");
+}
+
+/** The named road a tile is on, and whether it is cut or tolled today; "" off a road. */
+export function roadLine(t: Pick<Tile, "roadName" | "cut" | "toll">): string {
+  if (!t.roadName) return "";
+  if (t.cut) return `On ${t.roadName}, cut: it is no faster than the land`;
+  if (t.toll) return `On ${t.roadName}, tolled: ${amount(t.toll, "coin")} a crossing`;
+  return `On ${t.roadName}`;
+}
+
+const STEPS = ["no", "one", "two", "three", "four", "five", "six"];
+
+/**
+ * The band steps a region's adaptation took off an option (GDD 13.2), in
+ * words: a step is not a unit the bare-number rule knows.
+ */
+export function adaptedLine(steps: number): string {
+  const n = Math.abs(Math.trunc(steps));
+  const count = STEPS[n] ?? num(n);
+  return `The creatures here have adapted against it: ${count} ${n === 1 ? "band" : "bands"} worse`;
 }
 
 function state(h: HaywireLine): string {

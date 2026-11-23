@@ -32,7 +32,7 @@ import { partyResult, partyResultLines, partyView, windowLine } from "./views/pa
 import { PatternStrip } from "./views/pattern.ts";
 import { pouchesView } from "./views/pouches.ts";
 import { machineWhy, optionWhy } from "./views/why.ts";
-import { name, placedLine, refusalLine } from "./words.ts";
+import { name, placedLine, refusalLine, roadLine } from "./words.ts";
 
 export type Screen = "machine" | "beat" | "floor" | "hunt" | "party" | "pouches" | "bench" | "idle";
 
@@ -297,10 +297,14 @@ export class App {
       case "pouches":
         this.show(
           this.recent(),
-          pouchesView(state.pouches ?? [], (id) => {
-            this.want = "machine";
-            this.session.look(this.viewer({ pouch: id }));
-          }),
+          pouchesView(
+            state.pouches ?? [],
+            (id) => {
+              this.want = "machine";
+              this.session.look(this.viewer({ pouch: id }));
+            },
+            state.names,
+          ),
         );
         return;
       case "bench":
@@ -336,6 +340,7 @@ export class App {
     const placed = state?.place.tile.placed;
     const here = [
       state && state.place.busy > 1 ? `${plural(state.place.busy, "character")} here` : "",
+      state ? roadLine(state.place.tile) : "",
       placed ? placedLine(placed) : "",
     ]
       .filter(Boolean)

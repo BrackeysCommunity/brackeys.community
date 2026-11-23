@@ -1,0 +1,127 @@
+{
+  "tick": 5120,
+  "now": 1795000000000,
+  "context": {
+    "kind": "solo",
+    "id": "c-mock"
+  },
+  "character": {
+    "id": "c-mock",
+    "version": 11,
+    "at": {
+      "q": 4,
+      "r": -3
+    },
+    "coin": 88,
+    "provisions": 5,
+    "goods": [
+      {
+        "material": "found.plated.stalker-hide",
+        "units": 2
+      },
+      {
+        "material": "stalker-hide",
+        "units": 1
+      }
+    ],
+    "conditions": [],
+    "practice": [
+      {
+        "id": "rewire",
+        "level": 4
+      }
+    ],
+    "inFight": true,
+    "walked": 31
+  },
+  "place": {
+    "tile": {
+      "hex": {
+        "q": 4,
+        "r": -3
+      },
+      "terrain": "marsh",
+      "water": "none",
+      "region": "r-3",
+      "road": 1,
+      "found": 40,
+      "roadName": "the Copperline road",
+      "toll": 2
+    },
+    "busy": 1
+  },
+  "fight": {
+    "id": "e-77",
+    "beat": 0,
+    "beats": 3,
+    "kind": "clash",
+    "creature": "mire-stalker",
+    "creatureName": "Plated wire-eel",
+    "variant": "plated",
+    "ambush": false,
+    "options": [
+      {
+        "id": "strike",
+        "verb": "strike",
+        "kind": "win",
+        "band": "even",
+        "risk": "durability",
+        "riskSize": 4,
+        "why": {
+          "parts": [
+            {
+              "label": "edge pts",
+              "value": 26,
+              "unit": "pts"
+            },
+            {
+              "label": "edge at level",
+              "value": 30,
+              "unit": "pts"
+            },
+            {
+              "label": "adapted",
+              "value": -2,
+              "unit": "pts"
+            }
+          ],
+          "bandFrom": "even",
+          "bandTo": "even"
+        }
+      },
+      {
+        "id": "back-out",
+        "verb": "back out",
+        "kind": "way-out",
+        "band": "certain",
+        "risk": "haul",
+        "riskSize": 2,
+        "why": {
+          "parts": [],
+          "bandFrom": "certain",
+          "bandTo": "certain"
+        }
+      }
+    ]
+  },
+  "pouches": [
+    {
+      "id": "p-c-mock-3",
+      "family": "lock-pins",
+      "name": "Pin lock",
+      "goods": [
+        {
+          "material": "found.plated.stalker-hide",
+          "units": 1
+        },
+        {
+          "material": "stalker-hide",
+          "units": 2
+        }
+      ]
+    }
+  ],
+  "names": {
+    "items.materials:found.plated.stalker-hide": "Plated hide"
+  }
+}

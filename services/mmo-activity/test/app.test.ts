@@ -166,7 +166,7 @@ test("what opens follows the launch order: armed, a machine beat, the beat, pouc
 
 test.each(names)("no number is shown without its unit: %s", async (name) => {
   const { root } = await boot(name);
-  const goods = goodsNames();
+  const goods = goodsNames(fixture(name).names);
   const seen = new Set<string>();
   const check = () => {
     for (const t of texts(root)) {
@@ -329,6 +329,32 @@ test("pouches say what they hold and when a shut one can be tried again", async 
   const { root } = await boot("pouch");
   expect(root.textContent).toContain("Holds 3 copper wire, 2 scrap iron.");
   expect(root.textContent).toContain("96 ticks (960 min)");
+});
+
+test("a region's variant is fought by its own name, and a found material is named from the state", async () => {
+  const { root } = await boot("variant");
+  expect(root.querySelector("main h2")?.textContent).toBe("Clash: Plated wire-eel");
+  click(root, "Why");
+  expect(root.textContent).toContain("The creatures here have adapted against it: two bands worse");
+  expect(root.textContent).not.toContain("Adapted:");
+  click(root, "Back");
+  click(root, "Pouches");
+  expect(root.textContent).toContain("Holds 1 plated hide, 2 treated hide.");
+});
+
+test("the bar says which road the tile is on, and whether it is tolled or cut", async () => {
+  const bar = (r: Element) => r.querySelector(".bar, header")?.textContent ?? "";
+  const tolled = await boot("variant");
+  expect(bar(tolled.root)).toContain("On the Copperline road, tolled: 2 coin a crossing");
+  document.body.replaceChildren();
+  const cut = await boot("variant", undefined, (s) => {
+    s.place.tile.cut = true;
+    s.place.tile.toll = undefined;
+  });
+  expect(bar(cut.root)).toContain("On the Copperline road, cut: it is no faster than the land");
+  document.body.replaceChildren();
+  const plain = await boot("beat");
+  expect(bar(plain.root)).not.toContain("road");
 });
 
 test("a staged place says who placed it, in the bar and on the floor", async () => {

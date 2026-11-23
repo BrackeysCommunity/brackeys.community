@@ -1,7 +1,18 @@
 import type { MachineView, Option } from "../api.ts";
 import { button, el, lines, panel } from "../dom.ts";
 import { adds, band, bandShort, level, seconds } from "../units.ts";
-import { haywireLine, name, practiceLine, reasonLine, riskLine, sentence } from "../words.ts";
+import {
+  adaptedLine,
+  haywireLine,
+  name,
+  practiceLine,
+  reasonLine,
+  riskLine,
+  sentence,
+} from "../words.ts";
+
+// The why label of the band steps a region's adaptation took off.
+const ADAPTED = "adapted";
 
 /**
  * The why view (GDD 8.4): the chain behind a modifier, each line a fact
@@ -13,7 +24,14 @@ export function optionWhy(o: Option, back: () => void): HTMLElement {
   root.append(...lines(`${band(o.band)}, ${riskLine(o)}.`));
   const list = el("ul", { class: "why" });
   for (const p of w.parts ?? [])
-    list.append(el("li", { text: `${sentence(p.label)}: ${adds(p.value, p.unit)}` }));
+    list.append(
+      el("li", {
+        text:
+          p.label === ADAPTED
+            ? adaptedLine(p.value)
+            : `${sentence(p.label)}: ${adds(p.value, p.unit)}`,
+      }),
+    );
   for (const r of w.rules ?? []) list.append(el("li", { text: `Rule: ${r.replace(/-/g, " ")}` }));
   if (w.bandFrom && w.bandTo && w.bandFrom !== w.bandTo)
     list.append(

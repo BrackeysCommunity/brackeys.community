@@ -41,7 +41,7 @@ export function huntView(st: ActivityState, act: HuntActions, before?: HuntView)
       h.mine > 0
         ? `You have removed ${amount(h.mine, "health")}: your share of the spoils now is ${percent(h.share)}.`
         : "You have not pressed it yet. The spoils are split by health removed.",
-      h.spoils.length ? `Slain, it gives at most ${goodsLine(h.spoils)}.` : "",
+      h.spoils.length ? `Slain, it gives at most ${goodsLine(h.spoils, st.names)}.` : "",
     ),
   );
   const fresh = landed(before, h);
