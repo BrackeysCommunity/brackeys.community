@@ -312,17 +312,27 @@ func earners(pop population, plan *agent.GuildPlan, size, first int, idle int64,
 	return out[:min(len(out), max(size, len(pop.roles)))]
 }
 
-func soak(b *sheets.Book, pop population, days int64) (economyResult, error) {
-	start := time.Now()
-	size := pop.size
-	k := keys.Throwaway(pop.label + os.Getenv("ECONOMY_SEED"))
+// soakWorld is a soak's world as the Economy run opens it: the game, the
+// service its players reach it through, and the tick each player arrives.
+type soakWorld struct {
+	g       *game.Game
+	local   *service.Local
+	client  agent.Client
+	players []*agent.Player
+	arrive  []int64
+	main    int // players before the quiet server's
+}
+
+// openSoak makes a world under k with the starting settlements a soak of
+// pop asks for, and pop's players with the tick each arrives.
+func openSoak(b *sheets.Book, k keys.Set, pop population) (*soakWorld, error) {
 	r, err := game.NewRules(b, k)
 	if err != nil {
-		return economyResult{}, err
+		return nil, err
 	}
 	g, err := game.New(r)
 	if err != nil {
-		return economyResult{}, err
+		return nil, err
 	}
 	g.World.OpenSettlement()
 	if pop.quiet.size > 0 {
@@ -332,12 +342,12 @@ func soak(b *sheets.Book, pop population, days int64) (economyResult, error) {
 	}
 	local := service.NewLocal(g)
 	bands := agent.Bands(b)
-	players := earners(pop, pop.plan, size-pop.quiet.size, 0, 0, bands)
+	players := earners(pop, pop.plan, pop.size-pop.quiet.size, 0, 0, bands)
 	main := len(players)
 	for i, p := range players {
 		p.Server, p.Admin = pop.server, i < pop.admins
 	}
-	arrive := make([]int64, 0, size)
+	arrive := make([]int64, 0, pop.size)
 	join := pop.join * sheets.TicksPerDay
 	for i := range players {
 		arrive = append(arrive, int64(i)*join/int64(main))
@@ -357,23 +367,40 @@ func soak(b *sheets.Book, pop population, days int64) (economyResult, error) {
 		// Hiding the pages leaves the players to the market alone.
 		client = struct{ agent.Client }{local}
 	}
-	script := agent.NewScript(client, players, pop.label)
+	return &soakWorld{g: g, local: local, client: client, players: players, arrive: arrive, main: main}, nil
+}
+
+// due is who plays at tick t: arrived, the quiet server's only until it
+// goes idle, and due by the soak's rhythm.
+func (w *soakWorld) due(t int64, busy func(*agent.Player) bool, into []*agent.Player) []*agent.Player {
+	into = into[:0]
+	for i, p := range w.players {
+		if t < w.arrive[i] || (i >= w.main && t >= quietDays*sheets.TicksPerDay) {
+			continue
+		}
+		if due(i, t, p, busy) {
+			into = append(into, p)
+		}
+	}
+	return into
+}
+
+func soak(b *sheets.Book, pop population, days int64) (economyResult, error) {
+	start := time.Now()
+	w, err := openSoak(b, keys.Throwaway(pop.label+os.Getenv("ECONOMY_SEED")), pop)
+	if err != nil {
+		return economyResult{}, err
+	}
+	g, local, players := w.g, w.local, w.players
+	script := agent.NewScript(w.client, players, pop.label)
 	ctx := context.Background()
-	res := economyResult{size: size}
+	res := economyResult{size: pop.size}
 	end := days * sheets.TicksPerDay
 	var playing []*agent.Player
 	stocked := map[string]int64{}
 	busy := longBusy(g)
 	for t := int64(0); t < end; t++ {
-		playing = playing[:0]
-		for i, p := range players {
-			if t < arrive[i] || (i >= main && t >= quietDays*sheets.TicksPerDay) {
-				continue
-			}
-			if due(i, t, p, busy) {
-				playing = append(playing, p)
-			}
-		}
+		playing = w.due(t, busy, playing)
 		if err := script.TurnFor(ctx, t, playing); err != nil {
 			return res, err
 		}
