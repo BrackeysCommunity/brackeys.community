@@ -1,6 +1,8 @@
 package game
 
 import (
+	"encoding/json"
+
 	"jams.team/mmo-world/sim/arc"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/hex"
@@ -28,6 +30,20 @@ type Story struct {
 	Sight    []RegionBonus `json:"sight,omitempty"`
 	// clues is the scaffold's clue sites by chunk, never saved.
 	clues *clueCache
+	// kinds is Memory by kind, never saved.
+	kinds *ringIndex
+}
+
+// UnmarshalJSON loads a story and indexes its memory ring, so the first
+// day after a load reads the ring at the cost of any other.
+func (s *Story) UnmarshalJSON(b []byte) error {
+	type plain Story
+	if err := json.Unmarshal(b, (*plain)(s)); err != nil {
+		return err
+	}
+	s.kinds = nil
+	s.ring()
+	return nil
 }
 
 // Arc is one cast template running through its stages.

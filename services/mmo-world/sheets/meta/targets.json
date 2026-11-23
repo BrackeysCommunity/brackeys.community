@@ -400,7 +400,7 @@
     },
     {
       "id": "director-cost-flat",
-      "text": "Once its memory has filled, the director's world day costs no more in the week to day 90 than 110% of the week to day 45",
+      "text": "The director's world day in the week to day 90 costs no more with its memory ring full than 110% of the day as played: a predicate pays for what it recalls, not for what the ring holds",
       "runs": "world",
       "holdsFrom": "MM9"
     }

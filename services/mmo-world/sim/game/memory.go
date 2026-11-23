@@ -16,6 +16,9 @@ import (
 // game reads back itself.
 var storyKinds = append(slices.Clone(arc.Remembered), factGuardianSlain)
 
+// storyKindSet is storyKinds once each.
+var storyKindSet = slices.Compact(slices.Sorted(slices.Values(storyKinds)))
+
 const factVowBroken = "goal.vow-broken"
 
 // Data a memory takes its place and number from.
@@ -42,7 +45,10 @@ func (g *Game) noteStory(fs []fact.Fact) {
 		if f.Weight < g.r.Story.MemoryWeight && !slices.Contains(storyKinds, f.Kind) {
 			continue
 		}
-		s.Memory = append(s.Memory, g.memoryOf(f))
+		m := g.memoryOf(f)
+		x := s.ring()
+		s.Memory = append(s.Memory, m)
+		x.add(m, s.Memory)
 	}
 	g.forget()
 }
@@ -52,32 +58,116 @@ func (g *Game) noteStory(fs []fact.Fact) {
 // kind is evicted by count only when story kinds alone overfill it.
 func (g *Game) forget() {
 	s := g.Story
+	x := s.ring()
 	from := g.Tick()/sheets.TicksPerDay - g.r.Story.MemoryDays
 	old := func(tick int64) bool { return tick/sheets.TicksPerDay < from }
-	s.Memory = slices.DeleteFunc(s.Memory, func(m arc.Memory) bool { return old(m.Tick) })
+	// The ring is oldest first, so what has aged out leads it.
+	young := slices.IndexFunc(s.Memory, func(m arc.Memory) bool { return !old(m.Tick) })
+	if young < 0 {
+		young = len(s.Memory)
+	}
+	gone := slices.Clone(s.Memory[:young])
+	s.Memory = s.Memory[young:]
 	s.Pending = slices.DeleteFunc(s.Pending, func(p arc.Pending) bool { return old(p.Tick) })
+	defer func() { x.drop(gone, s.Memory) }()
 	over := len(s.Memory) - int(g.r.Story.MemoryKept)
 	if over <= 0 {
 		return
 	}
 	story := 0
-	for _, m := range s.Memory {
-		if slices.Contains(storyKinds, m.Kind) {
-			story++
-		}
+	for _, k := range storyKindSet {
+		story += len(x.of(k))
 	}
 	others := min(over, len(s.Memory)-story)
 	over -= others
-	s.Memory = slices.DeleteFunc(s.Memory, func(m arc.Memory) bool {
-		if others > 0 && !slices.Contains(storyKinds, m.Kind) {
-			others--
-			return true
-		}
-		return false
-	})
-	if over > 0 {
-		s.Memory = slices.Delete(s.Memory, 0, over)
+	if others > 0 {
+		s.Memory, gone = shed(s.Memory, gone, others, func(m arc.Memory) bool { return !slices.Contains(storyKinds, m.Kind) })
 	}
+	if over > 0 {
+		gone = append(gone, s.Memory[:over]...)
+		s.Memory = s.Memory[over:]
+	}
+}
+
+// shed takes the ring's first n memories that go out of it and adds them
+// to gone. The memories kept ahead of the last to go move up behind it, so
+// a full ring sheds at the cost of what lies ahead of its last shed memory,
+// not of its fill.
+func shed(ring, gone []arc.Memory, n int, goes func(arc.Memory) bool) ([]arc.Memory, []arc.Memory) {
+	end, cut := 0, 0
+	for ; end < len(ring) && cut < n; end++ {
+		if goes(ring[end]) {
+			gone = append(gone, ring[end])
+			cut++
+		}
+	}
+	to := end
+	for i := end - 1; i >= 0; i-- {
+		if !goes(ring[i]) {
+			to--
+			ring[to] = ring[i]
+		}
+	}
+	return ring[to:], gone
+}
+
+// ringIndex is the memory ring by kind, each kind's memories in ring
+// order, so a predicate's recall costs the memories of the kind it asks
+// for and not the ring's fill.
+type ringIndex struct {
+	head  *arc.Memory // the ring it indexes, by its first memory and length
+	n     int
+	kinds map[string][]arc.Memory
+}
+
+// ring is the story's ring index, built afresh when it does not index the
+// ring the story holds.
+func (s *Story) ring() *ringIndex {
+	if x := s.kinds; x != nil && x.indexes(s.Memory) {
+		return x
+	}
+	x := &ringIndex{kinds: map[string][]arc.Memory{}}
+	for _, m := range s.Memory {
+		x.kinds[m.Kind] = append(x.kinds[m.Kind], m)
+	}
+	x.mark(s.Memory)
+	s.kinds = x
+	return x
+}
+
+func (x *ringIndex) indexes(ring []arc.Memory) bool {
+	return x.n == len(ring) && (x.n == 0 || x.head == &ring[0])
+}
+
+func (x *ringIndex) mark(ring []arc.Memory) {
+	x.n, x.head = len(ring), nil
+	if len(ring) > 0 {
+		x.head = &ring[0]
+	}
+}
+
+// of is the ring's memories of a kind, oldest first, for reading only.
+func (x *ringIndex) of(kind string) []arc.Memory { return x.kinds[kind] }
+
+// add indexes a memory appended to the ring.
+func (x *ringIndex) add(m arc.Memory, ring []arc.Memory) {
+	x.kinds[m.Kind] = append(x.kinds[m.Kind], m)
+	x.mark(ring)
+}
+
+// drop unindexes memories gone from the ring, in ring order. Each kind
+// loses its oldest, so a memory that is not its kind's oldest leaves the
+// index stale, and the next read rebuilds it.
+func (x *ringIndex) drop(gone []arc.Memory, ring []arc.Memory) {
+	for _, m := range gone {
+		k := x.kinds[m.Kind]
+		if len(k) == 0 || k[0].Fact != m.Fact || k[0].Tick != m.Tick {
+			x.n, x.head = -1, nil
+			return
+		}
+		x.kinds[m.Kind] = k[1:]
+	}
+	x.mark(ring)
 }
 
 // memoryOf is a fact as the ring keeps it. It is located on its tile, else

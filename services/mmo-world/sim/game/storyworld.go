@@ -143,10 +143,8 @@ func (v *storyView) Places() []arc.PlaceView {
 	users := v.placeUsers()
 	raised := map[hex.Hex]int64{}
 	if g.Story != nil {
-		for _, m := range g.Story.Memory {
-			if m.Kind == memStructureRaised {
-				raised[m.At] = max(raised[m.At], m.Tick)
-			}
+		for _, m := range g.Story.ring().of(memStructureRaised) {
+			raised[m.At] = max(raised[m.At], m.Tick)
 		}
 	}
 	out := make([]arc.PlaceView, len(g.Places))
@@ -213,8 +211,8 @@ func (v *storyView) Recall(kind string, within int64) []arc.Memory {
 	}
 	from := v.Day() - within
 	var out []arc.Memory
-	for _, m := range v.g.Story.Memory {
-		if m.Kind == kind && m.Tick/sheets.TicksPerDay >= from {
+	for _, m := range v.g.Story.ring().of(kind) {
+		if m.Tick/sheets.TicksPerDay >= from {
 			out = append(out, m)
 		}
 	}

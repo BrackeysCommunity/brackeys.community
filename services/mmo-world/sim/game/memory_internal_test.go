@@ -1,13 +1,17 @@
 package game
 
 import (
+	"maps"
 	"slices"
+	"strconv"
 	"testing"
 
+	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/arc"
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/hex"
+	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/world"
 )
@@ -64,6 +68,9 @@ func TestMemoryBoundedOverTenThousandFacts(t *testing.T) {
 		if int64(len(g.Story.Memory)) > p.MemoryKept {
 			t.Fatalf("after %d facts the ring holds %d, over %d", i+1, len(g.Story.Memory), p.MemoryKept)
 		}
+		if i%97 == 0 {
+			ringIndexed(t, g)
+		}
 	}
 	if int64(len(g.Story.Memory)) != p.MemoryKept {
 		t.Fatalf("the ring holds %d, want it full at %d", len(g.Story.Memory), p.MemoryKept)
@@ -100,6 +107,30 @@ func TestMemoryCapSparesStoryKinds(t *testing.T) {
 	if n := int64(len(g.Story.Memory)); n != p.MemoryKept || g.Story.Memory[0].Kind != "holding.fell" {
 		t.Fatalf("the ring holds %d, first %+v", n, g.Story.Memory[0])
 	}
+	ringIndexed(t, g)
+}
+
+// ringIndexed checks the kept ring index against the ring, then that a
+// rebuilt one reads the same.
+func ringIndexed(t *testing.T, g *Game) {
+	t.Helper()
+	s := g.Story
+	kept := s.kinds
+	if kept == nil || !kept.indexes(s.Memory) {
+		t.Fatal("the ring index does not index the ring")
+	}
+	s.kinds = nil
+	fresh := s.ring()
+	for _, k := range slices.Sorted(maps.Keys(fresh.kinds)) {
+		if !slices.EqualFunc(kept.of(k), fresh.of(k), func(a, b arc.Memory) bool { return a.Fact == b.Fact && a.Tick == b.Tick }) {
+			t.Fatalf("kind %s indexes %d memories, the ring holds %d", k, len(kept.of(k)), len(fresh.of(k)))
+		}
+	}
+	for k, ms := range kept.kinds {
+		if len(ms) != len(fresh.of(k)) {
+			t.Fatalf("kind %s indexes %d memories the ring does not hold", k, len(ms))
+		}
+	}
 }
 
 // TestMemoryCapBoundsStoryKinds: story kinds alone past memory-kept are
@@ -117,6 +148,7 @@ func TestMemoryCapBoundsStoryKinds(t *testing.T) {
 		}
 		g.noteStory([]fact.Fact{f})
 	}
+	ringIndexed(t, g)
 	m := g.Story.Memory
 	if int64(len(m)) != p.MemoryKept {
 		t.Fatalf("the ring holds %d, want %d", len(m), p.MemoryKept)
@@ -367,5 +399,34 @@ func TestStoryViewReadsTheWorld(t *testing.T) {
 	}
 	if pv := v.Places()[0]; pv.Users != 1 || !pv.Open || pv.Ruined {
 		t.Fatalf("the first place views as %+v", pv)
+	}
+}
+
+// BenchmarkForgetFullRing: a tick's forgetting costs what leaves the ring,
+// not how full it is.
+func BenchmarkForgetFullRing(b *testing.B) {
+	bk, err := sheetfs.LoadBook(sheetfs.ModuleRoot())
+	if err != nil {
+		b.Fatal(err)
+	}
+	r, err := NewRules(bk, keys.Throwaway("forget"))
+	if err != nil {
+		b.Fatal(err)
+	}
+	g, err := New(r)
+	if err != nil {
+		b.Fatal(err)
+	}
+	p := g.r.Story
+	for _, n := range []int64{p.MemoryKept / 4, p.MemoryKept} {
+		b.Run(strconv.FormatInt(n, decimal), func(b *testing.B) {
+			g.Story.Memory = g.Story.Memory[:0]
+			for i := range n {
+				g.Story.Memory = append(g.Story.Memory, arc.Memory{Fact: fact.ID(i + 1), Tick: g.Tick(), Kind: "hunt.slain", Region: -1})
+			}
+			for range b.N {
+				g.forget()
+			}
+		})
 	}
 }
