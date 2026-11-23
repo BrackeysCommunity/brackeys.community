@@ -23,7 +23,13 @@ export function classesCard(o: api.Options, c: api.Classes, focus?: string, noti
         placeholder: shown ? `Showing: ${shown.name}` : "Pick a class",
         options: c.classes
           .filter((x) => x.id !== shown?.id)
-          .map((x) => option(x.name, x.id, x.earned ? `level ${x.level}` : "not yet earned")),
+          .map((x) =>
+            option(
+              x.name,
+              x.id,
+              `${x.earned ? `level ${x.level}` : "not yet earned"}${x.found ? ", found in play" : ""}`,
+            ),
+          ),
       },
     },
   ];
@@ -72,7 +78,7 @@ export function classesCard(o: api.Options, c: api.Classes, focus?: string, noti
       (shown ? `${shown.name}${shown.earned ? `, level ${shown.level}` : ""}` : "Classes"),
     picture: "form",
     description: shown
-      ? `${shown.leans}.${shown.first ? " You were the first in the world to earn it." : ""}`
+      ? `${shown.leans}.${shown.found ? " Nobody knew of it until someone crossed it in play." : ""}${shown.first ? " You were the first in the world to earn it." : ""}`
       : undefined,
     fields: [
       ...(shown
@@ -97,7 +103,7 @@ export function classesCard(o: api.Options, c: api.Classes, focus?: string, noti
         : []),
     ],
     table: tree.length ? { header: ["Tier", "One or the other", "Opens"], rows: tree } : undefined,
-    footer: `At most ${plural(c.most, "class", "classes")} are active, chosen at a settlement; abilities taken are kept.`,
+    footer: `At most ${plural(c.most, "class", "classes")} are active, chosen at a settlement; abilities taken are kept, and more classes are found in play.`,
     rows,
     colour: COLOUR.signal,
   };

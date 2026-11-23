@@ -11,6 +11,28 @@ import type { Lexicon } from "../lexicon.ts";
 import { amount, band, bandShort, num, signed, ticks } from "../units.ts";
 import { back, banner, btn, DIRECTIONS, downButtons, factNum, launch, PRIVATE } from "./common.ts";
 import { dungeonName, floorOf, floorWord } from "./dungeon.ts";
+import { ADAPTED, adaptedLine, adaptedSteps, ROAD_PART } from "./emergence.ts";
+
+/** The creature a fight is against: a region's variant by its own name (GDD 4.17). */
+export function creatureName(
+  f: Pick<api.Fight, "creature" | "creatureName">,
+  lex: Lexicon,
+): string {
+  return f.creatureName || lex.name("creatures.archetypes", f.creature);
+}
+
+/** What adaptation took off an option, after its risk; "" when nothing. */
+export function adaptedTail(x: api.Option): string {
+  const steps = adaptedSteps(x.why);
+  return steps ? `; ${adaptedLine(steps)}` : "";
+}
+
+/** A why part in words: the land, a road, an adaptation, as each is read. */
+function partLine(p: api.Part, value: string): string {
+  if (p.label === ADAPTED) return adaptedLine(p.value);
+  if (p.label === ROAD_PART) return `on the road ${value}`;
+  return `${p.label} ${value}`;
+}
 
 /** A beat: the situation, every option with its band and risk, edited in place from beat to beat (GDD 7.1). */
 export function beatCard(
@@ -21,7 +43,7 @@ export function beatCard(
 ): Card {
   const f = o.fight!;
   const v = o.version;
-  const creature = lex.name("creatures.archetypes", f.creature);
+  const creature = creatureName(f, lex);
   const beat = lex.name("fights.beats", f.kind);
   const opts = f.options.filter((x) => !x.puzzle);
   const machines = f.options.filter((x) => x.puzzle);
@@ -37,7 +59,10 @@ export function beatCard(
       (m) =>
         `**${lex.name("fights.options", m.id)}**: ${family ? `the ${family}, a machine` : "a machine"} worked in the Activity (${band(m.band)})`,
     ),
-    ...opts.map((x) => `**${lex.name("fights.options", x.id)}**: ${band(x.band)}, ${riskLine(x)}`),
+    ...opts.map(
+      (x) =>
+        `**${lex.name("fights.options", x.id)}**: ${band(x.band)}, ${riskLine(x)}${adaptedTail(x)}`,
+    ),
   ];
   if (f.machine) buttons.unshift(launch(`Work the machine: ${family}`, "beat", v));
   let opening = "";
@@ -50,6 +75,11 @@ export function beatCard(
     { name: "Against", value: creature, inline: true },
     { name: "Where", value: here.name, inline: true },
   ];
+  if (f.variant)
+    fields.push({
+      name: "A variant",
+      value: `Of the ${lex.name("creatures.archetypes", f.creature).toLowerCase()}, ${lex.name("creatures.variants", f.variant).toLowerCase()}: this region's creatures adapted against how most win here`,
+    });
   if (f.ambush) {
     fields.push({
       name: "If you stay away",
@@ -184,7 +214,7 @@ export function whyCard(
   const lines: string[] = [];
   if (what === "options" && o.fight) {
     for (const x of o.fight.options) {
-      const parts = x.why.parts.map((p) => `${p.label} ${signed(p.value, p.unit)}`).join(", ");
+      const parts = x.why.parts.map((p) => partLine(p, signed(p.value, p.unit))).join(", ");
       const rules = x.why.rules?.length
         ? `; rules: ${x.why.rules.map((r) => r.replace(/-/g, " ")).join(", ")}`
         : "";
@@ -204,7 +234,7 @@ export function whyCard(
         continue;
       }
       lines.push(
-        `**${d.arrow} ${d.name}**: ${m.why.parts.map((p) => `${p.label} ${amount(p.value, p.unit)}`).join(", ")}`,
+        `**${d.arrow} ${d.name}**: ${m.why.parts.map((p) => partLine(p, amount(p.value, p.unit))).join(", ")}`,
       );
     }
   }

@@ -18,6 +18,7 @@ import {
   SELECT_MOST,
   timeLeft,
 } from "./common.ts";
+import { ROAD_PART, roadLine } from "./emergence.ts";
 
 /** The most arc sides the go-to select offers before the sites seen. */
 const SIDES_SHOWN = 5;
@@ -32,10 +33,11 @@ export function travelCard(
   risk?: api.RouteRisk,
 ): Card {
   const v = o.version;
+  const tiles = new Map(map.tiles.map((t) => [target(",", t.hex.q, t.hex.r), t]));
   const moves = DIRECTIONS.map((d, i) => {
     const m = o.moves.find((x) => x.dir === i);
     const label = m?.open
-      ? `${d.arrow} ${d.name} · ${plural(m.ticks, "tick")}`
+      ? `${d.arrow} ${d.name} · ${plural(m.ticks, "tick")}${roadMark(m, tiles.get(target(",", m.to.q, m.to.r)))}`
       : `${d.arrow} ${d.name}`;
     return btn(label, "step", String(i), v, {
       disabled: !m?.open || !!o.long || !!o.fight,
@@ -80,6 +82,8 @@ export function travelCard(
     conditionsField(o),
     { name: "Seen around you", value: amount(map.tiles.length, "tiles"), inline: true },
   ];
+  const road = roadLine(here.place.tile);
+  if (road) fields.push({ name: "The road", value: road });
   if (here.suggest && !o.long) {
     const d = DIRECTIONS[here.suggest.dir]!;
     fields.push({
@@ -120,10 +124,18 @@ export function travelCard(
   };
 }
 
+/** What a step's button adds for a road: on it, tolled or cut. */
+function roadMark(m: api.Move, to: api.Tile | undefined): string {
+  if (m.why.parts.some((p) => p.label === ROAD_PART))
+    return to?.toll ? ` · road, ${amount(to.toll, "coin")} toll` : " · road";
+  return to?.roadName && to.cut ? " · road cut" : "";
+}
+
 /** A seen place as the go-to select names it: its slot, its kind once drawn, and its ground. */
 function siteLabel(t: api.Tile, lex: Lexicon): string {
   const kind = t.siteKind ? `, ${lex.name("map.site-kinds", t.siteKind).toLowerCase()}` : "";
-  return `${lex.name("map.landmarks", t.site!)}${kind} (${lex.name("map.terrain", t.terrain)})`.slice(
+  const road = t.roadName ? `, on ${t.roadName}` : "";
+  return `${lex.name("map.landmarks", t.site!)}${kind} (${lex.name("map.terrain", t.terrain)}${road})`.slice(
     0,
     SELECT_LABEL_MAX,
   );

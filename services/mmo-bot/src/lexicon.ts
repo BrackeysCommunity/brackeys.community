@@ -1,8 +1,18 @@
 import type * as api from "./api.ts";
 
-/** What the setting calls things, and the sheet numbers cards state, from the world's lexicon. */
+/**
+ * What the setting calls things, and the sheet numbers cards state, from
+ * the world's lexicon. The world names what play finds, a found material
+ * among them, after the pack was built, so the lexicon is read again from
+ * time to time and every holder sees the new names.
+ */
 export class Lexicon {
-  constructor(private readonly data: api.Lexicon) {}
+  constructor(private data: api.Lexicon) {}
+
+  /** Takes a lexicon read again from the world. */
+  update(data: api.Lexicon): void {
+    this.data = data;
+  }
 
   /** A sheet row's name, or its id made readable. */
   name(sheet: string, id: string): string {

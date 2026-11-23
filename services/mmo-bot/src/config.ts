@@ -21,10 +21,12 @@ export interface Config {
   gameChannel?: string;
   /** The events channel (GDD 17.2): troubles, arc stages, seasons and cities, and the hunt cards. */
   eventsChannel?: string;
-  /** The chronicle channel (GDD 12.7): one post per closed world day. */
+  /** The chronicle channel (GDD 12.7, 17.2): one post per closed world day, and each promotion as it happens. */
   chronicleChannel?: string;
   /** The opt-in role a raid's start mentions; it must exist and sit below the bot's own role. */
   eventsAlarmRole?: string;
+  /** How often the lexicon is read again, so found names reach the cards; the default when unset. */
+  lexiconRefreshMs?: number;
 }
 
 function integer(name: string): number | undefined {
@@ -51,5 +53,6 @@ export function loadConfig(): Config {
     eventsChannel: process.env.MMO_EVENTS_CHANNEL?.trim() || undefined,
     chronicleChannel: process.env.MMO_CHRONICLE_CHANNEL?.trim() || undefined,
     eventsAlarmRole: process.env.MMO_EVENTS_ALARM_ROLE?.trim() || undefined,
+    lexiconRefreshMs: integer("LEXICON_REFRESH_MS"),
   };
 }

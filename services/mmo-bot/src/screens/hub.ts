@@ -15,17 +15,20 @@ import {
   conditionsField,
   downButtons,
   factLine,
+  factStr,
   gauges,
   launch,
   option,
   placedLine,
   PRIVATE,
+  ROW_MOST,
   SELECT_MOST,
   storyLine,
   stationLine,
   timeLeft,
 } from "./common.ts";
 import { dungeonName, floorOf } from "./dungeon.ts";
+import { roadLine } from "./emergence.ts";
 
 /** What testers are told before they start. */
 export const TESTER_NOTE =
@@ -192,6 +195,7 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
   if (tile.siteKind)
     fields.push({ name: "Site", value: lex.name("map.site-kinds", tile.siteKind), inline: true });
   if (tile.placed) fields.push({ name: "Placed", value: placedLine(tile.placed), inline: true });
+  fields.push(...emergentFields(here, lex));
   fields.push(
     {
       name: "Gauges",
@@ -268,6 +272,29 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
     ],
     colour: overrun ? COLOUR.rust : COLOUR.ash,
   };
+}
+
+/** What play made of the tile: the road it is on, a camp and its station, a haunt (GDD 13.2). */
+function emergentFields(here: api.Here, lex: Lexicon): EmbedField[] {
+  const t = here.place.tile;
+  const out: EmbedField[] = [];
+  const road = roadLine(t);
+  if (road) out.push({ name: "Road", value: road, inline: true });
+  if (t.camp) {
+    const st = here.stations[0];
+    out.push({
+      name: "Camp",
+      value: st ? `${t.camp}, with ${stationLine(st, lex)}` : t.camp,
+      inline: true,
+    });
+  }
+  if (t.haunted)
+    out.push({
+      name: "Haunted",
+      value:
+        "So many went down here that scavengers lead what lives here now; the fallen still shake those who follow",
+    });
+  return out;
 }
 
 /** The tier a city's stations rise to, from the sheet. */
@@ -361,6 +388,19 @@ export function recapCard(
   });
   if (recap.more) lines.push(`…and ${amount(recap.more, "more lines")}`);
   const away = Math.max(0, recap.tick - recap.since);
+  // The first of a promotion names it from the line that tells them so (GDD 4.17).
+  const naming = recap.lines
+    .filter((l) => l.promotion)
+    .slice(0, ROW_MOST - 1)
+    .map((l) =>
+      btn(
+        buttonLabel(`Name it: ${factStr(l.fact!, "name") || "what you found first"}`),
+        "pr-name",
+        l.promotion!,
+        o.version,
+        { style: "success" },
+      ),
+    );
   return {
     context: PRIVATE,
     author: "Chronicle · since you left",
@@ -369,8 +409,19 @@ export function recapCard(
       lines.join("\n") ||
       "The world ticked on. Prices, gauges and the road are where the hub shows them.",
     picture: banner(here),
-    fields: [{ name: "Away for", value: ticks(away) }],
+    fields: [
+      { name: "Away for", value: ticks(away) },
+      ...(naming.length
+        ? [
+            {
+              name: "Yours to name",
+              value:
+                "You were the first of what a line tells: name it once, within a few days, or it keeps the name the world gave it.",
+            },
+          ]
+        : []),
+    ],
     footer: "What cost you comes first, then what paid you, then the world near you.",
-    rows: [{ buttons: [back(o.version)] }],
+    rows: [{ buttons: [...naming, back(o.version)] }],
   };
 }

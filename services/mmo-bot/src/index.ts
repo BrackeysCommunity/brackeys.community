@@ -14,7 +14,9 @@ import { Lexicon } from "./lexicon.ts";
 import { MediaCache } from "./media.ts";
 import { Notifier } from "./notify.ts";
 import { PartyPoster } from "./party.ts";
+import { PromotionsPoster } from "./promotions.ts";
 import { ThreadBudget } from "./publish.ts";
+import { LexiconRefresher } from "./refresh.ts";
 import { registerCommands } from "./register.ts";
 import { EVENTS_CHANNEL } from "./screens/story.ts";
 import { httpWorld } from "./world.ts";
@@ -24,12 +26,14 @@ import { httpWorld } from "./world.ts";
  * privileged intents; the game reads no messages), answering interactions,
  * keeping party threads, and posting the market and notice-board forums,
  * the events or game channel's hunts, the events channel and the chronicle
- * channel from the world service's API.
+ * channel, its promotions among them, from the world service's API. The
+ * lexicon is read again on a timer so the names play finds reach the cards.
  */
 process.on("unhandledRejection", (e) => console.error(`[unhandled] ${describe(e)}`));
 const config = loadConfig();
 const world = httpWorld(config.worldUrl, config.worldToken);
 const lex = new Lexicon(await world.lexicon());
+const lexicon = new LexiconRefresher(lex, () => world.lexicon());
 const redis = config.redisUrl
   ? new IORedis(config.redisUrl, { maxRetriesPerRequest: 1, enableOfflineQueue: false })
   : null;
@@ -73,6 +77,7 @@ client.once(Events.ClientReady, async (c) => {
   await registerCommands(config).catch((e: unknown) => console.error(`[register] ${describe(e)}`));
   notifier.start();
   parties.start();
+  lexicon.start(config.lexiconRefreshMs);
   const { marketForum, goalsForum, gameChannel, eventsChannel, chronicleChannel } = config;
   if (!marketForum && !goalsForum && !gameChannel && !eventsChannel && !chronicleChannel) return;
   if (!redis) {
@@ -119,6 +124,14 @@ client.once(Events.ClientReady, async (c) => {
       store,
       channel(chronicleChannel),
       config.guildId,
+    ).start();
+  if (chronicleChannel)
+    new PromotionsPoster(
+      { storyPromotions: (after) => world.storyPromotions(after) },
+      lex,
+      store,
+      channel(chronicleChannel),
+      () => lexicon.refresh(),
     ).start();
   const sink = (id: string) => forumSink(client, id, (k) => media.get(k));
   if (marketForum) new ForumPoster(world, lex, store, sink(marketForum)).start();

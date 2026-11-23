@@ -9,6 +9,7 @@ import { Lexicon } from "../src/lexicon.ts";
 import { classesCard } from "../src/screens/classes.ts";
 import { benchLine, factLine } from "../src/screens/common.ts";
 import { bottomCard, entranceCard, forkCard, pushLeaveCard } from "../src/screens/dungeon.ts";
+import { promotionCard } from "../src/screens/emergence.ts";
 import { beatCard, downCard, fieldCard, resolvedCard, whyCard } from "../src/screens/fight.ts";
 import {
   BLANK,
@@ -59,6 +60,7 @@ import { travelCard } from "../src/screens/travel.ts";
 import * as mm8 from "./fixtures/mm8.ts";
 import * as mm8a from "./fixtures/mm8a.ts";
 import * as mm9 from "./fixtures/mm9.ts";
+import * as mm10 from "./fixtures/mm10.ts";
 import samples from "./fixtures/world.json";
 
 /** Every card the bot draws, from replies a scripted run recorded off a real world, keeps the card standard (card.ts problems()). */
@@ -77,11 +79,13 @@ const NUMBERS: api.Numbers = {
   ruinTroubles: 3,
   cityStationCap: 3,
 };
-const lex = new Lexicon({
-  ...(w.lexicon as Omit<api.Lexicon, "numbers">),
-  numbers: NUMBERS,
-  starts: ["hook", "knife", "deck"],
-});
+const lex = new Lexicon(
+  mm10.lexicon({
+    ...(w.lexicon as Omit<api.Lexicon, "numbers">),
+    numbers: NUMBERS,
+    starts: ["hook", "knife", "deck"],
+  }),
+);
 const names = lex.goodsNames();
 const o = w.options as api.Options;
 const here = w.here as api.Here;
@@ -1273,7 +1277,50 @@ const cards: [string, () => Card][] = [
       ),
   ],
   ...storyCards(),
+  ...emergenceCards(),
 ];
+
+/** What play made of the world: the chronicle channel's promotions, the events channel's roads and caravans, and the cards that show them. */
+function emergenceCards(): [string, () => Card][] {
+  const cls = w.classes as api.Classes;
+  return [
+    ...mm10.promotions.map(([name, ev]): [string, () => Card] => [
+      `chronicle channel: ${name}`,
+      () => promotionCard(ev, lex)!,
+    ]),
+    ...[...mm10.events, ...mm10.casts, ["a season's close", mm10.seasonClosed] as const].map(
+      ([name, ev]): [string, () => Card] => [`events channel: ${name}`, () => eventCard(ev, lex)!],
+    ),
+    ...mm10.templates.map((a): [string, () => Card] => [
+      `the stage of ${a.template}`,
+      () => stageCard(mm9.withSides, here, a, lex),
+    ]),
+    ["where, on a road", () => whereCard(o, mm10.onRoad, lex)],
+    ["where, on a tolled road", () => whereCard(o, mm10.onTolled, lex)],
+    ["where, on a cut road", () => whereCard(o, mm10.onCut, lex)],
+    ["where, at a camp", () => whereCard(o, mm10.atCamp, lex)],
+    ["where, at a haunt", () => whereCard(o, mm10.atHaunt, lex)],
+    [
+      "travel, on the road",
+      () => travelCard(mm10.roadMoves, mm10.roadMap, mm10.onTolled, lex, NUMBERS.ambushLine),
+    ],
+    [
+      "travel, the road cut",
+      () => travelCard(mm10.roadMoves, mm10.roadMap, mm10.onCut, lex, NUMBERS.ambushLine),
+    ],
+    ["why each way costs, onto a road", () => whyCard(mm10.roadMoves, here, lex, "moves")],
+    ["a beat against a variant", () => beatCard(mm10.onVariant, here, lex)],
+    [
+      "why the odds, an option adapted against",
+      () => whyCard(mm10.onVariant, here, lex, "options"),
+    ],
+    ["a goal whose target became a legend", () => goalCard(o, goals, goalAs(mm10.legendGoal), lex)],
+    ["a goal that is a custom", () => goalCard(o, goals, goalAs(mm10.customGoal), lex)],
+    ["classes, a found class", () => classesCard(o, mm10.withFound(cls), "router")],
+    ["classes, a found class in the list", () => classesCard(o, mm10.withFound(cls))],
+    ["since you left, a style yours to name", () => recapCard(o, here, mm10.recap, lex, new Map())],
+  ];
+}
 
 /** The story's cards: an arc's stage and a trouble, the chronicle, the events channel's, a city's needs and a pattern's point. */
 function storyCards(): [string, () => Card][] {

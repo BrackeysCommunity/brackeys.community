@@ -16,6 +16,7 @@ import {
   pushLeaveCard,
   reachedBottom,
 } from "./screens/dungeon.ts";
+import { NAME_INPUT, promoteNameModal } from "./screens/emergence.ts";
 import { beatCard, downCard, fieldCard, resolvedCard, whyCard } from "./screens/fight.ts";
 import {
   boardCard,
@@ -147,6 +148,8 @@ export function modalFor(id: Id): Modal | null {
         : nameModal("gld-chart", id.version, "Name your settlement");
     case "d-name":
       return hexOf(id.target) ? dungeonNameModal(id.target, id.version) : null;
+    case "pr-name":
+      return id.target ? promoteNameModal(id.target, id.version) : null;
     case "s-give": {
       const f = fields(id.target, ":", 2);
       return f ? giveModal(f[0]!, f[1]!, id.version) : null;
@@ -717,6 +720,13 @@ class Session {
     return this.retitled(this.done(whereCard(o, here, this.lex)), notice);
   }
 
+  /** Since you left; a notice titles it, as a rename's outcome or refusal. */
+  private async recap(notice?: string): Promise<Answer> {
+    const { o, here } = await this.load();
+    const recap = await this.world.recap(this.character);
+    return this.retitled(this.done(recapCard(o, here, recap, this.lex, peopleOf(here))), notice);
+  }
+
   /** A write, then the card it leads to; a refusal shows its reason on that card. */
   private async write(
     kind: string,
@@ -936,10 +946,16 @@ class Session {
             ? this.guild("places", why)
             : this.goals(undefined, "The city project's goals are on the board"),
         );
-      case "recap": {
-        const { o, here } = await this.load();
-        const recap = await this.world.recap(this.character);
-        return this.done(recapCard(o, here, recap, this.lex, peopleOf(here)));
+      case "recap":
+      case "pr-name":
+        return this.recap();
+      case "pr-named": {
+        const name = (this.press.fields?.[NAME_INPUT] ?? "").trim();
+        if (!id.target) return backCards.unknown(this.character);
+        if (!name) return this.recap("Give it a name: a few words the board takes");
+        return this.write(api.ActPromoteName, v, { option: id.target, note: name }, (_, why) =>
+          this.recap(why ?? `Named: ${name}`),
+        );
       }
       case "step":
         return this.write(api.ActStep, v, { dir: Number(id.target) }, async (_, why) =>

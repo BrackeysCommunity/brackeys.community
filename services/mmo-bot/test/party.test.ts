@@ -91,6 +91,7 @@ function fakeWorld(state: {
       backing: [],
     }),
     storyEvents: async () => ({ events: [], last: 0 }),
+    storyPromotions: async () => ({ events: [], last: 0 }),
   };
   const ctx: Ctx = { world, lex, threatLine: 600 };
   const press = (id: Id, extra: { values?: string[]; fields?: Record<string, string> } = {}) =>

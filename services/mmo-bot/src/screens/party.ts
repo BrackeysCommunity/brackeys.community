@@ -24,6 +24,7 @@ import {
   relative,
 } from "./common.ts";
 import { dungeonName, floorOf, tagWords, wayLabel } from "./dungeon.ts";
+import { adaptedTail, creatureName } from "./fight.ts";
 
 /**
  * A party's cards (GDD 7.5): forming it, the beat each member picks on
@@ -153,7 +154,7 @@ export function partyBeatCard(
   const f = o.fight!;
   const v = o.version;
   const beat = st.party?.beat;
-  const creature = lex.name("creatures.archetypes", f.creature);
+  const creature = creatureName(f, lex);
   const kind = lex.name("fights.beats", f.kind);
   const cautious = lex.name("fights.options", beat?.cautious || "hold");
   const opts = f.options.filter((x) => !x.puzzle);
@@ -172,7 +173,8 @@ export function partyBeatCard(
       }),
     );
   const lines = opts.map(
-    (x) => `**${lex.name("fights.options", x.id)}**: ${band(x.band)}, ${riskLine(x)}`,
+    (x) =>
+      `**${lex.name("fights.options", x.id)}**: ${band(x.band)}, ${riskLine(x)}${adaptedTail(x)}`,
   );
   if (f.machine)
     lines.unshift(

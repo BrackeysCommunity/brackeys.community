@@ -320,11 +320,49 @@ export function factLine(f: api.Fact, lex: Lexicon): string {
       return `Another party solved the ${lex.name("puzzles.families", s(f, "family"))} first: this one went haywire.`;
     case "track.followed":
       return "Followed a fled creature's track.";
+    case "promotion":
+      return promotedLine(f);
+    case "promotion.renamed":
+      return `${capitalise(s(f, "was") || "A promotion")} was renamed ${s(f, "name")}.`;
+    case "material.looted-first":
+      return `The first to loot ${s(f, "name") || "a new material"}: a material nobody had seen.`;
+    case "road.grew":
+      return `${capitalise(s(f, "name") || "A road")} grew by a tile.`;
+    case "road.toll-paid":
+      return n(f, "coin")
+        ? `Paid a toll of ${amount(n(f, "coin"), "coin")} to cross a road.`
+        : `Paid a toll in goods: ${amount(n(f, "units"), mat("material"))}.`;
+    case "caravan.departed":
+      return `A caravan left on ${s(f, "name") || "its route"} with ${amount(n(f, "units"), "goods")}.`;
+    case "caravan.arrived":
+      return `A caravan came in off ${s(f, "name") || "its route"} with ${amount(n(f, "units"), "goods")}.`;
     default:
       return CHRONICLED.has(f.kind)
         ? chronicleLine(f, storyNames(lex))
         : capitalise(`${f.kind.replace(/[.-]/g, " ")}.`);
   }
+}
+
+/** How a promotion of each type is told, before its name (GDD 13.2). */
+const PROMOTED: Record<string, string> = {
+  road: "A road formed",
+  camp: "A camp grew up",
+  haunt: "A site turned haunted",
+  route: "A trade route was named",
+  style: "A style was named",
+  variant: "A variant appeared",
+  material: "A new material was found",
+  legend: "A legend was made",
+  custom: "A custom began",
+  class: "A class was found",
+  masters: "Masters settled",
+};
+
+/** A promotion fact as one line, naming what it made and never its first. */
+export function promotedLine(f: api.Fact): string {
+  const what = PROMOTED[s(f, "type")] ?? "Something became part of the world";
+  const name = s(f, "name");
+  return name ? `${what}: ${name}.` : `${what}.`;
 }
 
 /** The names a story line is told with: the setting's rows, and the refs an arc's cast names. */

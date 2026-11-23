@@ -93,5 +93,10 @@ export function recording(world: World, samples: Record<string, unknown>): World
       if (e.events.length) samples.storyEvents = e;
       return e;
     },
+    storyPromotions: async (after) => {
+      const e = await world.storyPromotions(after);
+      if (e.events.length) samples.storyPromotions = e;
+      return e;
+    },
   };
 }

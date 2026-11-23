@@ -41,6 +41,8 @@ export interface World {
   arcs(characterId: string): Promise<api.Arcs>;
   /** The events channel's facts after a fact id: the bot's own read. */
   storyEvents(after: number): Promise<api.StoryEvents>;
+  /** The promotions after a fact id, each with its record: the bot's own read, for the chronicle channel. */
+  storyPromotions(after: number): Promise<api.StoryEvents>;
 }
 
 /**
@@ -133,6 +135,7 @@ export function httpWorld(base: string, token: string, fetcher: typeof fetch = f
       read("GET", api.PathChronicleFact + q({ characterId: id, id: fact })),
     arcs: (id) => get(api.PathArcs + q({ characterId: id || undefined })),
     storyEvents: (after) => get(api.PathStoryEvents + q({ after })),
+    storyPromotions: (after) => get(api.PathStoryPromotions + q({ after })),
     async media(key) {
       const res = await send("GET", `${api.PathMedia}${encodeURIComponent(key)}.png`);
       if (!res.ok) throw new WorldRequestError(res.status, (await res.json()) as api.Refusal);

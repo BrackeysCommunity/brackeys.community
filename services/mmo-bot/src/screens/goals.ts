@@ -645,6 +645,24 @@ export function goalFields(x: api.Goal, lex: Lexicon): EmbedField[] {
     ...(x.building
       ? [{ name: "Raises", value: lex.name("settlements.structures", x.building), inline: true }]
       : []),
+    ...(x.legend
+      ? [
+          {
+            name: "A legend",
+            value: `Its target is ${x.legend} now: unmet a season through, it became a legend with a trait of its own.`,
+            inline: false,
+          },
+        ]
+      : []),
+    ...(x.custom
+      ? [
+          {
+            name: "A custom",
+            value: `${x.custom}: the world posts it by itself each season, paid from its settlement's treasury.`,
+            inline: false,
+          },
+        ]
+      : []),
   ];
 }
 

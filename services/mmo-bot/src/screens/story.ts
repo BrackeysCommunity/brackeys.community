@@ -7,9 +7,12 @@ import {
 } from "../../../../packages/discord-kit/src/index.ts";
 import {
   arcName,
+  arcWords,
   castNames,
   factArcName,
   isLapsed,
+  seasonFaded,
+  seasonKept,
   seasonLine,
   sideDetail,
   sideName,
@@ -56,7 +59,7 @@ export const UNITS_INPUT = "units";
 
 /** A side with a readable title where the world gave only its row id. */
 export function namedSide(s: api.Side, lex: Lexicon): api.Side {
-  return s.title && s.title !== s.id ? s : { ...s, title: sideName(s.id, lex) };
+  return s.title && s.title !== s.id ? s : { ...s, title: sideName(s.id, lex, s.at) };
 }
 
 /** An arc with readable titles, its own and its sides', where the world gave only row ids. */
@@ -110,7 +113,11 @@ function stageParts(
   lex: Lexicon,
 ): { description: string; stage: EmbedField; sides: EmbedField[]; colour: number } {
   return {
-    description: [castLine(a), a.regions.length ? `In ${a.regions.join(", ")}.` : ""]
+    description: [
+      arcWords(a.template)?.origin ?? "",
+      castLine(a),
+      a.regions.length ? `In ${a.regions.join(", ")}.` : "",
+    ]
       .filter(Boolean)
       .join("\n"),
     stage: { name: "Stage", value: stageLine(a), inline: false },
@@ -532,6 +539,18 @@ function arcEndCard(ev: api.StoryEvent, lex: Lexicon): Card {
   };
 }
 
+/** What a season's close keeps, fades and adds (GDD 13.4); what it added is posted as the next begins. */
+const SEASON_KEEPS: EmbedField[] = [
+  {
+    name: "What the season leaves",
+    value: [
+      seasonKept(),
+      seasonFaded(),
+      "Added: what it promoted that a player can use, told in the chronicle channel as the next season begins.",
+    ].join("\n"),
+  },
+];
+
 /** A season's turn: its finale, its close or the next one's start. */
 function seasonCard(ev: api.StoryEvent, lex: Lexicon): Card {
   const f = ev.fact;
@@ -554,7 +573,10 @@ function seasonCard(ev: api.StoryEvent, lex: Lexicon): Card {
     title,
     description,
     picture: NO_PICTURE,
-    fields: [{ name: "Told", value: storyLine(f, lex) }],
+    fields: [
+      { name: "Told", value: storyLine(f, lex) },
+      ...(f.kind === "season.closed" ? SEASON_KEEPS : []),
+    ],
     footer: "The chronicle keeps the season's story.",
     rows: [],
     colour: COLOUR.hazard,
@@ -590,6 +612,57 @@ function placeEventCard(ev: api.StoryEvent, lex: Lexicon): Card {
   };
 }
 
+/** A road's or route's name as the event's record or fact gives it. */
+function roadName(ev: api.StoryEvent): string {
+  return capitalise(ev.promotion?.name || factStr(ev.fact, "name") || "a road");
+}
+
+/** A road cut by a raid, or tolled since nobody patrolled it (GDD 4.10, 12.9). */
+function roadEventCard(ev: api.StoryEvent): Card {
+  const f = ev.fact;
+  const cut = f.kind === "road.cut";
+  const days = factNum(f, "days");
+  const fields: EmbedField[] = [{ name: "For", value: amount(days, "days"), inline: true }];
+  if (!cut)
+    fields.unshift({
+      name: "Toll",
+      value: `${amount(factNum(f, "coin"), "coin")} a crossing`,
+      inline: true,
+    });
+  return {
+    context: EVENTS_CHANNEL,
+    author: authorLine("Road", cut ? "cut" : "tolled"),
+    title: `${roadName(ev)} is ${cut ? "cut" : "tolled"}`,
+    description: cut
+      ? "Raiders cut it: until it mends it is no faster than the land, no safer and takes no toll."
+      : "Nobody held it: each character pays coin to cross it once a day, and one short of coin pays in goods.",
+    picture: NO_PICTURE,
+    fields,
+    footer: cut
+      ? "A cut road is still a road: it mends by itself."
+      : "A toll leaves the world: nobody pockets it.",
+    rows: [],
+    colour: COLOUR.rust,
+  };
+}
+
+/** A caravan robbed on its route by a raid (GDD 4.10). */
+function caravanRobbedCard(ev: api.StoryEvent): Card {
+  const f = ev.fact;
+  return {
+    context: EVENTS_CHANNEL,
+    author: authorLine("Caravan", "robbed"),
+    title: `A caravan on ${roadName(ev)} was robbed`,
+    description:
+      "Raiders took part of its goods. What they took lies where it was robbed, for whoever gets there first; the rest goes on.",
+    picture: NO_PICTURE,
+    fields: [{ name: "Taken", value: amount(factNum(f, "units"), "goods"), inline: true }],
+    footer: "A caravan's goods are counted like anyone's: nothing is lost from the world.",
+    rows: [],
+    colour: COLOUR.rust,
+  };
+}
+
 /** The events channel's card for one story event, or null for a kind it does not post. */
 export function eventCard(ev: api.StoryEvent, lex: Lexicon): Card | null {
   const named = ev.arc ? { ...ev, arc: namedArc(ev.arc, lex) } : ev;
@@ -617,6 +690,11 @@ export function eventCard(ev: api.StoryEvent, lex: Lexicon): Card | null {
     case "core.opened":
     case "pattern.solved":
       return placeEventCard(ev, lex);
+    case "road.cut":
+    case "road.tolled":
+      return roadEventCard(ev);
+    case "caravan.robbed":
+      return caravanRobbedCard(ev);
     default:
       return null;
   }

@@ -113,6 +113,8 @@ const ACTIONS = [
   "p-unfollow",
   "party",
   "pick",
+  "pr-name",
+  "pr-named",
   "press",
   "push",
   "recap",
