@@ -1,3 +1,4 @@
+import { claimSideName, promotionNoun, seasonAddedCounts, SIDE_NAMES } from "./emergence.ts";
 import { amount, num, outOf, plural, signed, ticks } from "./units.ts";
 
 /**
@@ -84,9 +85,14 @@ export function troubleName(kind: string, names?: Names): string {
   return rowName("story.troubles", kind, names);
 }
 
-/** A side's name by its row id. */
-export function sideName(id: string, names?: Names): string {
-  return rowName("story.sides", id, names);
+/**
+ * A side's name by its row id. Where the setting gives it no name of its
+ * own, a rival claim's side is named by its seat when `at` is given.
+ */
+export function sideName(id: string, names?: Names, at = ""): string {
+  const own = names?.name("story.sides", id);
+  if (own && own !== readable(id)) return own;
+  return claimSideName(id, at) ?? SIDE_NAMES[id] ?? rowName("story.sides", id, names);
 }
 
 /** Whether a fact tells of a stage, arc or thread that lapsed. */
@@ -215,6 +221,27 @@ class Reading {
     }
     return out.slice(0, CAST_SHOWN);
   }
+  /** A promotion's name from its name datum, or the type's noun: "a road". */
+  promoted(type: string): string {
+    return this.s("name") || `a ${promotionNoun(type)}`;
+  }
+  /** A caravan's trade route by its name datum: "the Ashford–Kell's Rest route". */
+  route(): string {
+    const name = this.s("name");
+    return name ? `the ${name} route` : "a trade route";
+  }
+  /** A settlement named by a numeric datum. */
+  settlement(k: string): string {
+    return this.has(k)
+      ? this.called({ kind: "settlement", id: String(this.n(k)) })
+      : "a settlement";
+  }
+  /** A material's name; a found one the names do not know yet is "a new material". */
+  material(id: string): string {
+    if (!id) return "a material";
+    const name = this.row("items.materials", id);
+    return id.startsWith(FOUND) && name === readable(id) ? "a new material" : name;
+  }
   /** The pattern a board id names: "triangle@3,4" is a triangle's. */
   pattern(board = this.s("board"), rule = this.s("rule")): string {
     const id = rule || (board.includes("@") ? board.split("@")[0]! : "");
@@ -224,6 +251,62 @@ class Reading {
 
 // structural: an arc's line names at most this many of its cast.
 const CAST_SHOWN = 3;
+
+/** The id prefix of a material play found (GDD 9.3). */
+const FOUND = "found.";
+
+/** What a legend made from an item is told by. */
+const ITEM_REF = "item:";
+
+/** A promotion as the chronicle tells it, by its type (GDD 13.2). */
+function promotionLine(r: Reading): string {
+  const type = r.s("type");
+  const name = r.s("name");
+  const named = name || `a ${promotionNoun(type)}`;
+  const of = r.s("of");
+  const site = () => the(r.row("map.site-kinds", of) || "site");
+  switch (type) {
+    case "road":
+      return r.s("via") === "pattern"
+        ? `Solving a pattern laid ${named}${r.where()}: a road to the nearest settlement.`
+        : `${capital(named)} formed${r.where()}: walked so often that it became a road, one tick a tile.`;
+    case "camp":
+      return `${capital(named)} took shape${r.where()}: ${site()} there was cleared so often that it gained a station.`;
+    case "haunt":
+      return `${capital(named)}${r.where()} is haunted now: so many fell at ${site()} that scavengers lead what lives there.`;
+    case "route": {
+      const ends =
+        r.has("a") && r.has("b") ? ` between ${r.settlement("a")} and ${r.settlement("b")}` : "";
+      return `${capital(named)} became a trade route: so much was hauled${ends} that caravans now run it.`;
+    }
+    case "style":
+      return `A way of fighting was named${r.where()}: ${named}. So many won with it that the region's creatures begin to adapt against it.`;
+    case "variant": {
+      const kind = r.row("creatures.archetypes", of) || "creatures";
+      const resists = r.s("resists");
+      const drops = r.s("material") ? ` It drops ${lower(r.material(r.s("material")))}.` : "";
+      return `${capital(named)} appeared${r.where()}: the region's ${lower(kind)} adapted against how it was beaten${resists ? `, and now resists ${resists}` : ""}.${drops}`;
+    }
+    case "material": {
+      const base = r.s("base") ? `, a harder kind of ${lower(r.material(r.s("base")))}` : "";
+      return `A new material came into the world${r.where()}: ${name || "unnamed yet"}${base}, dropped by the region's adapted creatures.`;
+    }
+    case "legend":
+      return of.startsWith(ITEM_REF)
+        ? `${capital(named)} became a legend: an item named in so many great deeds this season.`
+        : `${capital(named)} became a legend${r.where()}: so many tried and failed to bring it down that it lives on in the telling.`;
+    case "custom":
+      return `${capital(named)} became a custom: posted three seasons running, it is now posted by the world each season.`;
+    case "class":
+      return `A hidden class was found: ${r.row("classes.classes", of) || named}. Its path is open to everyone now.`;
+    case "masters": {
+      const family = r.row("puzzles.families", of);
+      return `${capital(named)}: so many masters${family ? ` of ${family}` : ""} call it home that its bench sets those puzzles a level easier.`;
+    }
+    default:
+      return `Something new became part of the world${r.where()}${name ? `: ${name}` : ""}.`;
+  }
+}
 
 /** What a trouble's mark counts, by the trouble's kind. */
 const TROUBLE_UNIT: Record<string, string> = {
@@ -503,7 +586,40 @@ const LINES: Record<string, Line> = {
     `${capital(r.subject("notable"))}'s loyalty to ${r.subject("faction")} ${r.n("by") < 0 ? "waned" : "grew"}.`,
   "node.seam": (r) =>
     `A seam of ${r.row("items.materials", r.s("material"))} opened${r.where()}: a node there gained ${amount(r.n("stock"), "goods")}.`,
-  promotion: (r) => `A promotion was made${r.where()}.`,
+
+  // What play made part of the world (GDD 13.2).
+  promotion: promotionLine,
+  "promotion.renamed": (r) =>
+    `${capital(r.s("was") || "A find")} was renamed ${r.s("name") || "by its finder"}.`,
+  "road.grew": (r) => `${capital(r.promoted("road"))} grew${r.where()}.`,
+  "road.cut": (r) =>
+    `${capital(r.promoted("road"))}${r.where()} was cut: no quicker than open ground${r.n("days") ? ` for ${plural(r.n("days"), "day")}` : ""}.`,
+  "road.tolled": (r) =>
+    `${capital(r.promoted("road"))}${r.where()} is tolled: ${amount(r.n("coin"), "coin")} a crossing${r.n("days") ? ` for ${plural(r.n("days"), "day")}` : ""}.`,
+  "caravan.departed": (r) =>
+    `A caravan left ${r.settlement("from")} on ${r.route()}, carrying ${amount(r.n("units"), "goods")}.`,
+  "caravan.arrived": (r) =>
+    `A caravan on ${r.route()} came in to ${r.settlement("to")} with ${amount(r.n("units"), "goods")}.`,
+  "caravan.robbed": (r) =>
+    `Raiders robbed a caravan on ${r.route()}${r.where()}: ${amount(r.n("units"), "goods")} taken, left where it was struck.`,
+  "caravan.lost": (r) =>
+    `A caravan on ${r.route()} was lost${r.where()}: its ${amount(r.n("units"), "goods")} lie where it stopped.`,
+  "legend.laid": (r) => `${capital(r.promoted("legend"))} was laid to rest${r.where()}.`,
+  "custom.held": (r) =>
+    `${capital(r.promoted("custom"))} was held at ${r.subject("settlement")}: posted by the world, paid from its treasury.`,
+  "custom.skipped": (r) =>
+    `${capital(r.promoted("custom"))} was not held at ${r.subject("settlement")} this season: its treasury was ${amount(r.n("short"), "coin")} short.`,
+  "material.looted-first": (r) =>
+    `${capital(r.s("name") || r.material(r.s("material")))} was taken for the first time${r.where()}.`,
+  "season.added": (r) => {
+    const counts = seasonAddedCounts(r.f);
+    const first = r.s("first");
+    return counts
+      ? `Season ${num(r.n("season"))} added to the world: ${counts}${first ? `, ${first} among them` : ""}.`
+      : `Season ${num(r.n("season"))} added nothing new to use.`;
+  },
+  "emergence.started": () =>
+    "The world began to keep what is done in it: from now on play can make roads, camps and legends.",
 
   // What players did, told without them.
   "kind.discovered": (r) => {
