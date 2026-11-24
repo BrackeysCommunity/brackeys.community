@@ -1,0 +1,68 @@
+{
+  "sheet": "story.arcs",
+  "rows": [
+    {
+      "id": "the-bad-omen",
+      "scope": "region",
+      "when": "no-such-predicate",
+      "chance": 30,
+      "cast": [
+        {
+          "role": "front",
+          "kind": "region",
+          "pick": "given"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-wells",
+          "days": 3,
+          "sides": [
+            {
+              "id": "dig-deeper",
+              "wants": "beats",
+              "per": 25,
+              "at": "front",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "front",
+                  "gauge": "scarcity",
+                  "amount": -100
+                }
+              ]
+            },
+            {
+              "id": "carry-water",
+              "wants": "goods",
+              "tag": "provisions",
+              "per": 25,
+              "at": "seat",
+              "won": [
+                {
+                  "kind": "gauge",
+                  "role": "seat",
+                  "gauge": "unrest",
+                  "amount": -20
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "trouble",
+              "role": "front",
+              "ref": "shortage"
+            }
+          ]
+        }
+      ],
+      "note": "A second dry-region arc: the season cast the dry seam once and it lapsed. Steps provisional."
+    }
+  ]
+}

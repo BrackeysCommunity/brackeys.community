@@ -3,6 +3,8 @@
 //	harness check [-skip-lint] schemas, units, references, budgets, the pack, the rules, the sim lints
 //	harness report           every target and its last reading
 //	harness schema           regenerate sheets/schema from the row types
+//	harness proposals -in F  candidate story.arcs rows (a file, or a directory of them) checked against the book;
+//	                         exits non-zero when none is valid
 //	harness world -out DIR   the World run: 90 unattended days, what a day costs, and dungeons over a thousand seeds and played
 //	harness craft -out DIR   the Craft run: sampled kinds against budgets and a search
 //	harness battle -out DIR  the Battle run: the matchup matrix, classes, parties, growth and puzzles
@@ -46,6 +48,7 @@ func main() {
 	skipLint := fs.Bool("skip-lint", false, "check: leave the sim analyzers to simlint")
 	cpuProfile := fs.String("cpuprofile", "", "write a CPU profile to this file")
 	live := fs.String("live", "", "season: play season zero over HTTP on the live world at this URL")
+	in := fs.String("in", "", "proposals: a file or directory of candidate story.arcs rows")
 	_ = fs.Parse(args)
 	if *cpuProfile != "" {
 		f, err := os.Create(*cpuProfile)
@@ -70,6 +73,19 @@ func main() {
 		harness.Report(os.Stdout, b, nil)
 	case "schema":
 		exitOn(harness.WriteSchemas(root))
+	case "proposals":
+		if *in == "" {
+			fmt.Fprintln(os.Stderr, "-in is required")
+			os.Exit(2)
+		}
+		b, err := sheetfs.LoadBook(root)
+		exitOn(err)
+		rows, err := harness.ReadProposals(*in)
+		exitOn(err)
+		if harness.PrintProposals(os.Stdout, harness.CheckProposals(b, rows)) == 0 {
+			stopProfile()
+			os.Exit(1)
+		}
 	default:
 		run, ok := harness.Runs[cmd]
 		if !ok {
@@ -96,8 +112,8 @@ func main() {
 }
 
 func usage() {
-	cmds := append([]string{"check", "report", "schema"}, slices.Sorted(maps.Keys(harness.Runs))...)
-	fmt.Fprintf(os.Stderr, "usage: harness %s [-out DIR] [-n N] [-live URL]\n", strings.Join(cmds, "|"))
+	cmds := append([]string{"check", "report", "schema", "proposals"}, slices.Sorted(maps.Keys(harness.Runs))...)
+	fmt.Fprintf(os.Stderr, "usage: harness %s [-out DIR] [-n N] [-live URL] [-in FILE]\n", strings.Join(cmds, "|"))
 	os.Exit(2)
 }
 
