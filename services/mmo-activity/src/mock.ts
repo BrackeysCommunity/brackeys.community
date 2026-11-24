@@ -355,6 +355,9 @@ export class MockGateway {
         const option = this.st.fight?.options.find((o) => o.id === intent.option);
         if (!option) return refuse(CodeNoEncounter, "there is no such option on this beat");
         if (option.puzzle) return refuse(CodeNeedsActivity, "a machine is worked in the Activity");
+        // A theft is pressed as any beat is. Whether it is seen, caught or
+        // carried off is the world's to say, so the mock writes no theft fact
+        // and never touches the theft it was served.
         this.st.fight = undefined;
         this.st.machine = undefined;
         this.st.character.inFight = false;

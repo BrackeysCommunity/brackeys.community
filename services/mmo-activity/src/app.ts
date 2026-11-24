@@ -6,6 +6,7 @@ import {
   ActHuntPress,
   ActPartyPick,
   ActPress,
+  MachineBeat,
   MachineBench,
   MachineFork,
   MachinePattern,
@@ -23,7 +24,7 @@ import { MachinePanel } from "./shell/panel.ts";
 import { versionOf } from "./shell/party-registry.ts";
 import { familyOf } from "./shell/registry.ts";
 import { plural, seconds } from "./units.ts";
-import { beatView, pressedLines } from "./views/beat.ts";
+import { beatView, pressedLines, theftLines } from "./views/beat.ts";
 import { benchView } from "./views/bench.ts";
 import { floorView } from "./views/floor.ts";
 import { huntView } from "./views/hunt.ts";
@@ -31,10 +32,16 @@ import { idleView } from "./views/idle.ts";
 import { partyResult, partyResultLines, partyView, windowLine } from "./views/party.ts";
 import { PatternStrip } from "./views/pattern.ts";
 import { pouchesView } from "./views/pouches.ts";
-import { machineWhy, optionWhy } from "./views/why.ts";
-import { name, placedLine, refusalLine, roadLine } from "./words.ts";
+import { machineWhy, optionWhy, witnessWhy } from "./views/why.ts";
+import { name, placedLine, refusalLine, roadLine, theftTitle } from "./words.ts";
 
 export type Screen = "machine" | "beat" | "floor" | "hunt" | "party" | "pouches" | "bench" | "idle";
+
+// The why open over a screen: an option's, a theft's witness odds, else the machine's.
+interface Why {
+  option?: string;
+  witness?: boolean;
+}
 
 const TITLES: Record<Screen, string> = {
   machine: "Machine",
@@ -102,7 +109,7 @@ export class App {
   private readonly nav = el("nav", { class: "tabs" });
   private readonly main = el("main");
   private want: Screen | undefined;
-  private why: { option?: string } | undefined;
+  private why: Why | undefined;
   private machine: MachinePanel | undefined;
   private machineKey = "";
   private levels = new Map<string, number>();
@@ -115,6 +122,7 @@ export class App {
   private hunt: { before: HuntView | undefined; now: HuntView } | undefined;
   private ticking: ReturnType<typeof setTimeout> | undefined;
   private readonly strip = new PatternStrip();
+  private theft: { key: string; node: HTMLElement } | undefined;
 
   constructor(
     root: HTMLElement,
@@ -232,15 +240,18 @@ export class App {
         this.why = undefined;
         this.render();
       };
-      const option = [...(state.fight?.options ?? []), ...(state.hunt?.options ?? [])].find(
-        (o) => o.id === this.why?.option,
-      );
+      const theft = state.fight?.theft;
+      const fought = state.fight?.options.find((o) => o.id === this.why?.option);
+      const option = fought ?? state.hunt?.options?.find((o) => o.id === this.why?.option);
       const machine = this.machine?.shell.machine ?? state.machine;
-      const view = option
-        ? optionWhy(option, back)
-        : machine
-          ? machineWhy(machine, back)
-          : undefined;
+      const view =
+        this.why.witness && theft
+          ? witnessWhy(theft, back)
+          : option
+            ? optionWhy(option, back, fought ? theft : undefined)
+            : machine
+              ? machineWhy(machine, back)
+              : undefined;
       if (view) {
         this.show(view);
         return;
@@ -249,7 +260,11 @@ export class App {
     }
     switch (screen) {
       case "machine":
-        this.show(this.patternOver(state), this.machine?.root ?? this.unbuilt(state.machine));
+        this.show(
+          this.patternOver(state),
+          this.theftOver(state),
+          this.machine?.root ?? this.unbuilt(state.machine),
+        );
         return;
       case "beat":
         this.show(
@@ -258,6 +273,7 @@ export class App {
             press: (option) =>
               void this.act(state.fight?.shared ? ActPartyPick : ActPress, { option }),
             why: (option) => this.openWhy({ option }),
+            whyWitness: () => this.openWhy({ witness: true }),
             openMachine: () => this.go("machine"),
             swap: (item) => void this.act(ActDeckSwap, { item }),
             busy: this.busy,
@@ -367,6 +383,19 @@ export class App {
       : undefined;
   }
 
+  // A theft's lock is worked on the machine, so its witness odds sit over
+  // it. The same node is kept while the theft reads the same, so the
+  // machine under it is never moved mid-gesture.
+  private theftOver(state: ActivityState): HTMLElement | undefined {
+    const source = this.machine?.shell.machine.source ?? state.machine?.source;
+    const t = state.fight?.theft;
+    if (source !== MachineBeat || !t) return undefined;
+    const k = JSON.stringify([t, state.names ?? {}]);
+    if (this.theft?.key !== k)
+      this.theft = { key: k, node: panel(theftTitle(t), ...theftLines(state, t)) };
+    return this.theft.node;
+  }
+
   // What the last press or lesson did, or why the world turned it down.
   private recent(): HTMLElement | undefined {
     const told = [
@@ -445,7 +474,7 @@ export class App {
     this.render();
   }
 
-  private openWhy(why: { option?: string }): void {
+  private openWhy(why: Why): void {
     this.why = why;
     this.render();
   }

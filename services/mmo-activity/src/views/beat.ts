@@ -1,13 +1,27 @@
-import type { ActivityState, DeckView, Fact, Fight, Option, Pressed } from "../api.ts";
+import type { ActivityState, DeckView, Fact, Fight, Option, Pressed, Theft } from "../api.ts";
 import { button, el, lines, panel } from "../dom.ts";
 import { svg } from "../shell/board.ts";
 import { band, outOf, ticks } from "../units.ts";
-import { beatLine, creatureAlt, creatureName, factLine, name, riskLine } from "../words.ts";
+import {
+  beatLine,
+  caughtLine,
+  creatureAlt,
+  creatureName,
+  factLine,
+  name,
+  riskLine,
+  theftAlt,
+  theftLine,
+  theftTitle,
+  witnessLine,
+} from "../words.ts";
 import { memberLine, windowNode } from "./party.ts";
 
 export interface BeatActions {
   press(option: string): void;
   why(option: string): void;
+  /** Opens what a theft's witness odds are made of. */
+  whyWitness?(): void;
   openMachine(): void;
   /** Swaps the off-hand deck for one carried in the pack. */
   swap?(deck: string): void;
@@ -79,7 +93,7 @@ function beatTrack(f: Fight): SVGSVGElement {
     class: "beat-track",
     viewBox: `0 0 ${width} ${PIP_GAP}`,
     role: "img",
-    "aria-label": creatureAlt(f),
+    "aria-label": f.theft ? theftAlt(f, f.theft) : creatureAlt(f),
   });
   const mid = PIP_GAP / 2;
   track.append(
@@ -99,6 +113,19 @@ function beatTrack(f: Fight): SVGSVGElement {
     );
   }
   return track;
+}
+
+/**
+ * What a theft is after and the odds it is seen if it works, as the world
+ * fixed them when it began (GDD 6.5): shown before every press.
+ */
+export function theftLines(st: Pick<ActivityState, "names">, t: Theft): HTMLElement[] {
+  const witness = witnessLine(t);
+  return [
+    ...lines(theftLine(t, st.names)),
+    ...(witness ? [el("p", { class: "witness", text: witness })] : []),
+    ...lines(caughtLine(t)),
+  ];
 }
 
 /** The creature panel: the beat track, and the setting's line for this beat. */
@@ -140,7 +167,9 @@ function deckRow(f: Fight, act: BeatActions, picked: boolean): HTMLElement | und
 export function beatView(st: ActivityState, act: BeatActions): HTMLElement {
   const f = st.fight!;
   const mine = f.shared ? st.party?.beat?.mine : undefined;
-  const root = panel(`${name("fights.beats", f.kind)}: ${creatureName(f)}`);
+  const root = panel(
+    f.theft ? theftTitle(f.theft) : `${name("fights.beats", f.kind)}: ${creatureName(f)}`,
+  );
   root.append(
     creaturePanel(st),
     ...lines(
@@ -151,6 +180,17 @@ export function beatView(st: ActivityState, act: BeatActions): HTMLElement {
         : "",
     ),
   );
+  if (f.theft) {
+    root.append(...theftLines(st, f.theft));
+    if (witnessLine(f.theft) && act.whyWitness)
+      root.append(
+        el(
+          "div",
+          { class: "actions" },
+          button("Why", () => act.whyWitness?.()),
+        ),
+      );
+  }
   if (f.shared) root.append(...sharedLines(st, f, act));
   const deck = deckRow(f, act, Boolean(mine));
   if (deck) root.append(deck);

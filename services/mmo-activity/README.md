@@ -23,9 +23,14 @@ vp dev --port 18787
 - **No world at all:** `http://localhost:18787/?mock=bench`. The mock
   gateway answers from `test/fixtures/state-<name>.json` and the golden
   layouts. Fixtures: `armed`, `beat`, `bench`, `idle`, `intro`, `master`,
-  `pattern`, `pouch`, `variant` (a region's variant by its own name), and
-  the party's `party`, `party-machine`, `floor` and `hunt`. Any family on a
-  beat: `?mock=beat&family=crank&level=6&practice=8`.
+  `pattern`, `pouch`, `theft`, `variant` (a region's variant by its own
+  name), and the party's `party`, `party-machine`, `floor` and `hunt`. Any
+  family on a beat: `?mock=beat&family=crank&level=6&practice=8`.
+- **A theft:** `?mock=theft` is a burgle's lock beat on a Pin lock, its
+  witness odds over the machine and before the beat's options, with their
+  parts behind the beat's Why. The theft is shown as served: the mock
+  writes no theft fact and never changes the odds, whatever is pressed;
+  whether a theft is seen or caught is the world's alone.
 - **A pattern's point:** `?mock=pattern` stands on pylon B of a triangle
   with its Circuit armed from chat, the pattern strip shut over it. A solve
   commits the value chat armed it with (0 in the mock, since no state says

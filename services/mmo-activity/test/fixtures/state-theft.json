@@ -1,0 +1,138 @@
+{
+  "tick": 4310,
+  "now": 1795000000000,
+  "context": {
+    "kind": "solo",
+    "id": "c-mock"
+  },
+  "character": {
+    "id": "c-mock",
+    "version": 7,
+    "at": {
+      "q": 3,
+      "r": -2
+    },
+    "coin": 120,
+    "provisions": 6,
+    "goods": [
+      {
+        "material": "copper-ore",
+        "units": 4
+      }
+    ],
+    "conditions": [],
+    "practice": [
+      {
+        "id": "lock-pins",
+        "level": 2
+      },
+      {
+        "id": "sleight",
+        "level": 2
+      }
+    ],
+    "inFight": true,
+    "walked": 14,
+    "alignment": {
+      "value": -12,
+      "band": "crooked",
+      "goodToday": 0,
+      "made": false
+    }
+  },
+  "place": {
+    "tile": {
+      "hex": {
+        "q": 3,
+        "r": -2
+      },
+      "terrain": "flats",
+      "water": "none",
+      "region": "r-3",
+      "road": 1,
+      "found": 12
+    },
+    "name": "Copperline",
+    "busy": 2
+  },
+  "fight": {
+    "id": "t-c-mock-3",
+    "beat": 0,
+    "beats": 2,
+    "kind": "lock",
+    "creature": "",
+    "ambush": false,
+    "machine": "lock-pins",
+    "options": [
+      {
+        "id": "pick",
+        "verb": "pick",
+        "kind": "win",
+        "band": "even",
+        "risk": "none",
+        "riskSize": 0,
+        "puzzle": true,
+        "why": {
+          "parts": [
+            {
+              "label": "practice",
+              "value": 2,
+              "unit": "pts"
+            }
+          ],
+          "bandFrom": "even",
+          "bandTo": "even"
+        }
+      },
+      {
+        "id": "back-out",
+        "verb": "back-out",
+        "kind": "way-out",
+        "band": "certain",
+        "risk": "none",
+        "riskSize": 0,
+        "why": {
+          "parts": [],
+          "bandFrom": "certain",
+          "bandTo": "certain"
+        }
+      }
+    ],
+    "theft": {
+      "kind": "burgle",
+      "victim": "the Cinder Wardens' store",
+      "witness": 35,
+      "witnessWhy": {
+        "parts": [
+          {
+            "label": "base",
+            "value": 30,
+            "unit": "percent"
+          },
+          {
+            "label": "upright",
+            "value": 20,
+            "unit": "percent"
+          },
+          {
+            "label": "sleight",
+            "value": -6,
+            "unit": "percent"
+          },
+          {
+            "label": "cover",
+            "value": -9,
+            "unit": "percent"
+          }
+        ]
+      },
+      "worth": 24,
+      "haul": [
+        {
+          "material": "copper-ore",
+          "units": 5
+        }
+      ]
+    }
+  }
+}

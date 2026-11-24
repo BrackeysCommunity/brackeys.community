@@ -12,7 +12,9 @@ const sheetsDir = `${world}sheets/`;
 
 // The sheets of the pack's names the Activity shows.
 const NAMED = [
+  "alignment.bands",
   "creatures.archetypes",
+  "factions.archetypes",
   "fights.beats",
   "fights.hunts",
   "fights.options",
@@ -24,6 +26,7 @@ const NAMED = [
   "puzzles.families",
   "puzzles.party",
   "puzzles.titles",
+  "theft.kinds",
 ];
 
 function json(path: string): any {

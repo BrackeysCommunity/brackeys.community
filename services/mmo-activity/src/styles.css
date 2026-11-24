@@ -226,6 +226,12 @@ main {
   font-style: italic;
 }
 
+.witness {
+  padding-left: 12px;
+  border-left: 4px solid var(--hazard);
+  font-weight: 600;
+}
+
 .why {
   display: flex;
   flex-direction: column;

@@ -3,7 +3,7 @@ import { names } from "virtual:pack";
 import { clampAlt as clamp } from "../../../packages/mmo-words/src/alt.ts";
 import { encounterLine, WASTELAND_ENCOUNTERS } from "../../../packages/mmo-words/src/encounters.ts";
 import { clueLine as storyClue } from "../../../packages/mmo-words/src/story.ts";
-import { capital, countWords } from "../../../packages/mmo-words/src/units.ts";
+import { capital, countWords, list } from "../../../packages/mmo-words/src/units.ts";
 import {
   UnitBeats,
   UnitEncounter,
@@ -13,11 +13,16 @@ import {
   type FloorView,
   type Goods,
   type HaywireLine,
+  type Part,
   type PracticeLine,
   type PuzzleResult,
   type Reason,
   type Refusal,
+  type Theft,
   type Tile,
+  TheftBurgle,
+  TheftFlee,
+  TheftWaylay,
 } from "./api.ts";
 import {
   adds,
@@ -25,6 +30,7 @@ import {
   level,
   num,
   outOf,
+  percent,
   plural,
   quantity,
   seconds,
@@ -153,8 +159,8 @@ function datum(f: Fact, key: string): number | string | undefined {
 }
 
 /**
- * A fact as one line, for the kinds a machine writes. Any other kind is
- * named without its numbers, since their units are not known here.
+ * A fact as one line, for the kinds a machine or a theft writes. Any other
+ * kind is named without its numbers, since their units are not known here.
  */
 export function factLine(f: Fact): string {
   const family = datum(f, "family");
@@ -196,8 +202,160 @@ export function factLine(f: Fact): string {
     case "pattern.clue":
       return `Clue found: ${clueLine(f)}`;
     default:
-      return `${capital(f.kind.replace(/[.-]/g, " "))}.`;
+      return crimeLine(f) ?? `${capital(f.kind.replace(/[.-]/g, " "))}.`;
   }
+}
+
+// structural: the syndicate's standing key and archetype row.
+const SYNDICATE = "syndicate";
+
+// What a theft took, from its fact's data; an item is named only as one,
+// since a fact holds its id.
+function takenLine(f: Fact): string {
+  const n = (key: string) => Number(datum(f, key) ?? 0);
+  const material = datum(f, "material");
+  const item = datum(f, "item");
+  const parts = [
+    n("coin") > 0 ? amount(n("coin"), "coin") : "",
+    n("units") > 0 && typeof material === "string" && material
+      ? amount(n("units"), name("items.materials", material).toLowerCase())
+      : "",
+    typeof item === "string" && item ? "an item" : "",
+  ].filter(Boolean);
+  return parts.length ? list(parts) : "nothing";
+}
+
+// The lines for theft, the watch and the syndicate (GDD 4.5, 5.10, 6.5),
+// or undefined for any other kind.
+function crimeLine(f: Fact): string | undefined {
+  const n = (key: string) => Number(datum(f, key) ?? 0);
+  const has = (key: string) => datum(f, key) !== undefined;
+  const syndicate = name("factions.archetypes", SYNDICATE);
+  switch (f.kind) {
+    case "theft.made": {
+      const kind = name("theft.kinds", String(datum(f, "kind") ?? ""));
+      switch (datum(f, "outcome")) {
+        case "lost":
+          return `${kind}: you were caught, and took nothing.`;
+        case "empty":
+          return `${kind}: what you were after was gone, and nothing came of it.`;
+        default: {
+          const coinOnly = n("worth") === n("coin");
+          const worth = n("worth") > 0 && !coinOnly ? `, worth ${amount(n("worth"), "coin")}` : "";
+          const seen = n("witnessed") ? "You were seen." : "No one saw you.";
+          return datum(f, "side")
+            ? `${kind}: ${takenLine(f)}${worth}, for the side you back. ${seen}`
+            : `${kind}: you got away with ${takenLine(f)}${worth}. ${seen}`;
+        }
+      }
+    }
+    case "alignment.moved": {
+      const band = datum(f, "band");
+      const named = typeof band === "string" && band ? `, ${name("alignment.bands", band)}` : "";
+      return `Alignment ${signed(n("delta"), "alignment")}: now ${amount(n("value"), "alignment")}${named}.`;
+    }
+    case "watch.stopped":
+      return "The watch stopped you at the gate: pay the fine or run.";
+    case "watch.paid":
+      return has("fine")
+        ? `You paid the watch off: ${amount(n("fine"), "coin")}.`
+        : "You paid the watch off.";
+    case "watch.fled":
+      return "You got away from the watch.";
+    case "watch.caught":
+      return "The watch caught you, and took the goods back.";
+    case "fence.bought":
+      return has("pay")
+        ? `The fence bought the goods for ${amount(n("pay"), "coin")}.`
+        : "The fence bought the goods.";
+    case "fence.came":
+      return "A fence has come looking for you.";
+    case "craft.laundered":
+      return has("fee")
+        ? `Worked clean in the back room, for ${amount(n("fee"), "coin")} in fees.`
+        : "Worked clean in the back room.";
+    case "syndicate.made":
+      return `${syndicate} has made you one of its own.`;
+    case "syndicate.unmade":
+      return `${syndicate} has cast you out.`;
+    case "syndicate.posted":
+      return `${syndicate} has posted a job for its own.`;
+    case "character.betrayed": {
+      const who = datum(f, "faction") === SYNDICATE ? syndicate : "a faction that trusted you";
+      return has("standing")
+        ? `You betrayed ${who}: your standing with it is ${amount(n("standing"), "standing")}.`
+        : `You betrayed ${who}.`;
+    }
+    case "den.moved":
+      return `A den of ${syndicate} has moved.`;
+  }
+  return undefined;
+}
+
+const WITNESS_PARTS: Record<string, string> = {
+  base: "This kind of theft",
+  upright: "Upright people here",
+  sleight: "Your Sleight",
+  cover: "Cover here",
+  quiet: "Quiet gear in hand",
+};
+
+/** One part of a theft's witness odds: what it adds, in per cent unless the part names another unit. */
+export function witnessPartLine(p: Part): string {
+  const label = WITNESS_PARTS[p.label] ?? capital(p.label.replace(/-/g, " "));
+  const unit = !p.unit || p.unit === "%" ? "percent" : p.unit;
+  return `${label}: ${adds(p.value, unit)}`;
+}
+
+/** A theft's title: its kind, and whom it is from. */
+export function theftTitle(t: Theft): string {
+  return `${name("theft.kinds", t.kind)}: ${t.victim}`;
+}
+
+// What a theft is after, as planned when it began.
+function haulLine(t: Theft, found?: Found): string {
+  const parts = [
+    t.coin ? amount(t.coin, "coin") : "",
+    t.haul?.length ? goodsLine(t.haul, found) : "",
+    t.item ?? "",
+  ].filter(Boolean);
+  const what = parts.length ? list(parts) : "what is there";
+  return t.worth > 0 ? `${what}, worth ${amount(t.worth, "coin")}` : what;
+}
+
+/** What a theft is after and from whom; a flight says whom it runs from. */
+export function theftLine(t: Theft, found?: Found): string {
+  if (t.kind === TheftFlee) return `Running from the watch at ${t.victim}.`;
+  const verb =
+    t.kind === TheftWaylay ? "Waylaying" : t.kind === TheftBurgle ? "Burgling" : "Lifting from";
+  const side = t.forSide ? " The haul goes to the side you back." : "";
+  return `${verb} ${t.victim}: ${haulLine(t, found)}.${side}`;
+}
+
+/**
+ * The chance a theft is seen if it works, as the world fixed it when the
+ * theft began (GDD 6.5); "" for a flight, which nobody witnesses.
+ */
+export function witnessLine(t: Theft): string {
+  if (t.kind === TheftFlee) return "";
+  if (t.witness >= 100) return `Witness: always seen (${percent(t.witness)}).`;
+  return `Witness: ${percent(t.witness)} to be seen if it works.`;
+}
+
+/** What a failed beat has made of a theft: caught, with only the getaway left. */
+export function caughtLine(t: Theft): string {
+  if (!t.caught) return "";
+  return t.kind === TheftFlee
+    ? "The watch has you if this goes wrong again."
+    : "You were caught: there is no haul now, only the getaway.";
+}
+
+/** The beat track's words on a theft: what it is and from whom, in place of a creature. */
+export function theftAlt(f: Fight, t: Theft): string {
+  const kind = name("fights.beats", f.kind).toLowerCase();
+  return clamp(
+    `${theftTitle(t)}, a ${kind}: beat ${outOf(f.beat + 1, f.beats, f.beats === 1 ? "beat" : "beats")}.`,
+  );
 }
 
 /** What a move log became, as the server answered it. */
