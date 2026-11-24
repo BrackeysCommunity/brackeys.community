@@ -4,7 +4,7 @@ import type * as api from "../api.ts";
 import { type Card, COLOUR } from "../card.ts";
 import { encodeId, target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
-import { amount, outOf, plural, signed } from "../units.ts";
+import { amount, outOf, percent, plural, signed } from "../units.ts";
 import {
   back,
   banner,
@@ -17,6 +17,7 @@ import {
   ROW_MOST,
   stationLine,
 } from "./common.ts";
+import { standingFields } from "./crime.ts";
 import { nameItButton } from "./naming.ts";
 
 /** A sigil colours its two strongest axes. */
@@ -164,6 +165,7 @@ export function appraisalCard(
   ap: api.Appraisal,
   lex: Lexicon,
   d: Draft,
+  backRoom = false,
 ): Card {
   const v = o.version;
   return {
@@ -201,6 +203,15 @@ export function appraisalCard(
               inline: false,
             },
           ]),
+      ...(backRoom
+        ? [
+            {
+              name: "The back room",
+              value: `Worked in the den's back room it comes out clean: the fee is the station's and ${percent(lex.numbers.launderPercent)} of what the inputs are worth.`,
+              inline: false,
+            },
+          ]
+        : []),
     ],
     footer:
       "Committing spends the inputs and the fee; a craft at the station's tier gives your tool xp.",
@@ -208,6 +219,7 @@ export function appraisalCard(
       {
         buttons: [
           btn("Commit", "craft-go", draftKey(d), v, { style: "success" }),
+          ...(backRoom ? [btn("Commit in the back room", "craft-b", draftKey(d), v)] : []),
           btn("Start over", "craft", "", v),
           back(v),
         ],
@@ -238,6 +250,7 @@ export function madeCard(
   const discovered = facts.some((f) => f.kind === "kind.discovered");
   const failed = facts.some((f) => f.kind === "craft.failed");
   const levelled = facts.filter((f) => f.kind === "item.levelled");
+  const laundered = facts.find((f) => f.kind === "craft.laundered");
   const kind = !failed ? discoveredKind(facts) : undefined;
   return {
     context: PRIVATE,
@@ -251,6 +264,15 @@ export function madeCard(
     picture: banner(here),
     fields: [
       ...(kind && description ? [{ name: "What it is", value: description }] : []),
+      ...(laundered
+        ? [
+            {
+              name: "The back room",
+              value: `Made clean, for a fee of ${amount(factNum(laundered, "fee"), "coin")}.`,
+              inline: true,
+            },
+          ]
+        : []),
       ...levelled.map((f) => ({
         name: "Your tool",
         value: `level ${factNum(f, "to")}`,
@@ -311,6 +333,7 @@ export function characterCard(
         "none yet",
       inline: true,
     },
+    ...standingFields(sheet, lex),
     {
       name: "Record",
       value:

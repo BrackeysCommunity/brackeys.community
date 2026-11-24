@@ -77,9 +77,49 @@ export function seasonText(s: api.Season): string {
   return s.days ? seasonLine(s) : "No season is running";
 }
 
+/** A side won by a word with someone: the answer chosen when talking to them. */
+const WORD = "word";
+
 /** A side as a field: its title, then what it wants, who backs it, what it pays and for whom. */
 function sideField(s: api.Side, lex: Lexicon): EmbedField {
+  if (s.wants === WORD)
+    return {
+      name: s.title.slice(0, 256),
+      value: `A word with ${s.at || "them"}: choose it when you talk to them${s.mine ? " · you chose it" : ""}`,
+      inline: true,
+    };
   return { name: s.title.slice(0, 256), value: capitalise(sideDetail(s, lex)), inline: true };
+}
+
+/** The one a thread's words are said to: its cast's npc, by name and id. */
+function wordWith(a: api.Arc): api.CastRef | undefined {
+  return a.cast.find((c) => c.role === "npc" && c.kind === "npc");
+}
+
+/** The way to a word side's answer: a talk when they are here, else the way to the thread's seat. */
+function wordButtons(a: api.Arc, here: api.Here, o: api.Options): Button[] {
+  if (a.outcome || !a.sides.some((s) => s.wants === WORD)) return [];
+  const who = wordWith(a);
+  const met = who && here.people.find((p) => p.id === who.id);
+  if (met)
+    return [btn(buttonLabel(`Talk: ${met.name}`), "talk", met.id, o.version, { style: "primary" })];
+  if (sameHex(a.seat, o.at)) return [];
+  return [
+    btn(
+      buttonLabel(`Go to ${who?.name ?? "them"}`),
+      "goto",
+      target(",", a.seat.q, a.seat.r),
+      o.version,
+    ),
+  ];
+}
+
+/** How a word thread is answered, in a line. */
+function wordLine(a: api.Arc): string {
+  const sides = a.sides.filter((s) => s.wants === WORD);
+  if (!sides.length || a.outcome) return "";
+  const who = wordWith(a)?.name ?? "them";
+  return `Talk to ${who} and choose one: ${sides.map((s) => s.title.toLowerCase()).join(" or ")}.`;
 }
 
 /** The roles an arc's cast fills, by the names they go by. */
@@ -116,6 +156,7 @@ function stageParts(
   return {
     description: [
       arcWords(a.template)?.origin ?? "",
+      wordLine(a),
       castLine(a),
       a.regions.length ? `In ${a.regions.join(", ")}.` : "",
     ]
@@ -158,6 +199,8 @@ const sameHex = (a: api.Hex | undefined, b: api.Hex) => !!a && a.q === b.q && a.
  */
 export function sideButtons(s: api.Side, v: number, lex: Lexicon, b: Backing): Button[] {
   const left = s.filled < s.mark;
+  // A word is said by talking to someone, never by declaring.
+  if (s.wants === WORD) return [];
   if (s.wants !== "goods")
     return s.mine
       ? []
@@ -231,7 +274,10 @@ export function stageCard(
       : []),
     ...parts.sides,
   ];
-  const buttons = backButtons(a, v, lex, { at: o.at, purse: o.purse, goals: opts.goals });
+  const buttons = [
+    ...wordButtons(a, here, o),
+    ...backButtons(a, v, lex, { at: o.at, purse: o.purse, goals: opts.goals }),
+  ];
   const tail: Button[] = [btn("The chronicle", "chronicle", "", v), back(v)];
   if (t?.hunt) tail.unshift(btn("The raiders' hunt", "hunt", t.hunt, v, { style: "danger" }));
   return {
@@ -241,8 +287,9 @@ export function stageCard(
     description: parts.description,
     picture: banner(here, `; ${a.title}`),
     fields,
-    footer:
-      "Every side pays by what each backer put in; the first to meet its mark wins the stage.",
+    footer: wordLine(a)
+      ? "The answer you give ends it; say nothing and it lapses when its day ends."
+      : "Every side pays by what each backer put in; the first to meet its mark wins the stage.",
     rows: [...buttonRows(buttons.slice(0, ROW_MOST * 2)), { buttons: tail }],
     colour: t ? COLOUR.rust : parts.colour,
   };
@@ -700,6 +747,41 @@ function caravanRobbedCard(ev: api.StoryEvent): Card {
   };
 }
 
+/** A theft's public title, by its kind and how it went; it never names the thief. */
+function theftTitle(f: api.Fact, where: string): string {
+  const outcome = factStr(f, "outcome");
+  if (outcome === "lost") return `A thief was caught at ${where}`;
+  if (outcome === "empty") return `A thief came away empty at ${where}`;
+  switch (factStr(f, "kind")) {
+    case "burgle":
+      return `A store was broken into at ${where}`;
+    case "waylay":
+      return `A caravan was waylaid near ${where}`;
+    default:
+      return `A pocket was picked at ${where}`;
+  }
+}
+
+/** A theft in the events channel: what kind, where and what it was worth, and never who (GDD 12.7). */
+function theftEventCard(ev: api.StoryEvent, lex: Lexicon, refs: Refs): Card {
+  const f = ev.fact;
+  const won = factStr(f, "outcome") === "won";
+  const title = theftTitle(f, placeOf(ev));
+  return {
+    context: EVENTS_CHANNEL,
+    author: authorLine("Theft", placeOf(ev)),
+    title,
+    description: storyLine(f, lex, refs),
+    picture: "form",
+    fields: won
+      ? [{ name: "Taken", value: `worth ${amount(factNum(f, "worth"), "coin")}`, inline: true }]
+      : [],
+    footer: "The thief goes unnamed: the watch keeps its own counsel.",
+    rows: [],
+    colour: COLOUR.rust,
+  };
+}
+
 /** The events channel's card for one story event, or null for a kind it does not post. */
 export function eventCard(ev: api.StoryEvent, lex: Lexicon): Card | null {
   const named = ev.arc ? { ...ev, arc: namedArc(ev.arc, lex) } : ev;
@@ -733,6 +815,8 @@ export function eventCard(ev: api.StoryEvent, lex: Lexicon): Card | null {
       return roadEventCard(ev);
     case "caravan.robbed":
       return caravanRobbedCard(ev);
+    case "theft.made":
+      return theftEventCard(ev, lex, refs);
     default:
       return null;
   }

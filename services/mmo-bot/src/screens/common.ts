@@ -340,11 +340,59 @@ export function factLine(f: api.Fact, lex: Lexicon): string {
       return n(f, "coin")
         ? `Paid a toll of ${amount(n(f, "coin"), "coin")} to cross a road.`
         : `Paid a toll in goods: ${amount(n(f, "units"), mat("material"))}.`;
+    case "alignment.moved":
+      return `${signed(n(f, "delta"), "alignment")}${s(f, "act") ? ` for ${s(f, "act").replace(/-/g, " ")}` : ""}: now ${lex.name("alignment.bands", s(f, "band"))}, ${amount(n(f, "value"), "alignment")}.`;
+    case "theft.made":
+      return theftFactLine(f, lex);
+    case "watch.stopped":
+      return "The watch stopped a wanted thief at the gate.";
+    case "watch.paid":
+      return n(f, "fine")
+        ? `A fine of ${amount(n(f, "fine"), "coin")} was paid to the watch.`
+        : "A fine was paid to the watch.";
+    case "watch.fled":
+      return "A thief ran from the watch and got away.";
+    case "watch.caught":
+      return "The watch ran a thief down and took the goods back.";
+    case "fence.bought":
+      return n(f, "pay")
+        ? `A fence bought stolen goods for ${amount(n(f, "pay"), "coin")}.`
+        : "A fence bought stolen goods.";
+    case "fence.came":
+      return "A fence came looking for a word.";
+    case "craft.laundered":
+      return `Goods worth ${amount(n(f, "worth"), "coin")} were made clean in a back room, for a fee of ${amount(n(f, "fee"), "coin")}.`;
+    case "syndicate.made":
+      return `Made: the ${lex.name("factions.archetypes", "syndicate")} took you in as one of its own.`;
+    case "syndicate.unmade":
+      return `The ${lex.name("factions.archetypes", "syndicate")} cast you out.`;
+    case "syndicate.posted":
+      return `The ${lex.name("factions.archetypes", "syndicate")} posted a job.`;
+    case "character.betrayed":
+      return `A betrayal: standing with ${s(f, "faction") === "syndicate" ? `the ${lex.name("factions.archetypes", "syndicate")}` : "a faction"} fell to ${amount(n(f, "standing"), "standing")}.`;
+    case "den.moved":
+      return "A den moved on to another settlement.";
     default:
       return CHRONICLED.has(f.kind)
         ? chronicleLine(f, storyNames(lex))
         : capitalise(`${f.kind.replace(/[.-]/g, " ")}.`);
   }
+}
+
+/** A theft as one line: its kind, how it went and what it took, naming nobody. */
+function theftFactLine(f: api.Fact, lex: Lexicon): string {
+  const kind = lex.name("theft.kinds", s(f, "kind"));
+  const outcome = s(f, "outcome");
+  if (outcome === "lost") return `${kind}: caught in the act, and nothing taken.`;
+  if (outcome === "empty") return `${kind}: nothing left to take.`;
+  const coin = n(f, "coin");
+  const units = n(f, "units");
+  const what = [
+    coin ? amount(coin, "coin") : "",
+    units ? amount(units, s(f, "material") ? lex.material(s(f, "material")) : "goods") : "",
+    s(f, "item") ? "an item" : "",
+  ].filter(Boolean);
+  return `${kind}: ${what.length ? what.join(" and ") : "goods"} taken, worth ${amount(n(f, "worth"), "coin")}, ${n(f, "witnessed") ? "and seen" : "unseen"}.`;
 }
 
 /** The names a story line is told with: the setting's rows, and the refs an arc's cast names. */

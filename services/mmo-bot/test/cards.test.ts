@@ -8,6 +8,15 @@ import { decodeId, type LaunchCard } from "../src/ids.ts";
 import { Lexicon } from "../src/lexicon.ts";
 import { classesCard } from "../src/screens/classes.ts";
 import { benchLine, factLine } from "../src/screens/common.ts";
+import {
+  alignmentLine,
+  fenceTarget,
+  parseFence,
+  parseSteal,
+  stealCard,
+  stealValue,
+  watchCard,
+} from "../src/screens/crime.ts";
 import { bottomCard, entranceCard, forkCard, pushLeaveCard } from "../src/screens/dungeon.ts";
 import { promotionCard } from "../src/screens/emergence.ts";
 import { beatCard, downCard, fieldCard, resolvedCard, whyCard } from "../src/screens/fight.ts";
@@ -55,12 +64,13 @@ import {
   withThreadSoon,
 } from "../src/screens/party.ts";
 import { chronicleCard, eventCard, factCard, stageCard } from "../src/screens/story.ts";
-import { talkCard } from "../src/screens/talk.ts";
+import { choiceLabel, talkCard } from "../src/screens/talk.ts";
 import { travelCard } from "../src/screens/travel.ts";
 import * as mm8 from "./fixtures/mm8.ts";
 import * as mm8a from "./fixtures/mm8a.ts";
 import * as mm9 from "./fixtures/mm9.ts";
 import * as mm10 from "./fixtures/mm10.ts";
+import * as mm11a from "./fixtures/mm11a.ts";
 import samples from "./fixtures/world.json";
 
 /** Every card the bot draws, from replies a scripted run recorded off a real world, keeps the card standard (card.ts problems()). */
@@ -96,11 +106,13 @@ const NUMBERS: api.Numbers = {
   launderPercent: 10,
 };
 const lex = new Lexicon(
-  mm10.lexicon({
-    ...(w.lexicon as Omit<api.Lexicon, "numbers">),
-    numbers: NUMBERS,
-    starts: ["hook", "knife", "deck"],
-  }),
+  mm11a.lexicon(
+    mm10.lexicon({
+      ...(w.lexicon as Omit<api.Lexicon, "numbers">),
+      numbers: NUMBERS,
+      starts: ["hook", "knife", "deck"],
+    }),
+  ),
 );
 const names = lex.goodsNames();
 const o = w.options as api.Options;
@@ -1301,7 +1313,68 @@ const cards: [string, () => Card][] = [
   ],
   ...storyCards(),
   ...emergenceCards(),
+  ...theftCards(),
 ];
+
+/** Theft and alignment: the seven cards, and the where, why, talk, craft and events cards they touch. */
+function theftCards(): [string, () => Card][] {
+  const ended =
+    (end: api.Fact, more: api.Fact[] = [], after?: api.Character) =>
+    () =>
+      resolvedCard(o, here, lex, [], [end, ...more], after);
+  const appraise = w.appraise as api.Appraisal;
+  const draft = {
+    process: "shape",
+    method: "narrow-grind",
+    slot: "tool",
+    material: "cinder-ore",
+    qty: 1,
+  };
+  const laundered = mm11a.kinds.find((f) => f.kind === "craft.laundered")!;
+  return [
+    ["where, with something to steal", () => whereCard(mm11a.stealable, here, lex)],
+    ["what can be stolen here", () => stealCard(mm11a.stealable, here, lex)],
+    ["nothing here to steal", () => stealCard(o, here, lex)],
+    ["a lift's beat, its odds of being seen", () => beatCard(mm11a.lifting, here, lex)],
+    ["a burglary's lock beat, quiet gear on", () => beatCard(mm11a.burgling, here, lex)],
+    ["a waylay for the prey side, caught", () => beatCard(mm11a.waylaying, here, lex)],
+    ["running from the watch", () => beatCard(mm11a.fleeing, here, lex)],
+    ["why the odds, and of being seen", () => whyCard(mm11a.lifting, here, lex, "options")],
+    ["a theft won unseen", ended(mm11a.wonUnseen)],
+    ["seen, and wanted", ended(mm11a.wonSeen, [mm11a.moved], mm11a.after)],
+    ["caught in the act", ended(mm11a.lost, [mm11a.moved], mm11a.after)],
+    ["a theft with nothing left to take", ended(mm11a.empty)],
+    ["a waylay for the side", ended(mm11a.forSide, [mm11a.moved], mm11a.after)],
+    ["a theft that betrayed the Static", ended(mm11a.wonSeen, [mm11a.moved, mm11a.betrayed])],
+    ["away from the watch", ended(mm11a.fled, [], mm11a.after)],
+    ["run down by the watch", ended(mm11a.caught)],
+    ["the watch at the gate", () => watchCard(o, here, mm11a.stopped, lex)],
+    ["the watch at the gate, short of the fine", () => watchCard(o, here, mm11a.short, lex)],
+    [
+      "the fence finds you",
+      () => talkCard(o, mm11a.fenceTalk, undefined, undefined, undefined, mm11a.crooked, lex),
+    ],
+    [
+      "the fence, to the made with a hot item",
+      () => talkCard(o, mm11a.fenceTalk, undefined, undefined, undefined, mm11a.made, lex),
+    ],
+    [
+      "the fence, nothing hot carried",
+      () => talkCard(o, mm11a.fenceTalk, undefined, undefined, undefined, sheet, lex),
+    ],
+    ["the watch captain's warning", () => talkCard(o, mm11a.watchTalk)],
+    ["a robbed keeper knows its goods", () => talkCard(o, mm11a.robbedTalk)],
+    ["the invitation, at the den", () => stageCard(o, mm11a.atDen, mm11a.invitation, lex)],
+    ["the informer, away from the captain", () => stageCard(o, here, mm11a.informer, lex)],
+    ["a job", () => goalCard(mm11a.stealable, goals, goalAs(mm11a.job), lex)],
+    ["a job, nothing here to steal", () => goalCard(o, goals, goalAs(mm11a.job), lex)],
+    ["the alignment line", () => characterCard(o, here, mm11a.crooked, lex)],
+    ["the alignment line, made", () => characterCard(o, here, mm11a.made, lex)],
+    ["appraisal, with the back room", () => appraisalCard(o, here, appraise, lex, draft, true)],
+    ["made in the back room", () => madeCard(o, here, [...craft.facts, laundered], lex)],
+    ["events channel: a store broken into", () => eventCard(mm11a.theftEvent, lex)!],
+  ];
+}
 
 /** What play made of the world: the chronicle channel's promotions, the events channel's roads and caravans, and the cards that show them. */
 function emergenceCards(): [string, () => Card][] {
@@ -2362,4 +2435,134 @@ test("an arc and its sides the world names only by row id read as words", () => 
   expect(card.title).toBe("The siege");
   expect(card.fields?.map((f) => f.name)).toContain("Garrison");
   expect(problems(card, names)).toEqual([]);
+});
+
+const texts = (c: Card) =>
+  [c.title, c.description ?? "", ...(c.fields ?? []).map((f) => `${f.name}: ${f.value}`)].join(
+    "\n",
+  );
+
+test("the alignment line names the band with the value, never the number alone", () => {
+  expect(alignmentLine(-15, "crooked", lex)).toBe("Crooked, −15 alignment");
+  expect(alignmentLine(0, "", lex)).toBe("Unremarked, 0 alignment");
+  expect(alignmentLine(-60, "", lex)).toBe("Notorious, −60 alignment");
+  const card = characterCard(o, here, mm11a.crooked, lex);
+  expect(card.fields?.find((f) => f.name === "Alignment")?.value).toStartWith(
+    "Crooked, −15 alignment",
+  );
+  expect(texts(card)).toContain("Static, until day 74");
+});
+
+test("a theft's beat shows the odds of being seen before the press, and why", () => {
+  const card = beatCard(mm11a.lifting, here, lex);
+  expect(card.fields?.find((f) => f.name === "Witness")?.value).toBe("47% to be seen");
+  expect(card.fields?.find((f) => f.name === "Target")?.value).toBe("Mags Rask");
+  expect(texts(card)).toContain("upright people here +20%");
+  expect(texts(whyCard(mm11a.lifting, here, lex, "options"))).toContain("47% to be seen");
+  // The clamp is shown where the parts do not add up to the odds rolled.
+  expect(texts(beatCard(mm11a.burgling, here, lex))).toContain("held at 5%");
+  expect(texts(beatCard(mm11a.fleeing, here, lex))).not.toContain("to be seen");
+});
+
+test("a theft over says what it took, its worth, the mark, standing and the watch", () => {
+  const card = resolvedCard(o, here, lex, [], [mm11a.wonSeen, mm11a.moved], mm11a.after);
+  const f = (name: string) => card.fields?.find((x) => x.name === name)?.value ?? "";
+  expect(card.title).toBe("Seen, and wanted");
+  expect(f("Haul")).toBe("5 Scrap iron");
+  expect(f("Worth")).toBe("30 coin");
+  expect(f("Hot")).toContain("7 days");
+  expect(f("Standing")).toBe("−3 standing with whom it belonged to");
+  expect(f("Alignment")).toBe("−3 alignment: now Crooked, −15 alignment");
+  expect(f("Wanted")).toContain("a fine of 30 coin");
+  const clean = resolvedCard(o, here, lex, [], [mm11a.wonUnseen]);
+  expect(clean.title).toBe("Away clean");
+  expect(clean.fields?.find((x) => x.name === "Hot")?.value).toBe("Coin carries no mark.");
+});
+
+test("the watch offers the fine it names and the run, and the fine only to one who can pay", () => {
+  const buttons = (c: Card) => c.rows.flatMap((r) => ("buttons" in r ? r.buttons : []));
+  const pay = buttons(watchCard(o, here, mm11a.stopped, lex)).find((b) =>
+    b.label.startsWith("Pay the fine"),
+  );
+  expect(pay?.label).toBe("Pay the fine (30 coin)");
+  expect(pay && "disabled" in pay ? pay.disabled : true).toBe(false);
+  const short = buttons(watchCard(o, here, mm11a.short, lex)).find((b) =>
+    b.label.startsWith("Pay the fine"),
+  );
+  expect(short && "disabled" in short && short.disabled).toBe(true);
+  expect(buttons(watchCard(o, here, mm11a.short, lex)).some((b) => b.label === "Run")).toBe(true);
+});
+
+test("a fence offers one sale for each hot good carried, and its target names what is sold", () => {
+  const card = talkCard(o, mm11a.fenceTalk, undefined, undefined, undefined, mm11a.made, lex);
+  const sales = card.rows
+    .flatMap((r) => ("buttons" in r ? r.buttons : []))
+    .filter((b) => b.kind === "page" && decodeId(b.customId)?.action === "fence");
+  expect(sales).toHaveLength(2);
+  const targets = sales.map((b) => (b.kind === "page" ? decodeId(b.customId)!.target : ""));
+  expect(targets.map(parseFence)).toEqual([
+    { npc: mm11a.fenceTalk.npc.id, material: "scrap-iron", units: 5 },
+    { npc: mm11a.fenceTalk.npc.id, item: mm11a.made.character.hot![1]!.item },
+  ]);
+  expect(parseFence("npc/x/scrap/5")).toBeNull();
+  expect(parseFence("npc/m/scrap/0")).toBeNull();
+  expect(fenceTarget("n", { material: "a", units: 2, victim: "v", days: 1, reach: 0 })).toBe(
+    "n/m/a/2",
+  );
+  // Anyone who is not a fence buys nothing.
+  expect(
+    texts(talkCard(o, mm11a.robbedTalk, undefined, undefined, undefined, mm11a.made, lex)),
+  ).not.toContain("Hot goods you carry");
+});
+
+test("the watch's fine and a return to the robbed say what they do on their buttons", () => {
+  expect(choiceLabel({ id: "pay-fine", line: "You pay the fine.", effect: "fine", coin: 30 })).toBe(
+    "You pay the fine (30 coin)",
+  );
+  expect(choiceLabel({ id: "give-them-back", line: "You give them back.", effect: "return" })).toBe(
+    "You give them back (gives back what you took)",
+  );
+});
+
+test("a steal pick round-trips its target, and a waylay for a side is offered both ways", () => {
+  for (const s of mm11a.steals) {
+    const back = parseSteal(stealValue(s));
+    expect(back?.kind).toBe(s.kind);
+    expect(back?.npc).toBe(s.npc);
+    expect(back?.caravan).toBe(s.caravan);
+    expect(back?.forSide).toBe(false);
+  }
+  expect(parseSteal(stealValue(mm11a.steals[2]!, true))?.forSide).toBe(true);
+  expect(parseSteal("lift/x")).toBeNull();
+  expect(parseSteal("lift/x/q")).toBeNull();
+  const select = stealCard(mm11a.stealable, here, lex).rows.find((r) => "select" in r);
+  expect(select && "select" in select ? select.select.options.length : 0).toBe(4);
+});
+
+test("the invitation is answered by talking to the fence, never by declaring", () => {
+  const ids = (c: Card) =>
+    c.rows
+      .flatMap((r) => ("buttons" in r ? r.buttons : []))
+      .map((b) => (b.kind === "page" ? decodeId(b.customId) : null));
+  const atDen = ids(stageCard(o, mm11a.atDen, mm11a.invitation, lex));
+  expect(atDen.some((x) => x?.action === "s-decl")).toBe(false);
+  expect(atDen.find((x) => x?.action === "talk")?.target).toBe(mm11a.fenceTalk.npc.id);
+  const away = ids(stageCard(o, here, mm11a.informer, lex));
+  expect(away.some((x) => x?.action === "goto")).toBe(true);
+  expect(stageCard(o, mm11a.atDen, mm11a.invitation, lex).description).toContain(
+    "Talk to Quill Harrow and choose one: take the job or turn it down.",
+  );
+});
+
+test("every fact theft and alignment write reads as a line with its units, naming nobody", () => {
+  for (const f of mm11a.kinds) {
+    const line = factLine(f, lex);
+    expect(bareNumbers(line, names)).toEqual([]);
+    expect(line).not.toContain("c-1");
+    // A kind with no line of its own falls back to its id in words.
+    expect(line.toLowerCase()).not.toBe(`${f.kind.replace(/[.-]/g, " ")}.`);
+  }
+  const ev = eventCard(mm11a.theftEvent, lex)!;
+  expect(ev.title).toBe(`A store was broken into at ${here.name}`);
+  expect(texts(ev)).not.toContain(sheet.character.id);
 });

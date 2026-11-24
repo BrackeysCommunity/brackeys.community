@@ -15,6 +15,7 @@ import { target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
 import { amount, band, bandShort, num, signed, ticks } from "../units.ts";
 import { back, banner, btn, DIRECTIONS, downButtons, factNum, launch, PRIVATE } from "./common.ts";
+import { theftBeat, theftEnd, theftResolvedCard, witnessLine, witnessWhy } from "./crime.ts";
 import { dungeonName, floorOf, floorWord } from "./dungeon.ts";
 import { adaptedLine, adaptedSteps } from "./emergence.ts";
 
@@ -109,6 +110,22 @@ export function beatCard(
       value: `it takes ${lex.name("fights.options", f.default ?? "back-out").toLowerCase()} at tick ${num(f.due ?? 0)}`,
     });
   }
+  const rows = [
+    ...buttonRows(buttons.slice(0, 10)),
+    { buttons: [btn("Why these odds", "why", "options", v), back(v)] },
+  ];
+  const failable = opts
+    .filter((x) => x.band !== "certain")
+    .map((x) => lex.name("fights.options", x.id));
+  if (f.theft)
+    return {
+      context: PRIVATE,
+      ...theftBeat(f, f.theft, here, lex, `${opening}${lines.join("\n")}`),
+      picture: banner(here, `; ${f.theft.victim}`),
+      rows,
+      modifiers: true,
+      failable,
+    };
   return {
     context: PRIVATE,
     author: f.ambush
@@ -122,24 +139,24 @@ export function beatCard(
     thumb: portraitThumb(f, lex),
     fields,
     footer: "The last beat is the hardest and must be won. Two failures and you go down.",
-    rows: [
-      ...buttonRows(buttons.slice(0, 10)),
-      { buttons: [btn("Why these odds", "why", "options", v), back(v)] },
-    ],
+    rows,
     colour: f.ambush ? COLOUR.hazard : COLOUR.rust,
     modifiers: true,
-    failable: opts.filter((x) => x.band !== "certain").map((x) => lex.name("fights.options", x.id)),
+    failable,
   };
 }
 
-/** The beat resolved: the encounter's end, from the press's facts. */
+/** The beat resolved: the encounter's end, from the press's facts; after is the character as the press left it. */
 export function resolvedCard(
   o: api.Options,
   here: api.Here,
   lex: Lexicon,
   pressed: api.Pressed[],
   facts: api.Fact[],
+  after?: api.Character,
 ): Card {
+  const theft = theftEnd(facts);
+  if (theft) return theftResolvedCard(o, here, lex, facts, theft, after);
   const v = o.version;
   const end = facts.find((f) => f.kind.startsWith("encounter."));
   const result = end?.kind.slice("encounter.".length) ?? "over";
@@ -236,6 +253,8 @@ export function whyCard(
 ): Card {
   const v = o.version;
   const lines: string[] = [];
+  if (what === "options" && o.fight?.theft && o.fight.theft.witnessWhy.parts.length)
+    lines.push(`**Seen** (${witnessLine(o.fight.theft)}): ${witnessWhy(o.fight.theft)}`);
   if (what === "options" && o.fight) {
     for (const x of o.fight.options) {
       const parts = x.why.parts.map((p) => partLine(p, signed(p.value, p.unit))).join(", ");

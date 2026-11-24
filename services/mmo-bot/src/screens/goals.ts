@@ -23,6 +23,7 @@ import {
   ROW_MOST,
   SELECT_MOST,
 } from "./common.ts";
+import { jobField, jobProgress, STEAL_VERB } from "./crime.ts";
 import { namedSide, sideButtons } from "./story.ts";
 
 /**
@@ -380,6 +381,7 @@ function progressLine(x: api.Goal): string {
     return `${amount(x.pledged ?? 0, "coin")} of ${amount(x.need ?? 0, "coin")} pledged`;
   if (x.verb === "hold" && !x.count) return "a vow, recorded kept or broken when it ends";
   if (x.verb === "hold") return `${outOfDays(x.progress, x.count)} held`;
+  if (x.verb === STEAL_VERB) return jobProgress(x);
   return `${num(x.progress)} of ${num(x.count)} done${x.claims ? `, ${plural(x.claims, "claim")}` : ""}`;
 }
 
@@ -571,6 +573,9 @@ export function goalCard(
   if (side && x.state === "live" && side.filled < side.mark)
     acts.push(...sideButtons(side, v, lex, { at: o.at, purse: o.purse, goals: [x] }));
   if (side) acts.push(btn("The arc", "s-back", x.id, v));
+  const job = x.verb === STEAL_VERB;
+  if (job && x.state === "live")
+    acts.push(btn("Steal here", "steal", "", v, { style: "danger", disabled: !o.steals.length }));
   if (x.canPledge)
     for (const c of [10, 100])
       if (o.purse.coin >= c)
@@ -591,6 +596,7 @@ export function goalCard(
       .join("\n"),
     fields: [
       ...goalFields(x, lex),
+      ...(job ? [jobField(lex)] : []),
       ...(side
         ? [
             {
@@ -601,7 +607,9 @@ export function goalCard(
           ]
         : []),
     ],
-    footer: "Met by recorded facts; the claim cites them, and nobody judges.",
+    footer: job
+      ? "Met by a recorded theft; the claim cites it, and nobody judges."
+      : "Met by recorded facts; the claim cites them, and nobody judges.",
     rows,
   };
 }

@@ -19,6 +19,7 @@ import {
 import type { PartyNote } from "./party.ts";
 import { backCards } from "./screens/back.ts";
 import { classesCard } from "./screens/classes.ts";
+import { parseFence, parseSteal, stealCard, watchCard } from "./screens/crime.ts";
 import {
   bottomCard,
   dungeonNameModal,
@@ -386,6 +387,10 @@ class Session {
     ]);
     if (o.conditions.includes(api.CondDown) && !o.long && !notice)
       return this.done(downCard(o, here, this.lex));
+    if (sheet.character.stopped && !o.fight) {
+      const card = watchCard(o, here, sheet, this.lex);
+      return this.done(notice ? { ...card, title: notice } : card);
+    }
     const hunt = inReach(hunts.hunts, o.at, sheet.character.floor ?? 0);
     return this.done(hubCard(o, here, sheet, this.lex, notice, hunt));
   }
@@ -535,7 +540,10 @@ class Session {
       );
     if (last && reachedBottom(last.facts))
       return this.done(bottomCard(o, here, this.lex, last.facts, this.character));
-    if (last) return this.done(resolvedCard(o, here, this.lex, last.pressed ?? [], last.facts));
+    if (last)
+      return this.done(
+        resolvedCard(o, here, this.lex, last.pressed ?? [], last.facts, last.character),
+      );
     return this.hub();
   }
 
@@ -800,7 +808,34 @@ class Session {
     if (!read.ok) return this.where(read.refusal.message);
     if (read.reply.dossier) this.day.saw(read.reply.dossier.day);
     const { conv, remembers } = await this.narration.talk(read.reply, this.press.user, this.server);
-    return this.done(talkCard(o, conv, said, here.bench, remembers));
+    // A fence's card offers a sale for each hot good the character carries.
+    const sheet = conv.npc.fence ? await this.world.sheet(this.character) : undefined;
+    return this.done(talkCard(o, conv, said, here.bench, remembers, sheet, this.lex));
+  }
+
+  /** What can be stolen here, or a steal begun from its pick and the beat it opens. */
+  private async steal(raw: string, v: number): Promise<Answer> {
+    if (!raw) {
+      const { o, here } = await this.load();
+      return this.done(stealCard(o, here, this.lex));
+    }
+    const pick = parseSteal(raw);
+    if (!pick) return backCards.unknown(this.character);
+    return this.write(
+      api.ActSteal,
+      v,
+      {
+        option: pick.kind,
+        npc: pick.npc,
+        target: pick.caravan,
+        forSide: pick.forSide || undefined,
+      },
+      async (_, why) => {
+        const { o, here } = await this.load();
+        if (!why && o.fight) return this.done(beatCard(o, here, this.lex));
+        return this.done(stealCard(o, here, this.lex, why ?? "It slipped away before you began"));
+      },
+    );
   }
 
   /** The card a launch button sits on: the adapter launches, and any other caller sees the card again. */
@@ -987,13 +1022,21 @@ class Session {
           recipe: draftRecipe(d),
         });
         if (!ap.ok) return this.retitled(await this.craft({}), capitalise(ap.refusal.message));
-        return this.done(appraisalCard(o, here, ap.reply, this.lex, d));
+        // The back room is offered to the made where a den's fence stands.
+        const backRoom =
+          here.people.some((p) => p.fence) &&
+          (await this.world.sheet(this.character)).character.alignment.made;
+        return this.done(appraisalCard(o, here, ap.reply, this.lex, d, backRoom));
       }
       case "craft-go":
+      case "craft-b":
         return this.write(
           api.ActCraft,
           v,
-          { recipe: draftRecipe(parseDraft(id.target)) },
+          {
+            recipe: draftRecipe(parseDraft(id.target)),
+            backRoom: id.action === "craft-b" || undefined,
+          },
           async (r, why) => {
             if (!r) return this.retitled(await this.craft({}), why);
             const { o, here } = await this.load();
@@ -1557,6 +1600,28 @@ class Session {
           );
         });
       }
+      case "steal":
+        return this.steal(value || id.target, v);
+      case "fence": {
+        const sale = parseFence(id.target);
+        if (!sale) return backCards.unknown(this.character);
+        const { npc, ...goods } = sale;
+        return this.write(api.ActFence, v, goods, (r, why) =>
+          this.talk(
+            npc,
+            why ?? `Sold to the fence: ${amount(r?.character.coin ?? 0, "coin")} in hand`,
+          ),
+        );
+      }
+      case "pay-fine":
+        return this.write(api.ActPayFine, v, {}, (_, why) =>
+          this.hub(why ?? "Paid: the watch lets you through"),
+        );
+      case "flee":
+        return this.write(api.ActFlee, v, {}, async (_, why) => {
+          if (!why) return this.fight();
+          return this.hub(why);
+        });
       case "launch":
         return this.launched(launchFor(id));
       case "start":

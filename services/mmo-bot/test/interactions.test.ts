@@ -20,6 +20,7 @@ import { Lexicon } from "../src/lexicon.ts";
 import { BLANK, goalDraftId, specOf } from "../src/screens/goals.ts";
 import { httpWorld } from "../src/world.ts";
 import * as mm9 from "./fixtures/mm9.ts";
+import * as mm11a from "./fixtures/mm11a.ts";
 import samples from "./fixtures/world.json";
 
 const GOALS_SINCE = {
@@ -74,6 +75,10 @@ const UNRECORDED = new Set<string>([
   api.ActBackSide,
   api.ActPatternSet,
   api.ActCityRaise,
+  api.ActSteal,
+  api.ActFence,
+  api.ActPayFine,
+  api.ActFlee,
 ]);
 /** The reads that name no character: the bot's own, world-wide. */
 const WORLD_WIDE = new Set<string>([api.PathHunts, api.PathParties, api.PathStoryEvents]);
@@ -90,6 +95,7 @@ function setup({
   goals = {} as Partial<api.Goals>,
   guild = {} as Partial<api.Guild>,
   arcs = mm9.arcs,
+  npc = samples.npc as api.Conversation,
   missing = [] as string[],
 } = {}) {
   const writes: api.ActionRequest[] = [];
@@ -101,7 +107,7 @@ function setup({
     [api.PathOptions, { ...options, purse: { ...options.purse, ...purse } }],
     [api.PathHere, here],
     [api.PathSheet, sheet],
-    [api.PathNPC, samples.npc],
+    [api.PathNPC, npc],
     [api.PathMap, samples.map],
     [api.PathRecap, samples.recap],
     [api.PathRecipes, samples.recipes],
@@ -1110,4 +1116,93 @@ test("Raise to a city posts the city project, and the raid alarm is the adapter'
   expect(roleFor({ action: "hub", target: "", version: 0 })).toBeNull();
   expect((await press({ action: "alarm", target: "", version: 0 })).card.author).toStartWith("Hub");
   expect(writes).toHaveLength(1);
+});
+
+const pressed = (c: Card) =>
+  c.rows.flatMap((r) => ("buttons" in r ? r.buttons : [])).filter((b) => b.kind === "page");
+const idOf = (c: Card, action: string) => {
+  const b = pressed(c).find((x) => x.kind === "page" && decodeId(x.customId)?.action === action);
+  if (b?.kind !== "page") throw new Error(`no ${action} button`);
+  return decodeId(b.customId)!;
+};
+
+test("Steal opens what can be taken here without a write, and a pick begins that theft", async () => {
+  const { press, writes } = setup({ options: mm11a.stealable });
+  const where = await press({ action: "where", target: "", version: 1 });
+  const picker = await press(idOf(where.card, "steal"));
+  expect(writes).toEqual([]);
+  expect(picker.card.title).toBe("What could be taken here");
+  const select = picker.card.rows.find((r) => "select" in r);
+  if (!select || !("select" in select)) throw new Error("no steal select");
+  const [burgle, lift, waylay, forSide] = select.select.options.map((x) => x.value);
+  const id = decodeId(select.select.customId)!;
+  for (const value of [burgle!, lift!, waylay!, forSide!]) await press(id, [value]);
+  const base = { characterId: "c-1", kind: api.ActSteal, interactionId: "event", server: "guild" };
+  expect(writes).toEqual([
+    { ...base, version: mm11a.stealable.version, option: "burgle" },
+    { ...base, version: mm11a.stealable.version, option: "lift", npc: mm11a.steals[1]!.npc },
+    { ...base, version: mm11a.stealable.version, option: "waylay", target: "cv-3" },
+    { ...base, version: mm11a.stealable.version, option: "waylay", target: "cv-3", forSide: true },
+  ]);
+});
+
+test("a steal pick that begins nothing lands on the picker, and a malformed one writes nothing", async () => {
+  const { press, writes } = setup({ options: mm11a.stealable });
+  expect((await press({ action: "steal", target: "", version: 1 }, ["lift/x"])).card.author).toBe(
+    "An old button",
+  );
+  expect((await press({ action: "fence", target: "npc/x/scrap/1", version: 1 })).card.author).toBe(
+    "An old button",
+  );
+  expect(writes).toEqual([]);
+  const begun = await press({ action: "steal", target: "", version: 1 }, ["burgle/-/o"]);
+  expect(begun.card.author).toStartWith("Theft");
+});
+
+test("a fence's sale sends what its button names, and the fence's card shows again", async () => {
+  const { press, writes, reads } = setup({ npc: mm11a.fenceTalk, sheet: mm11a.made });
+  const talk = await press({ action: "talk", target: mm11a.fenceTalk.npc.id, version: 1 });
+  expect(reads).toContain(api.PathSheet);
+  writes.length = 0;
+  const sales = pressed(talk.card).filter(
+    (b) => b.kind === "page" && decodeId(b.customId)?.action === "fence",
+  );
+  expect(sales).toHaveLength(2);
+  for (const b of sales) if (b.kind === "page") await press(decodeId(b.customId)!);
+  const base = { characterId: "c-1", kind: api.ActFence, interactionId: "event", server: "guild" };
+  expect(writes).toEqual([
+    { ...base, version: samples.options.version, material: "scrap-iron", units: 5 },
+    { ...base, version: samples.options.version, item: mm11a.made.character.hot![1]!.item },
+  ]);
+});
+
+test("held at the gate, the hub is the watch's card, and its fine and run are what they send", async () => {
+  const { press, writes } = setup({ sheet: mm11a.stopped });
+  const hub = await press({ action: "hub", target: "", version: 1 });
+  expect(hub.card.author).toBe(`The watch · ${samples.here.name}`);
+  await press(idOf(hub.card, "pay-fine"));
+  await press(idOf(hub.card, "flee"));
+  expect(writes.map((x) => x.kind)).toEqual([api.ActPayFine, api.ActFlee]);
+  expect(writes.every((x) => !x.option && !x.target)).toBe(true);
+});
+
+test("the made at a den's fence are offered the back room, and its Commit sends it", async () => {
+  const { press, writes } = setup({ here: mm11a.atDen, sheet: mm11a.made });
+  const preview = await press({
+    action: "craft-q",
+    target: "shape.narrow-grind.tool.cinder-ore.1",
+    version: 9,
+  });
+  await press(idOf(preview.card, "craft-b"));
+  expect(writes).toHaveLength(1);
+  expect(writes[0]!.backRoom).toBe(true);
+  expect(writes[0]!.kind).toBe(api.ActCraft);
+  const plain = await setup({ here: mm11a.atDen }).press({
+    action: "craft-q",
+    target: "shape.narrow-grind.tool.cinder-ore.1",
+    version: 9,
+  });
+  expect(pressed(plain.card).some((b) => b.kind === "page" && b.customId.includes("craft-b"))).toBe(
+    false,
+  );
 });

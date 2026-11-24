@@ -189,6 +189,7 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
   if (here.place.trouble)
     more.push(btn("Hold off the trouble", "trouble", "", v, { style: "danger" }));
   if (here.floor) more.push(btn("The dungeon", "dungeon", "", v));
+  if (o.steals.length) more.push(btn("Steal", "steal", "", v, { style: "danger" }));
   more.push(back(v));
   const overrun = here.place.overrun;
   const tile = here.place.tile;
