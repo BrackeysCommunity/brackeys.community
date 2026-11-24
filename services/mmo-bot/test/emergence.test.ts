@@ -320,7 +320,7 @@ function renameWorld(refusal?: api.Refusal) {
   return { writes, press };
 }
 
-test("the recap line its first may name carries Name it, which opens a modal at once", () => {
+test("the recap line its first may name carries Name it, which opens the naming card", () => {
   const lex = new Lexicon(after());
   const o = samples.options as api.Options;
   const card = recapCard(o, mm9.here, mm10.recap, lex, new Map());
@@ -331,14 +331,8 @@ test("the recap line its first may name carries Name it, which opens a modal at 
     .filter((x) => x?.action === "pr-name");
   expect(named).toEqual([{ action: "pr-name", target: mm10.style.id, version: o.version }]);
   expect(buttons[0]!.label).toBe("Name it: Edge-and-ember");
-  const modal = modalFor(named[0]!)!;
-  expect(decodeId(modal.customId)).toEqual({
-    action: "pr-named",
-    target: mm10.style.id,
-    version: o.version,
-  });
-  expect(modal.inputs.map((i) => i.id)).toEqual([NAME_INPUT]);
-  expect(modalFor({ action: "pr-name", target: "", version: 1 })).toBeNull();
+  // Its press shows the naming card; the own-name modal opens from there.
+  expect(modalFor(named[0]!)).toBeNull();
   // A line nobody may name carries no button.
   expect(
     recapCard(o, mm9.here, mm9.recap, lex, new Map()).rows.flatMap((r) =>

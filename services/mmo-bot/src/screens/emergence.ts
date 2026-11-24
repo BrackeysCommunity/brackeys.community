@@ -1,9 +1,8 @@
-import type { EmbedField, Modal } from "../../../../packages/discord-kit/src/index.ts";
+import type { EmbedField } from "../../../../packages/discord-kit/src/index.ts";
 import { countWords, seasonAdded } from "../../../../packages/mmo-words/src/index.ts";
 import type * as api from "../api.ts";
 import { WhyAdapted } from "../api.ts";
 import { authorLine, type Card, COLOUR } from "../card.ts";
-import { encodeId } from "../ids.ts";
 import { capitalise, type Lexicon, readable } from "../lexicon.ts";
 import { amount, plural } from "../units.ts";
 import { factNum, factStr } from "./common.ts";
@@ -12,14 +11,14 @@ import { CHRONICLE_CHANNEL } from "./story.ts";
 /**
  * What play made part of the world (GDD 13.2, 17.6): a card for each
  * promotion as the chronicle channel posts it, a legend laid, a custom
- * held and what a season added, and the modal its first renames one with.
+ * held and what a season added.
  * A promotion card never names a character, its first included: places,
  * creatures, materials and counts only.
  */
 
-/** The name input of the rename modal. */
+/** The name input of every own-name modal. */
 export const NAME_INPUT = "name";
-/** The longest name the modal takes: the board's title length. */
+/** The longest name a kind or promotion takes: the board's title length. */
 export const NAME_MOST = 60;
 
 /** A tag as a card writes it: the setting's trait name, else the id in words. */
@@ -57,15 +56,6 @@ export function adaptedLine(steps: number): string {
 /** The steps an option's why says adaptation took off it, 0 for none. */
 export function adaptedSteps(w: api.Why): number {
   return w.parts.filter((p) => p.label === WhyAdapted).reduce((n, p) => n + Math.abs(p.value), 0);
-}
-
-/** The modal a promotion's first renames it with. */
-export function promoteNameModal(id: string, version: number): Modal {
-  return {
-    customId: encodeId("pr-named", id, version),
-    title: "Name it: once, and for good",
-    inputs: [{ id: NAME_INPUT, label: "Name", max: NAME_MOST, required: true }],
-  };
 }
 
 /** What a promotion's record or its fact says it is. */

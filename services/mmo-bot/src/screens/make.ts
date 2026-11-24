@@ -13,8 +13,10 @@ import {
   launch,
   priceLadder,
   PRIVATE,
+  ROW_MOST,
   stationLine,
 } from "./common.ts";
+import { nameItButton } from "./naming.ts";
 
 /** A recipe as the craft card carries it between selects: process.method.slot.material.qty. */
 export interface Draft {
@@ -210,12 +212,29 @@ export function appraisalCard(
   };
 }
 
-/** A craft made: the item, and a first discovery with its plain name. */
-export function madeCard(o: api.Options, here: api.Here, facts: api.Fact[], lex: Lexicon): Card {
+/** The kind a craft discovered, by its kind.discovered fact. */
+export function discoveredKind(facts: readonly api.Fact[]): string | undefined {
+  return facts.find((f) => f.kind === "kind.discovered")?.subjects.find((s) => s.kind === "kind")
+    ?.id;
+}
+
+/**
+ * A craft made: the item, and a first discovery with its plain name. The
+ * discovery's maker is its first by construction, so it may name it; a
+ * description shows once the names were drawn for it.
+ */
+export function madeCard(
+  o: api.Options,
+  here: api.Here,
+  facts: api.Fact[],
+  lex: Lexicon,
+  description?: string,
+): Card {
   const v = o.version;
   const discovered = facts.some((f) => f.kind === "kind.discovered");
   const failed = facts.some((f) => f.kind === "craft.failed");
   const levelled = facts.filter((f) => f.kind === "item.levelled");
+  const kind = !failed ? discoveredKind(facts) : undefined;
   return {
     context: PRIVATE,
     author: discovered ? "First discovery and naming" : "Craft · made",
@@ -223,18 +242,22 @@ export function madeCard(o: api.Options, here: api.Here, facts: api.Fact[], lex:
     description: failed
       ? "The inputs came apart into salvage, and the attempt is recorded."
       : discovered
-        ? "You are its first maker, and the record says so. It takes its plain name for now; naming your own comes later."
+        ? "You are its first maker, and the record says so. It takes its plain name until you give it one of your own, within a few days."
         : "It is in your pack.",
     picture: banner(here),
-    fields: levelled.map((f) => ({
-      name: "Your tool",
-      value: `level ${factNum(f, "to")}`,
-      inline: true,
-    })),
+    fields: [
+      ...(kind && description ? [{ name: "What it is", value: description }] : []),
+      ...levelled.map((f) => ({
+        name: "Your tool",
+        value: `level ${factNum(f, "to")}`,
+        inline: true,
+      })),
+    ],
     footer: "Equip it from your character.",
     rows: [
       {
         buttons: [
+          ...(kind ? [nameItButton({ subject: "kind", row: kind }, "Name it", v)] : []),
           btn("Character", "character", "", v),
           btn("Craft again", "craft", "", v),
           back(v),
@@ -453,8 +476,20 @@ export function itemCard(
   };
 }
 
-/** /recipes: the kinds you know (GDD 17.1). */
-export function recipesCard(o: api.Options, here: api.Here, r: api.Recipes, lex: Lexicon): Card {
+/**
+ * /recipes: the kinds you know (GDD 17.1). A kind its first maker may
+ * still name carries a button for it, and its description once drawn.
+ */
+export function recipesCard(
+  o: api.Options,
+  here: api.Here,
+  r: api.Recipes,
+  lex: Lexicon,
+  descriptions: ReadonlyMap<string, string> = new Map(),
+): Card {
+  const v = o.version;
+  const nameable = r.known.filter((k) => k.renamable).slice(0, ROW_MOST);
+  const described = nameable.filter((k) => descriptions.get(k.kind));
   return {
     context: PRIVATE,
     author: "Recipes · known kinds",
@@ -475,7 +510,21 @@ export function recipesCard(o: api.Options, here: api.Here, r: api.Recipes, lex:
             ]),
         }
       : undefined,
-    footer: "Patterns, written-out recipes, trade like items in a later build.",
-    rows: [{ buttons: [btn("Craft", "craft", "", o.version), back(o.version)] }],
+    fields: described.map((k) => ({ name: k.name, value: descriptions.get(k.kind)! })),
+    footer: nameable.length
+      ? "A kind you made first takes your name once, within a few days of its making."
+      : "Patterns, written-out recipes, trade like items in a later build.",
+    rows: [
+      ...(nameable.length
+        ? [
+            {
+              buttons: nameable.map((k) =>
+                nameItButton({ subject: "kind", row: k.kind }, `Name it: ${k.name}`, v),
+              ),
+            },
+          ]
+        : []),
+      { buttons: [btn("Craft", "craft", "", v), back(v)] },
+    ],
   };
 }

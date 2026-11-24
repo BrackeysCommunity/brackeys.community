@@ -13,6 +13,10 @@ import { HuntPoster } from "./hunts.ts";
 import { Lexicon } from "./lexicon.ts";
 import { MediaCache } from "./media.ts";
 import { createNarration, dayClock, narratorFor } from "./narration/index.ts";
+import { nameOffers } from "./narration/names.ts";
+import { redisNarrationStore } from "./narration/redis.ts";
+import { storyNarration } from "./narration/story.ts";
+import { voiceNarration } from "./narration/voice.ts";
 import { Notifier } from "./notify.ts";
 import { PartyPoster } from "./party.ts";
 import { PromotionsPoster } from "./promotions.ts";
@@ -44,8 +48,16 @@ console.log(
     ? "[narration] the model is on where the switch allows it"
     : "[narration] off: it needs MMO_NARRATION=on, ANTHROPIC_API_KEY and REDIS_URL",
 );
-const narration = createNarration({});
 const day = dayClock();
+const narrationStore = redis ? redisNarrationStore(redis) : null;
+const narration = createNarration(
+  narrator && narrationStore
+    ? {
+        ...storyNarration(narrator, lex, day),
+        ...voiceNarration(narrator, narrationStore, lex),
+      }
+    : {},
+);
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const notifier = new Notifier(world, async (user, text) => {
   const u = await client.users.fetch(user);
@@ -75,6 +87,7 @@ const handle = createHandler({
     threatLine: config.threatLine ?? lex.numbers.ambushLine,
     narration,
     narrator,
+    names: nameOffers(narrator, narrationStore),
     day,
   },
   budget: redis ? redisBudget(redis) : localBudget(),
@@ -118,6 +131,7 @@ client.once(Events.ClientReady, async (c) => {
         storyEvents: (after) => world.storyEvents(after),
         arcs: () => world.arcs(""),
         hunts: () => world.hunts(),
+        chronicleFact: (_character, id) => world.chronicleFact(undefined, id),
       },
       lex,
       store,

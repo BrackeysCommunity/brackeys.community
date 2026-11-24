@@ -10,6 +10,7 @@ import { encodeId } from "../ids.ts";
 import { capitalise, type Lexicon } from "../lexicon.ts";
 import { amount, plural } from "../units.ts";
 import { back, banner, btn, factNum, goodsLine, placedLine, PRIVATE, relative } from "./common.ts";
+import { DUNGEON_NAME_MOST, nameItButton } from "./naming.ts";
 
 /**
  * A dungeon's cards (GDD 4.9): its entrance, a fork with its ways, the
@@ -80,8 +81,12 @@ export function mayName(
   );
 }
 
-function nameButton(f: api.FloorView, v: number): Button {
-  return btn("Name the dungeon", "d-name", f.dungeon, v, { style: "success" });
+/** Naming the dungeon: the player's own name at once, or the naming card's suggestions. */
+function nameButtons(f: api.FloorView, v: number): Button[] {
+  return [
+    btn("Name the dungeon", "d-name", f.dungeon, v, { style: "success" }),
+    nameItButton({ subject: "dungeon", row: f.dungeon }, "Names to pick from", v),
+  ];
 }
 
 function poolLine(f: api.FloorView, lex: Lexicon): string | undefined {
@@ -133,7 +138,7 @@ export function entranceCard(
         disabled: !!o.long || !!o.fight,
       }),
     );
-  if (mayName(f, here.recent, me)) buttons.push(nameButton(f, v));
+  if (mayName(f, here.recent, me)) buttons.push(...nameButtons(f, v));
   buttons.push(btn("Party", "party", "", v), back(v));
   return {
     context: PRIVATE,
@@ -276,7 +281,7 @@ export function bottomCard(
       inline: true,
     });
   const buttons: Button[] = [];
-  if (f && first && !f.name) buttons.push(nameButton(f, v));
+  if (f && first && !f.name) buttons.push(...nameButtons(f, v));
   buttons.push(btn("Party", "party", "", v), back(v));
   const name = f ? dungeonName(f, lex) : "the dungeon";
   return {
@@ -299,7 +304,7 @@ export function dungeonNameModal(dungeon: string, version: number): Modal {
   return {
     customId: encodeId("d-named", dungeon, version),
     title: "Name the dungeon",
-    inputs: [{ id: "name", label: "Name", max: 40, required: true }],
+    inputs: [{ id: "name", label: "Name", max: DUNGEON_NAME_MOST, required: true }],
   };
 }
 

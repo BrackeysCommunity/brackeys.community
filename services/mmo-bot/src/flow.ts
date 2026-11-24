@@ -3,14 +3,23 @@ import type { Narrator } from "../../../packages/mmo-narrate/src/index.ts";
 import * as api from "./api.ts";
 import type { Card } from "./card.ts";
 import { type Action, fields, type Id, integerTarget, type Launch, launchOf } from "./ids.ts";
-import { capitalise, type Lexicon } from "./lexicon.ts";
+import { capitalise, type Lexicon, readable } from "./lexicon.ts";
 import type { CommandName } from "./manifest.ts";
 import { type DayClock, dayClock, type Narration, offNarration } from "./narration/hooks.ts";
+import {
+  type NameCtx,
+  type NameFacts,
+  type NameOffers,
+  nameOffers,
+  type ScreenCtx,
+} from "./narration/names.ts";
 import type { PartyNote } from "./party.ts";
 import { backCards } from "./screens/back.ts";
 import { classesCard } from "./screens/classes.ts";
+import { factStr } from "./screens/common.ts";
 import {
   bottomCard,
+  dungeonName,
   dungeonNameModal,
   entranceCard,
   forkCard,
@@ -18,7 +27,7 @@ import {
   pushLeaveCard,
   reachedBottom,
 } from "./screens/dungeon.ts";
-import { NAME_INPUT, promoteNameModal } from "./screens/emergence.ts";
+import { NAME_INPUT, tagName } from "./screens/emergence.ts";
 import { beatCard, downCard, fieldCard, resolvedCard, whyCard } from "./screens/fight.ts";
 import {
   boardCard,
@@ -46,6 +55,7 @@ import {
   appraisalCard,
   characterCard,
   craftCard,
+  discoveredKind,
   type Draft,
   draftRecipe,
   itemCard,
@@ -69,6 +79,14 @@ import {
   ordersCard,
   reportCard,
 } from "./screens/market.ts";
+import {
+  HELD_NOTICE,
+  type NameTarget,
+  namingCard,
+  ownNameModal,
+  parseNameTarget,
+  parsePick,
+} from "./screens/naming.ts";
 import {
   beatResolvedCard,
   partyBeatCard,
@@ -150,8 +168,8 @@ export function modalFor(id: Id): Modal | null {
         : nameModal("gld-chart", id.version, "Name your settlement");
     case "d-name":
       return hexOf(id.target) ? dungeonNameModal(id.target, id.version) : null;
-    case "pr-name":
-      return id.target ? promoteNameModal(id.target, id.version) : null;
+    case "kn-own":
+      return ownNameModal(id.target, id.version);
     case "s-give": {
       const f = fields(id.target, ":", 2);
       return f ? giveModal(f[0]!, f[1]!, id.version) : null;
@@ -189,6 +207,8 @@ export interface Ctx {
   narrator?: Narrator | null;
   /** The world day the bot last heard of; a fresh clock per Ctx when unset. */
   day?: DayClock;
+  /** Name suggestions and the screen on typed names; from the narrator when unset. */
+  names?: NameOffers;
 }
 
 const clocks = new WeakMap<Ctx, DayClock>();
@@ -270,6 +290,12 @@ class Session {
   /** The server a press came from, for the per-server switch; empty in a DM. */
   private get server(): string {
     return this.press.guild ?? "";
+  }
+  private get names(): NameOffers {
+    return this.ctx.names ?? nameOffers(this.ctx.narrator ?? null);
+  }
+  private nameCtx(mode?: NameCtx["mode"]): NameCtx {
+    return { day: this.day.today(), server: this.server, user: this.press.user, mode };
   }
 
   /** Since you left, narrated when the narration gives it. */
@@ -381,9 +407,140 @@ class Session {
     return this.done(characterCard(o, here, await this.world.sheet(this.character), this.lex));
   }
 
-  async recipes(): Promise<Answer> {
+  async recipes(notice?: string): Promise<Answer> {
     const { o, here } = await this.load();
-    return this.done(recipesCard(o, here, await this.world.recipes(this.character), this.lex));
+    const r = await this.world.recipes(this.character);
+    const descriptions = new Map<string, string>();
+    await Promise.all(
+      r.known
+        .filter((k) => k.renamable)
+        .map(async (k) => {
+          const offer = await this.names.suggest(
+            "kind",
+            k.kind,
+            k.name,
+            this.kindFacts(k),
+            this.nameCtx("cached"),
+          );
+          if (offer?.description) descriptions.set(k.kind, offer.description);
+        }),
+    );
+    return this.retitled(this.done(recipesCard(o, here, r, this.lex, descriptions)), notice);
+  }
+
+  /** What a kind is and is made of, in words, as its names are asked for. */
+  private kindFacts(k: api.Known): NameFacts {
+    const lower = (s: string) => s.toLowerCase();
+    return {
+      traits: [
+        lower(this.lex.name("items.processes", k.recipe.process)),
+        lower(this.lex.name("items.methods", k.recipe.method)),
+        ...(k.recipe.slot ? [lower(this.lex.name("items.slots", k.recipe.slot))] : []),
+      ],
+      lineage: k.recipe.inputs.map((i) => lower(this.lex.material(i.material))),
+    };
+  }
+
+  /** The thing a naming card is about: its name now, its facts, and whether it may still be named. */
+  private async nameSubject(
+    t: NameTarget,
+  ): Promise<{ plain: string; facts: NameFacts; open: boolean } | null> {
+    switch (t.subject) {
+      case "kind": {
+        const k = (await this.world.recipes(this.character)).known.find((x) => x.kind === t.row);
+        return k ? { plain: k.name, facts: this.kindFacts(k), open: !!k.renamable } : null;
+      }
+      case "promotion": {
+        const recap = await this.world.recap(this.character);
+        this.day.saw(recap.day);
+        const f = recap.lines.find((l) => l.promotion === t.row)?.fact;
+        if (!f) return null;
+        const resists = factStr(f, "resists");
+        const of = factStr(f, "of");
+        return {
+          plain: factStr(f, "name") || readable(factStr(f, "type")),
+          facts: {
+            traits: [factStr(f, "type"), ...(resists ? [tagName(resists, this.lex)] : [])].filter(
+              Boolean,
+            ),
+            lineage: of ? [readable(of).toLowerCase()] : [],
+          },
+          open: true,
+        };
+      }
+      case "dungeon": {
+        const here = await this.world.here(this.character);
+        const f = here.floor;
+        if (!f || f.dungeon !== t.row) return null;
+        const kind = this.lex.name("map.dungeons", f.kind).toLowerCase();
+        return {
+          plain: dungeonName(f, this.lex),
+          facts: { traits: [kind, ...(f.up ? ["relay tower"] : [])], lineage: [] },
+          open: !f.name,
+        };
+      }
+    }
+  }
+
+  /** The naming card for a thing, its suggestions as far as they came in time. */
+  async naming(t: NameTarget, notice?: string): Promise<Answer> {
+    const [o, subject] = await Promise.all([
+      this.world.options(this.character),
+      this.nameSubject(t),
+    ]);
+    if (!subject?.open) return this.nameHome(t, "It is not yours to name now");
+    const offer = await this.names.suggest(
+      t.subject,
+      t.row,
+      subject.plain,
+      subject.facts,
+      this.nameCtx(),
+    );
+    return this.done(namingCard(o.version, t, subject.plain, offer, notice));
+  }
+
+  /** The card a naming leaves to: recipes for a kind, since you left for a promotion, the dungeon. */
+  private nameHome(t: NameTarget, notice?: string): Promise<Answer> {
+    switch (t.subject) {
+      case "kind":
+        return this.recipes(notice);
+      case "promotion":
+        return this.recap(notice);
+      case "dungeon":
+        return this.dungeon(notice);
+    }
+  }
+
+  /** A name sent for a thing: the world's command for it, then its card titled with the outcome. */
+  private sendName(t: NameTarget, name: string, v: number): Promise<Answer> {
+    const then = (_: unknown, why?: string) => this.nameHome(t, why ?? `Named: ${name}`);
+    switch (t.subject) {
+      case "kind":
+        return this.write(api.ActKindName, v, { option: t.row, note: name }, then);
+      case "promotion":
+        return this.write(api.ActPromoteName, v, { option: t.row, note: name }, then);
+      case "dungeon": {
+        const to = hexOf(t.row);
+        if (!to) return Promise.resolve(backCards.unknown(this.character));
+        return this.write(api.ActDungeonName, v, { note: name, to }, then);
+      }
+    }
+  }
+
+  /**
+   * A name the player typed, screened before the world sees it: held, it
+   * is not sent and the card says a person reads it first.
+   */
+  private async screened(
+    name: string,
+    use: ScreenCtx["use"],
+    target: string,
+    held: (notice: string) => Promise<Answer>,
+    send: () => Promise<Answer>,
+  ): Promise<Answer> {
+    if (!name) return send();
+    const verdict = await this.names.screen(name, { ...this.nameCtx(), use, target });
+    return verdict === "hold" ? held(HELD_NOTICE) : send();
   }
 
   async fight(last?: api.ActionReply): Promise<Answer> {
@@ -771,6 +928,19 @@ class Session {
     return this.retitled(this.done(await this.recapAnswer(o, here, recap)), notice);
   }
 
+  /**
+   * A kind just discovered: its names are asked for now, so the naming card
+   * finds them ready, and its description shows if it came in time.
+   */
+  private async discoveryDescription(facts: api.Fact[]): Promise<string | undefined> {
+    const kind = discoveredKind(facts);
+    if (!kind || facts.some((f) => f.kind === "craft.failed") || !this.ctx.narrator) return;
+    const k = (await this.world.recipes(this.character)).known.find((x) => x.kind === kind);
+    if (!k) return;
+    const offer = await this.names.suggest("kind", kind, k.name, this.kindFacts(k), this.nameCtx());
+    return offer?.description;
+  }
+
   /** A write, then the card it leads to; a refusal shows its reason on that card. */
   private async write(
     kind: string,
@@ -833,7 +1003,9 @@ class Session {
           async (r, why) => {
             if (!r) return this.retitled(await this.craft({}), why);
             const { o, here } = await this.load();
-            return this.done(madeCard(o, here, r.facts, this.lex));
+            return this.done(
+              madeCard(o, here, r.facts, this.lex, await this.discoveryDescription(r.facts)),
+            );
           },
         );
       case "market": {
@@ -991,14 +1163,48 @@ class Session {
             : this.goals(undefined, "The city project's goals are on the board"),
         );
       case "recap":
-      case "pr-name":
         return this.recap();
+      case "pr-name":
+        if (!id.target) return backCards.unknown(this.character);
+        return this.naming({ subject: "promotion", row: id.target });
       case "pr-named": {
         const name = (this.press.fields?.[NAME_INPUT] ?? "").trim();
         if (!id.target) return backCards.unknown(this.character);
-        if (!name) return this.recap("Give it a name: a few words the board takes");
-        return this.write(api.ActPromoteName, v, { option: id.target, note: name }, (_, why) =>
-          this.recap(why ?? `Named: ${name}`),
+        if (!name) return this.recap(NO_NAME);
+        return this.screened(
+          name,
+          "promotion",
+          id.target,
+          (held) => this.recap(held),
+          () =>
+            this.write(api.ActPromoteName, v, { option: id.target, note: name }, (_, why) =>
+              this.recap(why ?? `Named: ${name}`),
+            ),
+        );
+      }
+      case "kn-name":
+      case "kn-own": {
+        const t = parseNameTarget(id.target);
+        if (!t) return backCards.unknown(this.character);
+        return this.naming(t);
+      }
+      case "kn-pick": {
+        const pick = parsePick(id.target);
+        if (!pick) return backCards.unknown(this.character);
+        if (!pick.name) return this.nameHome(pick.t, "It keeps its plain name");
+        return this.sendName(pick.t, pick.name, v);
+      }
+      case "kn-named": {
+        const t = parseNameTarget(id.target);
+        const name = (this.press.fields?.[NAME_INPUT] ?? "").trim();
+        if (!t) return backCards.unknown(this.character);
+        if (!name) return this.nameHome(t, NO_NAME);
+        return this.screened(
+          name,
+          t.subject,
+          t.row,
+          (held) => this.nameHome(t, held),
+          () => this.sendName(t, name, v),
         );
       }
       case "step":
@@ -1215,22 +1421,33 @@ class Session {
         if (id.target === "take")
           return this.guildWrite(api.ActCharter, v, {}, "places", "Chartered");
         return this.guild();
-      case "gld-new":
-        return this.guildWrite(
-          api.ActFoundGuild,
-          v,
-          { note: this.press.fields?.name ?? "" },
-          "members",
-          "Founded",
+      case "gld-new": {
+        const name = this.press.fields?.name ?? "";
+        return this.screened(
+          name.trim(),
+          "guild",
+          "",
+          (held) => this.guild("members", held),
+          () => this.guildWrite(api.ActFoundGuild, v, { note: name }, "members", "Founded"),
         );
-      case "gld-chart":
-        return this.guildWrite(
-          api.ActFound,
-          v,
-          { note: this.press.fields?.name ?? "" },
-          "places",
-          "Founded: the settlement stands",
+      }
+      case "gld-chart": {
+        const name = this.press.fields?.name ?? "";
+        return this.screened(
+          name.trim(),
+          "settlement",
+          "",
+          (held) => this.guild("places", held),
+          () =>
+            this.guildWrite(
+              api.ActFound,
+              v,
+              { note: name },
+              "places",
+              "Founded: the settlement stands",
+            ),
         );
+      }
       case "gld-join":
         return this.guildWrite(api.ActJoin, v, { target: id.target }, "members", "Joined");
       case "gld-leave": {
@@ -1342,8 +1559,15 @@ class Session {
         const to = hexOf(id.target);
         const name = (this.press.fields?.name ?? "").trim();
         if (!to) return backCards.unknown(this.character);
-        return this.write(api.ActDungeonName, v, { note: name, to }, (_, why) =>
-          this.dungeon(why ?? `Named: ${name}`),
+        return this.screened(
+          name,
+          "dungeon",
+          id.target,
+          (held) => this.dungeon(held),
+          () =>
+            this.write(api.ActDungeonName, v, { note: name, to }, (_, why) =>
+              this.dungeon(why ?? `Named: ${name}`),
+            ),
         );
       }
       case "hunt":
@@ -1372,6 +1596,9 @@ class Session {
     }
   }
 }
+
+/** The title a name submitted empty gets. */
+const NO_NAME = "Give it a name: a few words the board takes";
 
 /** Units a write filled on the market, by its fill facts. */
 function filled(r: api.ActionReply): number {
