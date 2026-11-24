@@ -1,11 +1,23 @@
 import type { Button } from "../../../packages/discord-kit/src/index.ts";
+import {
+  type DayLedger,
+  fixedSwitch,
+  memoryStore as narrationMemory,
+  Narrator,
+  stubModel,
+} from "../../../packages/mmo-narrate/src/index.ts";
 import * as api from "./api.ts";
 import { type Card, problems } from "./card.ts";
+import { NARRATION_DAY_USD } from "./config.ts";
 import { answer, type Answer, type Ctx, launchFor, modalFor, type Press } from "./flow.ts";
 import { memoryStore } from "./forum.ts";
 import { HuntPoster } from "./hunts.ts";
 import { decodeId, type Id } from "./ids.ts";
 import { Lexicon } from "./lexicon.ts";
+import { createNarration, dayClock } from "./narration/index.ts";
+import { nameOffers } from "./narration/names.ts";
+import { storyNarration } from "./narration/story.ts";
+import { voiceNarration } from "./narration/voice.ts";
 import { PartyPoster } from "./party.ts";
 import { ThreadBudget } from "./publish.ts";
 import { recording } from "./record.ts";
@@ -17,7 +29,9 @@ import { httpWorld, type World } from "./world.ts";
  * pressing only what the bot's cards offer through the same handlers
  * Discord drives; every card is checked against the card standard and the
  * conservation audit runs at the end. With --season it then opens an
- * arc's stage card and backs a side through its buttons.
+ * arc's stage card and backs a side through its buttons. With
+ * --narration stub every card goes through the narrator with the stub
+ * model and every switch on, and must pass the same checks as off.
  */
 
 export interface Run {
@@ -725,20 +739,114 @@ export async function partyRun(
   return run;
 }
 
+export type NarrationMode = "off" | "stub";
+
+/** --narration off|stub, off when absent; a message when the value is neither. */
+export function narrationMode(argv: readonly string[]): NarrationMode | string {
+  const i = argv.findIndex((a) => a === "--narration" || a.startsWith("--narration="));
+  if (i < 0) return "off";
+  const arg = argv[i]!;
+  const v = arg.includes("=") ? arg.slice(arg.indexOf("=") + 1) : argv[i + 1];
+  return v === "off" || v === "stub" ? v : "usage: --narration off|stub";
+}
+
+/** What a run's narration did: the stub's calls and the ledger of each day it counted under. */
+export interface NarrationRun {
+  mode: NarrationMode;
+  calls: number;
+  ledgers(): Promise<DayLedger[]>;
+}
+
+/**
+ * The run's Ctx: the plain one when narration is off, or one whose every
+ * part goes through a narrator over the stub, a memory store and a switch
+ * fixed on, so every narrated card a run sees is checked like the rest.
+ */
+export function scriptedCtx(
+  base: Pick<Ctx, "world" | "lex" | "threatLine">,
+  mode: NarrationMode,
+  log: (line: string) => void = console.error,
+): { ctx: Ctx; narration: NarrationRun } {
+  if (mode === "off") {
+    return { ctx: base, narration: { mode, calls: 0, ledgers: async () => [] } };
+  }
+  const model = stubModel();
+  const store = narrationMemory();
+  const sw = fixedSwitch(true);
+  const narrator = new Narrator({
+    model,
+    store,
+    switch: sw,
+    dayUsd: NARRATION_DAY_USD,
+    log,
+  });
+  const day = dayClock();
+  const ctx: Ctx = {
+    ...base,
+    narration: createNarration(
+      {
+        ...storyNarration(narrator, base.lex, day),
+        ...voiceNarration(narrator, store, base.lex, sw),
+      },
+      log,
+    ),
+    narrator,
+    names: nameOffers(narrator, store, log),
+    day,
+  };
+  return {
+    ctx,
+    narration: {
+      mode,
+      get calls() {
+        return model.calls.length;
+      },
+      async ledgers() {
+        await narrator.drain();
+        const days = [...new Set(store.keys().filter((k) => k.includes(":cost:")))];
+        return Promise.all(days.map((k) => narrator.ledger(Number(k.split(":").at(-1)))));
+      },
+    },
+  };
+}
+
+/** The narration part of a run's report. */
+async function narrationReport(n: NarrationRun) {
+  return { mode: n.mode, calls: n.calls, ledgers: await n.ledgers() };
+}
+
+function modeOrExit(): NarrationMode {
+  const mode = narrationMode(process.argv.slice(2));
+  if (mode === "off" || mode === "stub") return mode;
+  console.error(mode);
+  process.exit(2);
+}
+
 if (import.meta.main && process.env.SCRIPTED === "party") {
   const url = process.env.MMO_WORLD_URL ?? "http://localhost:8080";
   const world = httpWorld(url, process.env.MMO_API_TOKEN ?? "");
   const lex = new Lexicon(await world.lexicon());
-  const started = Date.now();
-  const r = await partyRun(
+  const { ctx, narration } = scriptedCtx(
     { world, lex, threatLine: lex.numbers.ambushLine },
-    { operator: { url, token: process.env.MMO_OPERATOR_TOKEN ?? "local-operator" } },
-  ).catch((e: unknown) => {
+    modeOrExit(),
+  );
+  const started = Date.now();
+  const r = await partyRun(ctx, {
+    operator: { url, token: process.env.MMO_OPERATOR_TOKEN ?? "local-operator" },
+  }).catch((e: unknown) => {
     console.error(e);
     process.exit(2);
   });
   console.log(
-    JSON.stringify({ ...r, seconds: Math.round((Date.now() - started) / 1000) }, null, 2),
+    JSON.stringify(
+      {
+        ...r,
+        narration: await narrationReport(narration),
+        seconds: Math.round((Date.now() - started) / 1000),
+      },
+      null,
+      2,
+    ),
   );
   process.exit(r.problems.length || !r.party || !r.beats || !r.ended || !r.thread.length ? 1 : 0);
 }
@@ -749,17 +857,29 @@ if (import.meta.main && process.env.SCRIPTED !== "party") {
   const base: World = httpWorld(url, process.env.MMO_API_TOKEN ?? "");
   const world = process.env.RECORD ? recording(base, samples) : base;
   const lex = new Lexicon(await world.lexicon());
+  const { ctx, narration } = scriptedCtx(
+    { world, lex, threatLine: lex.numbers.ambushLine },
+    modeOrExit(),
+  );
   const started = Date.now();
   const season = process.argv.includes("--season");
-  const r = await scripted(
-    { world, lex, threatLine: lex.numbers.ambushLine },
-    { operator: { url, token: process.env.MMO_OPERATOR_TOKEN ?? "local-operator" }, season },
-  ).catch((e: unknown) => {
+  const r = await scripted(ctx, {
+    operator: { url, token: process.env.MMO_OPERATOR_TOKEN ?? "local-operator" },
+    season,
+  }).catch((e: unknown) => {
     console.error(e);
     process.exit(2);
   });
   console.log(
-    JSON.stringify({ ...r, seconds: Math.round((Date.now() - started) / 1000) }, null, 2),
+    JSON.stringify(
+      {
+        ...r,
+        narration: await narrationReport(narration),
+        seconds: Math.round((Date.now() - started) / 1000),
+      },
+      null,
+      2,
+    ),
   );
   if (process.env.RECORD)
     await Bun.write(process.env.RECORD, `${JSON.stringify(samples, null, 2)}\n`);
