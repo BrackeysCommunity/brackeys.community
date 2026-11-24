@@ -268,7 +268,24 @@ type population struct {
 	back   *agent.Backer
 	quiet  quietServer
 	until  func(g *game.Game) bool
+	// stealers turns every stealEvery-th main player to theft, keeping
+	// its name, role and dice; nil for a world without thieves.
+	stealers func(agent.Policy) agent.Policy
+	// watch reads the soak as it plays; nil for none.
+	watch soakWatch
 }
+
+// soakWatch reads a soak beyond what the Economy run reads: the client
+// its players reach the world through, every tick's transactions, and
+// the end of each world day.
+type soakWatch interface {
+	open(w *soakWorld) agent.Client
+	tick(g *game.Game, txns []ledger.Txn)
+	day(g *game.Game)
+}
+
+// structural: one main player in stealEvery is a thief (GDD 18.3).
+const stealEvery = 10
 
 // quietServer is a second server's players, part of the soak's size, who
 // arrive on the second day, found, and stop playing once world day
@@ -348,6 +365,9 @@ func openSoak(b *sheets.Book, k keys.Set, pop population) (*soakWorld, error) {
 	main := len(players)
 	for i, p := range players {
 		p.Server, p.Admin = pop.server, i < pop.admins
+		if pop.stealers != nil && i%stealEvery == stealEvery-1 {
+			p.Policy = pop.stealers(p.Policy)
+		}
 	}
 	arrive := make([]int64, 0, pop.size)
 	join := pop.join * sheets.TicksPerDay
@@ -369,7 +389,11 @@ func openSoak(b *sheets.Book, k keys.Set, pop population) (*soakWorld, error) {
 		// Hiding the pages leaves the players to the market alone.
 		client = struct{ agent.Client }{local}
 	}
-	return &soakWorld{g: g, local: local, client: client, players: players, arrive: arrive, main: main}, nil
+	w := &soakWorld{g: g, local: local, client: client, players: players, arrive: arrive, main: main}
+	if pop.watch != nil {
+		w.client = pop.watch.open(w)
+	}
+	return w, nil
 }
 
 // due is who plays at tick t: arrived, the quiet server's only until it
@@ -410,9 +434,15 @@ func soak(b *sheets.Book, pop population, days int64) (economyResult, error) {
 			return res, err
 		}
 		g.Flush()
-		local.Txns()
+		txns := local.Txns()
+		if pop.watch != nil {
+			pop.watch.tick(g, txns)
+		}
 		if g.Tick()%sheets.TicksPerDay == 0 {
 			local.Forget()
+			if pop.watch != nil {
+				pop.watch.day(g)
+			}
 			res.days = append(res.days, dayOf(g))
 			for _, bk := range g.BooksAt(unplayed(g)) {
 				units, _ := bk.Traded(1, false)
@@ -452,10 +482,21 @@ func due(i int, rel int64, p *agent.Player, busy func(*agent.Player) bool) bool 
 	if (rel+int64(i))%workPeriod != 0 || (rel+int64(i)*wakeSpread)%sheets.TicksPerDay >= awake {
 		return false
 	}
-	if e, ok := p.Policy.(*agent.Earner); ok && e.Role == agent.Casual && (rel+int64(i)*casualSpread)%casualEvery >= casualSession {
+	if e, ok := earnerOf(p.Policy); ok && e.Role == agent.Casual && (rel+int64(i)*casualSpread)%casualEvery >= casualSession {
 		return false
 	}
 	return !busy(p)
+}
+
+// earnerOf is the Earner a policy plays, a thief's own included.
+func earnerOf(p agent.Policy) (*agent.Earner, bool) {
+	switch e := p.(type) {
+	case *agent.Earner:
+		return e, true
+	case *agent.Thief:
+		return e.Earner, true
+	}
+	return nil, false
 }
 
 // longBusy is whether a player's character is on a long action outside a

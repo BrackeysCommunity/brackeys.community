@@ -9,6 +9,8 @@
 //	harness craft -out DIR   the Craft run: sampled kinds against budgets and a search
 //	harness battle -out DIR  the Battle run: the matchup matrix, classes, parties, growth and puzzles
 //	harness economy -out DIR the Economy run: scripted players, their guild and its works, a founding (-n for one size)
+//	harness crime -out DIR   the Crime run: the Economy run's players with one in ten a thief, against the band, the ledger
+//	                         and the invitation, and at 1,000 the first city without thieves (-n for one size)
 //	harness puzzles -out DIR the Puzzles run: every family's move logs at a bench and every party version's merged logs, replayed to the same facts
 //	harness activity -out DIR the Activity run: every family through a live world's Activity listener (MMO_URL, MMO_ACTIVITY_URL)
 //	harness delve -out DIR   the delve run: a party of four down the nearest first-tier dungeon and ten at a hunt, on a live disposable world

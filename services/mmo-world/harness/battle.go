@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fight"
@@ -565,6 +566,11 @@ func BattleRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	pz := bt.p.Puzzles
 	readings = append(readings, Measured{Target: "puzzle-solve-rate", Value: fmt.Sprintf("%.1f%% over every cell", 100*rate),
 		Holds: rate*100 >= float64(pz.Param("solve-target-min")) && rate*100 <= float64(pz.Param("solve-target-max"))})
+	wit, err := witnessRun(b)
+	if err != nil {
+		return nil, err
+	}
+	readings = append(readings, wit.section(pr))
 	pr("Took %s.", time.Since(start).Round(time.Second))
 	if err := doc.save(out, "battle.md"); err != nil {
 		return nil, err
@@ -698,4 +704,182 @@ func (b *battle) puzzleCells(tier, practice int64) (float64, int) {
 		}
 	}
 	return sum, n
+}
+
+// The witness formula's proof (GDD 6.5, 18.3): sampled thefts against the
+// formula, and real lifts against the game.
+const (
+	witnessSamples = 10000
+	witnessWithin  = 3 // points the observed share may stray from the formula, a bucket
+)
+
+// structural: the witness run's shape: the sampled inputs' ranges, the
+// width of a bucket of formula value, the least samples a bucket is
+// judged on (under it the share's own spread passes the tolerance), and
+// the real lifts the game is checked on.
+const (
+	witnessSleightMost = 20
+	witnessCoverMost   = 100
+	witnessUprightMost = 4
+	witnessBucket      = 10
+	witnessJudged      = 300
+	witnessLifts       = 300
+)
+
+// witnessBin is one bucket of formula value: samples in it, those seen,
+// and their formula values summed.
+type witnessBin struct {
+	n, seen int
+	sum     int64
+}
+
+// witnessResult is the witness run: the sampled buckets, and the real
+// lifts whose odds and roll the formula reproduced.
+type witnessResult struct {
+	bins                []witnessBin
+	lifts, agree, rolls int
+	rolled              int
+	quiet               int
+	misses              []string
+}
+
+// witnessRun samples thefts of every rolled kind, in and out of a
+// settlement, at random Sleight, cover, upright NPCs and kit, and rolls
+// each as the game does; then has real characters lift in a world where
+// NPCs hold coin, and checks each theft's odds and roll against the same
+// formula.
+func witnessRun(b *sheets.Book) (witnessResult, error) {
+	k := keys.Throwaway("battle-witness")
+	d := draw.NewDrawer(k.Roll)
+	var kinds []sheets.TheftKind
+	for _, tk := range b.TheftKinds {
+		if !tk.Always && !tk.Watch {
+			kinds = append(kinds, tk)
+		}
+	}
+	out := witnessResult{bins: make([]witnessBin, witnessBucket+1)}
+	for i := range witnessSamples {
+		at := draw.Int(int64(i))
+		tk := kinds[d.Below(uint64(len(kinds)), "witness.kind", at)]
+		settlement := d.Percent(fixed.Hundredths/2, "witness.settlement", at)
+		v := witnessOf(b, tk, settlement, int64(d.Below(witnessUprightMost+1, "witness.uprights", at)), int64(d.Below(witnessSleightMost+1, "witness.sleight", at)),
+			int64(d.Below(witnessCoverMost+1, "witness.cover", at)), d.Percent(fixed.Hundredths/2, "witness.quiet", at))
+		who := fmt.Sprintf("c-%d", i)
+		bin := &out.bins[min(v/witnessBucket, witnessBucket)]
+		bin.n++
+		bin.sum += v
+		if seenRoll(d, v, who, "t-"+who+"-1") {
+			bin.seen++
+		}
+	}
+	w, err := newTheftWorld(b, "battle-witness", witnessLifts)
+	if err != nil {
+		return out, err
+	}
+	if err := w.fund(); err != nil {
+		return out, err
+	}
+	lift, _ := w.g.TheftKind(api.TheftLift)
+	cover := w.g.Rules().Gen.Baseline(w.home).Cover
+	for i, c := range w.cs {
+		sleight := int64(d.Below(witnessSleightMost+1, "witness.lift-sleight", draw.Int(int64(i))))
+		setLevel(c.C, practiceSleight, sleight)
+		l, err := w.lift(c, i)
+		if err != nil {
+			return out, err
+		}
+		out.lifts++
+		var uprights int64
+		for _, p := range l.people {
+			if p.Leaning == api.LeaningUpright && p.Mood != api.MoodWarm && p.ID != l.th.NPC {
+				uprights++
+			}
+		}
+		quiet := slices.ContainsFunc(l.th.Parts, func(p fight.Part) bool { return p.Label == partQuiet })
+		if quiet {
+			out.quiet++
+		}
+		want := witnessOf(b, lift, true, uprights, sleight, cover, quiet)
+		if want == l.th.Witness {
+			out.agree++
+		} else if len(out.misses) < auditShown {
+			out.misses = append(out.misses, fmt.Sprintf("%s at Sleight %d, %d upright, cover %d: the game %d, the formula %d", c.C.ID, sleight, uprights, cover, l.th.Witness, want))
+		}
+		if l.outcome == theftWon {
+			out.rolled++
+			if seenRoll(draw.NewDrawer(w.k.Roll), l.th.Witness, c.C.ID, l.encounter) == l.witnessed {
+				out.rolls++
+			}
+		}
+	}
+	return out, nil
+}
+
+// structural: the practice a theft's Sleight is, and the witness part a
+// quiet kit adds.
+const (
+	practiceSleight = "sleight"
+	partQuiet       = "quiet"
+)
+
+// setLevel sets a character's practice level outright, as the Battle run
+// builds its characters at a level.
+func setLevel(c *char.Character, skill string, level int64) {
+	i := slices.IndexFunc(c.Practice, func(s char.Skill) bool { return s.ID == skill })
+	if i < 0 {
+		c.Practice = append(c.Practice, char.Skill{ID: skill})
+		slices.SortFunc(c.Practice, func(a, b char.Skill) int { return strings.Compare(a.ID, b.ID) })
+		i = slices.IndexFunc(c.Practice, func(s char.Skill) bool { return s.ID == skill })
+	}
+	c.Practice[i].Level = level
+}
+
+// ok reports whether every bucket judged holds, and the game agreed on
+// every real lift's odds and roll.
+func (r witnessResult) ok() bool {
+	judged := false
+	for _, bin := range r.bins {
+		if bin.n < witnessJudged {
+			continue
+		}
+		judged = true
+		if !bin.holds() {
+			return false
+		}
+	}
+	return judged && r.lifts > 0 && r.agree == r.lifts && r.rolls == r.rolled
+}
+
+func (bin witnessBin) mean() float64  { return float64(bin.sum) / float64(max(bin.n, 1)) }
+func (bin witnessBin) share() float64 { return 100 * float64(bin.seen) / float64(max(bin.n, 1)) }
+func (bin witnessBin) holds() bool    { return abs(bin.share()-bin.mean()) <= witnessWithin }
+
+// section writes the witness run and returns its reading.
+func (r witnessResult) section(pr func(string, ...any)) Measured {
+	pr("## The witness formula")
+	pr("")
+	pr("%s sampled thefts of every kind the formula rolls for, in a settlement or away, at Sleight 0 to %d, cover 0 to %d, 0 to %d upright NPCs about and a quiet kit or not, each held to the formula from `theft.kinds` and `theft.params` and rolled as the game rolls a won theft (keyed by the character and the theft's encounter under the world's roll key). A bucket of %d points of formula value is judged from %d samples; it holds when its observed witnessed share is within %d points of its mean formula value.", comma(witnessSamples), witnessSleightMost, witnessCoverMost, witnessUprightMost, witnessBucket, witnessJudged, witnessWithin)
+	pr("")
+	pr("| Formula value | Samples | Mean formula value | Observed witnessed share | Holds |")
+	pr("| --- | --- | --- | --- | --- |")
+	worst, worstAt := 0.0, ""
+	for i, bin := range r.bins {
+		if bin.n == 0 {
+			continue
+		}
+		mark := holds(bin.holds())
+		if bin.n < witnessJudged {
+			mark = "– (too few)"
+		} else if d := abs(bin.share() - bin.mean()); d > worst {
+			worst, worstAt = d, fmt.Sprintf("%d–%d", i*witnessBucket, i*witnessBucket+witnessBucket-1)
+		}
+		pr("| %d–%d | %s | %.1f | %.1f%% | %s |", i*witnessBucket, i*witnessBucket+witnessBucket-1, comma(int64(bin.n)), bin.mean(), bin.share(), mark)
+	}
+	pr("")
+	pr("Real lifts: %d characters at Sleight 0 to %d lift from NPCs whose purses hold coin, at the first starting settlement of a world under throwaway key `battle-witness`. The game's odds equal the formula's (upright NPCs, Sleight and the tile's cover read from the world; a quiet kit as the game's parts tell it, %d of them) on %d of %d; of the %d won, the game's roll equals the formula's on %d.", r.lifts, witnessSleightMost, r.quiet, r.agree, r.lifts, r.rolled, r.rolls)
+	for _, m := range r.misses {
+		pr("- %s", m)
+	}
+	pr("")
+	return Measured{Target: "witness-formula", Value: fmt.Sprintf("worst bucket %s off by %.1f points over %s sampled thefts; the game agrees on %d of %d real lifts' odds and %d of %d rolls", worstAt, worst, comma(witnessSamples), r.agree, r.lifts, r.rolls, r.rolled), Holds: r.ok()}
 }

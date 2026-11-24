@@ -232,6 +232,56 @@ func (q *quietResult) troubles(g *game.Game) {
 // structural: an arc's outcome when its last stage lapsed.
 const troubleLapsed = "lapsed"
 
+// structural: the road war (GDD 12.9) and its two sides.
+const (
+	roadWarTemplate = "the-road-war"
+	sidePatrol      = "patrol-it"
+	sidePrey        = "prey-on-it"
+)
+
+// roadWars counts each road war's stages once they end: won by the
+// patrol, won by the raiders' prey, or lapsed.
+type roadWars struct {
+	counted              map[string]bool
+	patrol, prey, lapsed int
+}
+
+// day counts the road wars that ended since the last read. An ended arc
+// stays in the story for kept-arc-days, so a daily read sees every one.
+func (r *roadWars) day(g *game.Game) {
+	if g.Story == nil {
+		return
+	}
+	if r.counted == nil {
+		r.counted = map[string]bool{}
+	}
+	for _, a := range g.Story.Arcs {
+		if a.Template != roadWarTemplate || a.Ended == 0 || r.counted[a.ID] {
+			continue
+		}
+		r.counted[a.ID] = true
+		for _, st := range a.Stages {
+			switch {
+			case st.Ended == 0:
+			case st.Lapsed:
+				r.lapsed++
+			case st.Won == sidePatrol:
+				r.patrol++
+			case st.Won == sidePrey:
+				r.prey++
+			}
+		}
+	}
+}
+
+// ended is how many road-war stages have ended.
+func (r roadWars) ended() int { return r.patrol + r.prey + r.lapsed }
+
+// line is the road war's tally in words.
+func (r roadWars) line() string {
+	return fmt.Sprintf("%d ended: %d won by %s, %d by %s, %d lapsed", r.ended(), r.patrol, sidePatrol, r.prey, sidePrey, r.lapsed)
+}
+
 // ruinLeft is what a ruined place still holds that the ruin should have
 // returned: its treasury, an open goal on its board other than an arc
 // side's, a player's order or listing at its market.
@@ -338,7 +388,7 @@ func classesOf(g *game.Game, players []*agent.Player) classResult {
 			continue
 		}
 		out.abilities += len(c.C.Classes.Abilities)
-		if e, ok := p.Policy.(*agent.Earner); ok && e.Role == agent.Casual {
+		if e, ok := earnerOf(p.Policy); ok && e.Role == agent.Casual {
 			continue
 		}
 		out.daily++

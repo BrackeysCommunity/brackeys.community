@@ -19,7 +19,11 @@ var told = []string{
 
 // toldBefore excuses, by file, a listed word a policy uses for something
 // other than emergence.
-var toldBefore = map[string][]string{}
+var toldBefore = map[string][]string{
+	// A waylay names the caravan it robs; the Thief never plays in the
+	// emergence run.
+	"thief.go": {"Caravan"},
+}
 
 // TestAgentsNotTold reads every policy source for the words, in any case.
 func TestAgentsNotTold(t *testing.T) {

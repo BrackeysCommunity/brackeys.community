@@ -415,8 +415,82 @@ func WorldRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 		return nil, err
 	}
 	readings = append(readings, story...)
+	thefts, err := theftCost(b, p)
+	if err != nil {
+		return nil, err
+	}
+	readings = append(readings, thefts)
 	if err := doc.save(out, "world.md"); err != nil {
 		return nil, err
 	}
 	return readings, nil
+}
+
+// What a world day costs with thieves about (GDD 18.3).
+const (
+	theftCostChars = 1000
+	theftCostMost  = 1.2 // times the day without thefts
+)
+
+// structural: pairs of days timed; more than the other cost rows, since
+// a day of idle walkers is short and its noise large.
+const theftCostRuns = 7
+
+// theftCost times a world day's Advance on two copies of one world of
+// theftCostChars characters at a settlement where every NPC holds coin:
+// one where nobody steals, one where each character lifts once as the day
+// opens. Through the day every character walks the same tiles in both
+// (theftWorld.walkDay). The worlds alternate which is timed first; the
+// median of theftCostRuns pairs is read.
+func theftCost(b *sheets.Book, p func(string, ...any)) (Measured, error) {
+	var quiet, busy []time.Duration
+	var won, caught int
+	for run := range theftCostRuns {
+		var pair [2]time.Duration
+		for j := range 2 {
+			stealing := (run+j)%2 == 1
+			w, err := newTheftWorld(b, "world-thefts", theftCostChars)
+			if err != nil {
+				return Measured{}, err
+			}
+			if err := w.fund(); err != nil {
+				return Measured{}, err
+			}
+			if stealing {
+				for i, c := range w.cs {
+					l, err := w.lift(c, i)
+					if err != nil {
+						return Measured{}, err
+					}
+					switch {
+					case run > 0:
+					case l.outcome == theftWon:
+						won++
+					case l.outcome == theftLost:
+						caught++
+					}
+				}
+			}
+			took, err := w.walkDay()
+			if err != nil {
+				return Measured{}, err
+			}
+			if stealing {
+				pair[1] = took
+			} else {
+				pair[0] = took
+			}
+		}
+		quiet, busy = append(quiet, pair[0]), append(busy, pair[1])
+	}
+	slices.Sort(quiet)
+	slices.Sort(busy)
+	q, t := percentile(quiet, 50), percentile(busy, 50)
+	ratio := float64(t) / float64(max(q, 1))
+	ok := ratio <= theftCostMost
+	p("")
+	p("## A world day with thieves")
+	p("")
+	p("Two copies of one world under throwaway key `world-thefts`, %s characters at its first starting settlement, every NPC about holding coin: in one nobody steals, in the other every character lifts once as the day opens (%d won, %d caught, the rest empty, in the first pair). Through the day every character walks out of the settlement and back and forth between two tiles beyond it, as many steps whether it is wanted or not. The day's %d ticks of `Advance`, the median of %d pairs: %s without thefts, %s with %s; %.2f times, against a most of %.1f: %s.", comma(theftCostChars), won, caught, sheets.TicksPerDay, theftCostRuns, q.Round(time.Microsecond), t.Round(time.Microsecond), comma(theftCostChars), ratio, theftCostMost, holds(ok))
+	return Measured{Target: "theft-cost-flat", Value: fmt.Sprintf("%.2f times: %s with %s thefts, %s with none", ratio, t.Round(time.Microsecond), comma(theftCostChars), q.Round(time.Microsecond)), Holds: ok}, nil
 }

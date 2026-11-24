@@ -12,7 +12,9 @@ import (
 	"jams.team/mmo-world/harness/agent"
 	"jams.team/mmo-world/service"
 	"jams.team/mmo-world/sim/draw"
+	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/game"
+	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/ledger"
@@ -73,6 +75,10 @@ func SocialRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	if err != nil {
 		return nil, err
 	}
+	al, err := alignmentRun(b)
+	if err != nil {
+		return nil, err
+	}
 	ratio := 100 * (float64(big.perDay) - float64(small.perDay)) / float64(small.perDay)
 
 	var doc lineDoc
@@ -107,10 +113,22 @@ func SocialRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	p("Who moved: %s. The longest road measured at a relay was %d%% longer than when it was laid; the longer-road topic was in %d dossiers. Crowding was shown in %d of %d meetings at the line.", aw.went, aw.longest, aw.longer, aw.crowdShown, aw.crowdMeets)
 	p("")
 	p("The spoils run: %d bold wanderers for %d world days: %d encounters, %d downs, %d of which dropped haul into pools. Thin herds leave many explores empty, so a run can see no drops; `TestFindsNeverMint` in sim/game plants one and has a stranger and its owner find it.", len(sp.players), spoilsDays, sp.encounters, sp.downs, sp.drops)
+	p("")
+	p("## Alignment")
+	p("")
+	p("Characters of a world under throwaway key `social-alignment` meet goals other characters post at the first starting settlement, each a goal met (GDD 5.10): +%d, toward zero by the depth rule, at most +%d a world day and +%d a day from one poster. One set at %d meets one goal from each of three posters a day until it is unremarked; one set at %d does the same until it leaves notorious. Then two characters post each other reward-%d goals %d times a day for %d world days, and each one's gain a day attributed to the other is read off its `alignment.moved` facts.", al.move, al.goodDay, al.pairDay, alignFrom, alignDeep, al.reward, pairRounds, pairDays)
+	p("")
+	p("| Measure | Value | Target | Holds |")
+	p("| --- | --- | --- | --- |")
+	p("| Good acts from %d to unremarked | %d (%s) | %d or fewer | %s |", alignFrom, al.back, joinInts(al.path), alignBackMost, holds(al.depthOK()))
+	p("| Good acts from %d to leave notorious | %d, reaching %d | %d or more | %s |", alignDeep, al.leave, al.left, alignLeaveLeast, holds(al.leaveOK()))
+	p("| Most a pair moved each other in a world day | +%d (of %d goals met a day each, over %d days) | +%d or less | %s |", al.pairMost, pairRounds, pairDays, al.pairDay, holds(al.pairOK()))
 	if err := doc.save(out, "social.md"); err != nil {
 		return nil, err
 	}
 	return []Measured{
+		{Target: "alignment-depth", Value: fmt.Sprintf("%d acts from %d (%s); %d from %d to leave notorious", al.back, alignFrom, joinInts(al.path), al.leave, alignDeep), Holds: al.depthOK() && al.leaveOK()},
+		{Target: "alignment-pair-cap", Value: fmt.Sprintf("at most +%d a world day from one partner over %d days of %d goals met each", al.pairMost, pairDays, pairRounds), Holds: al.pairOK()},
 		{Target: "npc-own-history", Value: fmt.Sprintf("%.1f%%", pct(meet.own, meet.second)), Holds: pct(meet.own, meet.second) >= targetHistory},
 		{Target: "npc-top-differs", Value: fmt.Sprintf("%.1f%%", pct(meet.differ, meet.pairs)), Holds: pct(meet.differ, meet.pairs) >= targetUnique},
 		{Target: "npc-cost-flat", Value: fmt.Sprintf("%+.1f%%, %d NPCs touched in %d days", ratio, big.touched+small.touched, big.days), Holds: abs(ratio) <= costTolerance && big.touched+small.touched == 0},
@@ -772,4 +790,210 @@ func dayCost(b *sheets.Book, n int) (costResult, error) {
 		out.touched = max(out.touched, 1)
 	}
 	return out, nil
+}
+
+// Alignment rows (GDD 5.10, 18.3).
+const (
+	alignFrom       = -15 // a character this far down is back to unremarked
+	alignBackMost   = 3   // within this many good acts
+	alignDeep       = -80 // one this far down needs
+	alignLeaveLeast = 25  // at least this many to leave notorious
+)
+
+// structural: the alignment run's shape: posters a day for the depth
+// rows, and the pair's goals a day and its days.
+const (
+	alignPosters = 3
+	alignCap     = 60 // world days the depth rows may take before they stop
+	pairRounds   = 10
+	pairDays     = 14
+	alignCoin    = 10000
+	alignStock   = 1000
+)
+
+// alignResult is the alignment run: the acts from alignFrom and their
+// path, the acts from alignDeep and where they left it, and the most one
+// of a pair moved the other in a world day.
+type alignResult struct {
+	move, goodDay, pairDay, reward int64
+	back                           int
+	path                           []int64
+	leave                          int
+	left                           int64
+	pairMost                       int64
+}
+
+func (a alignResult) depthOK() bool { return a.back > 0 && a.back <= alignBackMost }
+func (a alignResult) leaveOK() bool { return a.leave >= alignLeaveLeast }
+func (a alignResult) pairOK() bool  { return a.pairMost > 0 && a.pairMost <= a.pairDay }
+
+func joinInts(xs []int64) string {
+	var s []string
+	for _, x := range xs {
+		s = append(s, fmt.Sprint(x))
+	}
+	return strings.Join(s, " → ")
+}
+
+// aligner is a Social world where characters meet each other's goals.
+type aligner struct {
+	*social
+	n        int
+	material string
+	tag      string
+	reward   int64
+}
+
+// alignmentRun plays the alignment rows on one world.
+func alignmentRun(b *sheets.Book) (alignResult, error) {
+	k := keys.Throwaway("social-alignment")
+	r, err := game.NewRules(b, k)
+	if err != nil {
+		return alignResult{}, err
+	}
+	g, err := game.New(r)
+	if err != nil {
+		return alignResult{}, err
+	}
+	ap := g.AlignParams()
+	a := &aligner{social: &social{g: g}, reward: ap.GoalRewardLeast}
+	for _, m := range b.Materials {
+		if len(m.Tags) > 0 {
+			a.material, a.tag = m.ID, m.Tags[0]
+			break
+		}
+	}
+	home := r.Gen.Settlement(0).Hex
+	n, ok := g.SettlementAt(home)
+	if !ok {
+		return alignResult{}, fmt.Errorf("alignment run: no settlement at %v", home)
+	}
+	a.n = n
+	var cs []*game.Char
+	for range alignPosters + 3 {
+		res, err := a.do(game.Command{Kind: game.Create, Option: "hook"})
+		if err != nil {
+			return alignResult{}, err
+		}
+		c := res.Char
+		if err := g.Teleport(c, home); err != nil {
+			return alignResult{}, err
+		}
+		for _, x := range []struct {
+			asset string
+			units int64
+		}{{ledger.Coin, alignCoin}, {ledger.Material(a.material), alignStock}} {
+			if err := a.act(game.Command{Char: c.C.ID, Kind: game.Correct, Asset: x.asset, Units: x.units, Note: "alignment run stock"}); err != nil {
+				return alignResult{}, err
+			}
+		}
+		cs = append(cs, c)
+	}
+	posters, shallow, deep, pair := cs[:alignPosters], cs[alignPosters], cs[alignPosters+1], cs[alignPosters+1:]
+	out := alignResult{move: a.actMove(b), goodDay: ap.GoodDay, pairDay: ap.PairDay, reward: a.reward}
+	notorious := g.BandOf(ap.Min)
+
+	shallow.C.Align().Value = alignFrom
+	out.path = []int64{game.AlignmentOf(shallow)}
+	for day := 0; day < alignCap && g.Band(shallow) != g.BandOf(0); day++ {
+		for _, p := range posters {
+			if _, err := a.meet(p, shallow); err != nil {
+				return alignResult{}, err
+			}
+			out.back++
+			out.path = append(out.path, game.AlignmentOf(shallow))
+			if g.Band(shallow) == g.BandOf(0) {
+				break
+			}
+		}
+		if err := a.days(1); err != nil {
+			return alignResult{}, err
+		}
+	}
+	if g.Band(shallow) != g.BandOf(0) {
+		out.back = 0
+	}
+
+	deep.C.Align().Value = alignDeep
+	for day := 0; day < alignCap && g.Band(deep) == notorious; day++ {
+		for _, p := range posters {
+			if _, err := a.meet(p, deep); err != nil {
+				return alignResult{}, err
+			}
+			out.leave++
+			if g.Band(deep) != notorious {
+				break
+			}
+		}
+		if err := a.days(1); err != nil {
+			return alignResult{}, err
+		}
+	}
+	out.left = game.AlignmentOf(deep)
+
+	deep.C.Align().Value = 0
+	for range pairDays {
+		got := map[string]int64{}
+		for range pairRounds {
+			for i, c := range pair {
+				other := pair[1-i]
+				facts, err := a.meet(other, c)
+				if err != nil {
+					return alignResult{}, err
+				}
+				for _, f := range facts {
+					if f.Kind != factAlignmentMoved {
+						continue
+					}
+					if who, ok := f.Get("partner"); ok && who.S == other.C.ID {
+						d, _ := f.Get("delta")
+						got[c.C.ID] += d.N
+					}
+				}
+			}
+		}
+		for _, v := range got {
+			out.pairMost = max(out.pairMost, v)
+		}
+		if err := a.days(1); err != nil {
+			return alignResult{}, err
+		}
+	}
+	return out, nil
+}
+
+// structural: the fact an alignment move writes and the act a goal met is.
+const (
+	factAlignmentMoved = "alignment.moved"
+	actGoalMet         = "goal-met"
+)
+
+// actMove is the goal-met act's move, from the sheet.
+func (a *aligner) actMove(b *sheets.Book) int64 {
+	for _, r := range b.AlignActs {
+		if r.ID == actGoalMet {
+			return r.Move
+		}
+	}
+	return 0
+}
+
+// meet has poster post a goal for one unit of the run's material at the
+// least reward a goal met counts for, and runner deliver it; the facts are
+// the delivery's.
+func (a *aligner) meet(poster, runner *game.Char) ([]fact.Fact, error) {
+	spec := game.GoalSpec{Title: "One for the road", Issuer: goal.ByCharacter, Reward: a.reward, Mode: goal.First, Lifetime: goal.Ephemeral,
+		Turnover: goal.Expire, Ticks: sheets.TicksPerDay, Cond: goal.Condition{Verb: goal.Deliver, Tag: a.tag, Count: 1, At: goal.SettlementRef(a.n)}}
+	if err := a.act(game.Command{Char: poster.C.ID, Kind: game.PostGoal, Goal: &spec}); err != nil {
+		return nil, err
+	}
+	x := a.g.Goals[len(a.g.Goals)-1]
+	res, err := a.do(game.Command{Char: runner.C.ID, Kind: game.DeliverGoal, Target: x.ID, Material: a.material, Units: 1})
+	if err != nil {
+		return nil, err
+	}
+	if x.State != goal.Done {
+		return nil, fmt.Errorf("alignment run: goal %s is %s after its delivery", x.ID, x.State)
+	}
+	return res.Facts, nil
 }
