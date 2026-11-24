@@ -3098,41 +3098,91 @@
     "days": 14
    }
   },
+  "emergence": {
+   "season": 0,
+   "next": 0,
+   "passage": [],
+   "clearing": [],
+   "loss": [],
+   "pairs": [],
+   "roadLoad": {},
+   "styles": [],
+   "regions": {},
+   "renown": {},
+   "masters": [],
+   "expire": null,
+   "promotions": null,
+   "roads": [],
+   "roadRecs": {},
+   "camps": [],
+   "haunts": [],
+   "routes": null,
+   "caravans": null,
+   "variants": null,
+   "materials": null,
+   "legends": null,
+   "lines": {},
+   "sigs": {},
+   "customs": null,
+   "contests": null,
+   "eased": [],
+   "staged": [
+    3,
+    6,
+    9
+   ],
+   "weeks": [
+    {
+     "from": 0,
+     "kinds": 0,
+     "active": 0
+    }
+   ],
+   "seasons": null,
+   "now": {
+    "season": 0,
+    "active": 0,
+    "promotions": {},
+    "heavy": 0,
+    "heavyPlayer": 0
+   },
+   "tolled": {}
+  },
   "log": {
    "count": 13,
    "chain": [
-    206,
-    151,
-    186,
-    91,
-    112,
-    151,
-    100,
-    242,
-    191,
-    66,
-    166,
-    15,
-    85,
-    177,
-    246,
+    148,
+    156,
     133,
-    239,
+    234,
+    46,
+    15,
+    196,
+    225,
+    71,
+    23,
+    41,
+    167,
+    192,
+    57,
+    103,
+    63,
+    130,
+    253,
+    45,
+    86,
+    106,
+    46,
+    146,
+    24,
+    94,
+    129,
     198,
-    107,
-    215,
-    230,
-    28,
-    195,
-    177,
-    135,
-    107,
-    85,
-    220,
-    17,
-    36,
-    179,
-    184
+    174,
+    150,
+    146,
+    163,
+    128
    ]
   }
  },
@@ -3459,5 +3509,5 @@
    ]
   }
  ],
- "digest": "150ee4e52871099c2b6aa333bad6bbaac89f3c5d6c9d9624fb05693fee12b134"
+ "digest": "b8176e1e318c07e1143a399c30cab6f0ebdcb6d514a12efda04356d5f62aad14"
 }
