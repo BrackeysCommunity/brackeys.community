@@ -1198,7 +1198,11 @@ func (g *Game) payClaims(x *Goal, claims []goal.Claim, key string) error {
 			if len(cl.Facts) > 1 {
 				data = append(data, fact.N("facts", int64(len(cl.Facts))))
 			}
-			if _, err := g.factWith(c, []fact.Ref{goalRef(x.ID)}, "goal.claimed", g.Tick(), data...); err != nil {
+			f, err := g.factWith(c, []fact.Ref{goalRef(x.ID)}, "goal.claimed", g.Tick(), data...)
+			if err != nil {
+				return err
+			}
+			if err := g.claimMoves(c, x, cl, f.ID); err != nil {
 				return err
 			}
 		}
@@ -1215,6 +1219,27 @@ func (g *Game) payClaims(x *Goal, claims []goal.Claim, key string) error {
 	}
 	if x.Build != nil {
 		return g.built(x.Build)
+	}
+	return nil
+}
+
+// claimMoves moves a claimant's alignment for a good done another (GDD
+// 5.10): carrying a downed character home is a rescue and only that; a
+// paid claim on a goal another character posted, worth goal-reward-least
+// or more, is a goal met for its poster.
+func (g *Game) claimMoves(c *Char, x *Goal, cl goal.Claim, cause fact.ID) error {
+	switch {
+	case x.Cond.Verb == goal.Carry:
+		if x.Cond.Who == cl.Who {
+			return nil
+		}
+		return g.moveFor(c, ActRescue, cause, x.Cond.Who, g.Tick())
+	case cl.Who == x.Poster || x.Poster == "" || cl.Coin <= 0 || x.Reward < g.AlignParams().GoalRewardLeast:
+		return nil
+	}
+	switch x.Issuer.Kind {
+	case goal.ByCharacter, goal.ByParty, goal.BySettlement:
+		return g.moveFor(c, ActGoalMet, cause, x.Poster, g.Tick())
 	}
 	return nil
 }

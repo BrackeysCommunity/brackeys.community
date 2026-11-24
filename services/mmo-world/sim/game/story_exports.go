@@ -59,17 +59,40 @@ func (g *Game) NotableName(id string) string {
 }
 
 // Visible reports whether a viewer may read a fact of a kind about the
-// subjects: a pin's never (GDD 14.5), a thread's only by its own
-// character (GDD 12.8); viewer "" is the public.
+// subjects: a pin's never (GDD 14.5), a thread's and an alignment move's
+// only by its own character (GDD 12.8, 5.10), the syndicate's only by a
+// character it names; viewer "" is the public. VisibleTo also lets the
+// made read the syndicate's.
 func Visible(viewer, kind string, subjects []fact.Ref) bool {
-	if sheets.PinFact(kind) {
+	return VisibleTo(viewer, false, kind, subjects)
+}
+
+// VisibleTo is Visible for a viewer the syndicate may have made, who
+// reads every syndicate and den fact (GDD 4.5).
+func VisibleTo(viewer string, made bool, kind string, subjects []fact.Ref) bool {
+	own := viewer != "" && slices.Contains(subjects, char.Ref(viewer))
+	switch {
+	case sheets.PinFact(kind):
 		return false
-	}
-	if ThreadFact(kind) {
-		return viewer != "" && slices.Contains(subjects, char.Ref(viewer))
+	case ThreadFact(kind), kind == factAlignment:
+		return own
+	case SyndicateFact(kind):
+		return viewer != "" && (made || own)
 	}
 	return true
 }
+
+// SyndicateFact reports whether a fact kind is the syndicate's or a
+// den's, hidden from all but the made.
+func SyndicateFact(kind string) bool {
+	return strings.HasPrefix(kind, syndicateKinds) || strings.HasPrefix(kind, denKinds)
+}
+
+// structural: the prefixes of the syndicate's and the dens' fact kinds.
+const (
+	syndicateKinds = "syndicate."
+	denKinds       = "den."
+)
 
 // ArcVisible reports whether a viewer may see an arc: a personal thread
 // is its own character's alone.

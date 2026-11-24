@@ -1460,7 +1460,7 @@ func (g *Game) endStageAt(a *Arc, won string, t int64, last bool) error {
 	st := &a.Stages[a.Stage]
 	st.Ended, st.Won, st.Lapsed = t, won, won == ""
 	key := ledger.SubKey("tick", i64(t), "arc", a.ID, itoa(a.Stage), "end")
-	var backers []string
+	var backers, held []string
 	var units int64
 	var winner *SideRun
 	for i := range st.Sides {
@@ -1473,6 +1473,9 @@ func (g *Game) endStageAt(a *Arc, won string, t int64, last bool) error {
 			if p.N > 0 && !slices.Contains(backers, p.Key) {
 				backers = append(backers, p.Key)
 			}
+			if p.N > 0 && sr.Side == won && !slices.Contains(held, p.Key) {
+				held = append(held, p.Key)
+			}
 		}
 		units += x.Total()
 		if sr.Side == won {
@@ -1484,6 +1487,9 @@ func (g *Game) endStageAt(a *Arc, won string, t int64, last bool) error {
 	}
 	f, err := g.stageEnded(a, row, won, int64(len(backers)), units, t)
 	if err != nil {
+		return err
+	}
+	if err := g.troubleHeld(a, won, held, f, t); err != nil {
 		return err
 	}
 	effects := row.Lapse
@@ -1504,6 +1510,22 @@ func (g *Game) endStageAt(a *Arc, won string, t int64, last bool) error {
 		return g.startStage(a, t)
 	}
 	return g.endArc(a, won, f, t)
+}
+
+// troubleHeld moves the alignment of everyone who worked toward holding
+// a settlement's trouble, once each (GDD 5.10).
+func (g *Game) troubleHeld(a *Arc, won string, held []string, cause fact.ID, t int64) error {
+	if a.Scope != arc.Settlement || won == "" {
+		return nil
+	}
+	for _, id := range held {
+		if c := g.Char(id); c != nil {
+			if err := g.moveFor(c, ActTroubleHeld, cause, "", t); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // closeSide settles one side's goal at its stage's end. A met goal paid

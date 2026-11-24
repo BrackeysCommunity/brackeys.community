@@ -386,14 +386,20 @@ func (g *Game) goalsDue(t int64) error {
 // one as broken, and a haul still out forfeits its collateral.
 func (g *Game) closeGoal(x *Goal, key string) error {
 	if x.Cond.Abstains() {
-		kind, why := "goal.vow-kept", "kept"
+		kind, why, act := "goal.vow-kept", "kept", ActVowKept
 		if x.Broken {
-			kind, why = "goal.vow-broken", "broken"
+			kind, why, act = "goal.vow-broken", "broken", ActVowBroken
 		}
 		if c := g.Char(x.Poster); c != nil {
 			c.C.Goals.Bump("vows-"+why, 1)
-		}
-		if err := g.goalFact(x, kind); err != nil {
+			f, err := g.factWith(c, []fact.Ref{goalRef(x.ID)}, kind, g.Tick())
+			if err != nil {
+				return err
+			}
+			if err := g.moveFor(c, act, f.ID, "", g.Tick()); err != nil {
+				return err
+			}
+		} else if err := g.goalFact(x, kind); err != nil {
 			return err
 		}
 		x.End(why)

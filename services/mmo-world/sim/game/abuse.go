@@ -128,8 +128,25 @@ func (g *Game) give(c *Char, cmd Command) error {
 	if g.Market != nil && cmd.Asset == ledger.Coin {
 		g.Market.Week.between(cmd.Units)
 	}
-	_, err := g.factWith(c, []fact.Ref{char.Ref(to.C.ID)}, "character.gave", g.Tick(), fact.S("asset", cmd.Asset), fact.N("units", cmd.Units), fact.S("item", cmd.Item))
-	return err
+	f, err := g.factWith(c, []fact.Ref{char.Ref(to.C.ID)}, "character.gave", g.Tick(), fact.S("asset", cmd.Asset), fact.N("units", cmd.Units), fact.S("item", cmd.Item))
+	if err != nil {
+		return err
+	}
+	return g.storiedReturn(c, to, cmd.Item, f.ID)
+}
+
+// storiedReturn is a storied find given back to the one who left it: a
+// good act, once for the item (GDD 5.10, 8.6).
+func (g *Game) storiedReturn(c, to *Char, id string, cause fact.ID) error {
+	if id == "" {
+		return nil
+	}
+	i := slices.IndexFunc(c.Finds, func(f Find) bool { return f.Rarity == rarityStoried && f.Item == id && f.By == to.C.ID })
+	if i < 0 {
+		return nil
+	}
+	c.Finds[i].By = ""
+	return g.moveFor(c, ActStoried, cause, to.C.ID, g.Tick())
 }
 
 // cadence marks the world hour a character acted in; a character that

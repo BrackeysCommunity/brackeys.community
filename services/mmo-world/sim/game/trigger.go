@@ -77,6 +77,8 @@ type Find struct {
 	Chance  fixed.F      `json:"chance"`
 	Goods   []item.Spoil `json:"goods,omitempty"`
 	Item    string       `json:"item,omitempty"`
+	// By is who left a storied find, until it is given back to them.
+	By string `json:"by,omitempty"`
 }
 
 func poolOf(h hex.Hex) string { return ledger.TilePool(h.Ref()) }
@@ -219,7 +221,11 @@ func (g *Game) fromPool(c *Char, h hex.Hex, rarity string, most int64) (Find, bo
 	case rarityRare, rarityStoried:
 		for _, l := range g.Left {
 			if l.Hex == h && !l.Hidden && (rarity == rarityRare || l.By != c.C.ID) {
-				return Find{Rarity: rarity, Item: l.Item.ID}, true
+				f := Find{Rarity: rarity, Item: l.Item.ID}
+				if rarity == rarityStoried {
+					f.By = l.By
+				}
+				return f, true
 			}
 		}
 	}
