@@ -100,6 +100,11 @@ func (g *Game) event(f fact.Fact) (goal.Event, bool) {
 			return e, false
 		}
 		e = g.equipped(e, in)
+	case factTheft:
+		if str("outcome") != theftWon {
+			return e, false
+		}
+		e.Verb, e.Kind, e.Units, e.Victim = goal.Steal, str("kind"), num("worth"), str("faction")
 	default:
 		return e, false
 	}
@@ -317,7 +322,8 @@ func (g *Game) built(b *goal.Build) error {
 
 // goalsTurn is the goals' world day: each live Hold reads its gauge as a
 // fact, goals past their time end, a season's close turns every season
-// goal over, and each faction posts the day's bounty.
+// goal over, each faction posts the day's bounty, and the syndicate's dens
+// keep their day and post their jobs.
 func (g *Game) goalsTurn(t int64) error {
 	day := t / sheets.TicksPerDay
 	key := ledger.SubKey("goals", strconv.FormatInt(day, decimal))
@@ -365,7 +371,13 @@ func (g *Game) goalsTurn(t int64) error {
 	if closing {
 		g.SeasonActive = g.Active()
 	}
-	return g.bounties(t, key)
+	if err := g.bounties(t, key); err != nil {
+		return err
+	}
+	if err := g.denDay(t); err != nil {
+		return err
+	}
+	return g.syndicateJobs(t, key)
 }
 
 // goalsDue ends the goals whose time ran out this tick, so none is met,
@@ -510,12 +522,13 @@ func (g *Game) bountyOpen(n int) bool {
 }
 
 // bountyHeld is what a settlement's faction holds out in every bounty
-// posted this world day so far, met or not, taken from its day budget.
+// and syndicate job posted this world day so far, met or not, taken from
+// its day budget.
 func (g *Game) bountyHeld(n int) int64 {
 	var out int64
 	t := g.Tick()
 	for _, x := range g.Goals {
-		if bountyPosted(x, n) && postedToday(x, t) {
+		if (bountyPosted(x, n) || jobPosted(x, n)) && postedToday(x, t) {
 			out += x.Reward
 		}
 	}
@@ -755,9 +768,10 @@ func (g *Game) noteGoal(x *Goal) {
 // noteCredit reads one event a goal counted: a unit counted short of a
 // claim is an attempt on its line, a claim meets the line, and a First
 // goal reaching its contributors may be a rival claim. A staged fact, a
-// pin's or a thread's counts toward none of it.
+// pin's or a thread's counts toward none of it, and a syndicate job,
+// hidden from the public, makes no rivals.
 func (g *Game) noteCredit(x *Goal, ev goal.Event, f fact.Fact, contributors, cites int, claims []goal.Claim) {
-	if g.Emergence == nil || len(claims) == 0 && len(x.Facts) == cites && len(x.Progress) == contributors {
+	if g.Emergence == nil || x.Issuer.Kind == goal.BySyndicate || len(claims) == 0 && len(x.Facts) == cites && len(x.Progress) == contributors {
 		return
 	}
 	if f.StagedBy != nil || untraced(f.Kind) {

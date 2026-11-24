@@ -453,6 +453,28 @@ func (g *Game) Appraise(c *Char, r item.Recipe) (Appraisal, error) {
 	if !ok {
 		return Appraisal{}, refuse(NotHere, "no station here does %s", r.Process)
 	}
+	return g.appraiseAt(c, r, st, func(kind string) int64 { return g.feeFor(c, st, kind) })
+}
+
+// BackRoomAppraise shows a recipe's ranges in the back room of the den
+// here, at the back room's fee (GDD 4.5).
+func (g *Game) BackRoomAppraise(c *Char, r item.Recipe) (Appraisal, error) {
+	st, err := g.backRoom(c, r.Process)
+	if err != nil {
+		return Appraisal{}, err
+	}
+	return g.appraiseAt(c, r, st, func(string) int64 { return g.BackRoomFee(c, st, r) })
+}
+
+// appraisal is a craft's appraisal where the command works it.
+func (g *Game) appraisal(c *Char, r item.Recipe, backRoom bool) (Appraisal, error) {
+	if backRoom {
+		return g.BackRoomAppraise(c, r)
+	}
+	return g.Appraise(c, r)
+}
+
+func (g *Game) appraiseAt(c *Char, r item.Recipe, st Station, fee func(kind string) int64) (Appraisal, error) {
 	if err := g.recipeOK(r); err != nil {
 		return Appraisal{}, err
 	}
@@ -465,7 +487,7 @@ func (g *Game) Appraise(c *Char, r item.Recipe) (Appraisal, error) {
 		name = g.plainName(r)
 	}
 	eye := g.charScale(c, "sees-registered", 0) > 0
-	return Appraisal{Ranges: g.narrowed(c, rg), Station: st, Fee: g.feeFor(c, st, rg.Kind), Name: name, Eye: eye, Registered: eye && rg.Known}, nil
+	return Appraisal{Ranges: g.narrowed(c, rg), Station: st, Fee: fee(rg.Kind), Name: name, Eye: eye, Registered: eye && rg.Known}, nil
 }
 
 // structural: the practice a craft trains.
@@ -506,7 +528,7 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 		return refuse(BadArgs, "a craft needs a recipe")
 	}
 	r := *cmd.Recipe
-	ap, err := g.Appraise(c, r)
+	ap, err := g.appraisal(c, r, cmd.BackRoom)
 	if err != nil {
 		return err
 	}
@@ -524,10 +546,14 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 	if err != nil {
 		return refuse(BadArgs, "%s", err.Error())
 	}
-	if _, w, saved := g.feeSaved(c, ap.Station, ap.Ranges.Kind); saved > 0 {
-		g.workGave(w, saved)
+	if cmd.BackRoom {
+		g.used(c.C.At)
+	} else {
+		if _, w, saved := g.feeSaved(c, ap.Station, ap.Ranges.Kind); saved > 0 {
+			g.workGave(w, saved)
+		}
+		g.used(c.C.At, ap.Station.Kind)
 	}
-	g.used(c.C.At, ap.Station.Kind)
 	for _, f := range facts {
 		f.Data = append(f.Data, fact.At(c.C.At)...)
 		if _, err := g.Log.Append(f); err != nil {
@@ -554,6 +580,19 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 	if r.Process == item.Compose {
 		g.spare(c, &res, int64(len(r.Inputs)))
 	}
+	// Hot inputs carry their mark into what they make (GDD 6.5); the back
+	// room takes them first and makes them clean.
+	day := t / sheets.TicksPerDay
+	var hot []char.HotLot
+	var laundered int64
+	oldHot := slices.Clone(char.HotLotsOf(c.C))
+	if cmd.BackRoom {
+		laundered = g.launder(c, res.Consumed, day)
+	} else {
+		for _, s := range res.Consumed {
+			hot = append(hot, g.consumeHot(c, s.Material, s.Qty, day)...)
+		}
+	}
 	legs := []ledger.Leg{}
 	if ap.Fee > 0 {
 		legs = append(legs, ledger.Pair(acc, ledger.ToFees, ledger.Coin, ap.Fee)...)
@@ -568,10 +607,24 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 		legs = append(legs, ledger.Pair(ledger.FromSalvage, acc, ledger.Material(s.Material), s.Qty)...)
 	}
 	if err := g.receive(c, ledger.Txn{Key: cmd.Key, Kind: "craft", Tick: t, Legs: ledger.Merge(legs)}); err != nil {
+		if c.C.Alignment != nil {
+			c.C.Alignment.Hot = oldHot
+		}
 		return err
+	}
+	if mark, ok := latestMark(hot); ok {
+		if res.Instance != nil {
+			res.Instance.Hot = &mark
+		}
+		g.markHot(c, res.Salvage, mark)
 	}
 	if res.Instance != nil {
 		c.C.Pack = append(c.C.Pack, res.Instance)
+	}
+	if cmd.BackRoom {
+		if err := g.laundered(c, ap.Fee, laundered, res, t); err != nil {
+			return err
+		}
 	}
 	c.C.Crafts.Bump(r.Process, 1)
 	c.C.Practise(practiceCraft, 1, g.r.Growth.Params())

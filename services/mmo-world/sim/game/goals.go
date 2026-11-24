@@ -363,12 +363,13 @@ func (g *Game) cargo(c *Char, x *Goal, s GoalSpec) error {
 // backer is the account behind a goal's coin: it pays the escrow and the
 // fee, and takes back what nobody claims. A muster's is its settlement's
 // treasury, as is a custom's (a settlement's goal nobody posted), a
-// bounty's its faction, anyone else's the poster's purse.
+// bounty's or a syndicate job's the faction sink, anyone else's the
+// poster's purse.
 func backer(x *Goal) string {
 	switch {
 	case x.Issuer.Kind == goal.ByAdmin, customGoal(x):
 		return TreasuryPool(x.Board)
-	case x.Issuer.Kind == goal.ByFaction:
+	case x.Issuer.Kind == goal.ByFaction, x.Issuer.Kind == goal.BySyndicate:
 		return ledger.ToFaction
 	}
 	return ledger.Char(x.Poster)
@@ -470,6 +471,9 @@ func (g *Game) pledge(c *Char, cmd Command) error {
 		return refuse(BadArgs, "only a proposal or a first or pooled goal with a reward takes pledges")
 	case cmd.Units <= 0:
 		return refuse(BadArgs, "a pledge is coin %s holds", c.C.ID)
+	}
+	if err := g.mayClaim(x, c.C.ID); err != nil {
+		return err
 	}
 	var fee int64
 	if x.State == goal.Live {
@@ -1151,7 +1155,7 @@ func (g *Game) creditGoals(from fact.ID, key string) error {
 	for _, f := range g.Log.Since(from) {
 		for _, e := range g.see(f) {
 			for _, x := range g.Goals {
-				if x.Hidden || x.State != goal.Live {
+				if x.Hidden || x.State != goal.Live || g.mayClaim(x, e.Who) != nil {
 					continue
 				}
 				contributors, cites := len(x.Progress), len(x.Facts)
@@ -1166,11 +1170,23 @@ func (g *Game) creditGoals(from fact.ID, key string) error {
 	return g.tellMarked()
 }
 
+// mayClaim refuses work toward a syndicate job by anyone not made (GDD
+// 4.5): it counts nothing of theirs and takes none of their coin.
+func (g *Game) mayClaim(x *Goal, who string) error {
+	if x.Issuer.Kind != goal.BySyndicate {
+		return nil
+	}
+	if c := g.Char(who); c == nil || !char.IsMade(c.C) {
+		return refuse(NotMade, "the syndicate's jobs are for the made")
+	}
+	return nil
+}
+
 // payClaims moves claims out of a goal's escrow with the deliveries they
 // count, records them, and raises a structure a met project finishes.
 func (g *Game) payClaims(x *Goal, claims []goal.Claim, key string) error {
 	for i, cl := range claims {
-		if cl.Coin > 0 && x.Issuer.Kind == goal.ByFaction {
+		if cl.Coin > 0 && (x.Issuer.Kind == goal.ByFaction || x.Issuer.Kind == goal.BySyndicate) {
 			// Only what the faction minted is new coin: a pledge was a
 			// player's already.
 			g.Market.Week.faucet(cl.Coin * (x.Reward - x.Pledges.Sum()) / x.Reward)
@@ -1204,6 +1220,11 @@ func (g *Game) payClaims(x *Goal, claims []goal.Claim, key string) error {
 			}
 			if err := g.claimMoves(c, x, cl, f.ID); err != nil {
 				return err
+			}
+			if x.Issuer.Kind == goal.BySyndicate {
+				if err := g.addSyndicateStanding(c, g.syp("job-standing"), f.ID, g.Tick()); err != nil {
+					return err
+				}
 			}
 		}
 	}

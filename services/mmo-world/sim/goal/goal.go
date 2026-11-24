@@ -38,6 +38,9 @@ var Verbs = []string{Deliver, Make, Discover, Defeat, Reach, Haul, Hold, Back, C
 // a goal is posted with.
 const Equip = "equip"
 
+// Steal is a theft won, the syndicate's jobs' verb; no poster picks it.
+const Steal = "steal"
+
 // Modes (GDD 11.4).
 const (
 	First  = "first"
@@ -76,6 +79,7 @@ const (
 	ByAdmin      = "admin"
 	ByFaction    = "faction"
 	ByWorld      = "world"
+	BySyndicate  = "syndicate"
 )
 
 // States a goal moves through.
@@ -159,6 +163,8 @@ type Condition struct {
 	// downed character lies, and is not matched.
 	Dungeon string `json:"dungeon,omitempty"`
 	Floor   int64  `json:"floor,omitempty"`
+	// Victim is a Steal's victim: the standing key of whose goods they were.
+	Victim string `json:"victim,omitempty"`
 }
 
 // Scales reports whether a condition's amount grows with how many play:
@@ -196,6 +202,8 @@ type Event struct {
 	// Dungeon and Floor are a dungeon floor reached.
 	Dungeon string `json:"dungeon,omitempty"`
 	Floor   int64  `json:"floor,omitempty"`
+	// Victim is a theft's victim's standing key.
+	Victim string `json:"victim,omitempty"`
 }
 
 // Matches reports whether an event counts toward a condition. A Hold's
@@ -225,6 +233,8 @@ func (c Condition) Matches(e Event) bool {
 	case c.Dungeon != "" && e.Dungeon != c.Dungeon:
 		return false
 	case c.Verb == Reach && c.Floor > 0 && e.Floor < c.Floor:
+		return false
+	case c.Victim != "" && e.Victim != c.Victim:
 		return false
 	}
 	return c.in(e)
@@ -638,12 +648,14 @@ func (c Condition) unread() string {
 	if c.Abstains() {
 		things = append(things, Hold)
 	}
+	kinds := append(slices.Clone(things), Steal)
 	for _, f := range []struct {
 		set   bool
 		name  string
 		verbs []string
 	}{
-		{c.Kind != "" || c.Tag != "", "kind or tag", things},
+		{c.Kind != "", "kind", kinds},
+		{c.Tag != "", "tag", things},
 		{c.Trait != "", "trait", []string{Make}},
 		{c.Hex != nil || c.Within != 0, "distance", []string{Make, Discover, Defeat, Reach}},
 		{c.From != "", "start", []string{Haul}},
@@ -653,6 +665,7 @@ func (c Condition) unread() string {
 		{c.Side != "", "side", []string{Back}},
 		{c.Dungeon != "", "dungeon", []string{Reach}},
 		{c.Floor != 0, "floor", []string{Reach, Carry}},
+		{c.Victim != "", "victim", []string{Steal}},
 	} {
 		if f.set && !slices.Contains(f.verbs, c.Verb) {
 			return f.name
@@ -665,8 +678,10 @@ func (c Condition) unread() string {
 func Valid(g *Goal, now int64, l Limits) error {
 	c := g.Cond
 	switch {
-	case !slices.Contains(Verbs, c.Verb):
+	case !slices.Contains(Verbs, c.Verb) && c.Verb != Steal:
 		return fmt.Errorf("no verb %q", c.Verb)
+	case (c.Verb == Steal) != (g.Issuer.Kind == BySyndicate):
+		return fmt.Errorf("a Steal is the syndicate's, and the syndicate posts only Steals")
 	case c.Verb == Back && c.Side == "":
 		return fmt.Errorf("a Back names its arc stage's side")
 	case c.Verb == Back && g.Issuer.Kind != ByFaction && g.Issuer.Kind != ByWorld:
