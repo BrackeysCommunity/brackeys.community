@@ -1,8 +1,15 @@
-import { type Button, buttonRows, type Row } from "../../../../packages/discord-kit/src/index.ts";
+import {
+  type Button,
+  buttonRows,
+  type EmbedField,
+  EMBED_FIELD_VALUE_MAX,
+  type Row,
+} from "../../../../packages/discord-kit/src/index.ts";
+import { chartAlt, chartMarks } from "../../../../packages/mmo-words/src/alt.ts";
 import type * as api from "../api.ts";
 import { authorLine, type Card, COLOUR, type Picture } from "../card.ts";
 import { encodeId, fields, integerTarget, target } from "../ids.ts";
-import type { Lexicon } from "../lexicon.ts";
+import { capitalise, type Lexicon } from "../lexicon.ts";
 import { amount, hours, num, percent, plural, signed, signedPercent } from "../units.ts";
 import { back, banner, btn, heldOf, priceLadder, PRIVATE } from "./common.ts";
 
@@ -203,21 +210,39 @@ export function moversCard(o: api.Options, m: api.Market, lex: Lexicon): Card {
 
 export function historyCard(o: api.Options, m: api.Market, h: api.History, lex: Lexicon): Card {
   const v = o.version;
-  const marked = h.days.filter((d) => d.cause);
+  const unit = `coin per ${h.name}`;
   return {
     ...base(m, listLabel("history"), `${h.name}: closing price by day`, {
       media: h.chart,
-      alt: `Chart of ${h.name}'s closing price in coin over ${plural(h.days.length, "day")}`,
+      alt: chartAlt({ title: `${h.name} at close`, unit, days: h.days }),
     }),
     description: h.days.length
-      ? `Coin each on the left, world days along the bottom; red lines mark a cause.`
+      ? `${capitalise(unit)} up the left, world days along the bottom; a lettered line marks a cause, keyed below.`
       : "No day has closed with a trade yet.",
-    fields: marked
-      .slice(-3)
-      .map((d) => ({ name: `Day ${num(d.day)}`, value: `${amount(d.close, "coin")}: ${d.cause}` })),
+    fields: markedFields(h.days),
     footer: `${plural(h.days.length, "day")} shown; a day with no trade closes at the last price.`,
     rows: [...switchers(m, "history", v, lex), { buttons: [back(v)] }],
   };
+}
+
+/** The "Marked" field: each letter on the chart keyed to its day, close and cause, split to fit a field. */
+export function markedFields(days: readonly api.PricePt[]): EmbedField[] {
+  const close = new Map(days.map((d) => [d.day, d.close]));
+  const lines = chartMarks(days).map(
+    (x) => `**${x.label}** day ${num(x.day)}, ${amount(close.get(x.day) ?? 0, "coin")}: ${x.cause}`,
+  );
+  const out: EmbedField[] = [];
+  let value = "";
+  for (const line of lines) {
+    const cut = line.slice(0, EMBED_FIELD_VALUE_MAX);
+    if (value && value.length + 1 + cut.length > EMBED_FIELD_VALUE_MAX) {
+      out.push({ name: out.length ? "Marked, continued" : "Marked", value });
+      value = "";
+    }
+    value = value ? `${value}\n${cut}` : cut;
+  }
+  if (value) out.push({ name: out.length ? "Marked, continued" : "Marked", value });
+  return out;
 }
 
 export function elsewhereCard(o: api.Options, m: api.Market, lex: Lexicon): Card {
@@ -455,7 +480,15 @@ export function reportCard(o: api.Options, m: api.Market, lex: Lexicon): Card {
     return card;
   }
   card.picture = r.chart
-    ? { media: r.chart, alt: "Chart of coin per active character by week, against the band" }
+    ? {
+        media: r.chart,
+        alt: chartAlt({
+          title: "coin per active character at each weekly report",
+          unit: "coin per active character",
+          band: [r.low, r.high],
+          latest: { day: r.day, value: r.perActive },
+        }),
+      }
     : card.picture;
   card.fields = [
     { name: "Supply", value: amount(r.supply, "coin"), inline: true },

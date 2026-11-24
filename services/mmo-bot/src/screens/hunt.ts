@@ -3,6 +3,7 @@ import {
   buttonRows,
   type EmbedField,
 } from "../../../../packages/discord-kit/src/index.ts";
+import { portraitAlt } from "../../../../packages/mmo-words/src/alt.ts";
 import type * as api from "../api.ts";
 import { authorLine, type Card, COLOUR, type Picture } from "../card.ts";
 import { target } from "../ids.ts";
@@ -32,6 +33,11 @@ function huntPicture(h: HuntPost, lex: Lexicon): Picture | "form" {
   return h.banner
     ? { media: h.banner, alt: `${lex.name("creatures.archetypes", h.creature)} on its tile` }
     : "form";
+}
+
+/** The hunted creature's portrait beside the card's text, when the world sent one. */
+function huntThumb(h: HuntPost, lex: Lexicon): Picture | undefined {
+  return h.portrait ? { media: h.portrait, alt: portraitAlt(h, lex) } : undefined;
 }
 
 /** Tiles between two hexes. */
@@ -101,6 +107,7 @@ export function huntCard(
     title: notice ?? h.name,
     description: `${healthLine(h.health, h.max)}${reach ? "" : "\nStand on its tile or the next to press it."}`,
     picture: h.banner ? huntPicture(h, lex) : banner(here, `; ${creature} hunted nearby`),
+    thumb: huntThumb(h, lex),
     table: h.pressers.length ? pressersTable(view?.pressers ?? h.pressers) : undefined,
     fields,
     footer:
@@ -123,6 +130,7 @@ export function huntPostCard(h: HuntPost, lex: Lexicon): Card {
     title: h.name,
     description: `${healthLine(h.health, h.max)}\nIt leaves when its window ends, at tick ${h.ends}, whether or not anyone goes after it.`,
     picture: huntPicture(h, lex),
+    thumb: huntThumb(h, lex),
     table: h.pressers.length ? pressersTable(h.pressers) : undefined,
     fields: [
       { name: "Hunters", value: plural(h.pressers.length, "presser"), inline: true },
@@ -146,6 +154,7 @@ export function huntClosedCard(h: HuntPost, lex: Lexicon): Card {
       ? "The spoils rolled once at the kill and were split by health removed: the parts sum to the roll."
       : `It left with ${num(h.health)} of ${amount(h.max, "health")}. Nothing is paid beyond the hauls already won.`,
     picture: huntPicture(h, lex),
+    thumb: huntThumb(h, lex),
     table: h.slain
       ? {
           header: ["Presser", "Removed (health)", "Spoils (goods)"],

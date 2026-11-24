@@ -3,13 +3,14 @@ import {
   buttonRows,
   type EmbedField,
 } from "../../../../packages/discord-kit/src/index.ts";
+import { bannerAlt, portraitAlt } from "../../../../packages/mmo-words/src/alt.ts";
 import {
   encounterLine,
   WASTELAND_ENCOUNTERS,
 } from "../../../../packages/mmo-words/src/encounters.ts";
 import { riskLine } from "../../../../packages/mmo-words/src/index.ts";
 import * as api from "../api.ts";
-import { type Card, COLOUR } from "../card.ts";
+import { type Card, COLOUR, type Picture } from "../card.ts";
 import { target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
 import { amount, band, bandShort, num, signed, ticks } from "../units.ts";
@@ -23,6 +24,31 @@ export function creatureName(
   lex: Lexicon,
 ): string {
   return f.creatureName || lex.name("creatures.archetypes", f.creature);
+}
+
+/** The creature's portrait beside a beat's text, when the world drew one; the banner stays the picture. */
+export function portraitThumb(
+  f: Pick<api.Fight, "creature" | "creatureName" | "variant" | "kind" | "portrait">,
+  lex: Lexicon,
+): Picture | undefined {
+  return f.portrait ? { media: f.portrait, alt: portraitAlt(f, lex) } : undefined;
+}
+
+/** The banner of where a beat is fought, in the state the world drew it. */
+export function sceneBanner(here: api.Here, extra: string): Picture {
+  const p = here.place;
+  return {
+    media: here.banner,
+    alt: bannerAlt({
+      name: here.name,
+      city: p?.city?.city,
+      ruined: p?.ruined,
+      overrun: p?.overrun,
+      trouble: p?.trouble?.kind,
+      troubleTitle: p?.trouble?.title,
+      extra,
+    }),
+  };
 }
 
 /** The beat's opening line from the setting's encounter pool, stable for the fight and the beat; "" when none. */
@@ -109,7 +135,8 @@ export function beatCard(
         : `Encounter · ${beat}`,
     title: `${beat}: ${creature}`,
     description: withPoolLine(poolLine(f, here.name, lex), `${opening}${lines.join("\n")}`),
-    picture: banner(here, `; ${creature} in a ${beat.toLowerCase()}`),
+    picture: sceneBanner(here, `${creature} in a ${beat.toLowerCase()}`),
+    thumb: portraitThumb(f, lex),
     fields,
     footer: "The last beat is the hardest and must be won. Two failures and you go down.",
     rows: [

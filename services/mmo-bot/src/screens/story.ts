@@ -5,6 +5,7 @@ import {
   type Modal,
   type Row,
 } from "../../../../packages/discord-kit/src/index.ts";
+import { artAlt } from "../../../../packages/mmo-words/src/alt.ts";
 import {
   arcName,
   arcWords,
@@ -338,14 +339,15 @@ export function chronicleCard(
   if (!post)
     rows.push({ buttons: [btn("Since you left", "recap", "", v, { style: "primary" }), back(v)] });
   const fields: EmbedField[] = [{ name: "Season", value: seasonText(ch.season), inline: true }];
+  const title = closed ? `The chronicle of world day ${ch.day}` : "No world day has closed yet";
   return {
     context: post ? CHRONICLE_CHANNEL : PRIVATE,
     author: authorLine("Chronicle", post ? "the world's day" : "the world"),
-    title: closed ? `The chronicle of world day ${ch.day}` : "No world day has closed yet",
+    title,
     description: closed
       ? lines.join("\n") || "Nothing heavy enough to keep happened that day."
       : "The first chronicle is written when the first world day closes.",
-    picture: "form",
+    picture: artPicture(ch.cover, title),
     fields,
     footer:
       "Only facts the world wrote are told here, heaviest first; ▸ marks your server's places.",
@@ -386,8 +388,33 @@ export function factCard(fc: api.FactCauses, lex: Lexicon, version: number): Car
 
 type Refs = ReadonlyMap<string, string>;
 
-/** An event's picture: none, since an arc has no tile of its own to show. */
+/** A place, road or caravan event's picture: none, since it has no art slot of its own. */
 const NO_PICTURE: Picture | "form" = "form";
+
+/** An authored art slot's picture, headed by the card's title; a form when the world sent none. */
+function artPicture(art: api.Art | undefined, title: string): Picture | "form" {
+  return art?.key ? { media: art.key, alt: artAlt(art.slot, title) } : "form";
+}
+
+/** The events told over their art slot: troubles, stages, arc ends and seasons. */
+const ART_KINDS: ReadonlySet<string> = new Set([
+  "trouble.started",
+  "trouble.held",
+  "trouble.lost",
+  "arc.cast",
+  "arc.stage-began",
+  "arc.stage-ended",
+  "arc.ended",
+  "season.began",
+  "season.finale",
+  "season.closed",
+]);
+
+/** A card of an art kind over the art the world sent for its event; its own picture is a form until then. */
+function withArt(card: Card | null, ev: api.StoryEvent): Card | null {
+  if (!card || !ART_KINDS.has(ev.fact.kind)) return card;
+  return { ...card, picture: artPicture(ev.art, card.title) };
+}
 
 /** The place an event names, or a settlement. */
 const placeOf = (ev: api.StoryEvent) => ev.place || "a settlement";
@@ -429,7 +456,7 @@ function troubleStartCard(ev: api.StoryEvent, lex: Lexicon, refs: Refs): Card {
     description: raid
       ? "Win beats near it, press the raiders' hunt, or stand a wall: defence counts until the day turns."
       : "Back its one side before the day turns, or the place takes the damage.",
-    picture: NO_PICTURE,
+    picture: "form",
     fields,
     footer: raid
       ? "Raid alarms gives or takes the alarm role: only a raid's start mentions it."
@@ -456,7 +483,7 @@ function troubleEndCard(ev: api.StoryEvent, lex: Lexicon): Card {
     description: held
       ? "Its backers are paid by what each put in."
       : `The place takes the damage its kind does; a guild's settlement that loses ${plural(lex.numbers.ruinTroubles, "time")} in a season is ruined.`,
-    picture: NO_PICTURE,
+    picture: "form",
     fields: [
       {
         name: "Backed by",
@@ -488,7 +515,7 @@ function stagePostCard(ev: api.StoryEvent, a: api.Arc, lex: Lexicon): Card {
     author: authorLine("Arc", scopeWord(a), ev.fact.kind === "arc.cast" ? "cast" : "next stage"),
     title: a.title,
     description: parts.description,
-    picture: NO_PICTURE,
+    picture: "form",
     fields: [parts.stage, ...parts.sides],
     footer: "Back a side from your own card: goods where they land, beats in its regions.",
     rows: buttons.length ? buttonRows(buttons.slice(0, ROW_MOST)) : [],
@@ -524,7 +551,7 @@ function stageEndCard(ev: api.StoryEvent, lex: Lexicon): Card {
     description: lapsed
       ? "Nobody met a mark by its deadline: the world does what the stage said it would."
       : "The side that met its mark first won it; the other side is paid for what it put in.",
-    picture: NO_PICTURE,
+    picture: "form",
     fields: [
       { name: "Backed by", value: plural(factNum(f, "backers"), "character"), inline: true },
       ...(lapsed
@@ -557,7 +584,7 @@ function arcEndCard(ev: api.StoryEvent, lex: Lexicon, refs: Refs): Card {
     author: authorLine("Arc", "ended"),
     title: lapsed ? `${title} lapsed` : `${title} ended: ${sideTitle(ev, outcome, lex)} won`,
     description: `It ran ${plural(factNum(f, "stages"), "stage")}.`,
-    picture: NO_PICTURE,
+    picture: "form",
     fields: [{ name: "Told", value: storyLine(f, lex, refs) }],
     footer: "The chronicle keeps how it went.",
     rows: [],
@@ -598,7 +625,7 @@ function seasonCard(ev: api.StoryEvent, lex: Lexicon, refs: Refs): Card {
     author: authorLine("Season", f.kind.slice("season.".length)),
     title,
     description,
-    picture: NO_PICTURE,
+    picture: "form",
     fields: [
       { name: "Told", value: storyLine(f, lex, refs) },
       ...(f.kind === "season.closed" ? SEASON_KEEPS : []),
@@ -691,6 +718,10 @@ function caravanRobbedCard(ev: api.StoryEvent): Card {
 
 /** The events channel's card for one story event, or null for a kind it does not post. */
 export function eventCard(ev: api.StoryEvent, lex: Lexicon): Card | null {
+  return withArt(eventCardOf(ev, lex), ev);
+}
+
+function eventCardOf(ev: api.StoryEvent, lex: Lexicon): Card | null {
   const named = ev.arc ? { ...ev, arc: namedArc(ev.arc, lex) } : ev;
   const refs = refsOf(ev.names);
   switch (ev.fact.kind) {

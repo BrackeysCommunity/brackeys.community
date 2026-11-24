@@ -10,6 +10,7 @@ import {
   SELECT_LABEL_MAX,
   SELECT_VALUE_MAX,
 } from "../../../packages/discord-kit/src/index.ts";
+import { ALT_MAX } from "../../../packages/mmo-words/src/alt.ts";
 import { UNITS, bareNumbers } from "../../../packages/mmo-words/src/index.ts";
 import { decodeId } from "./ids.ts";
 import { BAND_LABELS } from "./units.ts";
@@ -79,7 +80,8 @@ export function render(card: Card): Rendered {
   const media: Rendered["media"] = [];
   const attach = (p: Picture) => {
     const name = `${p.media}.png`;
-    media.push({ key: p.media, name, alt: p.alt });
+    // One file serves a picture and a thumb of the same key: names must be unique.
+    if (!media.some((m) => m.name === name)) media.push({ key: p.media, name, alt: p.alt });
     return `attachment://${name}`;
   };
   let description = card.description ?? "";
@@ -117,6 +119,10 @@ export function problems(card: Card, names: Set<string>): string[] {
   if (!card.title.trim() || card.title.includes("\n")) out.push("the title is not one line");
   if (!card.footer.trim() || card.footer.includes("\n")) out.push("the footer is not one line");
   if (card.picture !== "form" && !card.picture.alt.trim()) out.push("a picture without alt text");
+  if (card.thumb && !card.thumb.alt.trim()) out.push("a thumbnail without alt text");
+  for (const p of [card.picture, card.thumb])
+    if (p && p !== "form" && p.alt.length > ALT_MAX)
+      out.push(`alt text of ${p.alt.length} characters; Discord takes ${ALT_MAX}`);
   const texts = [card.title, card.description ?? "", card.footer, card.author];
   for (const f of card.fields ?? []) texts.push(`${f.name}: ${f.value}`);
   if (card.table) {

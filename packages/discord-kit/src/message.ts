@@ -39,6 +39,7 @@ export const PER_ROW = 5;
 export const OPTIONS_MAX = 25;
 export const SELECT_LABEL_MAX = 100;
 export const SELECT_VALUE_MAX = 100;
+export const ATTACHMENT_DESCRIPTION_MAX = 1024;
 
 export interface MessageJson {
   content: string;
@@ -129,7 +130,7 @@ export function toMessage(message: Message): MessageJson {
     out.files = message.files.map((f) => ({
       name: f.name,
       attachment: Buffer.from(f.data),
-      description: f.description,
+      description: f.description?.slice(0, ATTACHMENT_DESCRIPTION_MAX),
     }));
   }
   return out;
