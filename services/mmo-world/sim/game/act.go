@@ -87,6 +87,10 @@ type Command struct {
 	// Epoch is a season-epoch's change of rules; Arc an arc-cast's order.
 	Epoch *season.Epoch `json:"epoch,omitempty"`
 	Arc   *ArcCmd       `json:"arc,omitempty"`
+	// BackRoom works a craft in a den's back room; ForSide sends a
+	// waylay's haul to the prey side the character backs (GDD 4.5, 6.5).
+	BackRoom bool `json:"backRoom,omitempty"`
+	ForSide  bool `json:"forSide,omitempty"`
 }
 
 // Stop is when a journey halts on its own: before a region at or above a
@@ -434,6 +438,9 @@ func (g *Game) act(c *Char, cmd Command) ([]fight.Pressed, error) {
 		return nil, g.cityRaise(c, cmd)
 	case PatternSet:
 		return nil, g.patternSet(c, cmd)
+	}
+	if run := crimeCommands[cmd.Kind]; run != nil {
+		return nil, run(g, c, cmd)
 	}
 	return nil, refuse(BadArgs, "unknown command %q", cmd.Kind)
 }

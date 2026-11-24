@@ -199,6 +199,142 @@ type Character struct {
 	// Flags
 	Flags    []string `json:"flags"`
 	StagedXP int64    `json:"stagedXP"` // used today
+
+	// Alignment is nil until the first act that moves it, so a character
+	// saved before alignment reads 0 and digests as it did (GDD 5.10).
+	Alignment *Alignment `json:"alignment,omitempty"`
+}
+
+// WantedCondition is the condition the watch's Wanted entries hold on,
+// to the latest entry's end (GDD 5.5).
+const WantedCondition = "wanted"
+
+// Alignment is a character's standing with the world at large and what
+// its crimes left on it (GDD 5.10, 6.5, 4.5).
+type Alignment struct {
+	Value int64 `json:"value,omitempty"`
+	// Day is the world day Good and Pairs count.
+	Day   int64      `json:"day,omitempty"`
+	Good  int64      `json:"good,omitempty"`
+	Pairs []PairGood `json:"pairs,omitempty"`
+	// Known are its public moves, newest last, at most known-kept.
+	Known   []Known  `json:"known,omitempty"`
+	Grudges []Grudge `json:"grudges,omitempty"`
+	Made    bool     `json:"made,omitempty"`
+	// Found: a fence has come for it.
+	Found  bool     `json:"found,omitempty"`
+	Hot    []HotLot `json:"hot,omitempty"`
+	Wanted []Wanted `json:"wanted,omitempty"`
+	// Stopped is the settlement index + 1 the watch holds it at.
+	Stopped int `json:"stopped,omitempty"`
+	// Thefts counts theft and flight encounters begun, naming each one.
+	Thefts int64 `json:"thefts,omitempty"`
+	// Fenced and Laundered are coin not yet worth a syndicate standing point.
+	Fenced    int64 `json:"fenced,omitempty"`
+	Laundered int64 `json:"laundered,omitempty"`
+}
+
+// PairGood is the good gained from one partner on Alignment.Day.
+type PairGood struct {
+	With string `json:"with"`
+	N    int64  `json:"n"`
+}
+
+// Known is one public alignment move: when, where and in which region.
+type Known struct {
+	Tick   int64   `json:"tick"`
+	At     hex.Hex `json:"at"`
+	Region int     `json:"region"`
+}
+
+// Grudge is a faction it betrayed, by standing key, to a world day.
+type Grudge struct {
+	Faction string `json:"faction"`
+	Ends    int64  `json:"ends"`
+}
+
+// HotLot is a quantity of a material carried under a theft's mark.
+type HotLot struct {
+	Material string   `json:"material"`
+	Units    int64    `json:"units"`
+	Mark     item.Hot `json:"mark"`
+}
+
+// Wanted is one theft the watch wants it for, and what settles it.
+type Wanted struct {
+	Victim  string       `json:"victim"`            // ref string: npc:<id>, faction:<i>, caravan:<id>
+	Faction string       `json:"faction,omitempty"` // the victim's standing key
+	Place   int          `json:"place"`             // the theft's settlement, -1 none
+	Worth   int64        `json:"worth"`
+	Coin    int64        `json:"coin,omitempty"`
+	Goods   []item.Spoil `json:"goods,omitempty"`
+	Items   []string     `json:"items,omitempty"`
+	Source  string       `json:"source"` // the ledger account the haul left
+	Fact    int64        `json:"fact"`
+	Ends    int64        `json:"ends"` // tick
+}
+
+// Align is the character's alignment, made on first use.
+func (c *Character) Align() *Alignment {
+	if c.Alignment == nil {
+		c.Alignment = &Alignment{}
+	}
+	return c.Alignment
+}
+
+// AlignmentValue is the character's alignment; one never moved is 0.
+func AlignmentValue(c *Character) int64 {
+	if c.Alignment == nil {
+		return 0
+	}
+	return c.Alignment.Value
+}
+
+// IsMade reports whether the syndicate has made the character.
+func IsMade(c *Character) bool { return c.Alignment != nil && c.Alignment.Made }
+
+// FenceFound reports whether a fence has come for the character.
+func FenceFound(c *Character) bool { return c.Alignment != nil && c.Alignment.Found }
+
+// StoppedAt is the settlement index + 1 the watch holds the character
+// at, 0 when free.
+func StoppedAt(c *Character) int {
+	if c.Alignment == nil {
+		return 0
+	}
+	return c.Alignment.Stopped
+}
+
+// KnownOf are the character's public alignment moves, newest last.
+func KnownOf(c *Character) []Known {
+	if c.Alignment == nil {
+		return nil
+	}
+	return c.Alignment.Known
+}
+
+// GrudgesOf are the factions the character betrayed.
+func GrudgesOf(c *Character) []Grudge {
+	if c.Alignment == nil {
+		return nil
+	}
+	return c.Alignment.Grudges
+}
+
+// HotLotsOf are the material lots the character carries under a mark.
+func HotLotsOf(c *Character) []HotLot {
+	if c.Alignment == nil {
+		return nil
+	}
+	return c.Alignment.Hot
+}
+
+// WantedOf are the thefts the watch wants the character for.
+func WantedOf(c *Character) []Wanted {
+	if c.Alignment == nil {
+		return nil
+	}
+	return c.Alignment.Wanted
 }
 
 // Prey is a creature tag marked on a world day.

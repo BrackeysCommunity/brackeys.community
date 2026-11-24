@@ -41,7 +41,20 @@ type Instance struct {
 	// Legend is the tag a legend's trait gives the item, outside its picks
 	// and their budget.
 	Legend tags.Tag `json:"legend,omitempty"`
+	// Hot is a theft's mark on the item, nil when clean (GDD 6.5).
+	Hot *Hot `json:"hot,omitempty"`
 }
+
+// Hot is the mark stolen goods carry: whose they were and until when.
+type Hot struct {
+	Victim  string `json:"victim"` // ref string
+	Faction string `json:"faction,omitempty"`
+	Ends    int64  `json:"ends"` // the first world day it is clean
+	At      string `json:"at"`   // the theft's tile ref
+}
+
+// HotOn reports whether a mark is still live on a world day.
+func (h *Hot) HotOn(day int64) bool { return h != nil && day < h.Ends }
 
 // NewInstance is a freshly made item at level 1, whole.
 func NewInstance(id string, k *Kind, maker string) *Instance {

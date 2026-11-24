@@ -55,9 +55,10 @@ const (
 	ToCraft      = Sink + "craft"
 	ToUpkeep     = Sink + "upkeep"
 	ToGoalFees   = Sink + "goal-fees"
-	ToBuild      = Sink + "build" // charters, structures and their repairs
-	ToWorks      = Sink + "works" // what guild works consume
-	ToTolls      = Sink + "tolls" // coin paid to cross a tolled road
+	ToBuild      = Sink + "build"     // charters, structures and their repairs
+	ToWorks      = Sink + "works"     // what guild works consume
+	ToTolls      = Sink + "tolls"     // coin paid to cross a tolled road
+	ToSyndicate  = Sink + "syndicate" // what fences bought, emptied at each world day
 )
 
 // Material, Item and Char name a material asset, an item asset and a
@@ -84,6 +85,23 @@ func CachePool(id string) string { return Pool + "cache:" + id }
 // CaravanPool holds a caravan's goods on the road, by its id. The audit
 // holds it to what the state says the caravan carries.
 func CaravanPool(id string) string { return Pool + caravanPrefix + id }
+
+// StorePool holds the materials a faction bought and keeps, by its
+// index: what a burglary takes from. It holds no coin.
+func StorePool(faction int) string { return Pool + storePrefix + strconv.Itoa(faction) }
+
+// IsStore reports whether an account is a faction's store.
+func IsStore(acc string) bool { return strings.HasPrefix(acc, Pool+storePrefix) }
+
+// StoreOf is the faction whose store an account is, or false.
+func StoreOf(acc string) (int, bool) {
+	rest, ok := strings.CutPrefix(acc, Pool+storePrefix)
+	if !ok {
+		return 0, false
+	}
+	n, err := strconv.Atoi(rest)
+	return n, err == nil
+}
 
 // IsCaravan reports whether an account is a caravan's pool.
 func IsCaravan(acc string) bool { return strings.HasPrefix(acc, Pool+caravanPrefix) }
@@ -136,6 +154,7 @@ const (
 	npcPrefix     = "npc:"
 	escrowPrefix  = "escrow:"
 	caravanPrefix = "caravan:"
+	storePrefix   = "store:"
 	decimal       = 10
 	floorBits     = 64
 )

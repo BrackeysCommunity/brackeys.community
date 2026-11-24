@@ -139,6 +139,8 @@ type PlaceStory struct {
 	Kept     bool      `json:"kept,omitempty"` // a city reached city-keep this season
 	Occasion *Occasion `json:"occasion,omitempty"`
 	Followed int64     `json:"followed,omitempty"` // tick a raid got in, for fire
+	// Burgled are the ticks of won burglaries here, within walls-days.
+	Burgled []int64 `json:"burgled,omitempty"`
 }
 
 // Occasion is a good thing happening at a place.

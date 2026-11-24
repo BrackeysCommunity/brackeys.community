@@ -132,6 +132,9 @@ type Site struct {
 	Guardian *Pool  // the dungeon's guardian, on the bottom floor's last beat
 	Hidden   int64  // beats everyone starts hidden
 	Only     string // every beat this kind: no draw, mix, joiner, flight or guardian
+	// Fixed are the beats in order, as a theft's: no beats draw, mix,
+	// joiner, flight or guardian; machines are still given.
+	Fixed []string
 }
 
 // Assemble builds an encounter: its beat count from the creature's tier
@@ -146,6 +149,11 @@ func (r *Rules) Assemble(site Site, c Creature) *Encounter {
 		Half: site.Half, Beyond: site.Beyond, Hidden: site.Hidden, Pool: site.Guardian, Resist: slices.Clone(site.Resist)}
 	if site.Floor > 0 && (site.Half || site.Beyond > 0) {
 		e.Dungeon = entranceOf(site.Place)
+	}
+	if len(site.Fixed) > 0 {
+		e.Beats, e.Pool = slices.Clone(site.Fixed), nil
+		r.machines(e, site, c, append(slices.Clone(c.Tags), site.Tags...))
+		return e
 	}
 	tier := r.tiers[c.Tier]
 	pick := r.gen.Stream("encounter.beats", draw.Str(site.ID))

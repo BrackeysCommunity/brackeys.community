@@ -170,6 +170,11 @@ func (x effect) run() error {
 	case effLayLegend:
 		return x.layLegend()
 	case effNothing:
+	default:
+		if run := crimeEffects[x.e.Kind]; run != nil {
+			return run(x)
+		}
+		return refuse(BadArgs, "unknown effect %q", x.e.Kind)
 	}
 	return nil
 }

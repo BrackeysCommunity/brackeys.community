@@ -52,7 +52,17 @@ type NPC struct {
 	Visits     []string    `json:"visits"`           // players it wants a word with, sorted
 	// Archived are the oldest entries a waking kept, oldest first.
 	Archived []Entry `json:"archived,omitempty"`
+	// Leaning is drawn once, at the first meeting that needs it; empty
+	// means not drawn yet (GDD 4.18).
+	Leaning string `json:"leaning,omitempty"`
 }
+
+// Leanings an NPC holds.
+const (
+	LeaningUpright = "upright"
+	LeaningCrooked = "crooked"
+	LeaningNone    = "none"
+)
 
 // Ref is the fact ref of an NPC.
 func Ref(id string) fact.Ref { return fact.Ref{Kind: "npc", ID: id} }
@@ -118,7 +128,9 @@ type Rules struct {
 const traitsPer = 2
 
 func New(b *sheets.Book, gen, roll draw.Key) *Rules {
-	r := &Rules{roles: b.NPCRoles, topics: b.Topics, params: b.NPCParams, traits: b.NPCTraits, gossip: b.Gossip,
+	// Leanings are drawn on a label of their own, so the trait draws take
+	// their length from the pool without them.
+	r := &Rules{roles: b.NPCRoles, topics: b.Topics, params: b.NPCParams, traits: sheets.TraitPool(b.NPCTraits), gossip: b.Gossip,
 		gen: draw.NewDrawer(gen), roll: draw.NewDrawer(roll), perDay: sheets.TicksPerDay, traitsN: traitsPer}
 	r.lists = map[string][]string{}
 	for _, p := range b.NameParts {
@@ -222,6 +234,12 @@ func (r *Rules) stub(id, kind, role string, home hex.Hex, d Draw) Stub {
 		Name: r.given[r.gen.Below(uint64(len(r.given)), givenP, who...)] + " " + r.family[r.gen.Below(uint64(len(r.family)), familyP, who...)]}
 	s.Traits = append(s.Traits, r.traitsFor(d, who)...)
 	return s
+}
+
+// StubFor draws a resident stub for an id no place's role slots name,
+// such as a syndicate notable.
+func (r *Rules) StubFor(id, role string, home hex.Hex, d Draw) Stub {
+	return r.stub(id, Resident, role, home, d)
 }
 
 // traitsFor draws a stub's traits: weighted by the digest on a tile with drawn content, else an even shuffle.

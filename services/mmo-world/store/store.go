@@ -103,6 +103,8 @@ type sim struct {
 	Story    *game.Story     `json:"story,omitempty"`
 	// Emergence is absent on a world saved before emergence began.
 	Emergence *emerge.State `json:"emergence,omitempty"`
+	// Syndicate is absent until a den first moves.
+	Syndicate *game.Syndicate `json:"syndicate,omitempty"`
 }
 
 func simOf(g *game.Game) ([]byte, error) {
@@ -113,7 +115,8 @@ func simOf(g *game.Game) ([]byte, error) {
 		return nil, err
 	}
 	return json.Marshal(sim{World: w, Pending: g.Pending, NextChar: g.NextChar, Log: g.Log, Posted: g.Ledger.Posted, Kinds: g.Kinds, Left: g.Left,
-		News: g.News, NPCChain: g.NPCs.Chain, Market: g.Market, Society: g.Society, Delve: g.Delve, Story: g.Story, Emergence: g.Emergence})
+		News: g.News, NPCChain: g.NPCs.Chain, Market: g.Market, Society: g.Society, Delve: g.Delve, Story: g.Story, Emergence: g.Emergence,
+		Syndicate: g.Syndicate})
 }
 
 func ts(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }
@@ -246,7 +249,8 @@ func (s *Store) Load(ctx context.Context, r *game.Rules) (*game.Game, error) {
 		return nil, err
 	}
 	g := &game.Game{World: &world.State{}, Pending: sm.Pending, NextChar: sm.NextChar, Log: sm.Log, Kinds: sm.Kinds, Left: sm.Left,
-		News: sm.News, NPCs: npc.Book{List: []*npc.NPC{}, Chain: sm.NPCChain}, Market: sm.Market, Society: sm.Society, Delve: sm.Delve, Story: sm.Story, Emergence: sm.Emergence}
+		News: sm.News, NPCs: npc.Book{List: []*npc.NPC{}, Chain: sm.NPCChain}, Market: sm.Market, Society: sm.Society, Delve: sm.Delve, Story: sm.Story, Emergence: sm.Emergence,
+		Syndicate: sm.Syndicate}
 	if g.News == nil {
 		g.News = []game.News{}
 	}

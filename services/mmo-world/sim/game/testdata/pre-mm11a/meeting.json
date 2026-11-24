@@ -1,0 +1,104 @@
+{
+ "char": "c-3",
+ "npc": "r--1,-27-settlement-keeper-0",
+ "after": {
+  "stub": {
+   "id": "r--1,-27-settlement-keeper-0",
+   "kind": "resident",
+   "role": "settlement-keeper",
+   "name": "Jun Gantry",
+   "traits": [
+    "generous",
+    "secretive"
+   ],
+   "home": {
+    "Q": -1,
+    "R": -27
+   }
+  },
+  "seq": 1,
+  "saved": 0,
+  "route": [
+   {
+    "Q": -1,
+    "R": -27
+   },
+   {
+    "Q": -1,
+    "R": -28
+   },
+   {
+    "Q": -2,
+    "R": -28
+   },
+   {
+    "Q": -2,
+    "R": -27
+   },
+   {
+    "Q": -2,
+    "R": -26
+   },
+   {
+    "Q": -2,
+    "R": -25
+   },
+   {
+    "Q": -2,
+    "R": -24
+   }
+  ],
+  "laid": 2448,
+  "routeTicks": 12,
+  "memory": [
+   {
+    "kind": "greeted",
+    "player": "c-1",
+    "weight": 40,
+    "tick": 0,
+    "fact": 27,
+    "thing": "you give your name"
+   },
+   {
+    "kind": "greeted",
+    "player": "c-2",
+    "weight": 40,
+    "tick": 0,
+    "fact": 32,
+    "thing": "you give your name"
+   }
+  ],
+  "summary": null,
+  "met": [
+   {
+    "player": "c-1",
+    "tick": 2304,
+    "prev": 0,
+    "count": 2,
+    "topic": "first-meeting",
+    "line": "Jun Gantry, keeper here. I have not seen you before.",
+    "answered": [
+     "first-meeting"
+    ]
+   },
+   {
+    "player": "c-2",
+    "tick": 0,
+    "prev": 0,
+    "count": 1,
+    "topic": "first-meeting",
+    "line": "Jun Gantry, keeper here. I have not seen you before.",
+    "answered": [
+     "first-meeting"
+    ]
+   },
+   {
+    "player": "c-3",
+    "tick": 2307,
+    "prev": 0,
+    "count": 1
+   }
+  ],
+  "visits": []
+ }
+}

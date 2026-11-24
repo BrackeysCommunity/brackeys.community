@@ -229,6 +229,8 @@ type Fight struct {
 	Due      int64            `json:"due,omitempty"`
 	// Shared names the shared encounter this is, when others are in it.
 	Shared string `json:"shared,omitempty"`
+	// Theft is the theft or flight from the watch the encounter is.
+	Theft *Theft `json:"theft,omitempty"`
 }
 
 // Game is the whole of a world's state. Its JSON is a snapshot; Attach
@@ -252,7 +254,9 @@ type Game struct {
 	// Emergence is nil on a game saved before emergence; every emergence
 	// rule does nothing until emergence-start gives it one (GDD 13).
 	Emergence *emerge.State `json:"emergence,omitempty"`
-	Log       *fact.Tail    `json:"log"`
+	// Syndicate is nil until a den first moves.
+	Syndicate *Syndicate `json:"syndicate,omitempty"`
+	Log       *fact.Tail `json:"log"`
 	r         *Rules
 	// touched are the characters the command or tick in hand has changed,
 	// its own actor aside; seen those whose view it changed with no row.
