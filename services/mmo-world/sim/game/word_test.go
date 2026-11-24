@@ -160,3 +160,17 @@ func TestPreyWaylayCountsTimesShare(t *testing.T) {
 		t.Fatal("the waylay earned no standing with the sponsor")
 	}
 }
+
+// A thief who robbed its home trader stands at the keepers' floor there;
+// the word it says to its fence still counts.
+func TestWordSideIgnoresTheSponsorsFloor(t *testing.T) {
+	g := guardGame(t)
+	c := mustCreate(t, g, "a", "knife")
+	g.adjustStanding(c, syndicateKey, g.r.Story.Gate)
+	g.adjustStanding(c, standingKey(econ.Keepers, g.SettlementHex(0)), -100)
+	_, sides := invitation(t, g, c, "fence-1")
+	chose(t, g, c, "fence-1", "take-the-job")
+	if got := sides[0].Progress.Get(c.C.ID); got != 1 {
+		t.Fatalf("the word counts at the sponsor's floor, got %d", got)
+	}
+}

@@ -286,6 +286,11 @@ func (g *Game) shunned(c *Char, s backed) bool {
 	if tpl, ok := g.template(s.a.Template); ok && tpl.Row.Syndicate && c.C.Standing.Get(syndicateKey) < g.r.Story.Gate {
 		return true
 	}
+	// A word said to a cast NPC backs no faction, so its sponsor's
+	// standing does not gate it.
+	if s.wants == arc.WantWord {
+		return false
+	}
 	return c.C.Standing.Get(standingKey(s.sr.Sponsor, g.sideHex(s))) <= g.r.Story.ShunnedBelow
 }
 
