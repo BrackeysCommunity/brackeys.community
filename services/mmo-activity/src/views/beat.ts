@@ -1,7 +1,8 @@
 import type { ActivityState, DeckView, Fact, Fight, Option, Pressed } from "../api.ts";
 import { button, el, lines, panel } from "../dom.ts";
+import { svg } from "../shell/board.ts";
 import { band, outOf, ticks } from "../units.ts";
-import { factLine, name, riskLine } from "../words.ts";
+import { beatLine, creatureAlt, creatureName, factLine, name, riskLine } from "../words.ts";
 import { memberLine, windowNode } from "./party.ts";
 
 export interface BeatActions {
@@ -66,6 +67,53 @@ function sharedLines(st: ActivityState, f: Fight, act: BeatActions): HTMLElement
   return out;
 }
 
+// structural: the beat track's pip radius and spacing, in its own units.
+const PIP = 7;
+const PIP_GAP = 22;
+
+// The beat track: a pip a beat, those behind filled, this one ringed. Its
+// words are the creature's and the beat's; the rule under it only decorates.
+function beatTrack(f: Fight): SVGSVGElement {
+  const n = Math.max(1, f.beats);
+  const width = PIP_GAP * n;
+  const track = svg("svg", {
+    class: "beat-track",
+    viewBox: `0 0 ${width} ${PIP_GAP}`,
+    role: "img",
+    "aria-label": creatureAlt(f),
+  });
+  const mid = PIP_GAP / 2;
+  track.append(
+    svg("line", {
+      class: "beat-rule",
+      x1: mid,
+      y1: mid,
+      x2: width - mid,
+      y2: mid,
+      "aria-hidden": "true",
+    }),
+  );
+  for (let i = 0; i < n; i++) {
+    const at = i < f.beat ? "past" : i === f.beat ? "now" : "ahead";
+    track.append(
+      svg("circle", { class: `beat-pip ${at}`, cx: mid + i * PIP_GAP, cy: mid, r: PIP }),
+    );
+  }
+  return track;
+}
+
+/** The creature panel: the beat track, and the setting's line for this beat. */
+export function creaturePanel(st: ActivityState): HTMLElement {
+  const f = st.fight!;
+  const line = beatLine(st);
+  return el(
+    "div",
+    { class: "creature" },
+    beatTrack(f),
+    line ? el("p", { class: "encounter", text: line }) : null,
+  );
+}
+
 // The second slot: a deck carried in the pack, swapped in before the pick.
 function deckRow(f: Fight, act: BeatActions, picked: boolean): HTMLElement | undefined {
   const decks = decksOf(f);
@@ -93,10 +141,9 @@ function deckRow(f: Fight, act: BeatActions, picked: boolean): HTMLElement | und
 export function beatView(st: ActivityState, act: BeatActions): HTMLElement {
   const f = st.fight!;
   const mine = f.shared ? st.party?.beat?.mine : undefined;
-  const root = panel(
-    `${name("fights.beats", f.kind)}: ${f.creatureName || name("creatures.archetypes", f.creature)}`,
-  );
+  const root = panel(`${name("fights.beats", f.kind)}: ${creatureName(f)}`);
   root.append(
+    creaturePanel(st),
     ...lines(
       `Beat ${outOf(f.beat + 1, f.beats, f.beats === 1 ? "beat" : "beats")}${f.floor ? `, on floor ${f.floor}` : ""}${f.shared ? ", with your party" : ""}.`,
       f.hidden ? "You are hidden from it for now." : "",

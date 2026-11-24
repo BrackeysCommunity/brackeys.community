@@ -67,12 +67,17 @@ export interface Board {
   remove(): void;
 }
 
-/** A scene's drawing: one SVG on the play area, classed by its family and sized in CSS px. */
+/**
+ * A scene's drawing: one SVG on the play area, classed by its family and
+ * sized in CSS px. label is what the scene shows; the panel puts the
+ * machine and its state in front of it (`labelBoards`).
+ */
 export function board(host: SceneHost, label: string): Board {
   const root = svg("svg", {
     class: `board ${host.layout.family}`,
     role: "img",
     "aria-label": label,
+    "data-scene": label,
   });
   host.surface.append(root);
   let size: Size = { width: 0, height: 0 };
@@ -92,6 +97,12 @@ export function board(host: SceneHost, label: string): Board {
     },
     remove: () => root.remove(),
   };
+}
+
+/** Names every board on a surface by alt(the scene's own label), touching the DOM only on a change. */
+export function labelBoards(surface: HTMLElement, alt: (scene: string) => string): void {
+  for (const node of surface.querySelectorAll<SVGSVGElement>("svg.board"))
+    set(node, { "aria-label": alt(node.dataset.scene ?? "") });
 }
 
 /** A pointer's place on the surface. */

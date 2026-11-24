@@ -191,6 +191,41 @@ main {
   background: var(--tar);
 }
 
+.creature {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.beat-track {
+  height: 22px;
+  align-self: flex-start;
+}
+
+.beat-rule {
+  stroke: var(--line);
+  stroke-width: 2;
+}
+
+.beat-pip {
+  fill: var(--tar);
+  stroke: var(--concrete);
+  stroke-width: 2;
+}
+
+.beat-pip.past {
+  fill: var(--concrete);
+}
+
+.beat-pip.now {
+  fill: var(--hazard);
+  stroke: var(--ash);
+}
+
+.encounter {
+  font-style: italic;
+}
+
 .why {
   display: flex;
   flex-direction: column;

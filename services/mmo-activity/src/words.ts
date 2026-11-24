@@ -1,11 +1,16 @@
 import { names } from "virtual:pack";
 
+import { clampAlt as clamp } from "../../../packages/mmo-words/src/alt.ts";
+import { encounterLine, WASTELAND_ENCOUNTERS } from "../../../packages/mmo-words/src/encounters.ts";
 import { clueLine as storyClue } from "../../../packages/mmo-words/src/story.ts";
 import { countWords } from "../../../packages/mmo-words/src/units.ts";
 import {
   UnitBeats,
   UnitEncounter,
+  type ActivityState,
   type Fact,
+  type Fight,
+  type FloorView,
   type Goods,
   type HaywireLine,
   type PracticeLine,
@@ -19,6 +24,7 @@ import {
   amount,
   level,
   num,
+  outOf,
   plural,
   quantity,
   seconds,
@@ -241,4 +247,93 @@ function reachLine(reach: number): string {
 /** What a pattern.clue fact says, in the board's point letters. */
 export function clueLine(f: Fact): string {
   return `${sentence(storyClue(f, (i) => `point ${pointName(i)}`))}.`;
+}
+
+/** The creature a fight is against: a region's variant by its own name (GDD 4.17). */
+export function creatureName(f: Pick<Fight, "creature" | "creatureName">): string {
+  return f.creatureName || name("creatures.archetypes", f.creature);
+}
+
+/** A dungeon as a line names it mid-sentence: its given name, else "the bunker". */
+export function dungeonPlace(d: Pick<FloorView, "name" | "kind">): string {
+  return d.name || `the ${name("map.dungeons", d.kind).toLowerCase()}`;
+}
+
+/**
+ * The place a beat's encounter line names, as chat's card names it: a
+ * party's beat on a dungeon floor is in the dungeon, any other in the
+ * place the character stands.
+ */
+export function beatPlace(st: Pick<ActivityState, "fight" | "floor" | "place">): string {
+  const f = st.fight;
+  if (f?.shared && f.floor && st.floor) return dungeonPlace(st.floor);
+  return st.place.name ?? "";
+}
+
+/** The beat's opening line from the setting's encounter pool: the pick chat's card makes; "" when none fits. */
+export function beatLine(st: Pick<ActivityState, "fight" | "floor" | "place">): string {
+  const f = st.fight;
+  if (!f) return "";
+  return encounterLine(WASTELAND_ENCOUNTERS, f, {
+    creature: creatureName(f),
+    place: beatPlace(st),
+  });
+}
+
+/** The beat track beside a creature, in words: who it is, the beat, and what the fight says of it. */
+export function creatureAlt(f: Fight): string {
+  const kind = name("fights.beats", f.kind).toLowerCase();
+  const variant = f.creatureName
+    ? `, a ${name("creatures.archetypes", f.creature).toLowerCase()} of this region`
+    : "";
+  return clamp(
+    [
+      `${creatureName(f)}${variant}, in a ${kind}: beat ${outOf(f.beat + 1, f.beats, f.beats === 1 ? "beat" : "beats")}.`,
+      f.hidden ? "It has not seen you." : "",
+      f.ambush ? "It is an ambush." : "",
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+}
+
+/** Where a machine is in its play, as its drawing is described. */
+export type MachineState =
+  | "rest"
+  | "locked"
+  | "bench"
+  | "armed"
+  | "working"
+  | "hidden-panel"
+  | "sending"
+  | "done";
+
+const MACHINE_STATES: Record<MachineState, string> = {
+  rest: "at rest: the first touch arms it",
+  locked: "locked: it has locked you out for now",
+  bench: "a practice rig on the bench, with no countdown",
+  armed: "armed, its countdown running",
+  working: "being worked on the bench",
+  "hidden-panel": "solved, its hidden panel open",
+  sending: "its moves on their way to the world",
+  done: "answered by the world",
+};
+
+/**
+ * A machine's drawing in words: which machine, its level, where it is in
+ * its play, then what the scene itself shows.
+ */
+export function machineAlt(
+  m: { name: string; family: string; level?: number },
+  state: MachineState,
+  scene: string,
+): string {
+  const known = m.name || name("puzzles.families", m.family);
+  const head = m.level ? `${known}, ${level(m.level)}` : known;
+  return clamp(`${head}, ${MACHINE_STATES[state]}. ${scene}`.trim());
+}
+
+/** A dungeon floor's map in words: each room in turn, as its hex reads. */
+export function floorAlt(floor: string, rooms: string[]): string {
+  return clamp(`A map of the rooms of ${floor}. ${rooms.filter(Boolean).join(". ")}.`);
 }

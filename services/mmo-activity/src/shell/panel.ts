@@ -19,10 +19,13 @@ import {
   factLine,
   haywireLine,
   leftLine,
+  machineAlt,
   practiceLine,
   refusalLine,
   resultLine,
+  type MachineState,
 } from "../words.ts";
+import { labelBoards } from "./board.ts";
 import { BROKE, DONE, type Family } from "./kit.ts";
 import type { PartyVersion } from "./party-registry.ts";
 import { Shell } from "./shell.ts";
@@ -147,6 +150,7 @@ export class MachinePanel {
     const loop = () => {
       this.shell.tick();
       this.drawClock();
+      this.label();
       this.frame = requestAnimationFrame(loop);
     };
     this.frame = requestAnimationFrame(loop);
@@ -259,11 +263,34 @@ export class MachinePanel {
       }
     }
 
+    this.label();
     this.result.replaceChildren();
     if (s.phase === "done") this.result.append(...this.ending());
     if (s.phase !== this.phase) {
       this.phase = s.phase;
       this.deps.changed();
+    }
+  }
+
+  // A scene is remounted for a hidden panel or a replay, so its drawing is
+  // named again each frame; set() writes only a change.
+  private label(): void {
+    const m = this.shell.machine;
+    const state = this.machineState();
+    labelBoards(this.surface, (scene) => machineAlt(m, state, scene));
+  }
+
+  private machineState(): MachineState {
+    const s = this.shell;
+    switch (s.phase) {
+      case "rest":
+        return s.machine.locked ? "locked" : s.bench ? "bench" : "rest";
+      case "play":
+        return s.panel === 1 ? "hidden-panel" : s.bench ? "working" : "armed";
+      case "sending":
+        return "sending";
+      case "done":
+        return "done";
     }
   }
 

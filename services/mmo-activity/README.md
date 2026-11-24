@@ -23,8 +23,9 @@ vp dev --port 18787
 - **No world at all:** `http://localhost:18787/?mock=bench`. The mock
   gateway answers from `test/fixtures/state-<name>.json` and the golden
   layouts. Fixtures: `armed`, `beat`, `bench`, `idle`, `intro`, `master`,
-  `pattern`, `pouch`, and the party's `party`, `party-machine`, `floor` and
-  `hunt`. Any family on a beat: `?mock=beat&family=crank&level=6&practice=8`.
+  `pattern`, `pouch`, `variant` (a region's variant by its own name), and
+  the party's `party`, `party-machine`, `floor` and `hunt`. Any family on a
+  beat: `?mock=beat&family=crank&level=6&practice=8`.
 - **A pattern's point:** `?mock=pattern` stands on pylon B of a triangle
   with its Circuit armed from chat, the pattern strip shut over it. A solve
   commits the value chat armed it with (0 in the mock, since no state says
@@ -88,23 +89,40 @@ services/mmo-bot/scripts/local-world.sh wipe
 
 ## What is where
 
-| Path                   | What                                                                                                         |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `src/main.ts`          | Boot: the theme, the launch, the session, the page                                                           |
-| `src/discord.ts`       | Inside or outside Discord, the routes, sign-in                                                               |
-| `src/session.ts`       | The socket: hello, reconnects, the whole state, intents, a party machine's streamed moves                    |
-| `src/app.ts`           | Which screen is open, and the machine in hand                                                                |
-| `src/views/`           | The beat (a party's too), the floor's rooms, the hunt, the party, why, pouches, the bench, idle, the pattern |
-| `src/units.ts`         | Every number with its unit (GDD 2); nothing else formats one                                                 |
-| `src/words.ts`         | Pack names and the lines made from facts and refusals                                                        |
-| `src/shell/`           | The puzzle shell every family shares                                                                         |
-| `src/scenes/<id>/`     | One family: its model and its scene                                                                          |
-| `src/party/<id>/`      | One party version: its merged model and each seat's gesture                                                  |
-| `src/mock.ts`          | The stand-in gateway behind `?mock=`, a party's seats too                                                    |
-| `test/golden.ts`       | `goldenSuite`, which holds a model to the Go replay                                                          |
-| `test/party-golden.ts` | `partySuite`, which holds a version's model to the Go party replay                                           |
-| `test/stage.ts`        | A scene on a surface of a known size, for gesture tests; a party seat too                                    |
-| `scripts/`             | The touch proof against a live local world                                                                   |
+| Path                   | What                                                                                                                                 |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/main.ts`          | Boot: the theme, the launch, the session, the page                                                                                   |
+| `src/discord.ts`       | Inside or outside Discord, the routes, sign-in                                                                                       |
+| `src/session.ts`       | The socket: hello, reconnects, the whole state, intents, a party machine's streamed moves                                            |
+| `src/app.ts`           | Which screen is open, and the machine in hand                                                                                        |
+| `src/views/`           | The beat (a party's too) with its creature panel, the floor's rooms, the hunt, the party, why, pouches, the bench, idle, the pattern |
+| `src/units.ts`         | Every number with its unit (GDD 2); nothing else formats one                                                                         |
+| `src/words.ts`         | Pack names, the lines made from facts and refusals, the beat's encounter line, and every picture's words                             |
+| `src/shell/`           | The puzzle shell every family shares                                                                                                 |
+| `src/scenes/<id>/`     | One family: its model and its scene                                                                                                  |
+| `src/party/<id>/`      | One party version: its merged model and each seat's gesture                                                                          |
+| `src/mock.ts`          | The stand-in gateway behind `?mock=`, a party's seats too                                                                            |
+| `test/golden.ts`       | `goldenSuite`, which holds a model to the Go replay                                                                                  |
+| `test/party-golden.ts` | `partySuite`, which holds a version's model to the Go party replay                                                                   |
+| `test/stage.ts`        | A scene on a surface of a known size, for gesture tests; a party seat too                                                            |
+| `test/alt.test.ts`     | Every picture on every mock and family named or hidden; the beat line is chat's                                                      |
+| `scripts/`             | The touch proof against a live local world                                                                                           |
+
+## Pictures and their words
+
+Every live `svg`, `canvas` or `img` has `role="img"` and an `aria-label`
+made in `src/words.ts` from the same fields it is drawn from, or
+`aria-hidden="true"` when it only decorates (GDD 16.1). A scene's board is
+named by the panel: the machine, its level and where it is in its play,
+then the label the scene gave `board()`. The floor map names each room as
+its hex reads, and the beat's creature panel names the creature and the
+beat. `test/alt.test.ts` holds every fixture, every family and every party
+version to it.
+
+The beat view's opening line is `encounterLine` from
+`packages/mmo-words/src/encounters.ts` over the committed wasteland pool,
+with the creature and place chat's beat card uses, so both show the same
+line. It is display only: a hash of the fight, never a draw.
 
 ## Adding a family
 
@@ -146,7 +164,8 @@ edited. It holds these files:
 ### `scene.ts`
 
 - `mount(host: SceneHost): Scene` makes its drawing with
-  `board(host, label)` and returns `frame` and `destroy`.
+  `board(host, label)` and returns `frame` and `destroy`. The label says
+  what the scene shows; the panel puts the machine and its state in front.
 - **Read `host.model` every frame; never keep it and never step it.** The
   shell swaps it (a refused arm, a clock moved back onto the server's).
   Cast it to your model: `const model = () => host.model as RewireModel`.

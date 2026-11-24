@@ -11,8 +11,8 @@ import {
   viewBox,
   type Axial,
 } from "../shell/hex.ts";
-import { plural } from "../units.ts";
-import { goodsLine, name, placedLine, sentence } from "../words.ts";
+import { list, plural } from "../units.ts";
+import { floorAlt, goodsLine, name, placedLine, sentence } from "../words.ts";
 import { windowNode } from "./party.ts";
 
 export interface FloorActions {
@@ -75,7 +75,7 @@ function room(
 ): SVGGElement {
   const c = centre(at, ROOM);
   const g = svg("g", { class: `room ${opts.cls}`, ...(opts.way ? { "data-way": opts.way } : {}) });
-  const hex = svg("polygon", { points: corners(c, ROOM, 0.96) });
+  const hex = svg("polygon", { points: corners(c, ROOM, 0.96), "aria-hidden": "true" });
   hex.setAttribute(
     "style",
     `fill: var(--tar); stroke: var(${opts.voted ? "--signal" : opts.cls === "shut" ? "--rust" : "--line"}); stroke-width: 3`,
@@ -115,6 +115,16 @@ function presentHere(st: ActivityState): { names: string[]; you: number } {
   return { names: here.map((m) => m.name), you: here.findIndex((m) => m.you) };
 }
 
+function lowerFirst(s: string): string {
+  return s.charAt(0).toLowerCase() + s.slice(1);
+}
+
+// Who stands in the room, the viewer marked, as the map's words say it.
+function presentLine(here: { names: string[]; you: number }): string {
+  const who = here.names.map((n, i) => (i === here.you && n !== "You" ? `${n} (you)` : n));
+  return `where ${list(who)} ${who.length === 1 && who[0] !== "You" ? "stands" : "stand"}`;
+}
+
 /**
  * The floor's rooms, drawn as hexes: the stair behind, the room the party
  * stands in with each member present, and each way down with its tags, its
@@ -128,33 +138,32 @@ export function floorMap(st: ActivityState): SVGSVGElement {
     class: "floor-map",
     viewBox: viewBox(rooms, ROOM, 6),
     role: "img",
-    "aria-label": `The rooms of ${floorName(f)}`,
     width: "100%",
   });
-  map.append(
-    room(UP_ROOM, [f.floor > 1 ? `Back to ${floorName(f, f.floor - 1)}` : "The way out"], {
-      cls: "up",
-    }),
-  );
+  const up = f.floor > 1 ? `Back to ${floorName(f, f.floor - 1)}` : "The way out";
+  map.append(room(UP_ROOM, [up], { cls: "up" }));
   const here = presentHere(st);
-  map.append(
-    room(HERE_ROOM, [sentence(floorName(f)), f.haunted ? "Haunted" : ""].filter(Boolean), {
-      cls: "here",
-      tokens: here.names,
-      you: here.you,
-    }),
-  );
+  const own = [sentence(floorName(f)), f.haunted ? "Haunted" : ""].filter(Boolean);
+  map.append(room(HERE_ROOM, own, { cls: "here", tokens: here.names, you: here.you }));
+  const told = [
+    up,
+    `${sentence(floorName(f))}${f.haunted ? ", haunted" : ""}, ${presentLine(here)}`,
+  ];
   for (const w of ways) {
     const at = WAY_ROOMS[w.id];
     if (!at) continue;
+    const said = wayLines(f, w);
     map.append(
-      room(at, wayLines(f, w), {
+      room(at, said, {
         cls: w.open ? "open" : "shut",
         voted: wayVoters(w, f.choices ?? []).length > 0,
         way: w.id,
       }),
     );
+    const [way, ...more] = said;
+    told.push(`A way down, ${way}: ${more.map(lowerFirst).join("; ")}`);
   }
+  map.setAttribute("aria-label", floorAlt(floorName(f), told));
   return map;
 }
 
