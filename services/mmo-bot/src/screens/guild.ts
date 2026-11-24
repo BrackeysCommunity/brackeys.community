@@ -20,6 +20,7 @@ import {
   ROW_MOST,
   SELECT_MOST,
 } from "./common.ts";
+import { NAME_INPUT } from "./emergence.ts";
 import { REWARDS } from "./goals.ts";
 import { cityStations } from "./hub.ts";
 
@@ -799,6 +800,6 @@ export function nameModal(action: "gld-new" | "gld-chart", version: number, titl
   return {
     customId: encodeId(action, "", version),
     title,
-    inputs: [{ id: "name", label: "Name", max: 32, required: true }],
+    inputs: [{ id: NAME_INPUT, label: "Name", max: 32, required: true }],
   };
 }

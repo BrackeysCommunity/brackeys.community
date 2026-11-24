@@ -56,12 +56,13 @@ describe("proseProblem", () => {
     for (const w of ["a", "an", "first", "last"]) expect(NUMBER_WORDS.has(w)).toBe(false);
   });
 
-  test("a number the template line holds may be repeated when numbersFrom is set", () => {
+  test("with numbersFrom, a line carries exactly the source's numbers", () => {
     const voice = { ...rules, numbersFrom: "Sell 12 ore at 3 coin each, or two crates." };
     expect(reason("I will take 12 ore at 3 coin.", voice)).toBeNull();
-    expect(reason("I will take two crates.", voice)).toBeNull();
+    expect(reason("I will take 12 ore at 3 coin, or two crates.", voice)).toBeNull();
     expect(reason("I will take 13 ore.", voice)).toBe("number");
     expect(reason("I will take three crates.", voice)).toBe("number");
+    expect(reason("I will take 12 ore.", voice)).toBe("number");
   });
 
   test("names: a capitalised word that does not open a sentence must be allowed", () => {

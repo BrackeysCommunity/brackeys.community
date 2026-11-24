@@ -391,7 +391,7 @@ export interface Figure {
 
 const SCALE_IDS = Object.keys(SCALES) as ScaleId[];
 
-/** One use's measured calls a call and a world day; null when it made none. */
+/** One use's measured totals, per call and per world day at each scale; null when it made no call. */
 function useFigure(use: UseId, l: DayLedger, from: UseFigure["from"]): UseFigure | null {
   const u = l.uses[use];
   if (!u || u.calls === 0) return null;

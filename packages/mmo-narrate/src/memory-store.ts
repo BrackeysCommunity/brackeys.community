@@ -53,6 +53,12 @@ export function memoryStore(opts?: {
       data.set(key, { value, expires: expiry(ttlSeconds) });
     },
 
+    async claim(key, ttlSeconds) {
+      if (live(key)) return false;
+      data.set(key, { value: "1", expires: expiry(ttlSeconds) });
+      return true;
+    },
+
     async incr(key, ttlSeconds) {
       const e = live(key);
       if (!e) {

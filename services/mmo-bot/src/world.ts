@@ -14,7 +14,8 @@ export interface World {
   map(characterId: string, radius?: number): Promise<api.MapView>;
   appraise(req: api.AppraiseRequest): Promise<WorldReply<api.Appraisal>>;
   recipes(characterId: string): Promise<api.Recipes>;
-  recap(characterId: string): Promise<api.Recap>;
+  /** Since you left; with a promotion, only that promotion's line while the character may still name it. */
+  recap(characterId: string, promotion?: string): Promise<api.Recap>;
   /** A conversation; with dossier, also what the NPC brings to it (GDD 4.18). */
   npc(
     characterId: string,
@@ -121,7 +122,7 @@ export function httpWorld(base: string, token: string, fetcher: typeof fetch = f
     map: (id, radius) => get(api.PathMap + q({ characterId: id, radius })),
     appraise: (req) => read("POST", api.PathAppraise, req),
     recipes: (id) => get(api.PathRecipes + q({ characterId: id })),
-    recap: (id) => get(api.PathRecap + q({ characterId: id })),
+    recap: (id, promotion) => get(api.PathRecap + q({ characterId: id, promotion })),
     npc: (id, npc, opts) =>
       read(
         "GET",

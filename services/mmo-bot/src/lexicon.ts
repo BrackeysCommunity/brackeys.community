@@ -1,4 +1,7 @@
+import { capital, readable } from "../../../packages/mmo-words/src/units.ts";
 import type * as api from "./api.ts";
+
+export { capital as capitalise, readable };
 
 /** What the setting calls things, and the sheet numbers cards state, from the world's lexicon; `update` swaps in a fresh read. */
 export class Lexicon {
@@ -39,13 +42,4 @@ export class Lexicon {
   get numbers(): api.Numbers {
     return this.data.numbers;
   }
-}
-
-export function capitalise(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-/** An id as words: dashes and underscores to spaces, capitalised. */
-export function readable(id: string): string {
-  return capitalise(id.replace(/[-_]/g, " "));
 }

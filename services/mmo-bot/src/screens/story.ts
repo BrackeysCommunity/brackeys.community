@@ -388,32 +388,9 @@ export function factCard(fc: api.FactCauses, lex: Lexicon, version: number): Car
 
 type Refs = ReadonlyMap<string, string>;
 
-/** The picture of a card outside ART_KINDS: a form, whatever art the world sent. */
-const NO_PICTURE: Picture | "form" = "form";
-
 /** An authored art slot's picture, headed by the card's title; a form when the world sent none. */
 function artPicture(art: api.Art | undefined, title: string): Picture | "form" {
   return art?.key ? { media: art.key, alt: artAlt(art.slot, title) } : "form";
-}
-
-/** The events told over their art slot: troubles, stages, arc ends and seasons. */
-const ART_KINDS: ReadonlySet<string> = new Set([
-  "trouble.started",
-  "trouble.held",
-  "trouble.lost",
-  "arc.cast",
-  "arc.stage-began",
-  "arc.stage-ended",
-  "arc.ended",
-  "season.began",
-  "season.finale",
-  "season.closed",
-]);
-
-/** A card of an art kind over the art the world sent for its event; its own picture is a form until then. */
-function withArt(card: Card | null, ev: api.StoryEvent): Card | null {
-  if (!card || !ART_KINDS.has(ev.fact.kind)) return card;
-  return { ...card, picture: artPicture(ev.art, card.title) };
 }
 
 /** The place an event names, or a settlement. */
@@ -447,16 +424,17 @@ function troubleStartCard(ev: api.StoryEvent, lex: Lexicon, refs: Refs): Card {
         },
       ]
     : [{ name: "Told", value: storyLine(ev.fact, lex, refs) }];
+  const title = raid
+    ? `Raiders on the road to ${placeOf(ev)}`
+    : `${troubleTitle(ev, lex)} at ${placeOf(ev)}`;
   return {
     context: EVENTS_CHANNEL,
     author: authorLine(raid ? "Raid alarm" : "Trouble", placeOf(ev)),
-    title: raid
-      ? `Raiders on the road to ${placeOf(ev)}`
-      : `${troubleTitle(ev, lex)} at ${placeOf(ev)}`,
+    title,
     description: raid
       ? "Win beats near it, press the raiders' hunt, or stand a wall: defence counts until the day turns."
       : "Back its one side before the day turns, or the place takes the damage.",
-    picture: "form",
+    picture: artPicture(ev.art, title),
     fields,
     footer: raid
       ? "Raid alarms gives or takes the alarm role: only a raid's start mentions it."
@@ -483,7 +461,7 @@ function troubleEndCard(ev: api.StoryEvent, lex: Lexicon): Card {
     description: held
       ? "Its backers are paid by what each put in."
       : `The place takes the damage its kind does; a guild's settlement that loses ${plural(lex.numbers.ruinTroubles, "time")} in a season is ruined.`,
-    picture: "form",
+    picture: artPicture(ev.art, title),
     fields: [
       {
         name: "Backed by",
@@ -515,7 +493,7 @@ function stagePostCard(ev: api.StoryEvent, a: api.Arc, lex: Lexicon): Card {
     author: authorLine("Arc", scopeWord(a), ev.fact.kind === "arc.cast" ? "cast" : "next stage"),
     title: a.title,
     description: parts.description,
-    picture: "form",
+    picture: artPicture(ev.art, a.title),
     fields: [parts.stage, ...parts.sides],
     footer: "Back a side from your own card: goods where they land, beats in its regions.",
     rows: buttons.length ? buttonRows(buttons.slice(0, ROW_MOST)) : [],
@@ -544,14 +522,17 @@ function stageEndCard(ev: api.StoryEvent, lex: Lexicon): Card {
   const won = lapsed ? undefined : ev.arc?.sides.find((s) => s.id === side);
   const winner = lapsed ? "" : sideTitle(ev, side, lex);
   const stage = factNum(f, "stage") + 1;
+  const cardTitle = lapsed
+    ? `${title}: stage ${stage} lapsed`
+    : `${title}: ${winner} won stage ${stage}`;
   return {
     context: EVENTS_CHANNEL,
     author: authorLine("Arc", lapsed ? "a stage lapsed" : "a stage won"),
-    title: lapsed ? `${title}: stage ${stage} lapsed` : `${title}: ${winner} won stage ${stage}`,
+    title: cardTitle,
     description: lapsed
       ? "Nobody met a mark by its deadline: the world does what the stage said it would."
       : "The side that met its mark first won it; the other side is paid for what it put in.",
-    picture: "form",
+    picture: artPicture(ev.art, cardTitle),
     fields: [
       { name: "Backed by", value: plural(factNum(f, "backers"), "character"), inline: true },
       ...(lapsed
@@ -579,12 +560,15 @@ function arcEndCard(ev: api.StoryEvent, lex: Lexicon, refs: Refs): Card {
   const outcome = factStr(f, "outcome");
   const lapsed = isLapsed(f);
   const title = ev.arc?.title || eventArcName(ev, lex);
+  const cardTitle = lapsed
+    ? `${title} lapsed`
+    : `${title} ended: ${sideTitle(ev, outcome, lex)} won`;
   return {
     context: EVENTS_CHANNEL,
     author: authorLine("Arc", "ended"),
-    title: lapsed ? `${title} lapsed` : `${title} ended: ${sideTitle(ev, outcome, lex)} won`,
+    title: cardTitle,
     description: `It ran ${plural(factNum(f, "stages"), "stage")}.`,
-    picture: "form",
+    picture: artPicture(ev.art, cardTitle),
     fields: [{ name: "Told", value: storyLine(f, lex, refs) }],
     footer: "The chronicle keeps how it went.",
     rows: [],
@@ -625,7 +609,7 @@ function seasonCard(ev: api.StoryEvent, lex: Lexicon, refs: Refs): Card {
     author: authorLine("Season", f.kind.slice("season.".length)),
     title,
     description,
-    picture: "form",
+    picture: artPicture(ev.art, title),
     fields: [
       { name: "Told", value: storyLine(f, lex, refs) },
       ...(f.kind === "season.closed" ? SEASON_KEEPS : []),
@@ -654,7 +638,7 @@ function placeEventCard(ev: api.StoryEvent, lex: Lexicon, refs: Refs): Card {
     author: authorLine(f.kind.startsWith("city.") ? "City" : "World", where),
     title: titles[f.kind] ?? capitalise(storyLine(f, lex, refs)),
     description: storyLine(f, lex, refs),
-    picture: NO_PICTURE,
+    picture: "form",
     fields:
       f.kind === "city.raised" && factNum(f, "coin")
         ? [{ name: "From its treasury", value: amount(factNum(f, "coin"), "coin"), inline: true }]
@@ -689,7 +673,7 @@ function roadEventCard(ev: api.StoryEvent): Card {
     description: cut
       ? "Raiders cut it: until it mends it is no faster than the land, no safer and takes no toll."
       : "Nobody held it: each character pays coin to cross it once a day, and one short of coin pays in goods.",
-    picture: NO_PICTURE,
+    picture: "form",
     fields,
     footer: cut
       ? "A cut road is still a road: it mends by itself."
@@ -708,7 +692,7 @@ function caravanRobbedCard(ev: api.StoryEvent): Card {
     title: `A caravan on ${roadName(ev)} was robbed`,
     description:
       "Raiders took part of its goods. What they took lies where it was robbed, for whoever gets there first; the rest goes on.",
-    picture: NO_PICTURE,
+    picture: "form",
     fields: [{ name: "Taken", value: amount(factNum(f, "units"), "goods"), inline: true }],
     footer: "A caravan's goods are counted like anyone's: nothing is lost from the world.",
     rows: [],
@@ -718,10 +702,6 @@ function caravanRobbedCard(ev: api.StoryEvent): Card {
 
 /** The events channel's card for one story event, or null for a kind it does not post. */
 export function eventCard(ev: api.StoryEvent, lex: Lexicon): Card | null {
-  return withArt(eventCardOf(ev, lex), ev);
-}
-
-function eventCardOf(ev: api.StoryEvent, lex: Lexicon): Card | null {
   const named = ev.arc ? { ...ev, arc: namedArc(ev.arc, lex) } : ev;
   const refs = refsOf(ev.names);
   switch (ev.fact.kind) {

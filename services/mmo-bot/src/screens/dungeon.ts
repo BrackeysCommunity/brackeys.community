@@ -10,6 +10,7 @@ import { encodeId } from "../ids.ts";
 import { capitalise, type Lexicon } from "../lexicon.ts";
 import { amount, plural } from "../units.ts";
 import { back, banner, btn, factNum, goodsLine, placedLine, PRIVATE, relative } from "./common.ts";
+import { NAME_INPUT } from "./emergence.ts";
 import { DUNGEON_NAME_MOST, nameItButton } from "./naming.ts";
 
 /**
@@ -304,7 +305,7 @@ export function dungeonNameModal(dungeon: string, version: number): Modal {
   return {
     customId: encodeId("d-named", dungeon, version),
     title: "Name the dungeon",
-    inputs: [{ id: "name", label: "Name", max: DUNGEON_NAME_MOST, required: true }],
+    inputs: [{ id: NAME_INPUT, label: "Name", max: DUNGEON_NAME_MOST, required: true }],
   };
 }
 

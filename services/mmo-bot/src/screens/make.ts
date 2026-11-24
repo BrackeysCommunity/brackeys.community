@@ -495,6 +495,11 @@ export function itemCard(
   };
 }
 
+/** The kinds a recipes card offers to name, as many as its rows hold. */
+export function nameableKinds(r: api.Recipes): api.Known[] {
+  return r.known.filter((k) => k.renamable).slice(0, ROW_MOST);
+}
+
 /**
  * /recipes: the kinds you know (GDD 17.1). A kind its first maker may
  * still name carries a button for it, and its description once drawn.
@@ -507,7 +512,7 @@ export function recipesCard(
   descriptions: ReadonlyMap<string, string> = new Map(),
 ): Card {
   const v = o.version;
-  const nameable = r.known.filter((k) => k.renamable).slice(0, ROW_MOST);
+  const nameable = nameableKinds(r);
   const described = nameable.filter((k) => descriptions.get(k.kind));
   return {
     context: PRIVATE,

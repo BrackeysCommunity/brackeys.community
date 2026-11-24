@@ -3,7 +3,7 @@ import { names } from "virtual:pack";
 import { clampAlt as clamp } from "../../../packages/mmo-words/src/alt.ts";
 import { encounterLine, WASTELAND_ENCOUNTERS } from "../../../packages/mmo-words/src/encounters.ts";
 import { clueLine as storyClue } from "../../../packages/mmo-words/src/story.ts";
-import { countWords } from "../../../packages/mmo-words/src/units.ts";
+import { capital, countWords } from "../../../packages/mmo-words/src/units.ts";
 import {
   UnitBeats,
   UnitEncounter,
@@ -33,6 +33,7 @@ import {
   uses,
 } from "./units.ts";
 
+export { capital as sentence };
 export { riskLine } from "../../../packages/mmo-words/src/risk.ts";
 export { placedLine } from "../../../packages/mmo-words/src/placed.ts";
 export { heldLine, patternKind } from "../../../packages/mmo-words/src/story.ts";
@@ -49,17 +50,12 @@ export type Found = Record<string, string> | undefined;
  */
 export function name(sheet: string, id: string, found?: Found): string {
   const ref = `${sheet}:${id}`;
-  return found?.[ref] ?? names[ref] ?? sentence(id.replace(/-/g, " "));
+  return found?.[ref] ?? names[ref] ?? capital(id.replace(/-/g, " "));
 }
 
 /** Whether the pack names a row of a sheet. */
 export function named(sheet: string, id: string): boolean {
   return `${sheet}:${id}` in names;
-}
-
-/** A phrase with its first letter raised. */
-export function sentence(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 /** A practice as one phrase: "level 3, Wirewright, 12 of 60 uses to the next". */
@@ -104,7 +100,7 @@ function state(h: HaywireLine): string {
 
 /** What a machine does when it fails, in one line. */
 export function haywireLine(h: HaywireLine): string {
-  const title = sentence(h.name);
+  const title = capital(h.name);
   switch (h.unit) {
     case "durability":
       return `${title}: ${amount(h.magnitude, "durability")} off the item in your hand`;
@@ -131,7 +127,7 @@ const REASONS: Record<string, string> = {
 
 /** One line of a machine's why: what it is, and what it adds to the countdown. */
 export function reasonLine(r: Reason, first: boolean): string {
-  const label = REASONS[r.label] ?? sentence(r.label.replace(/-/g, " "));
+  const label = REASONS[r.label] ?? capital(r.label.replace(/-/g, " "));
   return `${label}: ${first ? quantity(r.value, r.unit) : adds(r.value, r.unit)}`;
 }
 
@@ -200,7 +196,7 @@ export function factLine(f: Fact): string {
     case "pattern.clue":
       return `Clue found: ${clueLine(f)}`;
     default:
-      return `${sentence(f.kind.replace(/[.-]/g, " "))}.`;
+      return `${capital(f.kind.replace(/[.-]/g, " "))}.`;
   }
 }
 
@@ -246,7 +242,7 @@ function reachLine(reach: number): string {
 
 /** What a pattern.clue fact says, in the board's point letters. */
 export function clueLine(f: Fact): string {
-  return `${sentence(storyClue(f, (i) => `point ${pointName(i)}`))}.`;
+  return `${capital(storyClue(f, (i) => `point ${pointName(i)}`))}.`;
 }
 
 /** The creature a fight is against: a region's variant by its own name (GDD 4.17). */

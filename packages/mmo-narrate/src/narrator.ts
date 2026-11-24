@@ -50,15 +50,24 @@ const REMEMBERED: ReadonlySet<FallbackReason> = new Set(["check", "refused", "tr
 
 const LATE = Symbol("late");
 
-const LEDGER_FIELDS: Partial<Record<string, keyof Omit<UseLedger, "fallbacks">>> = {
+const LEDGER_CODE = {
   calls: "calls",
   hits: "hits",
-  in: "input",
-  out: "output",
-  cr: "cacheRead",
-  cw: "cacheWrite",
-  usd: "usdMicros",
-};
+  input: "in",
+  output: "out",
+  cacheRead: "cr",
+  cacheWrite: "cw",
+  usdMicros: "usd",
+} as const satisfies Record<keyof Omit<UseLedger, "fallbacks">, string>;
+
+const LEDGER_FIELD = Object.fromEntries(
+  Object.entries(LEDGER_CODE).map(([k, c]) => [c, k]),
+) as Partial<Record<string, keyof typeof LEDGER_CODE>>;
+
+const FB = "fb.";
+
+const field = (use: UseId, k: keyof typeof LEDGER_CODE) => `${use}.${LEDGER_CODE[k]}`;
+const fbField = (use: UseId, reason: FallbackReason) => `${use}.${FB}${reason}`;
 
 const emptyUse = (): UseLedger => ({
   calls: 0,
@@ -83,7 +92,7 @@ export class Narrator {
   private readonly reserved = new Map<number, number>();
   /** Cap slots held by calls still running, so concurrent presses cannot pass a cap. */
   private readonly capsInFlight = new Map<string, number>();
-  /** Inputs whose first caller is checking or holding a cap slot and has not started its call, to that caller's cap key. */
+  /** Cache key to the cap key of the caller checking its cap for that input, until that caller starts the call or falls back. */
   private readonly capPending = new Map<string, string>();
 
   constructor(private readonly deps: NarratorDeps) {}
@@ -119,7 +128,7 @@ export class Narrator {
     if (hit !== null) {
       const res = this.accept(spec, input, hit);
       if (!res.ok) return this.fallback(use, day, res.reason, res.check);
-      await this.count(day, { [`${use}.hits`]: 1 });
+      await this.count(day, { [field(use, "hits")]: 1 });
       return { ok: true, value: res.value as O, from: "cache" };
     }
     if (failed !== null) {
@@ -150,7 +159,7 @@ export class Narrator {
         const who = cfg.capBy === "npc" ? ctx.npc : cfg.capBy === "player" ? ctx.player : undefined;
         if (!who) return this.fallback(use, day, "cap");
         cap = capKey(use, who, day);
-        // A call that will join the same input costs nothing, so it is not counted.
+        // A caller that will join a running call, or one a same-cap caller already claimed, spends no slot of its own.
         if (!this.inFlight.has(key) && this.capPending.get(key) !== cap) {
           if (!this.capPending.has(key)) {
             this.capPending.set(key, cap);
@@ -191,7 +200,7 @@ export class Narrator {
     const joining = task !== undefined;
     if (held) this.releaseCap(cap!, key);
     if (!task) {
-      // A caller that skipped the cap check starts the call only while another caller with the same cap still holds this input's pending claim; that holder then joins it instead of starting its own.
+      // Without a slot of its own, a caller starts only under a same-cap claim; the claim's holder then joins this call.
       if (cap && !held && this.capPending.get(key) !== cap) return this.fallback(use, day, "cap");
       const slot = cap;
       if (slot) this.holdCap(slot);
@@ -219,7 +228,7 @@ export class Narrator {
     if (outcome === LATE) return this.fallback(use, day, "timeout");
     if (!outcome.ok) return this.fallback(use, day, outcome.reason, outcome.check, true);
     if (joining) {
-      await this.count(day, { [`${use}.hits`]: 1 });
+      await this.count(day, { [field(use, "hits")]: 1 });
       return { ok: true, value: outcome.value as O, from: "cache" };
     }
     return { ok: true, value: outcome.value as O, from: "model" };
@@ -230,17 +239,17 @@ export class Narrator {
     const h = await this.deps.store.hgetall(costKey(day));
     const out: DayLedger = { day, usdMicros: Number(h.usd ?? 0), uses: {} };
     const uses: ReadonlySet<string> = new Set(USES);
-    for (const [field, raw] of Object.entries(h)) {
-      const dot = field.indexOf(".");
+    for (const [name, raw] of Object.entries(h)) {
+      const dot = name.indexOf(".");
       if (dot < 0) continue;
-      const use = field.slice(0, dot);
+      const use = name.slice(0, dot);
       if (!uses.has(use)) continue;
-      const rest = field.slice(dot + 1);
+      const rest = name.slice(dot + 1);
       const u = (out.uses[use as UseId] ??= emptyUse());
       const n = Number(raw);
-      if (rest.startsWith("fb.")) u.fallbacks[rest.slice(3) as FallbackReason] = n;
+      if (rest.startsWith(FB)) u.fallbacks[rest.slice(FB.length) as FallbackReason] = n;
       else {
-        const f = LEDGER_FIELDS[rest];
+        const f = LEDGER_FIELD[rest];
         if (f) u[f] = n;
       }
     }
@@ -293,12 +302,12 @@ export class Narrator {
         costKey(day),
         {
           usd: micros,
-          [`${use}.calls`]: 1,
-          [`${use}.in`]: reply.usage.input,
-          [`${use}.out`]: reply.usage.output,
-          [`${use}.cr`]: reply.usage.cacheRead,
-          [`${use}.cw`]: reply.usage.cacheWrite,
-          [`${use}.usd`]: micros,
+          [field(use, "calls")]: 1,
+          [field(use, "input")]: reply.usage.input,
+          [field(use, "output")]: reply.usage.output,
+          [field(use, "cacheRead")]: reply.usage.cacheRead,
+          [field(use, "cacheWrite")]: reply.usage.cacheWrite,
+          [field(use, "usdMicros")]: micros,
         },
         LEDGER_TTL_SECONDS,
       );
@@ -386,7 +395,7 @@ export class Narrator {
     check?: CheckReason,
     logged = false,
   ): Promise<Narrated<O>> {
-    await this.count(day, { [`${use}.fb.${reason}`]: 1 });
+    await this.count(day, { [fbField(use, reason)]: 1 });
     if (reason !== "off" && reason !== "uncached" && !logged) {
       this.deps.log(
         `mmo-narr use=${use} day=${day} fallback=${reason}${check ? ` check=${check}` : ""}`,

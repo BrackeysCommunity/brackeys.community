@@ -253,7 +253,10 @@ func portraitKey(in render.PortraitInput) string {
 	return key
 }
 
-// portraits holds the inputs of recently computed portrait keys and the keys a scan did not find, each bounded, oldest dropped first.
+// portraits holds the inputs of recently computed portrait keys and the keys
+// a scan did not find, each bounded, oldest dropped first. It is process-wide
+// on purpose: a key is a pure function of its input, and the free converters
+// that compute keys hold no Server.
 var portraits portraitRecord
 
 type portraitRecord struct {

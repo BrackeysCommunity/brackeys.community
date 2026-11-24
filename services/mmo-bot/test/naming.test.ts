@@ -464,6 +464,16 @@ test("a held name resubmitted by the same player is recorded once", async () => 
   expect(store.list(HELD_KEY).map((e) => JSON.parse(e).user)).toEqual(["u2", "u1"]);
 });
 
+test("two screens of one held name at once are recorded once", async () => {
+  const { narrator, store } = narratorOf(holdingModel());
+  const offers = nameOffers(narrator, store);
+  const ctx = { day: DAY, server: "g", use: "kind" as const, target: kind.kind, user: "u1" };
+  expect(
+    await Promise.all([offers.screen("Some Name", ctx), offers.screen("Some Name", ctx)]),
+  ).toEqual(["hold", "hold"]);
+  expect(store.list(HELD_KEY)).toHaveLength(1);
+});
+
 test("the held list reads as lines, newest first, and tolerates a bad entry", () => {
   expect(heldLines([])).toEqual(["no names are held"]);
   const entry = JSON.stringify({

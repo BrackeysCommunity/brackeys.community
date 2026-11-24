@@ -37,9 +37,9 @@ export function recording(world: World, samples: Record<string, unknown>): World
     map: async (id, r) => keep("map", await world.map(id, r)),
     appraise: keepOk("appraise", world.appraise),
     recipes: async (id) => keep("recipes", await world.recipes(id)),
-    recap: async (id) => {
-      const r = await world.recap(id);
-      if (r.lines.length) samples.recap = r;
+    recap: async (id, promotion) => {
+      const r = await world.recap(id, promotion);
+      if (r.lines.length && !promotion) samples.recap = r;
       return r;
     },
     npc: async (id, npc, opts) => {

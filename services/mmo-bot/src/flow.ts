@@ -61,6 +61,7 @@ import {
   draftRecipe,
   itemCard,
   madeCard,
+  nameableKinds,
   parseDraft,
   recipesCard,
 } from "./screens/make.ts";
@@ -413,18 +414,16 @@ class Session {
     const r = await this.world.recipes(this.character);
     const descriptions = new Map<string, string>();
     await Promise.all(
-      r.known
-        .filter((k) => k.renamable)
-        .map(async (k) => {
-          const offer = await this.names.suggest(
-            "kind",
-            k.kind,
-            k.name,
-            kindNameFacts(k, this.lex),
-            this.nameCtx("cached"),
-          );
-          if (offer?.description) descriptions.set(k.kind, offer.description);
-        }),
+      nameableKinds(r).map(async (k) => {
+        const offer = await this.names.suggest(
+          "kind",
+          k.kind,
+          k.name,
+          kindNameFacts(k, this.lex),
+          this.nameCtx("cached"),
+        );
+        if (offer?.description) descriptions.set(k.kind, offer.description);
+      }),
     );
     return this.retitled(this.done(recipesCard(o, here, r, this.lex, descriptions)), notice);
   }
@@ -439,7 +438,7 @@ class Session {
         return k ? { plain: k.name, facts: kindNameFacts(k, this.lex), open: !!k.renamable } : null;
       }
       case "promotion": {
-        const recap = await this.world.recap(this.character);
+        const recap = await this.world.recap(this.character, t.row);
         this.day.saw(recap.day);
         const f = recap.lines.find((l) => l.promotion === t.row)?.fact;
         return f ? { ...promotionNaming(f, this.lex), open: true } : null;
@@ -1401,7 +1400,7 @@ class Session {
           return this.guildWrite(api.ActCharter, v, {}, "places", "Chartered");
         return this.guild();
       case "gld-new": {
-        const name = this.press.fields?.name ?? "";
+        const name = this.press.fields?.[NAME_INPUT] ?? "";
         return this.screened(
           name.trim(),
           "guild",
@@ -1411,7 +1410,7 @@ class Session {
         );
       }
       case "gld-chart": {
-        const name = this.press.fields?.name ?? "";
+        const name = this.press.fields?.[NAME_INPUT] ?? "";
         return this.screened(
           name.trim(),
           "settlement",

@@ -320,7 +320,7 @@ test("a memory past its cap is summed up once an NPC a world day, listed until t
   await voice.idle();
   const summary = await store.get(summaryKey(npcId));
   expect(summary).toBe(`${c.npc.name} remembers more than they can tell, the oldest of it best.`);
-  expect(await store.get(summaryDayKey(npcId))).toBe(String(dossier.day));
+  expect(await store.get(summaryDayKey(npcId, dossier.day))).toBe("1");
 
   const again = await voice.talk(c, USER, SERVER);
   expect(again.remembers).toBe(summary!);
@@ -333,7 +333,7 @@ test("a memory past its cap is summed up once an NPC a world day, listed until t
   // The next day asks again; an unchanged memory is the cached summary, a grown one a new call.
   await voice.talk(conversation({ day: 10 }), USER, SERVER);
   await voice.idle();
-  expect(await store.get(summaryDayKey(npcId))).toBe("10");
+  expect(await store.get(summaryDayKey(npcId, 10))).toBe("1");
   expect(m.calls.filter((x) => x.use === "summary")).toHaveLength(1);
   const grown = conversation({ day: 11 });
   grown.dossier = { ...grown.dossier!, folded: [{ type: "greeted", count: 32 }], foldedTotal: 32 };
@@ -376,7 +376,7 @@ test("a summary stored before the switch went off is neither shown nor sent to t
   expect(r.remembers).toBe(memoryLines(dossier, lex).join("\n"));
   expect(m.calls.some((x) => x.use === "summary")).toBe(false);
   expect(m.calls.filter((x) => x.use === "voice").at(-1)!.user).not.toContain(stale);
-  expect(await store.get(summaryDayKey(c.npc.id))).toBeNull();
+  expect(await store.get(summaryDayKey(c.npc.id, dossier.day))).toBeNull();
 });
 
 test("a long memory is cut at whole lines to fit its field", () => {

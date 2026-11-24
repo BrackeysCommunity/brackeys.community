@@ -21,7 +21,11 @@ export type { NameSubject } from "../../../../packages/mmo-narrate/src/uses/name
 export const HELD_KEY = `${KEY_PREFIX}held`;
 /** structural: the held list keeps the last this many. */
 export const HELD_KEEP = 500;
-const HELD_SEEN_TTL_SECONDS = 30 * 86_400;
+const HELD_SEEN_TTL: number = (() => {
+  const ttl = USE_CONFIG.screen.ttlSeconds;
+  if (ttl === null) throw new Error("the screen use keeps no ttl");
+  return ttl;
+})();
 
 /** What a thing is and came from, in words: the names prompt's facts. */
 export interface NameFacts {
@@ -177,9 +181,8 @@ export function nameOffers(
         if (!held) throw new Error("no store for held names");
         // One player resubmitting a held name records it once, so others' holds stay in the list.
         const seen = `${HELD_KEY}:seen:${digestOf({ use: ctx.use, user: ctx.user, target: ctx.target, name: screenKey(name) })}`;
-        if (!(await held.get(seen))) {
+        if (await held.claim(seen, HELD_SEEN_TTL)) {
           await held.push(HELD_KEY, JSON.stringify(entry), HELD_KEEP);
-          await held.set(seen, "1", USE_CONFIG.screen.ttlSeconds ?? HELD_SEEN_TTL_SECONDS);
         }
       } catch (e) {
         log(

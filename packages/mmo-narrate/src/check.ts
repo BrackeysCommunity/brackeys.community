@@ -4,7 +4,7 @@ export interface ProseRules {
   /** Names the text may use: the names map's values and the proper names the template shows. */
   names: readonly string[];
   maxChars: number;
-  /** When set, a number may appear if the same digits or number word appear here. */
+  /** When set, the text's numbers come from here: any digit or number word it uses appears here, and its number-and-unit pairs are exactly these, none added or dropped. */
   numbersFrom?: string;
 }
 
@@ -114,6 +114,22 @@ function numberProblem(text: string, from: string | undefined): string | null {
   return null;
 }
 
+const NUMBER_PAIR = /(\d[\d,]*)(?:\s+([\p{L}%]+))?/gu;
+
+/** Each number with the word after it, so "12 tiles" keeps its unit when it is reworded. */
+const numberPairs = (s: string) =>
+  [...s.matchAll(NUMBER_PAIR)].map((m) => `${m[1]} ${(m[2] ?? "").toLowerCase()}`);
+
+function pairProblem(text: string, from: string): string | null {
+  const kept = new Set(numberPairs(from));
+  const said = numberPairs(text);
+  const added = said.find((pair) => !kept.has(pair));
+  if (added) return `"${added.trim()}" is not as the template says it`;
+  const voiced = new Set(said);
+  const dropped = [...kept].find((pair) => !voiced.has(pair));
+  return dropped ? `"${dropped.trim()}" is in the template but not the line` : null;
+}
+
 function nameProblem(text: string, names: readonly string[]): string | null {
   const allowed = allowedWords(names);
   for (const w of proseWords(text)) {
@@ -147,6 +163,10 @@ export function proseProblem(
   if (number !== null) return { reason: "number", detail: number };
   const name = nameProblem(text, rules.names);
   if (name !== null) return { reason: "name", detail: name };
+  if (rules.numbersFrom !== undefined) {
+    const pair = pairProblem(text, rules.numbersFrom);
+    if (pair) return { reason: "number", detail: pair };
+  }
   return null;
 }
 

@@ -96,7 +96,8 @@ func proposedRows(b []byte) ([]json.RawMessage, error) {
 	return file.Rows, nil
 }
 
-// CheckProposals checks each row alone: it must decode, take an id no sheet or earlier row holds, name a registered predicate and story effects, and leave the book valid and compiling.
+// CheckProposals checks each row against the book and the ids of the rows
+// accepted before it.
 func CheckProposals(b *sheets.Book, rows []ProposedRow) []ProposalResult {
 	taken := b.StoryIDs()
 	effects := sheets.StoryEffectKinds()

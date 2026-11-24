@@ -2,7 +2,8 @@ package service
 
 import "sync"
 
-// bounded is a map that keeps at most keep entries, oldest dropped first.
+// bounded is a map of at most keep entries (mediaKept when zero), oldest
+// dropped first; its zero value is ready to use.
 type bounded[K comparable, V any] struct {
 	mu    sync.Mutex
 	keep  int

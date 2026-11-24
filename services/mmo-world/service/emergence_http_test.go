@@ -449,6 +449,78 @@ func TestPromoteNameOverChat(t *testing.T) {
 	}
 }
 
+// TestPromotionRecap answers the line of one promotion while its first may
+// name it, after the since-you-left recap has moved past it: another
+// character and a named promotion get no line.
+func TestPromotionRecap(t *testing.T) {
+	r := start(t, io.Discard)
+	ctx := context.Background()
+	a, n := founder(t, r, "c-admin", "u-admin", "srv-1")
+	bRep, ref, err := r.cli.Act(ctx, api.ActionRequest{InteractionID: "c-b", DiscordID: "u-b", Kind: api.ActCreate, Option: api.StartKnife})
+	if err != nil || ref != nil {
+		t.Fatal(ref, err)
+	}
+	b := bRep.Character
+	advance(t, ctx, r, 2)
+
+	release := r.srv.Hold()
+	g := r.srv.Game()
+	at := g.Char(a.ID).C.At
+	style, _, _, _ := variantScene(t, g, a.ID, g.World.RegionAt(g.SettlementHex(n)), &at)
+	release()
+	advance(t, ctx, r, 3)
+
+	act := func(key, who, kind, option, note string) *api.Refusal {
+		t.Helper()
+		o, err := r.cli.Options(ctx, who)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, ref, err := r.cli.Act(ctx, api.ActionRequest{InteractionID: key, CharacterID: who, Version: o.Version, Kind: kind, Option: option, Note: note})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ref
+	}
+	carries := func(rc api.Recap) bool {
+		return slices.ContainsFunc(rc.Lines, func(l api.RecapLine) bool { return l.Fact != nil && l.Fact.ID == int64(style.Fact) })
+	}
+	plain := func(who string) api.Recap {
+		return read[api.Recap](t, r, true, api.PathRecap+"?characterId="+who, 200)
+	}
+	promotion := func(who string) api.Recap {
+		return read[api.Recap](t, r, true, api.PathRecap+"?characterId="+who+"&promotion="+style.ID, 200)
+	}
+
+	if !carries(plain(a.ID)) {
+		t.Fatal("the first's recap does not carry the promotion before a look")
+	}
+	if ref := act("l-1", a.ID, api.ActLook, "", ""); ref != nil {
+		t.Fatalf("look: %+v", ref)
+	}
+	advance(t, ctx, r, 4)
+	if rc := plain(a.ID); carries(rc) {
+		t.Fatalf("the recap after a look still carries the promotion: %+v", rc.Lines)
+	}
+	rc := promotion(a.ID)
+	if len(rc.Lines) != 1 || rc.Lines[0].Promotion != style.ID || rc.Lines[0].Fact == nil ||
+		rc.Lines[0].Fact.ID != int64(style.Fact) || rc.Lines[0].Fact.Kind != game.FactPromotion {
+		t.Fatalf("the first's promotion line: %+v", rc.Lines)
+	}
+	if rc := promotion(b.ID); len(rc.Lines) != 0 {
+		t.Fatalf("another's promotion line: %+v", rc.Lines)
+	}
+	if ref := act("n-1", a.ID, api.ActPromoteName, style.ID, "Cinder Grip"); ref != nil {
+		t.Fatalf("the first's rename: %+v", ref)
+	}
+	if rc := promotion(a.ID); len(rc.Lines) != 0 {
+		t.Fatalf("a named promotion still answers a line: %+v", rc.Lines)
+	}
+	if rc := read[api.Recap](t, r, true, api.PathRecap+"?characterId="+a.ID+"&promotion=style:999", 200); len(rc.Lines) != 0 {
+		t.Fatalf("no such promotion answers a line: %+v", rc.Lines)
+	}
+}
+
 // TestEmergentTile shows a road by name with its toll while tolled and no
 // toll while cut, and a camp and a haunt on the tile a character stands on.
 func TestEmergentTile(t *testing.T) {

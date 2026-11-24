@@ -145,6 +145,8 @@ export interface NarrationStore {
   hincr(key: string, fields: Record<string, number>, ttlSeconds: number): Promise<void>;
   hgetall(key: string): Promise<Record<string, string>>;
   push(key: string, value: string, keep: number): Promise<void>;
+  /** Sets key once: true when this call set it, false when it was already held. */
+  claim(key: string, ttlSeconds: number): Promise<boolean>;
 }
 
 export interface Switch {

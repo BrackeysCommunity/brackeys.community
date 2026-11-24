@@ -21,6 +21,7 @@ import (
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/world"
+	"jams.team/mmo-world/store"
 )
 
 const (
@@ -561,6 +562,10 @@ func (s *Server) recipes(w http.ResponseWriter, r *http.Request) {
 // recap reads the facts from the store outside the lock, then selects
 // from them under it.
 func (s *Server) recap(w http.ResponseWriter, r *http.Request) {
+	if id := r.URL.Query().Get("promotion"); id != "" {
+		s.promotionRecap(w, r, id)
+		return
+	}
 	var id string
 	var since, seenAt, weight int64
 	if !s.withChar(w, r, func(c *game.Char) {
@@ -592,6 +597,61 @@ func (s *Server) recap(w http.ResponseWriter, r *http.Request) {
 			out.Lines = append(out.Lines, x)
 		}
 		out.Names = factNames(s.g, c.C.ID, told...)
+		reply(w, http.StatusOK, out)
+	})
+}
+
+// promotionRecap is the line of one promotion while the viewer may still
+// name it, however long ago it happened; no line once it may not (GDD 4.17).
+func (s *Server) promotionRecap(w http.ResponseWriter, r *http.Request, id string) {
+	var fid fact.ID
+	var seenAt int64
+	if !s.withChar(w, r, func(c *game.Char) {
+		seenAt = c.Seen
+		if p, err := s.g.CanRename(id, c.C.ID); err == nil {
+			fid = p.Fact
+		}
+	}) {
+		return
+	}
+	var f fact.Fact
+	loaded := false
+	if fid != 0 {
+		var err error
+		f, err = s.st.Fact(r.Context(), fid)
+		switch {
+		case err == nil:
+			loaded = true
+		case !errors.Is(err, store.ErrNoFact):
+			s.internal(w, err)
+			return
+		}
+	}
+	s.withChar(w, r, func(c *game.Char) {
+		t := s.g.Tick()
+		out := api.Recap{Since: t, Tick: t, Lines: []api.RecapLine{},
+			Day: t / sheets.TicksPerDay, AwayHours: (t - seenAt) / sheets.TicksPerHour}
+		var promo string
+		if loaded {
+			promo = renamable(s.g, c.C.ID, f)
+		}
+		if promo != "" {
+			// The recap's own rules place the line, as if the viewer left just
+			// before it; a fact below the news weight still gets its line.
+			line := api.RecapLine{Rule: game.RecapLargest, Promotion: promo}
+			view := *c
+			view.Seen = f.Tick - 1
+			for _, l := range s.g.Recap(&view, nil, []fact.Fact{f}).Lines {
+				if l.NPC == "" && l.Fact.ID == f.ID {
+					line.Rule, line.Kind = l.Rule, l.Kind
+					break
+				}
+			}
+			x, _ := seen(s.g, c.C.ID, apiFact(f))
+			line.Fact = &x
+			out.Lines = append(out.Lines, line)
+			out.Names = factNames(s.g, c.C.ID, x)
+		}
 		reply(w, http.StatusOK, out)
 	})
 }

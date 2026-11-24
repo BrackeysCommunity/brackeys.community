@@ -1,6 +1,7 @@
 import type * as api from "../../../mmo-api/src/index.ts";
 import { toldWho } from "../../../mmo-words/src/memory.ts";
-import { type ProseRules, proseProblem } from "../check.ts";
+import { idWords } from "../../../mmo-words/src/units.ts";
+import { proseProblem } from "../check.ts";
 import { digestOf } from "../digest.ts";
 import { namesBlock, properNames, systemPrompt, untrusted } from "../prompt.ts";
 import type { CheckReason, CheckResult, JsonSchema, UseSpec } from "../types.ts";
@@ -59,7 +60,7 @@ export { toldWho };
 /** A memory as one line of data. */
 export function memoryData(m: VoiceMemory, names: Readonly<Record<string, string>>): string {
   const who = toldWho(m.who, names);
-  const parts = [m.kind.replace(/[-_]/g, " ")];
+  const parts = [idWords(m.kind)];
   if (who) parts.push(`by ${who}`);
   if (m.thing) parts.push(`(${m.thing})`);
   if (m.n && m.unit) parts.push(`for ${m.n} ${m.unit}`);
@@ -87,30 +88,14 @@ function allowedNames(i: VoiceIn): string[] {
   ].filter(Boolean);
 }
 
-const NUMBER_PAIR = /(\d[\d,]*)(?:\s+([\p{L}%]+))?/gu;
-
-/** Each number with the word after it, so "12 tiles" keeps its unit when it is voiced. */
-const numberPairs = (s: string) =>
-  [...s.matchAll(NUMBER_PAIR)].map((m) => `${m[1]} ${(m[2] ?? "").toLowerCase()}`);
-
+/** Why a voiced line may not replace its template line: the prose rules, which hold it to exactly the template's numbers. */
 function lineProblem(
   text: string,
   template: string,
   names: readonly string[],
   maxChars: number,
 ): { reason: CheckReason; detail: string } | null {
-  const rules: ProseRules = { names, maxChars, numbersFrom: template };
-  const p = proseProblem(text, rules);
-  if (p) return p;
-  const kept = new Set(numberPairs(template));
-  const said = numberPairs(text);
-  const lost = said.find((pair) => !kept.has(pair));
-  if (lost) return { reason: "number", detail: `"${lost.trim()}" is not as the template says it` };
-  const voiced = new Set(said);
-  const dropped = [...kept].find((pair) => !voiced.has(pair));
-  return dropped
-    ? { reason: "number", detail: `"${dropped.trim()}" is in the template but not the line` }
-    : null;
+  return proseProblem(text, { names, maxChars, numbersFrom: template });
 }
 
 const fail = (reason: CheckReason, detail: string): CheckResult<Voiced> => ({

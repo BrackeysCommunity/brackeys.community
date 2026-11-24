@@ -16,13 +16,16 @@ import { redisSwitch } from "./switch.ts";
 const DAY = 86_400;
 /** A voiced last line is kept while the world may still say the line it replaced. */
 export const LAST_TTL_SECONDS = 90 * DAY;
-export const SUMMARY_TTL_SECONDS = USE_CONFIG.summary.ttlSeconds ?? 30 * DAY;
+const summaryTtl = USE_CONFIG.summary.ttlSeconds;
+if (summaryTtl === null) throw new Error("the summary use keeps no ttl");
+export const SUMMARY_TTL_SECONDS = summaryTtl;
 
 /** How an NPC voiced the line it said to a player last time: `{template, voiced}`. */
 export const lastKey = (npc: string, user: string) => `${KEY_PREFIX}last:${npc}:${user}`;
-/** An NPC's memory summary, and the world day one was last asked for. */
+/** An NPC's memory summary. */
 export const summaryKey = (npc: string) => `${KEY_PREFIX}summary:${npc}`;
-export const summaryDayKey = (npc: string) => `${KEY_PREFIX}summary-day:${npc}`;
+/** Marks the world day an NPC's summary was asked for. */
+export const summaryDayKey = (npc: string, day: number) => `${KEY_PREFIX}summary-day:${npc}:${day}`;
 
 interface LastLine {
   template: string;
@@ -58,7 +61,7 @@ function voicedConv(conv: api.Conversation, v: Voiced, last: string | undefined)
   return { ...conv, topics, ...(conv.last ? { last: last ?? conv.last } : {}) };
 }
 
-/** The summary prompt's input: the NPC's name and the memory it folded. */
+/** The summary prompt's input: the NPC's name, its oldest entries with their names, and its folded counts. */
 export function summaryInput(conv: Pick<api.Conversation, "npc">, d: api.Dossier) {
   return { npc: conv.npc.name, folded: d.folded ?? [], oldest: d.oldest, names: d.names };
 }
@@ -95,12 +98,17 @@ export function voiceNarration(
       return false;
     }
   };
+  const claim = async (key: string) => {
+    try {
+      return await store.claim(key, SUMMARY_TTL_SECONDS);
+    } catch {
+      return false;
+    }
+  };
 
   const summarise = async (conv: api.Conversation, d: api.Dossier, server: string) => {
     const npc = conv.npc.id;
-    const day = String(d.day);
-    if ((await read(summaryDayKey(npc))) === day) return;
-    if (!(await write(summaryDayKey(npc), day, SUMMARY_TTL_SECONDS))) return;
+    if (!(await claim(summaryDayKey(npc, d.day)))) return;
     const job = narrator
       .narrate(summaryUse, summaryInput(conv, d), { day: d.day, server, npc })
       .then(async (r) => {

@@ -648,7 +648,8 @@ func (g *Game) consent(c *Char, cmd Command) error {
 	return nil
 }
 
-// travellerName is another player whose guild is unknown, unnamed.
+// travellerName is how an NPC tells of a player it may not name; NameFor
+// adds the guild when there is one.
 const travellerName = "a traveller"
 
 // NameFor is how an NPC names subject to viewer: by name where subject

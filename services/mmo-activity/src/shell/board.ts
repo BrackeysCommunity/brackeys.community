@@ -99,7 +99,7 @@ export function board(host: SceneHost, label: string): Board {
   };
 }
 
-/** Names every board on a surface by alt(the scene's own label), touching the DOM only on a change. */
+/** Sets each board's aria-label to alt(its scene label); set() writes only a change. */
 export function labelBoards(surface: HTMLElement, alt: (scene: string) => string): void {
   for (const node of surface.querySelectorAll<SVGSVGElement>("svg.board"))
     set(node, { "aria-label": alt(node.dataset.scene ?? "") });

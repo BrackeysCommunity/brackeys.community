@@ -28,9 +28,10 @@ import { chronicleLines } from "../src/screens/story.ts";
  *
  * It reads the arc kit and the story view (MMO_OPERATOR_TOKEN) and the
  * season's chronicle days (MMO_API_TOKEN) from MMO_WORLD_URL, asks for at
- * most three candidate story.arcs rows, and writes them as a story.arcs
- * file for `go run ./cmd/harness proposals -in <file>`. It never writes a
- * sheet: a person approves a row by copying it into the next rules epoch.
+ * most PROPOSALS_MOST candidate story.arcs rows, and writes them as a
+ * story.arcs file for `go run ./cmd/harness proposals -in <file>`. It never
+ * writes a sheet: a person approves a row by copying it into the next rules
+ * epoch.
  * The stub (the default) makes no model call; --real calls the model once.
  */
 

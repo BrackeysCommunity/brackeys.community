@@ -21,6 +21,9 @@ export function redisNarrationStore(redis: Redis): NarrationStore {
       if (ttlSeconds === null) await redis.set(key, value);
       else await redis.set(key, value, "EX", ttlSeconds);
     },
+    async claim(key, ttlSeconds) {
+      return (await redis.set(key, "1", "EX", ttlSeconds, "NX")) === "OK";
+    },
     async incr(key, ttlSeconds) {
       const [n] = await exec(redis.multi().incr(key).expire(key, ttlSeconds));
       return Number(n);

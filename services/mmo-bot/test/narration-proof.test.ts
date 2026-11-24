@@ -87,7 +87,7 @@ function brokenCache(): NarrationStore {
   const fail = async (): Promise<never> => {
     throw new Error("the cache is unreachable");
   };
-  return { ...inner, get: fail, set: fail, incr: fail, push: fail };
+  return { ...inner, get: fail, set: fail, incr: fail, push: fail, claim: fail };
 }
 
 /** A store where every call fails. */
@@ -95,7 +95,7 @@ function brokenStore(): NarrationStore {
   const fail = async (): Promise<never> => {
     throw new Error("the store is unreachable");
   };
-  return { get: fail, set: fail, incr: fail, hincr: fail, hgetall: fail, push: fail };
+  return { get: fail, set: fail, incr: fail, hincr: fail, hgetall: fail, push: fail, claim: fail };
 }
 
 function setup(

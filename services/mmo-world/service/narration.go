@@ -18,8 +18,8 @@ import (
 var arcSchema = filepath.Join("sheets", "schema", "story.arcs.schema.json")
 
 // arcKit is what a proposed story.arcs row may name (GDD 12.9): the
-// templates there are, the registered predicates, the effect kinds and the
-// row schema. A proposal is a row, never code.
+// templates there are, the ids it may not take, the registered predicates,
+// the effect kinds and the row schema. A proposal is a row, never code.
 func (s *Server) arcKit(w http.ResponseWriter, r *http.Request) {
 	schema, err := os.ReadFile(filepath.Join(envvar.Get(EnvSheets, "."), arcSchema))
 	if err != nil {

@@ -78,7 +78,7 @@ export function foldedWords(type: string): string {
   return FOLDED[type] ?? idWords(type);
 }
 
-/** Who an entry is about, as anyone outside the world may read it: "you", a traveller, or a traveller from a guild in names; a character id is never shown. */
+/** Who an entry is about, safe for any reader: "you", "a traveller", or "a traveller from" a guild in names; never an id. */
 export function toldWho(who: string | undefined, names: Readonly<Record<string, string>>): string {
   if (!who) return "";
   if (who === YOU || who === TRAVELLER) return who;
