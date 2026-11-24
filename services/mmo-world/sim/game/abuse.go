@@ -97,11 +97,14 @@ func (g *Game) give(c *Char, cmd Command) error {
 		return refuse(NotHere, "%q is not here", cmd.Target)
 	}
 	from, dest := ledger.Char(c.C.ID), ledger.Char(to.C.ID)
+	day := g.Tick() / sheets.TicksPerDay
+	hot := false
 	if cmd.Item != "" {
 		in, err := unworn(c, cmd.Item)
 		if err != nil {
 			return err
 		}
+		hot = in.Hot.HotOn(day)
 		if err := g.canGive(c, g.ItemValue(in)); err != nil {
 			return err
 		}
@@ -124,7 +127,8 @@ func (g *Game) give(c *Char, cmd Command) error {
 		// Hot goods stay hot in a friend's hands (GDD 6.5).
 		after := func() {}
 		if isGoods {
-			after = g.passHot(c, to, material, cmd.Units, g.Tick()/sheets.TicksPerDay)
+			hot = g.HotUnits(c, material, day) > 0
+			after = g.passHot(c, to, material, cmd.Units, day)
 		}
 		if err := g.postAll(ledger.Move(cmd.Key, "give", g.Tick(), from, dest, cmd.Asset, cmd.Units)); err != nil {
 			return err
@@ -137,6 +141,12 @@ func (g *Game) give(c *Char, cmd Command) error {
 	f, err := g.factWith(c, []fact.Ref{char.Ref(to.C.ID)}, "character.gave", g.Tick(), fact.S("asset", cmd.Asset), fact.N("units", cmd.Units), fact.S("item", cmd.Item))
 	if err != nil {
 		return err
+	}
+	// Whoever ends up holding hot goods is someone a fence comes for.
+	if hot {
+		if err := g.fenceCheck(to, g.Tick()); err != nil {
+			return err
+		}
 	}
 	return g.storiedReturn(c, to, cmd.Item, f.ID)
 }

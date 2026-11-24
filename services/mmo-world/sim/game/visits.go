@@ -10,9 +10,13 @@ import (
 	"jams.team/mmo-world/sim/world"
 )
 
-// tileEntered is everything the story does when a character enters a
-// tile: NPCs who want a word come to it, then patterns are reached.
+// tileEntered is everything that meets a character entering a tile: the
+// watch at a gate it is wanted at, then, with a story, NPCs who want a
+// word come to it and patterns are reached.
 func (g *Game) tileEntered(c *Char, h hex.Hex, t int64) error {
+	if err := g.watchStops(c, h, t); err != nil {
+		return err
+	}
 	if g.Story == nil {
 		return nil
 	}

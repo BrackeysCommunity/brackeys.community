@@ -299,6 +299,9 @@ func (g *Game) seenNow() []string {
 // dispatch runs a command; a machine command also hands back the result
 // its move log became.
 func (g *Game) dispatch(c *Char, cmd Command) ([]fight.Pressed, *puzzle.Result, error) {
+	if err := g.watchGuard(c, cmd.Kind); err != nil {
+		return nil, nil, err
+	}
 	switch cmd.Kind {
 	case MachineArm:
 		return nil, nil, g.machineArm(c, cmd)
@@ -632,6 +635,9 @@ func (g *Game) press(c *Char, cmd Command) ([]fight.Pressed, error) {
 // pressOption presses an option on the current beat. A machine's option
 // takes the result its move log was replayed into.
 func (g *Game) pressOption(c *Char, key, pick string, tick int64, w *worked) ([]fight.Pressed, error) {
+	if c.Fight.Theft != nil {
+		return g.theftPress(c, key, pick, tick, w)
+	}
 	f := g.r.Fight
 	e := c.Fight.E
 	kit, opts := g.beat(c, tick)

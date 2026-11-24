@@ -478,6 +478,10 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 			}
 		}
 	}
+	// The watch ended the journey at its gate.
+	if c.Long != l {
+		return acts, nil
+	}
 	l.Route = l.Route[1:]
 	if g.ambushed(c, to, t) {
 		endJourney(c)
