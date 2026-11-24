@@ -6,19 +6,15 @@ import "jams.team/mmo-world/sim/fact"
 const (
 	whenSyndicateInvites = "syndicate-invites"
 	whenWatchKnows       = "watch-knows"
-	whenThiefInWalls     = "thief-in-walls"
 
 	roleNPC     = "npc"
 	roleNotable = "notable"
 	roleDen     = "den"
-
-	memTheft = "theft.made"
 )
 
 func init() {
 	Predicates[whenSyndicateInvites] = syndicateInvites
 	Predicates[whenWatchKnows] = watchKnows
-	Predicates[whenThiefInWalls] = thiefInWalls
 }
 
 // Crime is what the syndicate's threads read beyond World; the game's view
@@ -84,20 +80,6 @@ func watchKnows(w World, row Row, _ Params) []Candidate {
 			bind(roleNPC, pd.Ref), bind(roleDen, SettlementRef(den.N)), seatAt(roleSeat, seat)))
 	}
 	return found(w, row, out)
-}
-
-// thiefInWalls is a thief in the walls: a settlement whose won burglaries
-// within walls-days reach walls-burglaries. Beats count in its region.
-func thiefInWalls(w World, row Row, p Params) []Candidate {
-	return eachPlace(w, row, func(pl PlaceView) (Candidate, bool) {
-		if p.WallsBurglaries < 1 || pl.Burgled < p.WallsBurglaries {
-			return Candidate{}, false
-		}
-		causes := recalled(w, p.WallsDays, []string{memTheft}, func(m Memory) bool {
-			return m.At == pl.Hex || names(m, SettlementRef(pl.N))
-		})
-		return atPlace(pl, []int{pl.Region}, pl.Burgled, causes), true
-	})
 }
 
 func npcOf(id string) fact.Ref { return fact.Ref{Kind: kindNPC, ID: id} }

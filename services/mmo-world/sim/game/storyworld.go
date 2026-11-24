@@ -148,6 +148,8 @@ func (v *storyView) Places() []arc.PlaceView {
 			raised[m.At] = max(raised[m.At], m.Tick)
 		}
 	}
+	// Burgled is kept trimmed only when one is noted, so the window is read here.
+	burgledFrom := g.Tick() - g.r.Story.WallsDays*sheets.TicksPerDay
 	out := make([]arc.PlaceView, len(g.Places))
 	for n, p := range g.Places {
 		pv := arc.PlaceView{N: n, Hex: p.Hex, Region: g.World.RegionAt(p.Hex), Guild: p.Guild, Chartered: p.Chartered(),
@@ -158,6 +160,11 @@ func (v *storyView) Places() []arc.PlaceView {
 		}
 		if ps := g.storyAt(n); ps != nil {
 			pv.Lost = ps.Lost
+			for _, at := range ps.Burgled {
+				if at > burgledFrom {
+					pv.Burgled++
+				}
+			}
 		}
 		out[n] = pv
 	}

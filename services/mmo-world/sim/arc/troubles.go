@@ -16,6 +16,7 @@ func init() {
 	Predicates["prospers-road"] = prospersRoad
 	Predicates["season-turn"] = seasonTurn
 	Predicates["scarcity-low"] = scarcityLow
+	Predicates["thief-in-walls"] = thiefInWalls
 }
 
 // Roles a trouble or an occasion binds beside its place.
@@ -24,6 +25,9 @@ const (
 	roleSource  = "source"
 	roleFaction = "faction"
 )
+
+// memTheft is the fact a thief in the walls cites.
+const memTheft = "theft.made"
 
 // atPlace starts a settlement candidate at pl, seated on its tile.
 func atPlace(pl PlaceView, regions []int, pressure int64, causes []fact.ID, cast ...Binding) Candidate {
@@ -248,5 +252,19 @@ func scarcityLow(w World, row Row, p Params) []Candidate {
 			return Candidate{}, false
 		}
 		return atPlace(pl, []int{pl.Region}, p.SeamBelow-w.Gauge(pl.Region, gaugeScarcity), nil), true
+	})
+}
+
+// thiefInWalls is a thief in the walls: a settlement whose won burglaries
+// within walls-days reach walls-burglaries. Beats count in its region.
+func thiefInWalls(w World, row Row, p Params) []Candidate {
+	return eachPlace(w, row, func(pl PlaceView) (Candidate, bool) {
+		if p.WallsBurglaries < 1 || pl.Burgled < p.WallsBurglaries {
+			return Candidate{}, false
+		}
+		causes := recalled(w, p.WallsDays, []string{memTheft}, func(m Memory) bool {
+			return m.At == pl.Hex || names(m, SettlementRef(pl.N))
+		})
+		return atPlace(pl, []int{pl.Region}, pl.Burgled, causes), true
 	})
 }
