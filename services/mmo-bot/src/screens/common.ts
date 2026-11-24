@@ -36,6 +36,12 @@ export function alignmentLine(value: number, band: string, lex: Lexicon): string
   return band ? `${lex.name("alignment.bands", band)}, ${shown}` : shown;
 }
 
+/** "+5 alignment for theft: now Crooked, −15 alignment", from an alignment.moved fact. */
+export function alignmentMoved(f: api.Fact, lex: Lexicon, withAct = true): string {
+  const act = factStr(f, "act");
+  return `${signed(factNum(f, "delta"), "alignment")}${withAct && act ? ` for ${act.replace(/-/g, " ")}` : ""}: now ${alignmentLine(factNum(f, "value"), factStr(f, "band"), lex)}`;
+}
+
 /** A unix time as Discord draws it live: "in 2 minutes". */
 export function relative(ms: number): string {
   return `<t:${Math.floor(ms / 1000)}:R>`;
@@ -355,7 +361,7 @@ export function factLine(f: api.Fact, lex: Lexicon): string {
         ? `Paid a toll of ${amount(n(f, "coin"), "coin")} to cross a road.`
         : `Paid a toll in goods: ${amount(n(f, "units"), mat("material"))}.`;
     case "alignment.moved":
-      return `${signed(n(f, "delta"), "alignment")}${s(f, "act") ? ` for ${s(f, "act").replace(/-/g, " ")}` : ""}: now ${alignmentLine(n(f, "value"), s(f, "band"), lex)}.`;
+      return `${alignmentMoved(f, lex)}.`;
     case "theft.made":
       return theftFactLine(f, lex);
     case "watch.stopped":

@@ -550,22 +550,18 @@ func (g *Game) match(b *market.Book, key string) error {
 }
 
 // mayNotTrade reports a pair that may not trade: an owner with itself, a
-// seller the faction will not buy from or whose order rests its own hot
-// goods, or a young character past its cap (see capped, which counts
+// seller the faction will not buy from or whose ask rests goods stolen
+// from that faction, or a young character past its cap (see capped, which counts
 // what it lets through).
 func (g *Game) mayNotTrade(b *market.Book, bid, ask market.Order) bool {
 	if bid.Owner == ask.Owner {
 		return true
 	}
 	if bid.Faction != nil {
-		if c := g.charOf(ask.Owner); c != nil && c.C.Alignment != nil {
-			key := standingKey(*bid.Faction, g.SettlementHex(b.Settlement))
-			day := g.Tick() / sheets.TicksPerDay
-			for _, l := range c.C.Alignment.Listed {
-				if l.Order == ask.ID && l.Mark.Faction == key && (&l.Mark).HotOn(day) {
-					return true
-				}
-			}
+		key := standingKey(*bid.Faction, g.SettlementHex(b.Settlement))
+		day := g.Tick() / sheets.TicksPerDay
+		if c := g.charOf(ask.Owner); c != nil && listedBarred(c, ask.ID, day, g.barredBy(key, nil)) {
+			return true
 		}
 		_, buys := g.factionPays(ask.Owner, *bid.Faction, b.Settlement, 0)
 		return !buys

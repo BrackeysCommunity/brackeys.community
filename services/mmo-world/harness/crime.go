@@ -878,10 +878,9 @@ func winning(f *game.FightView, caught bool) string {
 	return f.Options[0].ID
 }
 
-// walkDay plays one world day in which every character, whenever it is
-// free, walks out of the settlement and then back and forth between two
-// tiles beyond it, so every one enters a tile the watch looks at as often
-// whether it is wanted or not; it returns what the day's Advance took, the
+// walkDay plays one world day in which every free character walks out of
+// the settlement and then between two tiles beyond it, so thieves and the
+// honest make the same moves; it returns what the day's Advance took, the
 // walking commands not counted.
 func (w *theftWorld) walkDay() (time.Duration, error) {
 	a, ok := w.openNext(w.home, w.home)

@@ -197,9 +197,8 @@ type Pending struct {
 }
 
 // Faction is the faction whose offer cap a candidate counts against: the
-// one that offered it, else the one a rival is against. A rival's Ref is
-// already its faction, so a won side's rivals keep no Via and save as
-// they always have.
+// one that offered it, else, for a rival, its Ref, which is already that
+// faction, so a rival needs no Via.
 func (p Pending) Faction() fact.Ref {
 	if p.Via != (fact.Ref{}) || p.Kind != PendRival {
 		return p.Via

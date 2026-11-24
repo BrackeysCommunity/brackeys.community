@@ -64,8 +64,8 @@ func (g *Game) FencePays(c *Char, worth int64) int64 {
 	return fixed.PercentFloor(worth, pct)
 }
 
-// earned is coin carried toward syndicate standing at per coin a point:
-// the points it now gives and what is carried on.
+// earned adds coin to a carry worth a standing point per per coin: the
+// whole points, and the remainder carried on.
 func earned(carry, coin, per int64) (points, rest int64) {
 	if per <= 0 {
 		return 0, carry
@@ -112,7 +112,7 @@ func (g *Game) fence(c *Char, cmd Command) error {
 		if hot := g.HotUnits(c, cmd.Material, day); hot < cmd.Units {
 			return refuse(NotHot, "%s holds %d hot %s: a fence buys only hot goods", c.C.ID, hot, cmd.Material)
 		}
-		worth, units = g.WorthAt(c.C.At, ledger.Goods(cmd.Material), cmd.Units), cmd.Units
+		worth, units = g.worthOf(c.C.At, cmd.Material, cmd.Units), cmd.Units
 		legs = ledger.Pair(acc, purse, ledger.Goods(cmd.Material), cmd.Units)
 		data = append(data, fact.S("material", cmd.Material))
 	default:
@@ -323,7 +323,7 @@ func (g *Game) backRoom(c *Char, process string) (Station, error) {
 func (g *Game) BackRoomFee(c *Char, st Station, r item.Recipe) int64 {
 	var worth int64
 	for _, in := range r.Inputs {
-		worth += g.WorthAt(c.C.At, ledger.Material(in.Kind), in.Qty)
+		worth += g.worthOf(c.C.At, in.Kind, in.Qty)
 	}
 	return g.StationFee(st) + fixed.PercentFloor(worth, g.syp("launder-percent"))
 }
@@ -334,7 +334,7 @@ func (g *Game) launder(c *Char, consumed []item.Spoil, day int64) int64 {
 	var worth int64
 	for _, s := range consumed {
 		for _, l := range g.takeHot(c, s.Material, s.Qty, day) {
-			worth += g.WorthAt(c.C.At, ledger.Material(l.Material), l.Units)
+			worth += g.worthOf(c.C.At, l.Material, l.Units)
 		}
 	}
 	return worth

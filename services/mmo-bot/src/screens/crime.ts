@@ -10,6 +10,7 @@ import { capitalise, type Lexicon } from "../lexicon.ts";
 import { amount, list, num, percent, plural, signed, signedPercent } from "../units.ts";
 import {
   alignmentLine,
+  alignmentMoved,
   back,
   banner,
   btn,
@@ -282,7 +283,7 @@ export function theftResolvedCard(
   if (moved)
     fields.push({
       name: "Alignment",
-      value: `${signed(factNum(moved, "delta"), "alignment")}: now ${alignmentLine(factNum(moved, "value"), factStr(moved, "band"), lex)}`,
+      value: alignmentMoved(moved, lex, false),
       inline: true,
     });
   else if (a)

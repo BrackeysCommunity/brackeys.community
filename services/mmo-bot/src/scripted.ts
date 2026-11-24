@@ -1006,7 +1006,7 @@ export async function crimeRun(
     await p.press("sell-item", item);
     return (await coin()) > before;
   };
-  /** Opens the where card, waiting the hours out until who is here. */
+  /** Opens the where card once the one wanted is here, waiting up to HOURS_WAITED hours. */
   const whereWith = async (who: (x: api.Person) => boolean) => {
     for (let h = 0; h < HOURS_WAITED; h++) {
       if ((await people()).some(who)) break;

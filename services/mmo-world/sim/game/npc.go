@@ -315,9 +315,14 @@ func (g *Game) StandingName(key string) string {
 }
 
 // standing moves a character's standing with the side an NPC answers to;
-// the syndicate's goes through its own rules, which can make or unmake.
+// the syndicate's goes through addSyndicateStanding, which can unmake or
+// queue the invitation.
 func (g *Game) standing(c *Char, n *npc.NPC, by int64, cause fact.ID, t int64) error {
-	key := g.standingKey(n)
+	return g.moveStanding(c, g.standingKey(n), by, cause, t)
+}
+
+// moveStanding moves a standing; the syndicate's follows its own rules.
+func (g *Game) moveStanding(c *Char, key string, by int64, cause fact.ID, t int64) error {
 	if key == syndicateKey {
 		return g.addSyndicateStanding(c, by, cause, t)
 	}
@@ -773,9 +778,10 @@ func (g *Game) note(n *npc.NPC, c *Char, e npc.Entry, t int64) error {
 	return nil
 }
 
-// effect applies a choice: standing with whose the NPC is, coin with its
+// effect applies a choice before its fact is written: coin with the NPC's
 // purse, a rumour of something near its home, paying off the watch here,
-// or giving the NPC back what was taken from it.
+// or giving the NPC back what was taken from it. Standing waits for the
+// fact (see choose).
 func (g *Game) effect(c *Char, n *npc.NPC, key string, row sheets.TopicChoice, t int64) error {
 	switch row.Effect {
 	case effectFine:

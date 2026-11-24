@@ -56,7 +56,7 @@ func denFenceID(origin hex.Hex) string { return "r-" + origin.Ref() + "-" + role
 
 // Dens are the dens in place order of their origin. A den is born in an
 // open starting settlement or a city; one that has moved, or whose fence
-// has been met, keeps standing after its city falls back, so it can move
+// is saved, keeps standing after its city falls back, so it can move
 // on. A city a moved den stands in gets none of its own.
 func (g *Game) Dens() []Den {
 	if g.r.NPC.Role(roleDenFence) == nil {
@@ -130,7 +130,7 @@ func (g *Game) fenceStub(origin hex.Hex) (npc.Stub, bool) {
 	return npc.Stub{}, false
 }
 
-// denNPC is a den's fence, saved on the spot if nobody has met it.
+// denNPC is a den's fence, saved on the spot if it is not yet.
 func (g *Game) denNPC(d Den, t int64) (*npc.NPC, error) {
 	if n := g.NPCs.Get(d.Fence); n != nil {
 		return n, nil
@@ -227,6 +227,12 @@ func (g *Game) crookedOrWorse(c *Char) bool {
 	return b == bandCrooked || b == bandNotorious
 }
 
+// pastGate reports whether a character's syndicate standing is at or above
+// the syndicate's gate.
+func (g *Game) pastGate(c *Char) bool {
+	return c.C.Standing.Get(syndicateKey) >= g.r.Story.Gate
+}
+
 // SyndicateNotables are the syndicate's leader, homed at the first den,
 // and a captain over each dens-per-captain dens, homed at the first of
 // them; a saved one as it was saved.
@@ -281,7 +287,7 @@ func (g *Game) addSyndicateStanding(c *Char, delta int64, cause fact.ID, t int64
 		}
 		return g.unmake(c, cause, t)
 	}
-	if delta <= 0 || now < g.syp("gate") || g.inviteBusy(c, t) {
+	if delta <= 0 || !g.pastGate(c) || g.inviteBusy(c, t) {
 		return nil
 	}
 	g.pend(arc.Pending{Kind: arc.PendInvite, Char: c.C.ID, Ref: fact.Ref{Kind: syndicateKey, ID: syndicateIssuer}, Tick: t, Fact: cause})
@@ -299,8 +305,8 @@ func (g *Game) inviteBusy(c *Char, t int64) bool {
 }
 
 // fenceCheck sends the nearest den's fence to a character the first time
-// it is Crooked or worse or holds hot goods: the fence, saved on the spot,
-// queues a visit to it, once a character (GDD 4.5).
+// the fence wants it (fenceWants): the fence, saved on the spot, queues a
+// visit to it, once a character (GDD 4.5).
 func (g *Game) fenceCheck(c *Char, t int64) error {
 	if char.FenceFound(c.C) || !g.fenceWants(c) {
 		return nil

@@ -132,10 +132,10 @@ type Theft struct {
 }
 
 // StealTarget is something the character could steal here now: a steal
-// sends Kind as Option, and NPC, or Caravan as Target. Name is the victim
-// in words, Worth the planned haul's coin and Witness the per cent chance
-// it is seen. ForSide is the prey side's goal a waylay could feed, for its
-// backer.
+// sends Kind as Option, and NPC as NPC or Caravan as Target. Name is the
+// victim in words, Worth the planned haul's coin and Witness the per cent
+// chance it is seen. ForSide is the prey side's goal a waylay could feed,
+// for its backer.
 type StealTarget struct {
 	Kind    string `json:"kind"`
 	NPC     string `json:"npc,omitempty"`

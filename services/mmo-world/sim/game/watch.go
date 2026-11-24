@@ -14,8 +14,8 @@ import (
 // at its gate, and until it pays or runs it may only talk, look, pay the
 // fine or flee.
 
-// StoppedNow is the settlement the watch holds a character at, while any
-// of its Wanted entries still applies there.
+// StoppedNow is the settlement the watch holds a character at: it stands
+// at that gate and a Wanted entry still applies there.
 func (g *Game) StoppedNow(c *Char) (int, bool) {
 	at := char.StoppedAt(c.C)
 	if at == 0 || c.C.At != g.SettlementHex(at-1) || len(g.wantedAt(c, at-1, g.Tick())) == 0 {
@@ -48,7 +48,7 @@ func (g *Game) watchGuard(c *Char, kind string) error {
 // told.
 func (g *Game) watchStops(c *Char, h hex.Hex, t int64) error {
 	g.unstop(c)
-	if _, ok := g.StoppedNow(c); ok {
+	if a := c.C.Alignment; a != nil && a.Stopped != 0 {
 		return nil
 	}
 	n, ok := g.SettlementAt(h)
@@ -68,14 +68,13 @@ func (g *Game) watchStops(c *Char, h hex.Hex, t int64) error {
 	return err
 }
 
-// unstop ends a hold the watch no longer has: the character has left the
-// gate, or nothing it was held for applies there now.
+// unstop ends a hold StoppedNow no longer reports.
 func (g *Game) unstop(c *Char) {
 	a := c.C.Alignment
 	if a == nil || a.Stopped == 0 {
 		return
 	}
-	if c.C.At != g.SettlementHex(a.Stopped-1) || len(g.wantedAt(c, a.Stopped-1, g.Tick())) == 0 {
+	if _, ok := g.StoppedNow(c); !ok {
 		a.Stopped = 0
 		g.touchOnce(c)
 	}
@@ -136,12 +135,6 @@ func (g *Game) flee(c *Char, cmd Command) error {
 func (g *Game) fleeEnded(c *Char, e *fight.Encounter, th *Theft, key string, t int64) error {
 	n := th.Place
 	h := g.SettlementHex(n)
-	release := func() {
-		if a := c.C.Alignment; a != nil && a.Stopped == n+1 {
-			a.Stopped = 0
-		}
-		g.touchOnce(c)
-	}
 	switch {
 	case th.Failed:
 		var worth int64
@@ -164,9 +157,13 @@ func (g *Game) fleeEnded(c *Char, e *fight.Encounter, th *Theft, key string, t i
 		if err := g.takeBack(c, n, key, f.ID, t); err != nil {
 			return err
 		}
-		release()
+		g.unstop(c)
+		g.touchOnce(c)
 	case e.Result == fight.Won:
-		release()
+		if a := c.C.Alignment; a != nil && a.Stopped == n+1 {
+			a.Stopped = 0
+		}
+		g.touchOnce(c)
 		_, err := g.fact(c, factWatchFled, t, append([]fact.Datum{fact.N("settlement", int64(n))}, fact.At(h)...)...)
 		return err
 	}

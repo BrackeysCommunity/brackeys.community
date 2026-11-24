@@ -576,3 +576,27 @@ func TestBurgledGoodsBackRestoreStock(t *testing.T) {
 		t.Fatalf("the store's Stock rose %d, want %d", got, k.GoodsPerUnit*5)
 	}
 }
+
+func TestReceiveTrimsHotLots(t *testing.T) {
+	g := guardGame(t)
+	c := mustCreate(t, g, "a", "knife")
+	day := hotDay(g)
+	mark := g.hotMark("npc:x", factionOwner(0), c.C.At, g.Tick())
+	for i, m := range []string{g.r.Book.Materials[0].ID, ledger.Provisions} {
+		asset := ledger.Goods(m)
+		grantFor(t, g, c, asset, 10)
+		g.markHot(c, []item.Spoil{{Material: m, Qty: 4}}, mark)
+		out := ledger.Txn{Key: "spend-" + i64(int64(i)), Kind: "build", Tick: g.Tick(), Legs: ledger.Pair(ledger.Char(c.C.ID), ledger.ToBuild, asset, 8)}
+		if err := g.receive(c, out); err != nil {
+			t.Fatal(err)
+		}
+		in := ledger.Txn{Key: "gather-" + i64(int64(i)), Kind: "gather", Tick: g.Tick(), Legs: ledger.Pair(ledger.FromGather, ledger.Char(c.C.ID), asset, 5)}
+		if err := g.receive(c, in); err != nil {
+			t.Fatal(err)
+		}
+		if got, held := g.HotUnits(c, m, day), g.hotHeld(c, m); got != 2 || held != 7 {
+			t.Fatalf("%s: 2 hot of 7 held once spent past the clean units and gathered, got %d of %d", m, got, held)
+		}
+	}
+	audit(t, g)
+}

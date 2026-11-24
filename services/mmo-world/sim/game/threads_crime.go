@@ -44,7 +44,7 @@ func init() {
 func (v *storyView) Den(id string) (fence, notable string, settlement int, ok bool) {
 	g := v.g
 	c := g.Char(id)
-	if c == nil || char.IsMade(c.C) || c.C.Standing.Get(syndicateKey) < g.r.Story.Gate {
+	if c == nil || char.IsMade(c.C) || !g.pastGate(c) {
 		return "", "", -1, false
 	}
 	d, ok := g.nearestDen(c.C.At)
@@ -161,13 +161,19 @@ func (g *Game) syndicateRest(a *Arc, t int64) {
 	}
 }
 
-// madeEffect makes the thread's character one of the syndicate's own.
+// madeEffect makes the thread's character one of the syndicate's own. One
+// whose syndicate standing has fallen under 0 since it was cast is not made:
+// the made never sit under 0, where the next standing change would unmake
+// them with no betrayal.
 func madeEffect(x effect) error {
 	var also []fact.Ref
 	if ref, ok := x.a.Cast.Get(roleThreadNPC); ok {
 		also = append(also, ref)
 	}
 	for _, c := range x.whom() {
+		if c.C.Standing.Get(syndicateKey) < 0 {
+			continue
+		}
 		c.C.Align().Made = true
 		x.g.touchOnce(c)
 		if _, err := x.g.factCaused(c, also, factMade, x.t, x.cause); err != nil {

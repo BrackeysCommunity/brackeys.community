@@ -223,9 +223,9 @@ func (t *Thief) crime(o api.Options, ctx context.Context, cr Crimes, m *mark) (a
 	return t.steal(o, ctx, cr, m, day)
 }
 
-// answer reads its arcs once a world day once it has fenced and is not
-// made, and while an invitation is open walks to the den and takes the
-// job from the fence who offers it.
+// answer reads its arcs once a world day after it has fenced, while not
+// made, and walks to an open invitation's den to take the job its fence
+// offers.
 func (t *Thief) answer(o api.Options, ctx context.Context, cr Crimes, m *mark, day int64) (api.ActionRequest, bool, error) {
 	if m.made || !m.fenced {
 		return api.ActionRequest{}, false, nil

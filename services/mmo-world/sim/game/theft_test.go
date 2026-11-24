@@ -516,3 +516,26 @@ func TestTheftMovesNoEncounterDraw(t *testing.T) {
 		t.Fatal("a theft's stand-in carries a haul")
 	}
 }
+
+// A hold whose entries lapsed is not carried over to a new entry: the
+// later theft needs a fresh stop at the gate.
+func TestWantedDropsStaleHold(t *testing.T) {
+	g, c, _ := stoppedThief(t)
+	n, ok := g.StoppedNow(c)
+	if !ok {
+		t.Fatal("the thief was not held")
+	}
+	h := g.SettlementHex(n)
+	a := c.C.Alignment
+	for i := range a.Wanted {
+		a.Wanted[i].Ends = g.Tick()
+	}
+	if c.C.At != h {
+		t.Fatalf("the held thief is not at the gate")
+	}
+	th := &Theft{Kind: KindLift, Victim: "npc:elsewhere", Faction: standingKey(g.holderAt(h), h), Place: n, At: h}
+	g.wantedFor(c, th, taking{worth: 1}, 0, g.Tick())
+	if _, ok := g.StoppedNow(c); ok || char.StoppedAt(c.C) != 0 {
+		t.Fatalf("a lapsed hold carried over to a new entry: stopped %d", char.StoppedAt(c.C))
+	}
+}

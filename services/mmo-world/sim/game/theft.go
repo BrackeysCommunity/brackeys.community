@@ -298,7 +298,7 @@ func (g *Game) takeable(c *Char, th *Theft) taking {
 	}
 	tk.worth = tk.coin
 	for _, s := range tk.goods {
-		tk.worth += g.WorthAt(th.At, ledger.Goods(s.Material), s.Qty)
+		tk.worth += g.worthOf(th.At, s.Material, s.Qty)
 	}
 	if tk.in != nil {
 		tk.worth += g.ItemValue(tk.in)
@@ -339,10 +339,11 @@ func (g *Game) theftSource(acc string) bool {
 	return npcSells
 }
 
-// theftResolved writes a theft's end: theft.made, and for one that took
-// anything or was caught the alignment it costs; seen or caught, the
-// standing lost, the watch's Wanted entry, the victim's memory and any
-// betrayal. Last, a fence may come for the thief.
+// theftResolved writes a theft's end: theft.made; unless empty, the
+// alignment it costs and the victim's memory; seen or caught, the standing
+// lost, the watch's Wanted entry and any betrayal. A made thief robbing a
+// fence betrays the syndicate, seen or not. Last, a fence may come for the
+// thief.
 func (g *Game) theftResolved(c *Char, th *Theft, outcome string, tk taking, seen bool, t int64, key string) error {
 	madeBefore := char.IsMade(c.C)
 	standingBefore := c.C.Standing.Get(th.Faction)
@@ -453,17 +454,12 @@ func (g *Game) liftHaul(c *Char, th *Theft, tk taking, txn ledger.Txn) error {
 	return g.postAll(txn, moved...)
 }
 
-// loseStanding is a seen theft's cost with its victim's faction; the
-// syndicate's goes through its own standing, which can unmake.
+// loseStanding is a seen theft's cost with its victim's faction.
 func (g *Game) loseStanding(c *Char, faction string, loss int64, cause fact.ID, t int64) error {
 	if faction == "" || loss <= 0 {
 		return nil
 	}
-	if faction == syndicateKey {
-		return g.addSyndicateStanding(c, -loss, cause, t)
-	}
-	g.adjustStanding(c, faction, -loss)
-	return nil
+	return g.moveStanding(c, faction, -loss, cause, t)
 }
 
 // wantedFor puts a seen or caught theft on the watch's list for wanted-days:
@@ -474,6 +470,7 @@ func (g *Game) wantedFor(c *Char, th *Theft, tk taking, cause fact.ID, t int64) 
 	if tk.in != nil {
 		w.Items = []string{tk.in.ID}
 	}
+	g.unstop(c)
 	a := c.C.Align()
 	a.Wanted = append(a.Wanted, w)
 	g.wantedCondition(c)
@@ -512,8 +509,8 @@ func (g *Game) robbedThing(tk taking) string {
 	return ""
 }
 
-// victimSaved is the NPC a lift was from, saved on the spot if nobody
-// has met it.
+// victimSaved is the NPC a lift was from, saved on the spot if it is not
+// yet.
 func (g *Game) victimSaved(c *Char, id string, t int64) (*npc.NPC, error) {
 	if n := g.NPCs.Get(id); n != nil {
 		return n, nil

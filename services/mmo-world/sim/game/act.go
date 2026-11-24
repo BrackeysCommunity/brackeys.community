@@ -740,9 +740,11 @@ func (g *Game) fellOnTile(c *Char, e *fight.Encounter, tick int64) error {
 // receive posts a movement into a character's account and adds the goods
 // it names to what they carry.
 func (g *Game) receive(c *Char, t ledger.Txn) error {
+	before := g.heldBefore(t)
 	if err := g.post(t); err != nil {
 		return err
 	}
+	g.hotSettled(before)
 	for _, l := range t.Legs {
 		if l.Account == ledger.Char(c.C.ID) {
 			hold(c.C, l.Asset, l.Units)

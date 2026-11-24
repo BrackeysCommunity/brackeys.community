@@ -207,7 +207,7 @@ func (g *Game) burglePlan(c *Char, k sheets.TheftKind, h hex.Hex, enc string) (i
 	}
 	i := g.r.draw.Pick(units, "theft.burgle-material", draw.Str(c.C.ID), draw.Str(enc))
 	u := min(most, units[i])
-	return fi, Haul{Goods: []item.Spoil{{Material: mats[i], Qty: u}}, Worth: g.WorthAt(h, ledger.Material(mats[i]), u)}, true
+	return fi, Haul{Goods: []item.Spoil{{Material: mats[i], Qty: u}}, Worth: g.worthOf(h, mats[i], u)}, true
 }
 
 // burglable is the living faction holding the region of an open
@@ -339,15 +339,23 @@ func (g *Game) quietKit(c *Char) bool {
 // else at reference value.
 func (g *Game) WorthAt(h hex.Hex, asset string, units int64) int64 {
 	mat, ok := ledger.GoodsOf(asset)
-	if !ok || units <= 0 {
+	if !ok {
+		return 0
+	}
+	return g.worthOf(h, mat, units)
+}
+
+// worthOf is WorthAt for a material.
+func (g *Game) worthOf(h hex.Hex, material string, units int64) int64 {
+	if units <= 0 {
 		return 0
 	}
 	if best, ok := g.nearestPlace(h, func(_ int, p *Place) bool { return p.Open(structureMarket) }); ok {
-		if b := g.BookOf(best, mat); b != nil {
+		if b := g.BookOf(best, material); b != nil {
 			if price, _ := b.PriceAt(g.Tick()); price > 0 {
 				return units * price
 			}
 		}
 	}
-	return units * g.r.Values.Asset(mat)
+	return units * g.r.Values.Asset(material)
 }

@@ -283,7 +283,7 @@ func (g *Game) sideRunning(s backed) bool {
 // too low for it to back the side (GDD 5.4), or a syndicate thread's
 // character stands under the syndicate's gate (GDD 4.5).
 func (g *Game) shunned(c *Char, s backed) bool {
-	if tpl, ok := g.template(s.a.Template); ok && tpl.Row.Syndicate && c.C.Standing.Get(syndicateKey) < g.r.Story.Gate {
+	if tpl, ok := g.template(s.a.Template); ok && tpl.Row.Syndicate && !g.pastGate(c) {
 		return true
 	}
 	// A word said to a cast NPC backs no faction, so its sponsor's

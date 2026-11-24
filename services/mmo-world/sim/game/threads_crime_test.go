@@ -140,6 +140,35 @@ func TestInvitationTakeTheJobMade(t *testing.T) {
 	audit(t, g)
 }
 
+// TestInvitationNotMadeUnderZero: a character whose syndicate standing
+// falls under 0 before the take-the-job side wins is not made.
+func TestInvitationNotMadeUnderZero(t *testing.T) {
+	g := guardGame(t)
+	c := atGate(t, g, "fallen")
+	a := castThread(t, g, c, inviteTemplate)
+	to, _ := a.Cast.Get(roleThreadNPC)
+	chose(t, g, c, to.ID, sideTakeTheJob)
+	if err := g.addSyndicateStanding(c, -2*g.r.Story.Gate-1, 0, g.Tick()); err != nil {
+		t.Fatal(err)
+	}
+	if c.C.Standing.Get(syndicateKey) >= 0 {
+		t.Fatalf("standing %d did not fall under 0", c.C.Standing.Get(syndicateKey))
+	}
+	advanceUntil(t, g, 2, a.over)
+	if a.Outcome != sideTakeTheJob {
+		t.Fatalf("%s ended %q, want %q", a.ID, a.Outcome, sideTakeTheJob)
+	}
+	if char.IsMade(c.C) {
+		t.Fatal("a character under 0 was made")
+	}
+	for _, f := range factsOf(g, factMade) {
+		if slices.Contains(f.Subjects, char.Ref(c.C.ID)) {
+			t.Fatalf("syndicate.made written under 0: %+v", f)
+		}
+	}
+	audit(t, g)
+}
+
 // TestInvitationRests: turning the invitation down or letting it lapse
 // rests it 14 days, and the gate queues no other until the rest ends.
 func TestInvitationRests(t *testing.T) {
