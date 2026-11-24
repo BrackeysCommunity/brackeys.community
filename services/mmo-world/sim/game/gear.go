@@ -150,6 +150,13 @@ func (g *Game) purchase(c *Char, cmd Command) error {
 	if err := g.mayTradeGear(l, acc); err != nil {
 		return err
 	}
+	if id, ok := ledger.NPCOf(l.Seller); ok {
+		if n := g.NPCs.Get(id); n != nil {
+			if _, err := g.tradeMood(c, n.Stub); err != nil {
+				return err
+			}
+		}
+	}
 	if have := g.balance(c, ledger.Coin); have < l.Price {
 		return refuse(BadArgs, "that costs %d coin; %s has %d coin", l.Price, c.C.ID, have)
 	}
@@ -231,6 +238,51 @@ func (g *Game) TraderPays(in *item.Instance) int64 {
 	return fixed.PercentOf(g.ItemValue(in), g.mp("trader-buys"))
 }
 
+// TraderPaysHere is what the trader where a character stands pays it for
+// an item, its mood toward the character counted.
+func (g *Game) TraderPaysHere(c *Char, in *item.Instance) int64 {
+	s, ok := g.traderStub(c.C.At)
+	if !ok {
+		return g.TraderPays(in)
+	}
+	return g.traderPaysTo(c, s, in)
+}
+
+// traderPaysTo is what trader s pays a character for an item: a warm one
+// pays disposition-price per cent more, and as much again for a discount
+// it gave; a cold one that much less (GDD 4.18).
+func (g *Game) traderPaysTo(c *Char, s npc.Stub, in *item.Instance) int64 {
+	pay := g.TraderPays(in)
+	p := g.r.NPC.Param("disposition-price")
+	var shift int64
+	switch g.moodOf(g.disposition(c, s, g.NPCs.Get(s.ID), g.Tick())) {
+	case MoodWarm:
+		shift = p
+		if slices.Contains(c.C.Flags, flagDiscount+s.ID) {
+			shift += p
+		}
+	case MoodCold, MoodHostile:
+		shift = -p
+	}
+	if shift == 0 {
+		return pay
+	}
+	return fixed.PercentOf(pay, fixed.Hundredths+shift)
+}
+
+// tradeMood is how an NPC trading with a character holds it; a hostile one
+// will not trade (GDD 4.18).
+func (g *Game) tradeMood(c *Char, s npc.Stub) (string, error) {
+	mood := g.moodOf(g.disposition(c, s, g.NPCs.Get(s.ID), g.Tick()))
+	if mood == MoodHostile {
+		return mood, refuse(HostileCode, "%s will not trade with %s", s.Name, c.C.ID)
+	}
+	return mood, nil
+}
+
+// structural: the flag a discount choice leaves, followed by the NPC's id.
+const flagDiscount = "discount:"
+
 // traderStub is a settlement's trader as its residents name it.
 func (g *Game) traderStub(h hex.Hex) (npc.Stub, bool) {
 	for _, s := range g.r.NPC.Residents(gen.PlaceSettlement, h.Ref(), h, g.npcDraw(h)) {
@@ -275,8 +327,11 @@ func (g *Game) sellItem(c *Char, cmd Command) error {
 	if err := g.hotItemGuard(in, g.standingKey(&npc.NPC{Stub: stub}), c.C.At); err != nil {
 		return err
 	}
+	if _, err := g.tradeMood(c, stub); err != nil {
+		return err
+	}
 	value := g.ItemValue(in)
-	pay := g.TraderPays(in)
+	pay := g.traderPaysTo(c, stub, in)
 	m := g.Market
 	// A settlement opened today has no trader's coin until its first day turn.
 	var left int64

@@ -8,6 +8,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"jams.team/mmo-world/sim/arc"
 	"jams.team/mmo-world/sim/canon"
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/draw"
@@ -221,7 +222,8 @@ func (g *Game) talk(c *Char, cmd Command) error {
 	n.Meet(c.C.ID, t)
 	g.NPCs.Visited(n, c.C.ID)
 	c.C.Meet(char.Met{Who: npcPrefix + n.Stub.ID, How: char.MetMet, Tick: t}, g.r.limits)
-	if _, err := g.npcFact(c, n, "npc.met", t, fact.B("first", first)); err != nil {
+	met, err := g.npcFact(c, n, "npc.met", t, fact.B("first", first))
+	if err != nil {
 		return err
 	}
 	if first && g.recognised(c, n) {
@@ -237,7 +239,23 @@ func (g *Game) talk(c *Char, cmd Command) error {
 			return err
 		}
 	}
+	g.hostileDebt(c, n, met.ID, t)
 	return g.NPCs.Touched(n)
+}
+
+// hostileDebt has a hostile notable queue the debt with the character it
+// met (GDD 4.18, 12.9).
+func (g *Game) hostileDebt(c *Char, n *npc.NPC, cause fact.ID, t int64) {
+	if g.Story == nil || !g.isNotable(c, n.Stub.ID) || g.moodOf(g.disposition(c, n.Stub, n, t)) != MoodHostile {
+		return
+	}
+	g.pendOnce(arc.Pending{Kind: arc.PendDebt, Char: c.C.ID, Ref: npc.Ref(n.Stub.ID), Tick: t, Fact: cause})
+}
+
+// isNotable reports whether an NPC is a notable to a character: one of
+// the syndicate's, or one its record keeps a disposition for.
+func (g *Game) isNotable(c *Char, id string) bool {
+	return isNotableID(id) || slices.ContainsFunc(c.C.People, func(d char.Disposition) bool { return d.Notable == id })
 }
 
 // routeCost is what a route steps through: tiles the world knows.
@@ -350,20 +368,42 @@ func (g *Game) Converse(c *Char, id string) (Conversation, error) {
 
 // Candidates are every topic whose predicate holds for a character and a
 // saved NPC now, most salient first: the dossier's topics before any is
-// picked.
+// picked. A hostile NPC raises nothing past the cold shoulder, and a cold
+// one raises it first (GDD 4.18).
 func (g *Game) Candidates(c *Char, n *npc.NPC) []TopicView {
 	t := g.Tick()
+	mood := g.moodOf(g.disposition(c, n.Stub, n, t))
 	var cands []TopicView
+	var turned []string
 	for _, row := range g.r.NPC.Topics() {
-		if v, ok := g.topic(c, n, row, t); ok {
+		if mood == MoodHostile && row.When != whenTurnedAway {
+			continue
+		}
+		if v, ok := g.topicIn(c, n, row, t, mood); ok {
 			cands = append(cands, v)
+			if row.When == whenTurnedAway {
+				turned = append(turned, row.ID)
+			}
 		}
 	}
 	day := t / sheets.TicksPerDay
 	slices.SortStableFunc(cands, func(a, b TopicView) int {
 		return cmp.Or(cmp.Compare(b.Salience, a.Salience), cmp.Compare(g.tieBreak(n, c, day, a.ID), g.tieBreak(n, c, day, b.ID)))
 	})
+	if mood == MoodCold {
+		slices.SortStableFunc(cands, func(a, b TopicView) int {
+			return cmp.Compare(boolRank(!slices.Contains(turned, a.ID)), boolRank(!slices.Contains(turned, b.ID)))
+		})
+	}
 	return cands
+}
+
+// boolRank orders false before true.
+func boolRank(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func (g *Game) tieBreak(n *npc.NPC, c *Char, day int64, topic string) uint64 {
@@ -373,6 +413,11 @@ func (g *Game) tieBreak(n *npc.NPC, c *Char, day int64, topic string) uint64 {
 // topic tests one topic's predicate against what the NPC remembers and
 // knows now, and voices it from fields.
 func (g *Game) topic(c *Char, n *npc.NPC, row sheets.Topic, t int64) (TopicView, bool) {
+	return g.topicIn(c, n, row, t, g.moodOf(g.disposition(c, n.Stub, n, t)))
+}
+
+// topicIn is topic with the NPC's mood toward the character worked out.
+func (g *Game) topicIn(c *Char, n *npc.NPC, row sheets.Topic, t int64, mood string) (TopicView, bool) {
 	fields := []npc.Field{{Key: "npc", Value: n.Stub.Name}, {Key: "role", Value: g.r.NPC.Role(n.Stub.Role).Role}, {Key: "place", Value: g.placeName(n.Stub.Home)}}
 	sal := row.Weight
 	own := false
@@ -466,6 +511,43 @@ func (g *Game) topic(c *Char, n *npc.NPC, row sheets.Topic, t int64) (TopicView,
 		if len(g.r.Gen.Chunk(g.r.Gen.ChunkOf(n.Stub.Home)).Points) == 0 {
 			return TopicView{}, false
 		}
+	case whenFenceApproach:
+		if fence, _ := g.syndicateRole(n.Stub.Role); !fence || !g.FenceVisible(c) {
+			return TopicView{}, false
+		}
+	case whenWatchWarning:
+		s, ok := g.SettlementAt(c.C.At)
+		if n.Stub.Role != topicWatchRole || !ok || len(g.wantedAt(c, s, t)) == 0 {
+			return TopicView{}, false
+		}
+		fields = append(fields, npc.Field{Key: "place", Value: g.placeName(c.C.At)})
+	case whenCrookedApproval, whenGoodName:
+		crooked := g.LeaningOf(n.Stub) == npc.LeaningCrooked
+		if mood != MoodWarm || crooked != (row.When == whenCrookedApproval) {
+			return TopicView{}, false
+		}
+	case whenTurnedAway:
+		if mood != MoodCold && mood != MoodHostile {
+			return TopicView{}, false
+		}
+	case whenKnowsGoods:
+		thing, ok := g.hotNaming(c, n.Stub.ID)
+		if !ok {
+			return TopicView{}, false
+		}
+		own = true
+		fields = append(fields, npc.Field{Key: "thing", Value: thing})
+	case whenInvitation, whenInformer:
+		a, ok := g.castIn(c, n, row.When)
+		if !ok {
+			return TopicView{}, false
+		}
+		own = true
+		if ref, ok := a.Cast.Get(topicCastDen); ok {
+			if d, ok := arc.RefIndex(ref); ok && g.placeIndex(d) {
+				fields = append(fields, npc.Field{Key: "place", Value: g.placeName(g.SettlementHex(d))})
+			}
+		}
 	default:
 		// rival, promise-kept and promise-broken read what no NPC keeps yet.
 		return TopicView{}, false
@@ -480,6 +562,59 @@ func (g *Game) topic(c *Char, n *npc.NPC, row sheets.Topic, t int64) (TopicView,
 // structural: the predicate crowding reads, here and where building is
 // counted.
 const whenCrowding = "crowding"
+
+// structural: the predicates of theft and alignment, the watch captain's
+// role, and the cast roles a thread topic reads. The two thread topics
+// share their arc's id.
+const (
+	whenFenceApproach   = "fence-approach"
+	whenWatchWarning    = "watch-warning"
+	whenCrookedApproval = "crooked-approval"
+	whenTurnedAway      = "turned-away"
+	whenKnowsGoods      = "knows-these-goods"
+	whenGoodName        = "a-good-name"
+	whenInvitation      = inviteTemplate
+	whenInformer        = "the-informer"
+	topicWatchRole      = "settlement-watch"
+	topicCastNPC        = "npc"
+	topicCastDen        = "den"
+)
+
+// hotNaming is the name of a hot good or item the character carries that
+// was taken from NPC id.
+func (g *Game) hotNaming(c *Char, id string) (string, bool) {
+	victim := refKey(npc.Ref(id))
+	for _, v := range g.HotGoods(c) {
+		if v.Victim != victim {
+			continue
+		}
+		if v.Material != "" {
+			return cmp.Or(g.MaterialName(v.Material), v.Material), true
+		}
+		if in := c.C.Item(v.Item); in != nil {
+			return g.KindName(in.Kind), true
+		}
+	}
+	return "", false
+}
+
+// castIn is the character's open thread of a template that casts this NPC
+// as its npc.
+func (g *Game) castIn(c *Char, n *npc.NPC, template string) (*Arc, bool) {
+	if g.Story == nil || !g.threads().open[c.C.ID] {
+		return nil, false
+	}
+	ref := npc.Ref(n.Stub.ID)
+	for _, a := range g.Story.Arcs {
+		if a.Char != c.C.ID || a.Template != template || a.over() {
+			continue
+		}
+		if r, ok := a.Cast.Get(topicCastNPC); ok && r == ref {
+			return a, true
+		}
+	}
+	return nil, false
+}
 
 func (g *Game) newsNear(home hex.Hex, since, weight int64) (News, bool) {
 	rng := g.r.NPC.Param("news-range")
@@ -542,6 +677,9 @@ func (g *Game) choose(c *Char, cmd Command) error {
 		return err
 	}
 	topicID, choiceID, _ := strings.Cut(cmd.Option, "/")
+	if n := g.NPCs.Get(cmd.NPC); g.moodOf(g.disposition(c, n.Stub, n, g.Tick())) == MoodHostile && g.topicWhen(topicID) != whenTurnedAway {
+		return refuse(HostileCode, "%s will not hear %s past the cold shoulder", cmd.NPC, c.C.ID)
+	}
 	ti := slices.IndexFunc(conv.Topics, func(v TopicView) bool { return v.ID == topicID })
 	if ti < 0 {
 		return refuse(BadArgs, "%s is not raising %q", cmd.NPC, topicID)
@@ -576,6 +714,16 @@ func (g *Game) choose(c *Char, cmd Command) error {
 	return g.NPCs.Touched(n)
 }
 
+// topicWhen is a topic row's predicate, "" for no such row.
+func (g *Game) topicWhen(id string) string {
+	for _, row := range g.r.NPC.Topics() {
+		if row.ID == id {
+			return row.When
+		}
+	}
+	return ""
+}
+
 func lowerFirst(s string) string {
 	r, n := utf8.DecodeRuneInString(s)
 	if n == 0 {
@@ -606,9 +754,18 @@ func (g *Game) note(n *npc.NPC, c *Char, e npc.Entry, t int64) error {
 }
 
 // effect applies a choice: standing with whose the NPC is, coin with its
-// purse, or a rumour of something near its home.
+// purse, a rumour of something near its home, paying off the watch here,
+// or giving the NPC back what was taken from it.
 func (g *Game) effect(c *Char, n *npc.NPC, key string, row sheets.TopicChoice, t int64) error {
 	switch row.Effect {
+	case effectFine:
+		s, ok := g.SettlementAt(c.C.At)
+		if !ok {
+			return refuse(BadArgs, "there is no watch here to pay")
+		}
+		return g.payOff(c, s, key, t)
+	case effectReturn:
+		return g.returnTo(c, refKey(npc.Ref(n.Stub.ID)), key, t)
 	case "standing":
 		g.standing(c, n, row.Standing)
 	case "coin":
@@ -627,10 +784,16 @@ func (g *Game) effect(c *Char, n *npc.NPC, key string, row sheets.TopicChoice, t
 	case "rumour":
 		g.rumour(c, n)
 	case "discount":
-		c.C.Flags = appendOnce(c.C.Flags, "discount:"+n.Stub.ID)
+		c.C.Flags = appendOnce(c.C.Flags, flagDiscount+n.Stub.ID)
 	}
 	return nil
 }
+
+// structural: the choice effects of the watch and of giving back.
+const (
+	effectFine   = "fine"
+	effectReturn = "return"
+)
 
 func appendOnce(s []string, x string) []string {
 	if slices.Contains(s, x) {

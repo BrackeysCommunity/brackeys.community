@@ -407,15 +407,22 @@ func (r *Rules) At(n *NPC, tick int64) hex.Hex {
 const halves = 2
 
 // Salience is an entry's weight now: it falls by salience-decay a world
-// day, at the personal share for what a player did to the NPC.
+// day, at the personal share for what a player did to the NPC, and a
+// theft fades at robbed-decay of whichever rate (GDD 5.10).
 func (r *Rules) Salience(e Entry, now int64) int64 {
 	days := max(0, now-e.Tick) / r.perDay
 	decay := days * r.Param("salience-decay")
 	if e.Player != "" {
 		decay = fixed.PercentOf(decay, r.Param("personal-decay-share"))
 	}
+	if e.Kind == entryRobbed {
+		decay = fixed.PercentOf(decay, r.Param("robbed-decay"))
+	}
 	return max(0, e.Weight-decay)
 }
+
+// structural: the memory a theft leaves on the NPC robbed.
+const entryRobbed = "robbed"
 
 // Remember adds an entry and keeps the most salient memory-cap of them;
 // the rest fold into the summary. A personal entry salient enough queues
