@@ -11,6 +11,7 @@ import (
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
+	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tile"
 )
 
@@ -228,6 +229,12 @@ func (s *State) Novel(band int64) (int64, int) {
 	return 0, 0
 }
 
+// seated are the archetypes the horizon seats: a seatless one holds no
+// region, and leaving it out keeps the archetype draw's range as it was.
+func (s *State) seated() []sheets.Archetype {
+	return slices.DeleteFunc(slices.Clone(s.b.Archetypes), func(a sheets.Archetype) bool { return a.Seatless })
+}
+
 // seatFactions seats a faction per regions-per-faction awake regions,
 // as regions come inside the horizon.
 func (s *State) seatFactions(d *day) {
@@ -257,7 +264,8 @@ func (s *State) seatFactions(d *day) {
 		if seat == none {
 			return
 		}
-		arch := s.b.Archetypes[s.d.Below(uint64(len(s.b.Archetypes)), "world.archetype", draw.Int(int64(i)))].ID
+		seated := s.seated()
+		arch := seated[s.d.Below(uint64(len(seated)), "world.archetype", draw.Int(int64(i)))].ID
 		f := Faction{
 			ID: i, Archetype: arch, Seat: seat, Stock: s.p("start-stock"),
 			Head: heads[s.d.Below(uint64(len(heads)), "world.faction-name", draw.Int(int64(i)))],

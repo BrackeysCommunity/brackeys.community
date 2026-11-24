@@ -30,6 +30,9 @@ const (
 	WantReach   = "reach"
 	WantSold    = "sold"
 	WantDefence = "defence"
+	// WantWord counts a choice of the side's id on a topic with the NPC
+	// cast at the side's at role.
+	WantWord = "word"
 )
 
 // Kinds of pending thread candidates.
@@ -38,6 +41,17 @@ const (
 	PendReturn = "return"
 	PendOath   = "oath"
 	PendRival  = "rival"
+	// PendInvite is the syndicate's invitation; PendInformer a watch
+	// captain's word about a den.
+	PendInvite   = "invite"
+	PendInformer = "informer"
+)
+
+// Scopes a character rests at after a thread of the kind, so it is not
+// queued again at once.
+const (
+	ScopeInvite   = "invite"
+	ScopeInformer = "informer"
 )
 
 // Binding fills one cast role.
@@ -153,6 +167,7 @@ type PlaceView struct {
 	Raised                        int64 // tick of the last raise
 	Users                         int64
 	Lost                          int64
+	Burgled                       int64 // won burglaries within theft.params walls-days
 }
 
 // Memory is one fact kept in the story's bounded ring.
@@ -205,6 +220,8 @@ type Row struct {
 	Arc             *sheets.ArcRow
 	Trouble         *sheets.TroubleRow
 	Occasion        *sheets.OccasionRow
+	// Syndicate rows refuse sides to characters under the gate standing.
+	Syndicate bool
 }
 
 // Template is a row with its predicate resolved.

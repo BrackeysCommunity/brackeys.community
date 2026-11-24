@@ -1,0 +1,50 @@
+{
+  "$schema": "../schema/alignment.acts.schema.json",
+  "sheet": "alignment.acts",
+  "rows": [
+    {
+      "id": "theft",
+      "move": -1,
+      "perCoin": 10,
+      "least": 2,
+      "note": "GDD 5.10: worth over 10, at least 2."
+    },
+    {
+      "id": "betrayal",
+      "move": -25
+    },
+    {
+      "id": "vow-broken",
+      "move": -3
+    },
+    {
+      "id": "rescue",
+      "move": 3,
+      "partner": "rescued"
+    },
+    {
+      "id": "goal-met",
+      "move": 2,
+      "partner": "poster",
+      "paired": true,
+      "note": "A goal another character posted, with a reward of goal-reward-least or more."
+    },
+    {
+      "id": "trouble-held",
+      "move": 2
+    },
+    {
+      "id": "storied-return",
+      "move": 5,
+      "partner": "named"
+    },
+    {
+      "id": "informed",
+      "move": 6
+    },
+    {
+      "id": "vow-kept",
+      "move": 2
+    }
+  ]
+}

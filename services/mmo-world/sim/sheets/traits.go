@@ -2,11 +2,36 @@ package sheets
 
 import "slices"
 
+// TraitPool is the npcs.traits rows a trait draw takes from, in sheet
+// order: every row but the leanings, so a draw's length never counts them.
+func TraitPool(traits []NPCTrait) []NPCTrait {
+	if !slices.ContainsFunc(traits, isLeaning) {
+		return traits
+	}
+	return slices.DeleteFunc(slices.Clone(traits), isLeaning)
+}
+
+func isLeaning(t NPCTrait) bool { return t.Leaning }
+
 // PickTraits takes up to n traits, a weighted pick without replacement
 // that never holds an opposed pair; when the open traits' weights total 0
 // they are taken evenly. weights of another length than traits count every
-// trait as 1.
+// trait as 1. Leaning rows are never taken: they and their weights leave
+// before the pick, so it runs over the pool alone.
 func PickTraits(traits []NPCTrait, weights []int64, n int64, pick func([]int64) int) []string {
+	if slices.ContainsFunc(traits, isLeaning) {
+		var keptW []int64
+		for i, t := range traits {
+			if !t.Leaning && len(weights) == len(traits) {
+				keptW = append(keptW, weights[i])
+			}
+		}
+		pool := TraitPool(traits)
+		if len(weights) == len(pool) {
+			keptW = weights
+		}
+		traits, weights = pool, keptW
+	}
 	opposes := func(id string) string {
 		for _, t := range traits {
 			if t.ID == id {

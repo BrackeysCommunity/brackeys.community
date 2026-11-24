@@ -1,0 +1,31 @@
+{
+  "$schema": "../schema/alignment.bands.schema.json",
+  "sheet": "alignment.bands",
+  "rows": [
+    {
+      "id": "notorious",
+      "from": -100,
+      "to": -50
+    },
+    {
+      "id": "crooked",
+      "from": -49,
+      "to": -10
+    },
+    {
+      "id": "unremarked",
+      "from": -9,
+      "to": 9
+    },
+    {
+      "id": "decent",
+      "from": 10,
+      "to": 49
+    },
+    {
+      "id": "upright",
+      "from": 50,
+      "to": 100
+    }
+  ]
+}

@@ -52,7 +52,15 @@
               "weather",
               "pattern",
               "moved-away",
-              "corruption"
+              "corruption",
+              "fence-approach",
+              "watch-warning",
+              "crooked-approval",
+              "turned-away",
+              "knows-these-goods",
+              "a-good-name",
+              "the-invitation",
+              "the-informer"
             ],
             "x-unit": "enum"
           },
@@ -65,7 +73,8 @@
               "helped",
               "wronged",
               "traded",
-              "fought"
+              "fought",
+              "robbed"
             ],
             "x-unit": "enum",
             "description": "The memory entry a memory topic reads."
@@ -79,7 +88,8 @@
               "helped",
               "wronged",
               "traded",
-              "fought"
+              "fought",
+              "robbed"
             ],
             "x-unit": "enum",
             "description": "A second entry the topic needs as well; both add their salience."
@@ -124,9 +134,9 @@
           "weight": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 100,
+            "maximum": 300,
             "x-unit": "weight",
-            "description": "Salience before memory adds to it."
+            "description": "Salience before memory adds to it; over 100 outranks any memory."
           },
           "choices": {
             "type": "array",
@@ -152,9 +162,12 @@
                     "coin",
                     "discount",
                     "rumour",
-                    "goal"
+                    "goal",
+                    "fine",
+                    "return"
                   ],
-                  "x-unit": "enum"
+                  "x-unit": "enum",
+                  "description": "fine: pay off the watch here; return: give back what was stolen from the NPC."
                 },
                 "standing": {
                   "type": "integer",
@@ -174,7 +187,8 @@
                     "helped",
                     "wronged",
                     "traded",
-                    "fought"
+                    "fought",
+                    "robbed"
                   ],
                   "x-unit": "enum"
                 },

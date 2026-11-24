@@ -1,0 +1,54 @@
+{
+  "$schema": "../schema/alignment.params.schema.json",
+  "sheet": "alignment.params",
+  "rows": [
+    {
+      "id": "min",
+      "value": -100,
+      "unit": "count",
+      "doc": "GDD 5.10: the lowest alignment."
+    },
+    {
+      "id": "max",
+      "value": 100,
+      "unit": "count",
+      "doc": "GDD 5.10: the highest alignment."
+    },
+    {
+      "id": "depth",
+      "value": 125,
+      "unit": "count",
+      "doc": "A move toward zero shrinks by the share of depth the value already lies from zero; away from zero it is whole (GDD 5.10)."
+    },
+    {
+      "id": "good-day",
+      "value": 6,
+      "unit": "count",
+      "doc": "GDD 5.10: the most good acts add in a world day; the rest is dropped."
+    },
+    {
+      "id": "pair-day",
+      "value": 2,
+      "unit": "count",
+      "doc": "GDD 5.10: the most a paired act with one partner adds in a world day."
+    },
+    {
+      "id": "known-kept",
+      "value": 16,
+      "unit": "count",
+      "doc": "Public moves a character keeps for NPCs to have heard of."
+    },
+    {
+      "id": "know-days",
+      "value": 14,
+      "unit": "days",
+      "doc": "At a first meeting, how far back an NPC can have heard of a public move."
+    },
+    {
+      "id": "goal-reward-least",
+      "value": 10,
+      "unit": "coin",
+      "doc": "The least reward a goal another character posted carries to count as a good act."
+    }
+  ]
+}

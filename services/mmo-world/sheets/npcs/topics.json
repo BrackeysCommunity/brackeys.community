@@ -615,6 +615,155 @@
         }
       ],
       "line": "{npc} says the rot is spreading: {n} {unit} here now."
+    },
+    {
+      "id": "fence-approach",
+      "when": "fence-approach",
+      "weight": 120,
+      "choices": [
+        {
+          "id": "show-goods",
+          "effect": "none",
+          "line": "You show them what you carry."
+        },
+        {
+          "id": "walk-on",
+          "effect": "none",
+          "line": "You keep walking."
+        }
+      ],
+      "line": "{npc} falls in beside you: \"I buy what others would ask questions about.\""
+    },
+    {
+      "id": "watch-warning",
+      "when": "watch-warning",
+      "weight": 150,
+      "choices": [
+        {
+          "id": "pay-fine",
+          "effect": "fine",
+          "line": "You pay what is owed."
+        },
+        {
+          "id": "walk-off",
+          "effect": "none",
+          "line": "You walk off."
+        }
+      ],
+      "line": "{npc}, {role} here, knows your face: \"There is a matter of what went missing.\""
+    },
+    {
+      "id": "crooked-approval",
+      "when": "crooked-approval",
+      "weight": 70,
+      "choices": [
+        {
+          "id": "ask-a-favour",
+          "effect": "discount",
+          "line": "You ask a favour."
+        },
+        {
+          "id": "nod",
+          "effect": "none",
+          "line": "You nod."
+        }
+      ],
+      "line": "{npc} looks you over and grins: \"Word gets around. I like what I hear.\""
+    },
+    {
+      "id": "turned-away",
+      "when": "turned-away",
+      "weight": 200,
+      "choices": [
+        {
+          "id": "walk-on",
+          "effect": "none",
+          "line": "You walk on."
+        },
+        {
+          "id": "plead",
+          "effect": "none",
+          "line": "You plead with them.",
+          "remember": "asked",
+          "weight": 30
+        }
+      ],
+      "line": "{npc} will not look at you: \"Not you. Not here.\""
+    },
+    {
+      "id": "knows-these-goods",
+      "when": "knows-these-goods",
+      "weight": 140,
+      "choices": [
+        {
+          "id": "give-them-back",
+          "effect": "return",
+          "line": "You give them back."
+        },
+        {
+          "id": "deny-it",
+          "effect": "none",
+          "line": "You deny it.",
+          "remember": "wronged",
+          "weight": 60
+        }
+      ],
+      "line": "{npc} stares at your pack: \"That {thing} is mine.\""
+    },
+    {
+      "id": "a-good-name",
+      "when": "a-good-name",
+      "weight": 70,
+      "choices": [
+        {
+          "id": "ask-a-favour",
+          "effect": "discount",
+          "line": "You ask a favour."
+        },
+        {
+          "id": "thank-them",
+          "effect": "standing",
+          "line": "You thank them.",
+          "standing": 1
+        }
+      ],
+      "line": "{npc} greets you warmly: \"People speak well of you.\""
+    },
+    {
+      "id": "the-invitation",
+      "when": "the-invitation",
+      "weight": 250,
+      "choices": [
+        {
+          "id": "take-the-job",
+          "effect": "none",
+          "line": "You take the job."
+        },
+        {
+          "id": "turn-it-down",
+          "effect": "none",
+          "line": "You turn it down."
+        }
+      ],
+      "line": "{npc} speaks low: \"Some friends of mine have work for someone like you.\""
+    },
+    {
+      "id": "the-informer",
+      "when": "the-informer",
+      "weight": 250,
+      "choices": [
+        {
+          "id": "name-the-fence",
+          "effect": "none",
+          "line": "You name the fence."
+        },
+        {
+          "id": "keep-quiet",
+          "effect": "none",
+          "line": "You keep quiet."
+        }
+      ],
+      "line": "{npc}, {role} here, leans close: \"There is a den near {place}. Tell me who runs it.\""
     }
   ]
 }

@@ -212,6 +212,20 @@
       "practice": "travel",
       "risk": "none",
       "kind": "way-out"
+    },
+    {
+      "id": "palm",
+      "verb": "palm",
+      "beats": [
+        "slip"
+      ],
+      "slot": "hand",
+      "axis": "flex",
+      "practice": "sleight",
+      "risk": "durability",
+      "riskSize": 2,
+      "kind": "win",
+      "note": "Sleight of hand; the hand item's flex governs it."
     }
   ]
 }

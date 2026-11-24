@@ -45,7 +45,8 @@
       "role": "watch captain",
       "count": 1,
       "works": "wall",
-      "rooted": true
+      "rooted": true,
+      "leaning": "watch"
     },
     {
       "id": "holding-captain",
@@ -118,6 +119,29 @@
       "tags": [
         "exposed"
       ]
+    },
+    {
+      "id": "den-fence",
+      "place": "den",
+      "role": "fence",
+      "count": 1,
+      "works": "den",
+      "rooted": true,
+      "leaning": "syndicate"
+    },
+    {
+      "id": "syndicate-leader",
+      "place": "syndicate",
+      "role": "leader",
+      "count": 1,
+      "leaning": "syndicate"
+    },
+    {
+      "id": "syndicate-captain",
+      "place": "syndicate",
+      "role": "captain",
+      "count": 1,
+      "leaning": "syndicate"
     }
   ]
 }

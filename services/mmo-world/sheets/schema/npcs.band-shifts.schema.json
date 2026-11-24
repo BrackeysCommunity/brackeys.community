@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "npcs.band-shifts",
+  "title": "npcs.band-shifts",
+  "description": "What a character's alignment band adds to an NPC's disposition, by the NPC's leaning (GDD 4.18).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "npcs.band-shifts"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "notorious",
+          "crooked",
+          "unremarked",
+          "decent",
+          "upright"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "upright",
+              "none",
+              "crooked"
+            ],
+            "x-unit": "enum",
+            "description": "The NPC's leaning."
+          },
+          "notorious": {
+            "type": "integer",
+            "minimum": -100,
+            "maximum": 100,
+            "x-unit": "count"
+          },
+          "crooked": {
+            "type": "integer",
+            "minimum": -100,
+            "maximum": 100,
+            "x-unit": "count"
+          },
+          "unremarked": {
+            "type": "integer",
+            "minimum": -100,
+            "maximum": 100,
+            "x-unit": "count"
+          },
+          "decent": {
+            "type": "integer",
+            "minimum": -100,
+            "maximum": 100,
+            "x-unit": "count"
+          },
+          "upright": {
+            "type": "integer",
+            "minimum": -100,
+            "maximum": 100,
+            "x-unit": "count"
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

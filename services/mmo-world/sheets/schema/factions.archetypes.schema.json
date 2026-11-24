@@ -72,6 +72,11 @@
             "uniqueItems": true,
             "x-unit": "refs",
             "x-ref": "factions.moves"
+          },
+          "seatless": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "Never seated by the horizon; no city station or move weights."
           }
         }
       }

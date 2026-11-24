@@ -769,7 +769,7 @@ func TestTemplatesNoEmergenceUnchanged(t *testing.T) {
 			}
 			continue
 		}
-		if tpl.Row.Trouble == nil && tpl.Row.Occasion == nil {
+		if tpl.Row.Trouble == nil && tpl.Row.Occasion == nil && !slices.Contains([]string{"the-invitation", "the-informer"}, id) {
 			mm9++
 		}
 		want := mmFound(on, id, on.directorView())

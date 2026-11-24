@@ -42,9 +42,12 @@
               "faction-holding",
               "structure",
               "caravan",
-              "road"
+              "road",
+              "den",
+              "syndicate"
             ],
-            "x-unit": "enum"
+            "x-unit": "enum",
+            "description": "den and syndicate are filled by the dens, never by a place's slots."
           },
           "role": {
             "type": "string",
@@ -74,6 +77,12 @@
             "type": "boolean",
             "x-unit": "flag",
             "description": "Its place cannot spare it: it never moves home when the place grows crowded."
+          },
+          "leaning": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "npcs.leanings",
+            "description": "The leanings row the role draws from; empty: its home region's holder's."
           }
         }
       }

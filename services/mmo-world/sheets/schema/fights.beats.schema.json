@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "fights.beats",
   "title": "fights.beats",
-  "description": "The nine kinds of beat.",
+  "description": "The kinds of beat.",
   "type": "object",
   "additionalProperties": false,
   "required": [

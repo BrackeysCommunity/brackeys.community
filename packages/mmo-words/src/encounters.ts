@@ -30,6 +30,7 @@ export const AUTHORED: Record<string, string> = {
   harvest: "The {creature} guards salvage worth taking.",
   guardian: "The {creature} stands guard and lets nobody pass.",
   puzzle: "A machine stands in the way, waiting to be worked.",
+  slip: "A moment opens to take what is wanted and slip away unseen.",
 };
 
 export interface EncounterFight {

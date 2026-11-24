@@ -1005,6 +1005,22 @@
     {
       "id": "waystation",
       "kind": "ability"
+    },
+    {
+      "id": "slip",
+      "kind": "beat"
+    },
+    {
+      "id": "palm",
+      "kind": "action"
+    },
+    {
+      "id": "crooked",
+      "kind": "disposition"
+    },
+    {
+      "id": "wanted",
+      "kind": "condition"
     }
   ]
 }

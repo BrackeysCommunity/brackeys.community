@@ -20,7 +20,7 @@ func Compile(b *sheets.Book) ([]Template, error) {
 	}
 	for i := range b.Arcs {
 		a := &b.Arcs[i]
-		if err := add("story.arcs", Row{ID: a.ID, Scope: a.Scope, When: a.When, Chance: a.Chance, Cast: a.Cast, Stages: a.Stages, Arc: a}); err != nil {
+		if err := add("story.arcs", Row{ID: a.ID, Scope: a.Scope, When: a.When, Chance: a.Chance, Cast: a.Cast, Stages: a.Stages, Arc: a, Syndicate: a.Syndicate}); err != nil {
 			return nil, err
 		}
 	}
@@ -38,6 +38,13 @@ func Compile(b *sheets.Book) ([]Template, error) {
 	}
 	return out, nil
 }
+
+// Effect kinds of the syndicate's threads, run by the game's crime effects.
+const (
+	EffectMade     = "made"
+	EffectInform   = "inform"
+	EffectDenMoves = "den-moves"
+)
 
 // Params are the story.params cells, and the emergence.params cells the
 // predicates read, by name. Days stay days and percents stay percents;
@@ -62,12 +69,16 @@ type Params struct {
 	StockedWallDefence                                               int64
 	RoadWarLoad, CaravanThreat                                       int64
 	OffersFloor, OffersPerThousand, OfferRestDays                    int64
+	Gate, InviteRestDays, InformerReach, InformerRestDays            int64
+	WallsBurglaries, WallsDays                                       int64
 }
 
 // ParamsOf reads them; a missing cell panics, as every params reader does.
 func ParamsOf(b *sheets.Book) Params {
 	i := func(id string) int64 { return sheets.IntParam(b.StoryParams, id) }
 	em := func(id string) int64 { return sheets.IntParam(b.EmergenceParams, id) }
+	syn := func(id string) int64 { return sheets.IntParam(b.SyndicateParams, id) }
+	theft := func(id string) int64 { return sheets.IntParam(b.TheftParams, id) }
 	return Params{
 		ChronicleMinWeight:  i("chronicle-min-weight"),
 		ChronicleLines:      i("chronicle-lines"),
@@ -134,5 +145,11 @@ func ParamsOf(b *sheets.Book) Params {
 		OfferRestDays:       i("offer-rest-days"),
 		RoadWarLoad:         em("road-war-load"),
 		CaravanThreat:       em("caravan-threat"),
+		Gate:                syn("gate"),
+		InviteRestDays:      syn("invite-again-days"),
+		InformerReach:       syn("informer-reach"),
+		InformerRestDays:    syn("informer-rest-days"),
+		WallsBurglaries:     theft("walls-burglaries"),
+		WallsDays:           theft("walls-days"),
 	}
 }

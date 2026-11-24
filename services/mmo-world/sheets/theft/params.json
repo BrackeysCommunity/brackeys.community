@@ -1,0 +1,114 @@
+{
+  "$schema": "../schema/theft.params.schema.json",
+  "sheet": "theft.params",
+  "rows": [
+    {
+      "id": "witness-upright",
+      "value": 10,
+      "unit": "percent",
+      "doc": "GDD 6.5: added to the witness odds for each upright NPC on the tile."
+    },
+    {
+      "id": "witness-sleight",
+      "value": 3,
+      "unit": "percent",
+      "doc": "GDD 6.5: taken off the witness odds for each Sleight level."
+    },
+    {
+      "id": "witness-cover",
+      "value": 5,
+      "unit": "count",
+      "doc": "GDD 6.5: the tile's cover, divided by this, comes off the witness odds."
+    },
+    {
+      "id": "witness-quiet",
+      "value": 15,
+      "unit": "percent",
+      "doc": "GDD 6.5: taken off the witness odds when the pressed option's item is quiet."
+    },
+    {
+      "id": "witness-least",
+      "value": 5,
+      "unit": "percent",
+      "doc": "GDD 6.5: the lowest the witness odds go."
+    },
+    {
+      "id": "witness-most",
+      "value": 95,
+      "unit": "percent",
+      "doc": "GDD 6.5: the highest the witness odds go, short of always."
+    },
+    {
+      "id": "standing-coin",
+      "value": 10,
+      "unit": "coin",
+      "doc": "GDD 6.5: worth per point of standing a witnessed theft costs with the victim's faction."
+    },
+    {
+      "id": "standing-least",
+      "value": 3,
+      "unit": "standing",
+      "doc": "GDD 6.5: the least standing a witnessed theft costs."
+    },
+    {
+      "id": "hot-days",
+      "value": 7,
+      "unit": "days",
+      "doc": "GDD 6.5: how long stolen goods stay hot."
+    },
+    {
+      "id": "hot-reach",
+      "value": 12,
+      "unit": "tiles",
+      "doc": "GDD 6.5: hot goods may not be listed this close to the theft."
+    },
+    {
+      "id": "wanted-days",
+      "value": 3,
+      "unit": "days",
+      "doc": "GDD 5.5: how long a witnessed theft keeps the character wanted."
+    },
+    {
+      "id": "store-kept",
+      "value": 30,
+      "unit": "goods",
+      "doc": "Units of each material a faction's store keeps from its order fills and caravans; the rest is eaten."
+    },
+    {
+      "id": "betray-at",
+      "value": 25,
+      "unit": "standing",
+      "doc": "GDD 5.10: a witnessed theft from a faction at this standing or more betrays it."
+    },
+    {
+      "id": "betrayal-standing",
+      "value": -50,
+      "unit": "standing",
+      "doc": "GDD 5.10: standing with a betrayed faction falls to this at most."
+    },
+    {
+      "id": "grudge-days",
+      "value": 60,
+      "unit": "days",
+      "doc": "GDD 5.10: how long a betrayed faction's NPCs hold the grudge."
+    },
+    {
+      "id": "prey-share",
+      "value": 100,
+      "unit": "percent",
+      "doc": "Share of a waylay for a prey side's backer credited to the side. Provisional: halve it if road wars slow the first city by more than 3 days."
+    },
+    {
+      "id": "walls-burglaries",
+      "value": 5,
+      "unit": "count",
+      "doc": "Won burglaries in a settlement, within walls-days, that bring a thief in the walls."
+    },
+    {
+      "id": "walls-days",
+      "value": 7,
+      "unit": "days",
+      "doc": "How far back a settlement's burglaries count."
+    }
+  ]
+}

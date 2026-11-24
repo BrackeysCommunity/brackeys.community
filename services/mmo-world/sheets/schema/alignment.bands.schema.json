@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "alignment.bands",
+  "title": "alignment.bands",
+  "description": "The alignment bands, lowest first (GDD 5.10).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "alignment.bands"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "from",
+          "to"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "from": {
+            "type": "integer",
+            "minimum": -100,
+            "maximum": 100,
+            "x-unit": "count",
+            "description": "Alignment, inclusive."
+          },
+          "to": {
+            "type": "integer",
+            "minimum": -100,
+            "maximum": 100,
+            "x-unit": "count",
+            "description": "Alignment, inclusive."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

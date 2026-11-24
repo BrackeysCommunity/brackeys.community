@@ -139,6 +139,48 @@
       "value": 5,
       "unit": "count",
       "doc": "Entries a waking NPC lists from its archive; the rest are tallied (GDD 4.18)."
+    },
+    {
+      "id": "disposition-warm",
+      "value": 20,
+      "unit": "count",
+      "doc": "GDD 4.18: disposition at which an NPC is warm to a character."
+    },
+    {
+      "id": "disposition-cold",
+      "value": -20,
+      "unit": "count",
+      "doc": "GDD 4.18: disposition at which an NPC is cold to a character."
+    },
+    {
+      "id": "disposition-hostile",
+      "value": -40,
+      "unit": "count",
+      "doc": "GDD 4.18: disposition at which an NPC is hostile to a character."
+    },
+    {
+      "id": "grudge-disposition",
+      "value": -40,
+      "unit": "count",
+      "doc": "GDD 4.18: an NPC of a faction with a live grudge against the character holds this disposition."
+    },
+    {
+      "id": "disposition-price",
+      "value": 5,
+      "unit": "percent",
+      "doc": "GDD 4.18: a warm NPC's prices are this much better, a cold one's this much worse."
+    },
+    {
+      "id": "robbed-disposition",
+      "value": -20,
+      "unit": "count",
+      "doc": "GDD 4.18: disposition of an NPC that remembers being robbed or wronged by the character."
+    },
+    {
+      "id": "robbed-decay",
+      "value": 50,
+      "unit": "percent",
+      "doc": "GDD 5.10: a robbed memory fades at this share of the usual rate."
     }
   ]
 }

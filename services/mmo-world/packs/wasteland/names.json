@@ -216,6 +216,12 @@
       "plural": "Scav Clans"
     },
     {
+      "id": "archetypes-syndicate",
+      "ref": "factions.archetypes:syndicate",
+      "name": "Static",
+      "plural": "Static"
+    },
+    {
       "id": "terrain-plain",
       "ref": "map.terrain:plain",
       "name": "Scrubland"
@@ -646,6 +652,16 @@
       "name": "Weary"
     },
     {
+      "id": "npc-trait-upright",
+      "ref": "npcs.traits:upright",
+      "name": "Upright"
+    },
+    {
+      "id": "npc-trait-crooked",
+      "ref": "npcs.traits:crooked",
+      "name": "Crooked"
+    },
+    {
       "id": "season-thaw",
       "ref": "world.seasons:thaw",
       "name": "Thaw"
@@ -761,6 +777,11 @@
       "name": "Machine"
     },
     {
+      "id": "beats-slip",
+      "ref": "fights.beats:slip",
+      "name": "Slip away"
+    },
+    {
       "id": "options-strike",
       "ref": "fights.options:strike",
       "name": "Strike"
@@ -834,6 +855,11 @@
       "id": "options-back-out",
       "ref": "fights.options:back-out",
       "name": "Back out"
+    },
+    {
+      "id": "options-palm",
+      "ref": "fights.options:palm",
+      "name": "Palm it"
     },
     {
       "id": "states-charged",
@@ -1419,6 +1445,51 @@
       "id": "variants-hollow",
       "ref": "creatures.variants:hollow",
       "name": "Hollow"
+    },
+    {
+      "id": "theft-lift",
+      "ref": "theft.kinds:lift",
+      "name": "Lift"
+    },
+    {
+      "id": "theft-burgle",
+      "ref": "theft.kinds:burgle",
+      "name": "Burgle"
+    },
+    {
+      "id": "theft-waylay",
+      "ref": "theft.kinds:waylay",
+      "name": "Waylay"
+    },
+    {
+      "id": "theft-flee",
+      "ref": "theft.kinds:flee",
+      "name": "Run from the watch"
+    },
+    {
+      "id": "band-notorious",
+      "ref": "alignment.bands:notorious",
+      "name": "Notorious"
+    },
+    {
+      "id": "band-crooked",
+      "ref": "alignment.bands:crooked",
+      "name": "Crooked"
+    },
+    {
+      "id": "band-unremarked",
+      "ref": "alignment.bands:unremarked",
+      "name": "Unremarked"
+    },
+    {
+      "id": "band-decent",
+      "ref": "alignment.bands:decent",
+      "name": "Decent"
+    },
+    {
+      "id": "band-upright",
+      "ref": "alignment.bands:upright",
+      "name": "Upright"
     }
   ]
 }

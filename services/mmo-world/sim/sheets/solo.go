@@ -79,12 +79,15 @@ type Trigger struct {
 // NPCRole is one role slot a place fills with a resident (GDD 4.18).
 type NPCRole struct {
 	ID     string   `json:"id" unit:"id"`
-	Place  string   `json:"place" unit:"enum" enum:"starting-settlement|player-settlement|city|faction-holding|structure|caravan|road"`
+	Place  string   `json:"place" unit:"enum" enum:"starting-settlement|player-settlement|city|faction-holding|structure|caravan|road|den|syndicate" doc:"den and syndicate are filled by the dens, never by a place's slots."`
 	Role   string   `json:"role" unit:"text"`
 	Count  int64    `json:"count" unit:"count" min:"1"`
 	Works  string   `json:"works,omitempty" unit:"text" doc:"Where its route takes it: market, forge, wall, road."`
 	Tags   []string `json:"tags,omitempty" unit:"tags" ref:"tags.vocabulary" doc:"What a wanderer of this role favours, by biome or site."`
 	Rooted bool     `json:"rooted,omitempty" unit:"flag" doc:"Its place cannot spare it: it never moves home when the place grows crowded."`
+	// Leaning names the npcs.leanings row the role draws from, over its
+	// home faction's.
+	Leaning string `json:"leaning,omitempty" unit:"ref" ref:"npcs.leanings" doc:"The leanings row the role draws from; empty: its home region's holder's."`
 }
 
 // Topic is what an NPC can bring up (GDD 4.18): a predicate over its
@@ -93,12 +96,12 @@ type NPCRole struct {
 // read what the NPC knows of the world.
 type Topic struct {
 	ID      string        `json:"id" unit:"id"`
-	When    string        `json:"when" unit:"enum" enum:"first-meeting|memory|resold|sold-on|crowding|longer-road|gossip|news|trouble|promise-kept|promise-broken|rival|weather|pattern|moved-away|corruption"`
-	Entry   string        `json:"entry,omitempty" unit:"enum" enum:"greeted|asked|slighted|helped|wronged|traded|fought" doc:"The memory entry a memory topic reads."`
-	Also    string        `json:"also,omitempty" unit:"enum" enum:"greeted|asked|slighted|helped|wronged|traded|fought" doc:"A second entry the topic needs as well; both add their salience."`
+	When    string        `json:"when" unit:"enum" enum:"first-meeting|memory|resold|sold-on|crowding|longer-road|gossip|news|trouble|promise-kept|promise-broken|rival|weather|pattern|moved-away|corruption|fence-approach|watch-warning|crooked-approval|turned-away|knows-these-goods|a-good-name|the-invitation|the-informer"`
+	Entry   string        `json:"entry,omitempty" unit:"enum" enum:"greeted|asked|slighted|helped|wronged|traded|fought|robbed" doc:"The memory entry a memory topic reads."`
+	Also    string        `json:"also,omitempty" unit:"enum" enum:"greeted|asked|slighted|helped|wronged|traded|fought|robbed" doc:"A second entry the topic needs as well; both add their salience."`
 	AtLeast int64         `json:"atLeast,omitempty" unit:"row" doc:"The predicate's threshold, in its unit column."`
 	Unit    string        `json:"unit,omitempty" unit:"enum" enum:"quantity"`
-	Weight  int64         `json:"weight" unit:"weight" min:"0" max:"100" doc:"Salience before memory adds to it."`
+	Weight  int64         `json:"weight" unit:"weight" min:"0" max:"300" doc:"Salience before memory adds to it; over 100 outranks any memory."`
 	Choices []TopicChoice `json:"choices" unit:"parts"`
 	Line    string        `json:"line" unit:"text" doc:"The templated line: {npc}, {role}, {thing}, {place}, {n} and {unit} come from fields."`
 }
@@ -114,10 +117,10 @@ type Gossip struct {
 // NPC remembers of it.
 type TopicChoice struct {
 	ID       string `json:"id" unit:"id"`
-	Effect   string `json:"effect" unit:"enum" enum:"none|standing|coin|discount|rumour|goal"`
+	Effect   string `json:"effect" unit:"enum" enum:"none|standing|coin|discount|rumour|goal|fine|return" doc:"fine: pay off the watch here; return: give back what was stolen from the NPC."`
 	Standing int64  `json:"standing,omitempty" unit:"standing"`
 	Coin     int64  `json:"coin,omitempty" unit:"coin" doc:"Positive: the NPC pays from its purse; negative: the player pays it."`
-	Remember string `json:"remember,omitempty" unit:"enum" enum:"greeted|asked|slighted|helped|wronged|traded|fought"`
+	Remember string `json:"remember,omitempty" unit:"enum" enum:"greeted|asked|slighted|helped|wronged|traded|fought|robbed"`
 	Weight   int64  `json:"weight,omitempty" unit:"weight" min:"0" max:"100" doc:"The salience the memory starts at."`
 	Line     string `json:"line" unit:"text"`
 }

@@ -159,9 +159,11 @@
                           "beats",
                           "reach",
                           "sold",
-                          "defence"
+                          "defence",
+                          "word"
                         ],
-                        "x-unit": "enum"
+                        "x-unit": "enum",
+                        "description": "word: choosing the side's id on a topic with the NPC cast at At."
                       },
                       "tag": {
                         "type": "string",
@@ -231,6 +233,9 @@
                                 "salvage",
                                 "caravan-lost",
                                 "lay-legend",
+                                "made",
+                                "inform",
+                                "den-moves",
                                 "nothing"
                               ],
                               "x-unit": "enum"
@@ -306,6 +311,9 @@
                           "salvage",
                           "caravan-lost",
                           "lay-legend",
+                          "made",
+                          "inform",
+                          "den-moves",
                           "nothing"
                         ],
                         "x-unit": "enum"
@@ -337,6 +345,11 @@
               }
             },
             "x-unit": "parts"
+          },
+          "syndicate": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "Sides refuse a character under factions.syndicate gate standing."
           },
           "note": {
             "type": "string",

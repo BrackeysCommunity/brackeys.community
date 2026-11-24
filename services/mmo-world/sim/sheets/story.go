@@ -40,7 +40,10 @@ type ArcRow struct {
 	Chance int64      `json:"chance" unit:"percent" min:"0" max:"100" doc:"Daily chance an eligible cast is taken."`
 	Cast   []CastRow  `json:"cast" unit:"parts"`
 	Stages []StageRow `json:"stages" unit:"parts"`
-	Note   string     `json:"note,omitempty" unit:"text"`
+	// Syndicate rows take sides only from characters at the syndicate's
+	// gate standing (GDD 4.5).
+	Syndicate bool   `json:"syndicate,omitempty" unit:"flag" doc:"Sides refuse a character under factions.syndicate gate standing."`
+	Note      string `json:"note,omitempty" unit:"text"`
 }
 
 // CastRow is one role an arc casts and how it is picked.
@@ -61,7 +64,7 @@ type StageRow struct {
 // SideRow is one side of a stage: a pooled goal with a mark to fill.
 type SideRow struct {
 	ID       string        `json:"id" unit:"id"`
-	Wants    string        `json:"wants" unit:"enum" enum:"goods|beats|reach|sold|defence"`
+	Wants    string        `json:"wants" unit:"enum" enum:"goods|beats|reach|sold|defence|word" doc:"word: choosing the side's id on a topic with the NPC cast at At."`
 	Tag      string        `json:"tag,omitempty" unit:"tag" doc:"goods: the tag delivered, or provisions; empty is any goods."`
 	Per      int64         `json:"per" unit:"count" min:"1" doc:"Units of the mark per active character."`
 	At       string        `json:"at" unit:"text" doc:"The cast role where goods land, beats count or the tile is reached."`
@@ -73,7 +76,7 @@ type SideRow struct {
 // StoryEffect is one thing the world does when a side wins or a stage, a
 // trouble or an occasion ends.
 type StoryEffect struct {
-	Kind   string `json:"kind" unit:"enum" enum:"fortify|holding-falls|gauge|split|appoint|loyalty|defect|peace|grudge|trouble|spread|seal|keep-open|cache|mend|standing|disposition|withdraw|marked|damage|fees|orders-stop|prices|sick|toll|cut|patrol-road|caravan-on|salvage|caravan-lost|lay-legend|nothing"`
+	Kind   string `json:"kind" unit:"enum" enum:"fortify|holding-falls|gauge|split|appoint|loyalty|defect|peace|grudge|trouble|spread|seal|keep-open|cache|mend|standing|disposition|withdraw|marked|damage|fees|orders-stop|prices|sick|toll|cut|patrol-road|caravan-on|salvage|caravan-lost|lay-legend|made|inform|den-moves|nothing"`
 	Role   string `json:"role,omitempty" unit:"text" doc:"The cast role it acts on; regions: every region of the arc. A trouble's effects act on its place, or on source: the region that cast it."`
 	Gauge  string `json:"gauge,omitempty" unit:"ref" ref:"world.gauges"`
 	Amount int64  `json:"amount,omitempty" unit:"count" doc:"Points of defence, gauge, loyalty, standing, condition or disposition; days for grudge, spread, marked, fees, orders-stop, prices, sick; seasons for keep-open. holding-falls: defence lost instead when it is its faction's last; split: loyalty both claimants lose instead when the faction holds too few regions to split; damage: condition lost, 0 for settlements.params trouble-damage. toll, cut, patrol-road: days, 0 for emergence.params toll-days, cut-days, patrol-days."`
@@ -213,9 +216,13 @@ const (
 	leastSides  = 2
 	leastValues = 2
 
-	effectTrouble = "trouble"
-	effectCache   = "cache"
-	effectGauge   = "gauge"
+	effectTrouble  = "trouble"
+	effectCache    = "cache"
+	effectGauge    = "gauge"
+	effectMade     = "made"
+	effectInform   = "inform"
+	effectDenMoves = "den-moves"
+	wantWord       = "word"
 )
 
 // storyProblems checks the story sheets against each other and the
@@ -299,12 +306,27 @@ func (b *Book) storyProblems() []string {
 
 	for _, a := range b.Arcs {
 		at := "story.arcs " + a.ID
-		cast := map[string]bool{}
+		cast, kinds := map[string]bool{}, map[string]string{}
 		for _, c := range a.Cast {
 			if cast[c.Role] || c.Role == RoleRegions || c.Role == "" {
 				p = append(p, at+": role "+strconv.Quote(c.Role)+" is cast twice, empty or reserved")
 			}
-			cast[c.Role] = true
+			cast[c.Role], kinds[c.Role] = true, c.Kind
+		}
+		crime := func(where string, es []StoryEffect) {
+			for i, e := range es {
+				ew := where + "[" + strconv.Itoa(i) + "]"
+				switch e.Kind {
+				case effectMade:
+					if !a.Syndicate || kinds[e.Role] != "character" {
+						p = append(p, ew+": made acts on a character, in a syndicate row")
+					}
+				case effectInform, effectDenMoves:
+					if kinds[e.Role] != "settlement" {
+						p = append(p, ew+": "+e.Kind+" acts on the den's settlement")
+					}
+				}
+			}
 		}
 		inCast := func(role string) bool { return cast[role] }
 		effectRole := func(role string) bool { return role == RoleRegions || cast[role] }
@@ -357,9 +379,14 @@ func (b *Book) storyProblems() []string {
 				if len(sd.Won) == 0 {
 					p = append(p, sdat+": a side's win does something")
 				}
+				if sd.Wants == wantWord && kinds[sd.At] != "npc" {
+					p = append(p, sdat+": a word is said to the NPC cast at at")
+				}
 				effects(sdat+" won", sd.Won, effectRole)
+				crime(sdat+" won", sd.Won)
 			}
 			effects(sat+" lapse", s.Lapse, effectRole)
+			crime(sat+" lapse", s.Lapse)
 		}
 	}
 
@@ -374,6 +401,11 @@ func (b *Book) storyProblems() []string {
 		}
 		effects(at+" lost", t.Lost, troubleRole)
 		effects(at+" held", t.Held, troubleRole)
+		for _, e := range slices.Concat(t.Lost, t.Held) {
+			if e.Kind == effectMade || e.Kind == effectInform || e.Kind == effectDenMoves {
+				p = append(p, at+": "+e.Kind+" belongs to an arc's cast, not a trouble")
+			}
+		}
 	}
 
 	puzzles, arcs := holds(b.PatternPuzzles), holds(b.Arcs)
@@ -425,7 +457,10 @@ func (b *Book) storyProblems() []string {
 		cities[c.ID]++
 	}
 	for _, a := range b.Archetypes {
-		if cities[a.ID] != 1 {
+		switch {
+		case a.Seatless && cities[a.ID] != 0:
+			p = append(p, "story.faction-cities: seatless archetype "+a.ID+" holds no city")
+		case !a.Seatless && cities[a.ID] != 1:
 			p = append(p, "story.faction-cities: archetype "+a.ID+" needs exactly one row")
 		}
 	}

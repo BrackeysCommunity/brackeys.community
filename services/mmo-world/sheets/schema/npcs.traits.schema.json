@@ -40,6 +40,11 @@
             "x-unit": "tag",
             "x-ref": "tags.vocabulary",
             "description": "A tag rules can read."
+          },
+          "leaning": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "A leaning shown as a trait; never drawn as one (npcs.leanings)."
           }
         }
       }

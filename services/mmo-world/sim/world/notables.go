@@ -62,11 +62,12 @@ func (s *State) notable(role string, seat int) Notable {
 
 func (s *State) nativeNotableTraits(who []draw.Part) []string {
 	var out []string
-	for _, k := range s.d.Shuffle(len(s.b.NPCTraits), "notable.traits", who...) {
+	pool := sheets.TraitPool(s.b.NPCTraits)
+	for _, k := range s.d.Shuffle(len(pool), "notable.traits", who...) {
 		if int64(len(out)) == s.p("notable-traits") {
 			break
 		}
-		t := s.b.NPCTraits[k]
+		t := pool[k]
 		if slices.Contains(out, t.Opposes) {
 			continue
 		}
@@ -76,14 +77,15 @@ func (s *State) nativeNotableTraits(who []draw.Part) []string {
 }
 
 func (s *State) drawnNotableTraits(dg history.Digest, who []draw.Part) []string {
-	ids := make([]string, len(s.b.NPCTraits))
-	base := make([]int64, len(s.b.NPCTraits))
-	for i, t := range s.b.NPCTraits {
+	pool := sheets.TraitPool(s.b.NPCTraits)
+	ids := make([]string, len(pool))
+	base := make([]int64, len(pool))
+	for i, t := range pool {
 		ids[i], base[i] = t.ID, sheets.IntParam(s.b.MapParams, "content-trait-weight")
 	}
 	weights := s.g.Weights(gen.TableTrait, ids, base, dg, "")
 	st := s.d.Stream("content.notable.traits", who...)
-	return sheets.PickTraits(s.b.NPCTraits, weights, s.p("notable-traits"), st.Pick)
+	return sheets.PickTraits(pool, weights, s.p("notable-traits"), st.Pick)
 }
 
 func (f *Faction) living() int {

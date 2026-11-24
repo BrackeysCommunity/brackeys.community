@@ -50,6 +50,12 @@
       "modifier": 0,
       "haul": 2,
       "puzzle": true
+    },
+    {
+      "id": "slip",
+      "modifier": 0,
+      "haul": 0,
+      "note": "A theft's getaway: never drawn, only set by theft.kinds."
     }
   ]
 }

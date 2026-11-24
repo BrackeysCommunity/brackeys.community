@@ -36,6 +36,14 @@
       "buys": ["hide", "tool"],
       "tags": ["insular"],
       "tends": ["migrate", "raid"]
+    },
+    {
+      "id": "syndicate",
+      "goal": "profit",
+      "buys": [],
+      "tags": ["crooked"],
+      "tends": [],
+      "seatless": true
     }
   ]
 }

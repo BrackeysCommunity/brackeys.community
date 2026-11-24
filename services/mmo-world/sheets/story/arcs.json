@@ -1932,6 +1932,138 @@
         }
       ],
       "note": "GDD 13.2: a legend gets a place in the director's cast; an unlaid one not cast within emergence.params legend-rest-days, in an awake region with an open place. Steps provisional."
+    },
+    {
+      "id": "the-invitation",
+      "scope": "personal",
+      "when": "syndicate-invites",
+      "chance": 100,
+      "cast": [
+        {
+          "role": "character",
+          "kind": "character",
+          "pick": "given"
+        },
+        {
+          "role": "npc",
+          "kind": "npc",
+          "pick": "nearest"
+        },
+        {
+          "role": "notable",
+          "kind": "npc",
+          "pick": "nearest"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "nearest"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-invitation",
+          "days": 5,
+          "sides": [
+            {
+              "id": "take-the-job",
+              "wants": "word",
+              "per": 1,
+              "at": "npc",
+              "won": [
+                {
+                  "kind": "made",
+                  "role": "character"
+                }
+              ]
+            },
+            {
+              "id": "turn-it-down",
+              "wants": "word",
+              "per": 1,
+              "at": "npc",
+              "won": [
+                {
+                  "kind": "nothing"
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "nothing"
+            }
+          ]
+        }
+      ],
+      "syndicate": true,
+      "note": "GDD 4.5 and 12.9: syndicate standing at the gate; the nearest den's fence asks, and its captain stands behind it. Taking the job at the fence makes the character."
+    },
+    {
+      "id": "the-informer",
+      "scope": "personal",
+      "when": "watch-knows",
+      "chance": 50,
+      "cast": [
+        {
+          "role": "character",
+          "kind": "character",
+          "pick": "given"
+        },
+        {
+          "role": "npc",
+          "kind": "npc",
+          "pick": "given"
+        },
+        {
+          "role": "den",
+          "kind": "settlement",
+          "pick": "nearest"
+        },
+        {
+          "role": "seat",
+          "kind": "settlement",
+          "pick": "given"
+        }
+      ],
+      "stages": [
+        {
+          "id": "the-informer",
+          "days": 4,
+          "sides": [
+            {
+              "id": "name-the-fence",
+              "wants": "word",
+              "per": 1,
+              "at": "npc",
+              "won": [
+                {
+                  "kind": "inform",
+                  "role": "den"
+                }
+              ]
+            },
+            {
+              "id": "keep-quiet",
+              "wants": "word",
+              "per": 1,
+              "at": "npc",
+              "won": [
+                {
+                  "kind": "nothing"
+                }
+              ]
+            }
+          ],
+          "lapse": [
+            {
+              "kind": "den-moves",
+              "role": "den"
+            }
+          ]
+        }
+      ],
+      "note": "GDD 12.9: a watch captain near a den meets a crooked or made character. Naming the fence informs; if it lapses the den moves and nothing is said."
     }
   ]
 }

@@ -1,0 +1,78 @@
+{
+  "$schema": "../schema/theft.kinds.schema.json",
+  "sheet": "theft.kinds",
+  "rows": [
+    {
+      "id": "lift",
+      "beats": [
+        {
+          "beat": "slip"
+        }
+      ],
+      "witness": 40,
+      "witnessOut": 15,
+      "coin": 20,
+      "coinPerSleight": 4,
+      "tags": [
+        "small"
+      ],
+      "note": "An NPC's purse or what it holds; coin first, then the most valuable item that fits."
+    },
+    {
+      "id": "burgle",
+      "beats": [
+        {
+          "beat": "lock"
+        },
+        {
+          "beat": "slip"
+        }
+      ],
+      "witness": 30,
+      "goods": 10,
+      "goodsPerUnit": 2,
+      "tags": [
+        "hoarding"
+      ],
+      "note": "A faction's store in a settlement of a region it holds."
+    },
+    {
+      "id": "waylay",
+      "beats": [
+        {
+          "beat": "clash"
+        },
+        {
+          "beat": "clash"
+        },
+        {
+          "beat": "clash"
+        }
+      ],
+      "witness": 100,
+      "share": 25,
+      "always": true,
+      "tags": [
+        "hoarding"
+      ],
+      "note": "A caravan on the road; always witnessed."
+    },
+    {
+      "id": "flee",
+      "beats": [
+        {
+          "beat": "chase"
+        },
+        {
+          "beat": "chase"
+        }
+      ],
+      "witness": 0,
+      "watch": true,
+      "tags": [
+        "fast"
+      ],
+      "note": "Running from the watch at a settlement's gate."
+    }
+  ]
+}

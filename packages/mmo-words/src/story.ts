@@ -544,6 +544,7 @@ const LINES: Record<string, Line> = {
     `${capital(r.subject("faction"))} besieged ${r.subject("faction", 1)} in ${r.region()}.`,
   "faction.betrayed": (r) =>
     `${capital(r.subject("faction"))} betrayed ${r.subject("faction", 1)}${r.where()}.`,
+  "character.betrayed": (r) => `${capital(r.subject("faction"))} was betrayed by one it trusted.`,
   "faction.withdrew": (r) => `${capital(r.subject("faction"))} withdrew from ${r.region()}.`,
   "faction.migrated": (r) => `${capital(r.subject("faction"))} moved its people to ${r.region()}.`,
   "faction.starving": (r) => `${capital(r.subject("faction"))} is starving.`,

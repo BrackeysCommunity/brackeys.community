@@ -427,6 +427,54 @@
       "text": "A day's trace intake and turn with 100,000 stale entries costs no more than 110% of the day as played: traces cost what is touched",
       "runs": "emergence",
       "holdsFrom": "MM10"
+    },
+    {
+      "id": "theft-never-mints",
+      "text": "Theft never adds goods or coin: every haul leaves real stock, and fences pay inside the faction budget",
+      "runs": "crime",
+      "holdsFrom": "MM11a"
+    },
+    {
+      "id": "thieves-hold-band",
+      "text": "With a tenth of players stealing, coin per active character still holds the Economy band",
+      "runs": "crime",
+      "holdsFrom": "MM11a"
+    },
+    {
+      "id": "alignment-depth",
+      "text": "A character at −15 alignment is back to unremarked within 3 good acts; one at −80 needs 25 or more to leave Notorious",
+      "runs": "social",
+      "holdsFrom": "MM11a"
+    },
+    {
+      "id": "alignment-pair-cap",
+      "text": "No pair of characters can move each other's alignment more than +2 a world day",
+      "runs": "social",
+      "holdsFrom": "MM11a"
+    },
+    {
+      "id": "invitation-days",
+      "text": "A first theft to the invitation takes 7 to 14 world days of daily stealing",
+      "runs": "crime",
+      "holdsFrom": "MM11a"
+    },
+    {
+      "id": "witness-formula",
+      "text": "A witnessed theft's odds match the witness formula within 3 points over 10,000 sampled thefts",
+      "runs": "battle",
+      "holdsFrom": "MM11a"
+    },
+    {
+      "id": "theft-cost-flat",
+      "text": "A world day costs the same with 0 or 1,000 thefts a day, within 1.2 times",
+      "runs": "world",
+      "holdsFrom": "MM11a"
+    },
+    {
+      "id": "road-war-city-slip",
+      "text": "With thieves preying on road wars, the first city at 1,000 players opens no more than 3 world days later than without theft",
+      "runs": "crime",
+      "holdsFrom": "MM11a"
     }
   ]
 }

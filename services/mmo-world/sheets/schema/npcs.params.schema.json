@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "npcs.params",
   "title": "npcs.params",
-  "description": "Memory, salience, routes, crowding and moving home.",
+  "description": "Memory, salience, routes, crowding, moving home and disposition.",
   "type": "object",
   "additionalProperties": false,
   "required": [

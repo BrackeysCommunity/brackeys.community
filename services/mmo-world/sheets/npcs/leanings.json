@@ -1,0 +1,47 @@
+{
+  "$schema": "../schema/npcs.leanings.schema.json",
+  "sheet": "npcs.leanings",
+  "rows": [
+    {
+      "id": "syndicate",
+      "upright": 0,
+      "crooked": 100
+    },
+    {
+      "id": "watch",
+      "upright": 100,
+      "crooked": 0
+    },
+    {
+      "id": "wardens",
+      "upright": 60,
+      "crooked": 10
+    },
+    {
+      "id": "order",
+      "upright": 60,
+      "crooked": 10
+    },
+    {
+      "id": "compact",
+      "upright": 10,
+      "crooked": 50
+    },
+    {
+      "id": "guild",
+      "upright": 25,
+      "crooked": 25
+    },
+    {
+      "id": "clans",
+      "upright": 15,
+      "crooked": 15
+    },
+    {
+      "id": "none",
+      "upright": 30,
+      "crooked": 15,
+      "note": "An NPC whose home region no faction holds."
+    }
+  ]
+}

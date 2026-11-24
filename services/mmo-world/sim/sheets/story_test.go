@@ -12,7 +12,7 @@ import (
 // 4.13).
 func TestStorySheets(t *testing.T) {
 	b := live(t)
-	if len(b.Pacing) != 4 || len(b.SeasonDays) != 4 || len(b.Arcs) != 22 || len(b.Troubles) != 6 ||
+	if len(b.Pacing) != 4 || len(b.SeasonDays) != 4 || len(b.Arcs) != 24 || len(b.Troubles) != 7 ||
 		len(b.Occasions) != 3 || len(b.PatternPuzzles) != 9 || len(b.Caches) != 5 || len(b.FactionCities) != 5 {
 		t.Fatalf("%d pacing, %d days, %d arcs, %d troubles, %d occasions, %d puzzles, %d caches, %d cities",
 			len(b.Pacing), len(b.SeasonDays), len(b.Arcs), len(b.Troubles), len(b.Occasions), len(b.PatternPuzzles), len(b.Caches), len(b.FactionCities))
@@ -28,7 +28,7 @@ func TestStorySheets(t *testing.T) {
 			t.Errorf("%s has no note", a.ID)
 		}
 	}
-	if scopes["world"] != 8 || scopes["region"] != 10 || scopes["personal"] != 4 || finales != 3 {
+	if scopes["world"] != 8 || scopes["region"] != 10 || scopes["personal"] != 6 || finales != 3 {
 		t.Errorf("scopes %v, %d finales", scopes, finales)
 	}
 	days := sheets.Lookup(b.SeasonDays)

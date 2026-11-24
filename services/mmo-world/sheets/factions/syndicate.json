@@ -1,0 +1,102 @@
+{
+  "$schema": "../schema/factions.syndicate.schema.json",
+  "sheet": "factions.syndicate",
+  "rows": [
+    {
+      "id": "fence-pays",
+      "value": 60,
+      "unit": "percent",
+      "doc": "GDD 4.5: a fence pays this share of worth."
+    },
+    {
+      "id": "back-room-pays",
+      "value": 70,
+      "unit": "percent",
+      "doc": "GDD 4.5: a fence pays this share of worth for the made."
+    },
+    {
+      "id": "fence-standing-coin",
+      "value": 25,
+      "unit": "coin",
+      "doc": "GDD 4.5: coin a fence pays per point of syndicate standing."
+    },
+    {
+      "id": "launder-percent",
+      "value": 10,
+      "unit": "percent",
+      "doc": "GDD 4.5: the back room's fee, a share of all its inputs' worth."
+    },
+    {
+      "id": "launder-standing-coin",
+      "value": 50,
+      "unit": "coin",
+      "doc": "GDD 4.5: hot worth laundered per point of syndicate standing."
+    },
+    {
+      "id": "gate",
+      "value": 25,
+      "unit": "standing",
+      "doc": "GDD 4.5: syndicate standing for its arcs' sides and the invitation."
+    },
+    {
+      "id": "trusted",
+      "value": 50,
+      "unit": "standing",
+      "doc": "GDD 4.5: syndicate standing at which a made character is trusted."
+    },
+    {
+      "id": "invite-again-days",
+      "value": 14,
+      "unit": "days",
+      "doc": "GDD 12.9: how long an invitation turned down or let lapse rests."
+    },
+    {
+      "id": "dens-per-captain",
+      "value": 4,
+      "unit": "count",
+      "doc": "Dens each syndicate captain answers for."
+    },
+    {
+      "id": "job-share",
+      "value": 5,
+      "unit": "percent",
+      "doc": "Share of a den settlement's daily faction budget a job's reward takes. Provisional."
+    },
+    {
+      "id": "job-worth",
+      "value": 40,
+      "unit": "coin",
+      "doc": "Worth a job asks for, per tier of the settlement. Provisional."
+    },
+    {
+      "id": "job-standing",
+      "value": 5,
+      "unit": "standing",
+      "doc": "Syndicate standing for a job met. Provisional."
+    },
+    {
+      "id": "job-days",
+      "value": 1,
+      "unit": "days",
+      "doc": "How long a posted job stands."
+    },
+    {
+      "id": "job-reach",
+      "value": 12,
+      "unit": "tiles",
+      "doc": "How far from its den a job's target faction may hold a seat or a settlement."
+    },
+    {
+      "id": "informer-reach",
+      "value": 12,
+      "unit": "tiles",
+      "doc": "How close to a den a watch captain's settlement lies for the informer thread."
+    },
+    {
+      "id": "informer-rest-days",
+      "value": 14,
+      "unit": "days",
+      "doc": "How long a character rests from the informer thread after one."
+    }
+  ]
+}

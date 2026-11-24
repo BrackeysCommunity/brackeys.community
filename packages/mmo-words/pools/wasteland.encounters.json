@@ -73,6 +73,14 @@
       "The {creature} lurks near a machine that still answers to anyone who can talk to it.",
       "Dials twitch on a console buried in drift at {place}, still running a job from before the grid died.",
       "The machine wants something done in the right order, and it is in no mood to guess."
+    ],
+    "slip": [
+      "Eyes drift elsewhere for a heartbeat, long enough for a careful hand to slip in and out.",
+      "The crowd thickens around {place}, close enough to hide a quick hand.",
+      "A guard turns to argue with a trader, and the way out stays open a little longer.",
+      "Dust and noise cover everything, and nobody is watching the pockets.",
+      "The moment is thin and quick: take it clean, or be seen taking it.",
+      "Shadows pool between the stalls, deep enough to vanish into."
     ]
   }
 }

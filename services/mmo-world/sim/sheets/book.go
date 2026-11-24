@@ -45,7 +45,7 @@ type Book struct {
 	OddsBands    []OddsBand    `sheet:"fights.odds-bands" doc:"The six odds bands (GDD 2.3)."`
 	Margins      []MarginBand  `sheet:"fights.margins" doc:"Which band a margin falls in."`
 	FightTiers   []FightTier   `sheet:"fights.tiers" doc:"Per creature tier: base difficulty, beats, hunt health, and the expected character the Battle run fields."`
-	Beats        []BeatKind    `sheet:"fights.beats" doc:"The nine kinds of beat."`
+	Beats        []BeatKind    `sheet:"fights.beats" doc:"The kinds of beat."`
 	BeatTags     []BeatTag     `sheet:"fights.beat-tags" doc:"How a site's and a creature's tags choose its beats."`
 	Options      []OptionRow   `sheet:"fights.options" doc:"Which options each tag offers, and what governs and risks each."`
 	States       []StateRow    `sheet:"fights.states" doc:"The states that last for beats."`
@@ -64,16 +64,19 @@ type Book struct {
 	Seasons     []Season         `sheet:"world.seasons" doc:"The seasons, in order; each has its own prevailing wind."`
 	WorldParams []Param          `sheet:"world.params" doc:"Loose cells for the world tick."`
 
-	NPCTraits []NPCTrait `sheet:"npcs.traits" doc:"Traits notables and other NPCs draw from."`
-	NPCRoles  []NPCRole  `sheet:"npcs.roles" doc:"Role slots each place fills with residents, and the roles wanderers take."`
-	Topics    []Topic    `sheet:"npcs.topics" doc:"What an NPC can bring up, when, and the choices it offers (GDD 4.18)."`
-	Gossip    []Gossip   `sheet:"npcs.gossip" doc:"How a neighbour's memory is passed on, by its kind (GDD 4.18)."`
-	NPCParams []Param    `sheet:"npcs.params" doc:"Memory, salience, routes, crowding and moving home."`
+	NPCTraits  []NPCTrait  `sheet:"npcs.traits" doc:"Traits notables and other NPCs draw from."`
+	NPCRoles   []NPCRole   `sheet:"npcs.roles" doc:"Role slots each place fills with residents, and the roles wanderers take."`
+	Topics     []Topic     `sheet:"npcs.topics" doc:"What an NPC can bring up, when, and the choices it offers (GDD 4.18)."`
+	Gossip     []Gossip    `sheet:"npcs.gossip" doc:"How a neighbour's memory is passed on, by its kind (GDD 4.18)."`
+	NPCParams  []Param     `sheet:"npcs.params" doc:"Memory, salience, routes, crowding, moving home and disposition."`
+	Leanings   []Leaning   `sheet:"npcs.leanings" doc:"The odds an NPC leans upright or crooked, by its home's faction or its role (GDD 4.18)."`
+	BandShifts []BandShift `sheet:"npcs.band-shifts" doc:"What a character's alignment band adds to an NPC's disposition, by the NPC's leaning (GDD 4.18)."`
 
-	Archetypes    []Archetype  `sheet:"factions.archetypes" doc:"Faction archetypes, what they buy and tend to do."`
-	Moves         []Move       `sheet:"factions.moves" doc:"The daily moves a faction can score."`
-	MoveWeights   []MoveWeight `sheet:"factions.move-weights" doc:"How each archetype scores each move."`
-	FactionParams []Param      `sheet:"factions.params" doc:"Loose cells for factions."`
+	Archetypes      []Archetype  `sheet:"factions.archetypes" doc:"Faction archetypes, what they buy and tend to do."`
+	Moves           []Move       `sheet:"factions.moves" doc:"The daily moves a faction can score."`
+	MoveWeights     []MoveWeight `sheet:"factions.move-weights" doc:"How each archetype scores each move."`
+	FactionParams   []Param      `sheet:"factions.params" doc:"Loose cells for factions."`
+	SyndicateParams []Param      `sheet:"factions.syndicate" doc:"The syndicate's cells: fences, the back room, standing, jobs and the informer (GDD 4.5)."`
 
 	FactWeights []FactWeight `sheet:"story.fact-weights" doc:"Weight of each fact kind, 0 to 100."`
 	StoryParams []Param      `sheet:"story.params" doc:"Pacing, deadlines, the chronicle's cut-off."`
@@ -94,6 +97,13 @@ type Book struct {
 
 	GoalParams []Param `sheet:"goals.params" doc:"Listing fees, limits, thresholds."`
 	Words      []Word  `sheet:"goals.words" doc:"Words a goal's title or note may not hold; operators hide what gets past them."`
+
+	AlignParams []Param     `sheet:"alignment.params" doc:"Alignment's range, depth and daily caps, and what an NPC can know of it (GDD 5.10)."`
+	AlignBands  []AlignBand `sheet:"alignment.bands" doc:"The alignment bands, lowest first (GDD 5.10)."`
+	AlignActs   []AlignAct  `sheet:"alignment.acts" doc:"The acts that move alignment, and by how much (GDD 5.10)."`
+
+	TheftKinds  []TheftKind `sheet:"theft.kinds" doc:"The ways to steal, and to run from the watch: beats, witness and haul (GDD 6.5)."`
+	TheftParams []Param     `sheet:"theft.params" doc:"The witness formula, standing lost, hot goods, Wanted, stores and betrayal (GDD 6.5)."`
 
 	Traces          []Trace        `sheet:"emergence.traces" doc:"GDD 13.1's traces, what each is counted on and how fast it fades."`
 	Promotions      []PromotionRow `sheet:"emergence.promotions" doc:"GDD 13.2's lines: what a trace must reach, and within how long, to become part of the world."`
@@ -318,7 +328,7 @@ func (b *Book) Validate() error {
 			errs = append(errs, checkValue(row, where, has)...)
 		}
 	}
-	for _, p := range slices.Concat(b.delveProblems(), b.contentProblems(), b.storyProblems(), b.emergenceProblems()) {
+	for _, p := range slices.Concat(b.delveProblems(), b.contentProblems(), b.storyProblems(), b.emergenceProblems(), b.crimeProblems()) {
 		errs = append(errs, errors.New(p))
 	}
 	return errors.Join(errs...)

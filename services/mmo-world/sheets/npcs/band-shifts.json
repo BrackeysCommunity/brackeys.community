@@ -1,0 +1,30 @@
+{
+  "$schema": "../schema/npcs.band-shifts.schema.json",
+  "sheet": "npcs.band-shifts",
+  "rows": [
+    {
+      "id": "upright",
+      "notorious": -30,
+      "crooked": -15,
+      "unremarked": 0,
+      "decent": 10,
+      "upright": 20
+    },
+    {
+      "id": "none",
+      "notorious": -15,
+      "crooked": 0,
+      "unremarked": 0,
+      "decent": 0,
+      "upright": 10
+    },
+    {
+      "id": "crooked",
+      "notorious": 20,
+      "crooked": 10,
+      "unremarked": 0,
+      "decent": -5,
+      "upright": -15
+    }
+  ]
+}

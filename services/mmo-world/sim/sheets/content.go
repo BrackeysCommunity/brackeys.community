@@ -123,7 +123,7 @@ func (b *Book) contentProblems() []string {
 		"dungeon": holds(b.Dungeons),
 		"lead":    func(id string) bool { return id == LeadRegion || creature(id) },
 		"stock":   holds(b.StockBands),
-		"trait":   holds(b.NPCTraits),
+		"trait":   holds(TraitPool(b.NPCTraits)),
 		"role": func(id string) bool {
 			i := slices.IndexFunc(b.NPCRoles, func(r NPCRole) bool { return r.ID == id })
 			return i >= 0 && b.NPCRoles[i].Place == "road"

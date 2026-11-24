@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "alignment.acts",
+  "title": "alignment.acts",
+  "description": "The acts that move alignment, and by how much (GDD 5.10).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "alignment.acts"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "move"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "move": {
+            "type": "integer",
+            "x-unit": "count",
+            "description": "Points the act asks to move; with perCoin, the sign of a move priced on worth."
+          },
+          "perCoin": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "coin",
+            "description": "Worth per point moved; 0 moves by move alone."
+          },
+          "least": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count",
+            "description": "With perCoin: the least the act moves."
+          },
+          "partner": {
+            "type": "string",
+            "enum": [
+              "rescued",
+              "poster",
+              "named"
+            ],
+            "x-unit": "enum",
+            "description": "Whom the act was done for."
+          },
+          "paired": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "Held to alignment.params pair-day per partner a world day."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

@@ -50,6 +50,16 @@
     },
     {
       "id": "weary"
+    },
+    {
+      "id": "upright",
+      "opposes": "crooked",
+      "leaning": true
+    },
+    {
+      "id": "crooked",
+      "opposes": "upright",
+      "leaning": true
     }
   ]
 }

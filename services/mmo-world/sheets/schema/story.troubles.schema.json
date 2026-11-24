@@ -124,6 +124,9 @@
                     "salvage",
                     "caravan-lost",
                     "lay-legend",
+                    "made",
+                    "inform",
+                    "den-moves",
                     "nothing"
                   ],
                   "x-unit": "enum"
@@ -195,6 +198,9 @@
                     "salvage",
                     "caravan-lost",
                     "lay-legend",
+                    "made",
+                    "inform",
+                    "den-moves",
                     "nothing"
                   ],
                   "x-unit": "enum"

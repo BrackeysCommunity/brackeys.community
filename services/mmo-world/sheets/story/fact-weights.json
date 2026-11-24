@@ -1314,6 +1314,90 @@
       "kind": "emergence.started",
       "weight": 40,
       "note": "Emergence starts on a world from before it; provisional."
+    },
+    {
+      "id": "alignment-moved",
+      "kind": "alignment.moved",
+      "weight": 20,
+      "note": "GDD 5.10, 6.5 and 4.5; provisional."
+    },
+    {
+      "id": "theft-made",
+      "kind": "theft.made",
+      "weight": 40,
+      "note": "GDD 5.10, 6.5 and 4.5; provisional."
+    },
+    {
+      "id": "watch-stopped",
+      "kind": "watch.stopped",
+      "weight": 10,
+      "note": "GDD 5.10, 6.5 and 4.5; provisional."
+    },
+    {
+      "id": "watch-paid",
+      "kind": "watch.paid",
+      "weight": 10,
+      "note": "GDD 5.10, 6.5 and 4.5; provisional."
+    },
+    {
+      "id": "watch-fled",
+      "kind": "watch.fled",
+      "weight": 10,
+      "note": "GDD 5.10, 6.5 and 4.5; provisional."
+    },
+    {
+      "id": "watch-caught",
+      "kind": "watch.caught",
+      "weight": 20,
+      "note": "GDD 5.10, 6.5 and 4.5; provisional."
+    },
+    {
+      "id": "fence-bought",
+      "kind": "fence.bought",
+      "weight": 10,
+      "note": "GDD 5.10, 6.5 and 4.5; provisional."
+    },
+    {
+      "id": "fence-came",
+      "kind": "fence.came",
+      "weight": 10,
+      "note": "GDD 5.10, 6.5 and 4.5; provisional."
+    },
+    {
+      "id": "craft-laundered",
+      "kind": "craft.laundered",
+      "weight": 10,
+      "note": "GDD 5.10, 6.5 and 4.5; provisional."
+    },
+    {
+      "id": "syndicate-made",
+      "kind": "syndicate.made",
+      "weight": 30,
+      "note": "GDD 5.10, 6.5 and 4.5; provisional."
+    },
+    {
+      "id": "syndicate-unmade",
+      "kind": "syndicate.unmade",
+      "weight": 20,
+      "note": "GDD 5.10, 6.5 and 4.5; provisional."
+    },
+    {
+      "id": "syndicate-posted",
+      "kind": "syndicate.posted",
+      "weight": 5,
+      "note": "GDD 5.10, 6.5 and 4.5; provisional."
+    },
+    {
+      "id": "character-betrayed",
+      "kind": "character.betrayed",
+      "weight": 60,
+      "note": "GDD 5.10, 6.5 and 4.5; provisional."
+    },
+    {
+      "id": "den-moved",
+      "kind": "den.moved",
+      "weight": 30,
+      "note": "GDD 5.10, 6.5 and 4.5; provisional."
     }
   ]
 }

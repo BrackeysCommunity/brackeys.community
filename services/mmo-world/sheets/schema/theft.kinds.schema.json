@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "theft.kinds",
+  "title": "theft.kinds",
+  "description": "The ways to steal, and to run from the watch: beats, witness and haul (GDD 6.5).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "theft.kinds"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "beats",
+          "witness",
+          "tags"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "beats": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "beat"
+              ],
+              "properties": {
+                "beat": {
+                  "type": "string",
+                  "x-unit": "ref",
+                  "x-ref": "fights.beats"
+                }
+              }
+            },
+            "x-unit": "parts",
+            "description": "The beats in order, a beat as often as it comes; none is drawn."
+          },
+          "witness": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "percent",
+            "description": "The witness formula's base in a settlement."
+          },
+          "witnessOut": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "percent",
+            "description": "The base away from a settlement."
+          },
+          "coin": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "coin",
+            "description": "lift: the haul's cap, in coin of worth, at Sleight 0."
+          },
+          "coinPerSleight": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "coin",
+            "description": "lift: added to the cap per Sleight level."
+          },
+          "goods": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "goods",
+            "description": "burgle: the most faction stock a haul draws on."
+          },
+          "goodsPerUnit": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "goods",
+            "description": "burgle: faction stock per unit of material taken."
+          },
+          "share": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "x-unit": "percent",
+            "description": "waylay: the share of each of the caravan's goods taken."
+          },
+          "always": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "Always witnessed; the formula is not rolled."
+          },
+          "watch": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "A flight from the watch: no haul and no witness."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "tags",
+            "x-ref": "tags.vocabulary",
+            "description": "The stand-in opponent's tags, which rules read."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

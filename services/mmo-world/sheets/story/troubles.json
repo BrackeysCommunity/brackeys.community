@@ -180,6 +180,36 @@
       ],
       "banner": "Panic in the market",
       "note": "GDD 12.5: a faction collapsing; its orders stop for 2 world days. The mark is coin's worth sold to its bids at the place. Mark and chance provisional."
+    },
+    {
+      "id": "thief-in-walls",
+      "when": "thief-in-walls",
+      "chance": 50,
+      "wants": "defence",
+      "per": 7,
+      "damages": [
+        "market"
+      ],
+      "lost": [
+        {
+          "kind": "gauge",
+          "gauge": "unrest",
+          "amount": 15
+        },
+        {
+          "kind": "fees",
+          "amount": 2
+        }
+      ],
+      "held": [
+        {
+          "kind": "gauge",
+          "gauge": "unrest",
+          "amount": -10
+        }
+      ],
+      "banner": "A thief in the walls",
+      "note": "GDD 12.5: theft.params walls-burglaries won burglaries within walls-days; beats in the region count. Mark and chance provisional."
     }
   ]
 }
