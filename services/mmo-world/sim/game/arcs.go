@@ -1028,7 +1028,7 @@ func (g *Game) sideMark(a *Arc, sd sheets.SideRow, users []int64, t int64) int64
 	switch a.Scope {
 	case arc.Personal:
 		per := p.ThreadMark
-		if sd.Wants == arc.WantReach {
+		if sd.Wants == arc.WantReach || sd.Wants == arc.WantWord {
 			per = sd.Per
 		}
 		return arc.Mark(per, 1, 1)
@@ -1674,6 +1674,7 @@ func (g *Game) endArc(a *Arc, won string, last fact.ID, t int64) error {
 		}
 	case arc.Personal:
 		g.restScope(arc.Personal, char.Ref(a.Char), t)
+		g.syndicateRest(a, t)
 	}
 	return nil
 }

@@ -18,13 +18,14 @@ const ThreadKinds = "thread."
 // ThreadFact reports whether a fact kind is a personal thread's.
 func ThreadFact(kind string) bool { return strings.HasPrefix(kind, ThreadKinds) }
 
-// SeesFact reports whether a character may read a fact, as Visible rules.
+// SeesFact reports whether a character may read a fact, as VisibleTo
+// rules for it.
 func SeesFact(c *Char, f fact.Fact) bool {
-	viewer := ""
+	viewer, made := "", false
 	if c != nil {
-		viewer = c.C.ID
+		viewer, made = c.C.ID, char.IsMade(c.C)
 	}
-	return Visible(viewer, f.Kind, f.Subjects)
+	return VisibleTo(viewer, made, f.Kind, f.Subjects)
 }
 
 // debtKinds are the memories an NPC wants settled: a visit it queues about
@@ -79,15 +80,23 @@ func (g *Game) returned(c *Char, t int64) {
 
 // threadGate lets the notables of a faction a character stands high with
 // offer it a thread with nothing pending (GDD 5.4): the debt of an NPC of
-// theirs it has met, else the rival, once per personal rest. A faction
-// offers no more than its cap at once, and a character whose offer left
-// the queue uncast is offered none until its offer rest ends.
+// theirs it has met, else the rival, once per personal rest. The syndicate
+// offers the made it trusts the debt of the last fence they met, when it
+// stands higher with them than any faction (GDD 4.5). A faction, and the
+// syndicate, offers no more than its cap at once, and a character whose
+// offer left the queue uncast is offered none until its offer rest ends.
 func (g *Game) threadGate(c *Char, t int64) {
 	s := g.Story
 	if s == nil || g.threadBusy(c, t) || g.resting(scopeOffer, char.Ref(c.C.ID), t) {
 		return
 	}
 	fi, ok := g.offering(c)
+	if fence, trusted := g.trustedFence(c); trusted && (!ok || c.C.Standing.Get(syndicateKey) > c.C.Standing.Get(factionOwner(fi))) {
+		if g.offerRoom(syndicateVia) {
+			g.pend(arc.Pending{Kind: arc.PendDebt, Char: c.C.ID, Ref: npc.Ref(fence), Tick: t, Via: syndicateVia, Offer: true})
+		}
+		return
+	}
 	if !ok {
 		return
 	}

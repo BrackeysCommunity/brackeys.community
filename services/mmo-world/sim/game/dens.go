@@ -184,9 +184,11 @@ func (g *Game) moveDen(d Den, cause string, t int64) error {
 }
 
 // FenceVisible reports whether a character can find a den's fence: it is
-// Crooked or worse, holds hot goods, or is made (GDD 4.5).
+// Crooked or worse, holds hot goods, or is made (GDD 4.5). An open
+// invitation keeps the fence in sight, so it can still be answered.
 func (g *Game) FenceVisible(c *Char) bool {
-	return char.IsMade(c.C) || g.crookedOrWorse(c) || len(g.HotGoods(c)) > 0
+	return char.IsMade(c.C) || g.crookedOrWorse(c) || len(g.HotGoods(c)) > 0 ||
+		(g.Story != nil && g.threadOpen(c, inviteTemplate))
 }
 
 // crookedOrWorse reports whether a character's band is Crooked or
