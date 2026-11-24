@@ -3,8 +3,9 @@ import { list, num, plural } from "./units.ts";
 
 /**
  * How emergence reads (GDD 13): what each kind of promotion is called, the
- * four templates play itself casts, and what a season's close keeps, fades
- * and adds. Like the chronicle, nothing here names a character.
+ * four templates play itself casts, the two threads crime casts (GDD 12.9),
+ * and what a season's close keeps, fades and adds. Like the chronicle,
+ * nothing here names a character.
  */
 
 /** GDD 13.5's eight promotion types, in the dashboard's order. */
@@ -98,6 +99,19 @@ const ARCS: Record<string, ArcWords> = {
     origin: "It came from a legend play made, stirring near an open place.",
     lapse: "Left alone, the region's threat rises.",
   },
+  "the-invitation": {
+    about:
+      "The syndicate has taken notice. Its fence asks once: take the job and be made one of its own, or turn it down.",
+    origin:
+      "It came from standing earned with the syndicate: goods fenced, goods laundered and jobs done for it.",
+    lapse: "Left alone, the offer passes, and it is not made again for a while.",
+  },
+  "the-informer": {
+    about:
+      "A watch captain knows of a den nearby and wants a name. Name the fence and the den has to move; keep quiet and nothing is said.",
+    origin: "It came from meeting a watch captain near a den while crooked or made.",
+    lapse: "Left alone, the den hears of it and moves anyway, and nothing is said.",
+  },
 };
 
 const STAGES: Record<string, string> = {
@@ -105,6 +119,8 @@ const STAGES: Record<string, string> = {
   "the-stranded": "The caravan waits where it stopped, and the road ahead is not safe.",
   "the-claims": "Both claims are open: the first to meet its mark takes it.",
   "the-waking": "The legend is awake and on the move.",
+  "the-invitation": "The fence waits for an answer.",
+  "the-informer": "The captain waits for a name.",
 };
 
 const SIDES: Record<string, SideWords> = {
@@ -139,6 +155,22 @@ const SIDES: Record<string, SideWords> = {
   "ward-it": {
     asks: "provisions delivered to the nearest place",
     won: "threat in the legend's region falls",
+  },
+  "take-the-job": {
+    asks: "a word with the fence, taking the job",
+    won: "made one of the syndicate's own: its jobs, its back rooms and its prices open",
+  },
+  "turn-it-down": {
+    asks: "a word with the fence, turning it down",
+    won: "nothing changes, and the offer is not made again for a while",
+  },
+  "name-the-fence": {
+    asks: "a word with the captain, naming the fence",
+    won: "the den moves elsewhere and informing counts as a good act; for one of the made, it is also a betrayal the syndicate does not forgive",
+  },
+  "keep-quiet": {
+    asks: "a word with the captain, saying nothing",
+    won: "nothing is said, and the den stays where it is",
   },
 };
 

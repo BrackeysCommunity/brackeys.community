@@ -69,6 +69,8 @@ const arcs = JSON.parse(
 
 /** The templates play itself casts (GDD 12.9, 17.6). */
 const EMERGENT = ["the-road-war", "the-lost-caravan", "the-rival-claims", "the-legend-wakes"];
+/** The threads crime casts (GDD 12.9). */
+const CRIME = ["the-invitation", "the-informer"];
 
 describe("promotion lines", () => {
   test("each type reads, naming the thing and never its first", () => {
@@ -156,6 +158,24 @@ describe("the emergent templates", () => {
         }
       }
     }
+  });
+
+  test("the invitation and the informer have their words", () => {
+    const rows = arcs.rows.filter((r) => CRIME.includes(r.id));
+    expect(rows.map((r) => r.id).sort()).toEqual([...CRIME].sort());
+    for (const r of rows) {
+      const w = arcWords(r.id);
+      expect([w?.about, w?.origin, w?.lapse].every(Boolean), r.id).toBe(true);
+      for (const st of r.stages) {
+        expect(stageWords(st.id), st.id).not.toBe("");
+        for (const s of st.sides) {
+          expect(sideWords(s.id)?.asks, s.id).toBeTruthy();
+          expect(sideWords(s.id)?.won, s.id).toBeTruthy();
+        }
+      }
+    }
+    expect(sideName("take-the-job")).toBe("Take the job");
+    expect(sideName("name-the-fence")).toBe("Name the fence");
   });
 
   test("the rival claims say they came from two goals", () => {

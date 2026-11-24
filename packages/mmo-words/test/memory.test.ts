@@ -78,3 +78,25 @@ test("toldWho never shows an id or a guild the names do not hold", () => {
   expect(toldWho(undefined, known)).toBe("");
   expect(toldWho("", known)).toBe("");
 });
+
+test("a robbery is remembered with what was taken, and folds as robbed", () => {
+  const lines = memoryLines(
+    {
+      oldest: [
+        { kind: "robbed", tick: 2 * DAY, who: "you", thing: "Scrap iron", n: 30, unit: "coin" },
+        { kind: "robbed", tick: 2 * DAY, who: "c-41", n: 34, unit: "coin" },
+        { kind: "robbed", tick: 3 * DAY },
+      ],
+      folded: [{ type: "robbed", count: 2 }],
+      names: {},
+    },
+    names,
+  );
+  expect(lines).toEqual([
+    "Day 2: You robbed them of Scrap iron, worth 30 coin.",
+    "Day 2: A traveller robbed them of 34 coin.",
+    "Day 3: Someone robbed them.",
+    "Older memories folded away: robbed 2 times.",
+  ]);
+  for (const l of lines) expect(bareNumbers(l), l).toEqual([]);
+});

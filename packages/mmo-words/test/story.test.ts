@@ -80,6 +80,9 @@ const STORY_KINDS = [
   "material.looted-first",
   "season.added",
   "emergence.started",
+  "theft.made",
+  "watch.caught",
+  "character.betrayed",
 ];
 
 const weights = JSON.parse(
@@ -184,6 +187,8 @@ function data(n: number, s: Record<string, string>): Datum[] {
     "variants",
     "materials",
     "classes",
+    "worth",
+    "witnessed",
   ];
   return [
     ...nums.map((k) => ({ k, n: k === "settlement" ? 0 : n })),
@@ -270,6 +275,13 @@ const STRINGS: Record<string, string>[] = [
   { type: "class", of: "router" },
   { type: "masters", of: "rewire", name: "Ashford masters" },
   { type: "something-new" },
+  { template: "thief-in-walls", kind: "lift", outcome: "won", faction: "faction:1", act: "theft" },
+  { kind: "lift", outcome: "lost", faction: "syndicate", act: "informed", item: "i-41" },
+  { kind: "burgle", outcome: "won", faction: "faction:0", material: "scrap", item: "i-41" },
+  { kind: "burgle", outcome: "empty", faction: "faction:9" },
+  { kind: "waylay", outcome: "won", side: "prey-it", faction: "faction:1" },
+  { kind: "waylay", outcome: "lost" },
+  { kind: "flee", outcome: "won", act: "vow-broken" },
 ];
 
 function samples(kind: string): StoryFact[] {
@@ -604,5 +616,170 @@ describe("bareNumbers", () => {
       ),
     ).toEqual([]);
     expect(bareNumbers("Season one: stage 2, 7 of them")).toEqual(["7"]);
+    expect(bareNumbers("Crooked, −15 alignment; 3 alignment today")).toEqual([]);
+  });
+});
+
+describe("crime lines", () => {
+  const theft = (o: Record<string, string | number>, subjects: Ref[] = []): StoryFact => ({
+    kind: "theft.made",
+    region: "r-2",
+    subjects: [{ kind: "character", id: CHAR }, ...subjects],
+    data: Object.entries(o).map(([k, v]) => (typeof v === "number" ? { k, n: v } : { k, s: v })),
+  });
+  const npc: Ref = { kind: "npc", id: "npc-9" };
+
+  test("a theft is told by kind and outcome, of a thief", () => {
+    expect(
+      chronicleLine(
+        theft({ kind: "lift", outcome: "won", witnessed: 0, worth: 34, coin: 34, settlement: 0 }, [
+          npc,
+        ]),
+        NAMES,
+      ),
+    ).toBe("A thief lifted 34 coin from Old Tamsin at Ashford. Nobody saw who.");
+    expect(
+      chronicleLine(
+        theft(
+          {
+            kind: "burgle",
+            outcome: "won",
+            witnessed: 1,
+            worth: 30,
+            units: 5,
+            material: "scrap",
+            faction: "faction:1",
+            settlement: 4,
+          },
+          [{ kind: "faction", id: "f-1" }],
+        ),
+        NAMES,
+      ),
+    ).toBe(
+      "A thief broke into Militia's store at Kell's Rest and took 5 goods of scrap, worth 30 coin. It was seen, and the watch is looking for them.",
+    );
+    expect(
+      chronicleLine(
+        theft({
+          kind: "burgle",
+          outcome: "won",
+          witnessed: 0,
+          worth: 12,
+          units: 2,
+          material: "scrap",
+          faction: "faction:0",
+          settlement: 0,
+        }),
+        NAMES,
+      ),
+    ).toBe(
+      "A thief broke into Raider Compact's store at Ashford and took 2 goods of scrap, worth 12 coin. Nobody saw who.",
+    );
+    expect(
+      chronicleLine(
+        theft({
+          kind: "waylay",
+          outcome: "won",
+          witnessed: 1,
+          worth: 60,
+          units: 12,
+          side: "q-3",
+          settlement: -1,
+        }),
+        NAMES,
+      ),
+    ).toBe(
+      "A thief waylaid a caravan in Dunmarch and took 12 goods, worth 60 coin, for the side preying on the road. It was seen, and the watch is looking for them.",
+    );
+    expect(
+      chronicleLine(
+        theft({ kind: "lift", outcome: "lost", worth: 20, settlement: 0 }, [npc]),
+        NAMES,
+      ),
+    ).toBe(
+      "A thief was caught trying to lift from Old Tamsin at Ashford, and took nothing. The watch is looking for them.",
+    );
+    expect(chronicleLine(theft({ kind: "burgle", outcome: "empty", settlement: 0 }))).toBe(
+      "A thief tried to break into a faction's store at a settlement, and found nothing to take.",
+    );
+    expect(
+      chronicleLine(theft({ kind: "lift", outcome: "won", worth: 40, item: "i-41" }, [npc])),
+    ).toBe("A thief lifted an item from a local, worth 40 coin. Nobody saw who.");
+  });
+
+  test("a betrayal names the faction only, and never the syndicate", () => {
+    const betrayed = (faction: string, act: string, subjects: Ref[]): StoryFact => ({
+      kind: "character.betrayed",
+      subjects: [{ kind: "character", id: CHAR }, ...subjects],
+      data: [
+        { k: "faction", s: faction },
+        { k: "act", s: act },
+        { k: "standing", n: -50 },
+      ],
+    });
+    expect(
+      chronicleLine(betrayed("faction:1", "theft", [{ kind: "faction", id: "f-1" }]), NAMES),
+    ).toBe("Militia was robbed by one it trusted, and will hold a grudge.");
+    expect(chronicleLine(betrayed("faction:0", "theft", []), NAMES)).toBe(
+      "Raider Compact was robbed by one it trusted, and will hold a grudge.",
+    );
+    expect(chronicleLine(betrayed("faction:3", "other", []))).toBe(
+      "A faction was betrayed by one it trusted, and will hold a grudge.",
+    );
+    const static_ = {
+      ...NAMES,
+      ref: (r: Ref) => (r.id === "syndicate" ? "Static" : NAMES.ref?.(r)),
+    };
+    for (const subjects of [[], [{ kind: "faction", id: "syndicate" }]]) {
+      const line = chronicleLine(betrayed("syndicate", "informed", subjects), static_);
+      expect(line).toBe(
+        "Someone the back rooms trusted turned on them, and they will not forget it.",
+      );
+      expect(line).not.toContain("Static");
+    }
+  });
+
+  test("the watch running a thief down, and a thief in the walls", () => {
+    expect(
+      chronicleLine(
+        {
+          kind: "watch.caught",
+          region: "r-2",
+          subjects: [{ kind: "character", id: CHAR }],
+          data: [
+            { k: "settlement", n: 0 },
+            { k: "worth", n: 25 },
+          ],
+        },
+        NAMES,
+      ),
+    ).toBe(
+      "The watch at Ashford ran down a fleeing thief and took back what was stolen, worth 25 coin.",
+    );
+    const trouble = (kind: string, d: Datum[]): StoryFact => ({
+      kind,
+      subjects: [],
+      data: [{ k: "template", s: "thief-in-walls" }, { k: "settlement", n: 0 }, ...d],
+    });
+    expect(
+      chronicleLine(trouble("trouble.started", [{ k: "mark:hold-it-off", n: 14 }]), NAMES),
+    ).toBe("Thief in the walls at Ashford: 14 defence to hold it off by the day's end.");
+    expect(chronicleLine(trouble("trouble.held", []), NAMES)).toBe(
+      "Ashford held off the thief in the walls.",
+    );
+    expect(chronicleLine(trouble("trouble.lost", []))).toBe(
+      "A settlement lost to the thief in the walls.",
+    );
+    expect(
+      troubleBanner(
+        { kind: "thief-in-walls", title: "", mark: 14, defence: 3, ends: 10 },
+        { place: "Ashford" },
+      ),
+    ).toBe("Thief in the walls at Ashford: 3 of 14 defence to hold it off");
+    expect(
+      chronicleLine(trouble("trouble.held", []), {
+        name: (sheet, id) => (sheet === "story.troubles" ? "The burglaries" : id),
+      }),
+    ).toBe("A settlement held off the burglaries.");
   });
 });

@@ -64,9 +64,16 @@ const SETTLEMENT_SCOPE = "settlement";
 /** The side or outcome a lapsed stage or arc names. */
 const LAPSED = "lapsed";
 
+/** Trouble names where an id alone reads badly; a pack's own name still wins. */
+const TROUBLE_NAMES: Record<string, string> = {
+  "thief-in-walls": "Thief in the walls",
+};
+
 /** An arc template's name: a settlement's arc is a trouble, any other an arc. */
 export function arcName(template: string, scope: string, names?: Names): string {
-  return rowName(scope === SETTLEMENT_SCOPE ? "story.troubles" : "story.arcs", template, names);
+  return scope === SETTLEMENT_SCOPE
+    ? troubleName(template, names)
+    : rowName("story.arcs", template, names);
 }
 
 /** A fact's arc by its template name, named by the scope it carries. */
@@ -77,7 +84,9 @@ export function factArcName(f: StoryFact, names?: Names): string {
 
 /** A trouble's name by its kind. */
 export function troubleName(kind: string, names?: Names): string {
-  return rowName("story.troubles", kind, names);
+  const own = names?.name("story.troubles", kind);
+  if (own && own !== readable(kind)) return own;
+  return TROUBLE_NAMES[kind] ?? rowName("story.troubles", kind, names);
 }
 
 /**
@@ -294,6 +303,118 @@ function promotionLine(r: Reading): string {
   }
 }
 
+/** The standing key of the hidden syndicate, whose name no public line gives. */
+const SYNDICATE = "syndicate";
+/** A faction standing key's prefix; its index is the faction ref's "f-<n>". */
+const FACTION_KEY = "faction:";
+
+/** The faction a crime fact is about: its faction subject, else its faction datum; "" when unnamed. */
+function crimeFaction(r: Reading): string {
+  const subject = r.subjects("faction")[0];
+  if (subject) return subject.id === SYNDICATE ? "" : r.known(subject);
+  const key = r.s("faction");
+  return key.startsWith(FACTION_KEY)
+    ? r.known({ kind: "faction", id: `f-${key.slice(FACTION_KEY.length)}` })
+    : "";
+}
+
+/** Whether a crime fact's victim is the syndicate. */
+function isSyndicate(r: Reading): boolean {
+  return r.s("faction") === SYNDICATE || r.subjects("faction").some((f) => f.id === SYNDICATE);
+}
+
+/** " at Ashford" for a fact's settlement datum (−1 is none) or subject, else " in Dunmarch". */
+function crimeAt(r: Reading): string {
+  if (r.has("settlement"))
+    return r.n("settlement") >= 0 ? ` at ${r.settlement("settlement")}` : r.where();
+  const s = r.subjects("settlement")[0];
+  return s ? ` at ${r.called(s)}` : r.where();
+}
+
+/** What a theft took: "6 goods of scrap, an item and 12 coin"; "" for nothing counted. */
+function haul(r: Reading): string {
+  const parts: string[] = [];
+  const units = r.n("units");
+  const material = r.s("material");
+  if (units > 0)
+    parts.push(
+      material
+        ? `${amount(units, "goods")} of ${lower(r.material(material))}`
+        : amount(units, "goods"),
+    );
+  if (r.s("item")) parts.push("an item");
+  if (r.n("coin") > 0) parts.push(amount(r.n("coin"), "coin"));
+  return list(parts);
+}
+
+/** Each theft kind as the chronicle tells it: what was done, and what a thief tried. */
+const THEFT_DONE: Record<string, (victim: string, at: string, what: string) => string> = {
+  lift: (victim, at, what) => `A thief lifted ${what} from ${victim}${at}`,
+  burgle: (victim, at, what) => `A thief broke into ${victim}${at} and took ${what}`,
+  waylay: (victim, at, what) => `A thief waylaid ${victim}${at} and took ${what}`,
+};
+const THEFT_TRIED: Record<string, (victim: string) => string> = {
+  lift: (victim) => `lift from ${victim}`,
+  burgle: (victim) => `break into ${victim}`,
+  waylay: (victim) => `waylay ${victim}`,
+};
+
+/** Who a theft was from, never the character: the NPC, the faction's store, or a caravan. */
+function theftVictim(r: Reading, kind: string): string {
+  switch (kind) {
+    case "lift":
+      return r.known(r.subjects("npc")[0]) || "a local";
+    case "burgle": {
+      const f = crimeFaction(r);
+      return f ? `${f}'s store` : "a faction's store";
+    }
+    case "waylay":
+      return "a caravan";
+    default:
+      return "someone";
+  }
+}
+
+/** A theft (GDD 6.5): by kind and outcome, told of "a thief" and never the character. */
+function theftLine(r: Reading): string {
+  const kind = r.s("kind");
+  const victim = theftVictim(r, kind);
+  const at = crimeAt(r);
+  const tried = THEFT_TRIED[kind]?.(victim) ?? "steal";
+  const worth = r.n("worth");
+  switch (r.s("outcome")) {
+    case "lost":
+      return `A thief was caught trying to ${tried}${at}, and took nothing. The watch is looking for them.`;
+    case "empty":
+      return `A thief tried to ${tried}${at}, and found nothing to take.`;
+    default: {
+      const took = haul(r);
+      const what = took || (worth ? `goods worth ${amount(worth, "coin")}` : "what was there");
+      const done = THEFT_DONE[kind]?.(victim, at, what) ?? `A thief stole ${what}${at}`;
+      const side = r.s("side") ? ", for the side preying on the road" : "";
+      const goods = r.n("units") > 0 || !!r.s("item");
+      const value = took && goods && worth ? `, worth ${amount(worth, "coin")}` : "";
+      const seen = r.n("witnessed")
+        ? "It was seen, and the watch is looking for them."
+        : "Nobody saw who.";
+      return `${done}${value}${side}. ${seen}`;
+    }
+  }
+}
+
+/** How a faction was betrayed, by the act that did it. */
+const BETRAYED_BY: Record<string, string> = {
+  theft: "robbed by one it trusted",
+};
+
+/** A betrayal (GDD 5.10): names the faction only, and never the hidden syndicate. */
+function betrayedLine(r: Reading): string {
+  if (isSyndicate(r))
+    return "Someone the back rooms trusted turned on them, and they will not forget it.";
+  const how = BETRAYED_BY[r.s("act")] ?? "betrayed by one it trusted";
+  return `${capital(crimeFaction(r) || NAMELESS.faction!)} was ${how}, and will hold a grudge.`;
+}
+
 /** What a trouble's mark counts, by the trouble's kind. */
 const TROUBLE_UNIT: Record<string, string> = {
   raid: "defence",
@@ -302,6 +423,7 @@ const TROUBLE_UNIT: Record<string, string> = {
   shortage: "provisions",
   sickness: "provisions",
   panic: "coin",
+  "thief-in-walls": "defence",
 };
 
 /** What a side's mark counts, by what it wants. */
@@ -544,7 +666,7 @@ const LINES: Record<string, Line> = {
     `${capital(r.subject("faction"))} besieged ${r.subject("faction", 1)} in ${r.region()}.`,
   "faction.betrayed": (r) =>
     `${capital(r.subject("faction"))} betrayed ${r.subject("faction", 1)}${r.where()}.`,
-  "character.betrayed": (r) => `${capital(r.subject("faction"))} was betrayed by one it trusted.`,
+  "character.betrayed": betrayedLine,
   "faction.withdrew": (r) => `${capital(r.subject("faction"))} withdrew from ${r.region()}.`,
   "faction.migrated": (r) => `${capital(r.subject("faction"))} moved its people to ${r.region()}.`,
   "faction.starving": (r) => `${capital(r.subject("faction"))} is starving.`,
@@ -625,6 +747,13 @@ const LINES: Record<string, Line> = {
   "dungeon.named": (r) => `A dungeon${r.where()} was named ${r.s("name") || "at last"}.`,
   "guild.founded": (r) => `${capital(r.s("name") || r.subject("guild"))} was founded.`,
   "goal.vow-broken": () => "A vow on a guild's board was broken.",
+
+  // Crime, told of "a thief" and never the character (GDD 6.5).
+  "theft.made": theftLine,
+  "watch.caught": (r) => {
+    const worth = r.n("worth");
+    return `The watch${crimeAt(r)} ran down a fleeing thief and took back what was stolen${worth ? `, worth ${amount(worth, "coin")}` : ""}.`;
+  },
 };
 
 /** Every kind the chronicle has its own line for. */
@@ -729,7 +858,7 @@ export function troubleBanner(
 ): string {
   const unit = troubleUnit(t.kind);
   const parts = [
-    `${t.title || readable(t.kind)}${o.place ? ` at ${o.place}` : ""}: ${outOf(Math.min(t.defence, t.mark), t.mark, unit)} to hold it off`,
+    `${t.title || troubleName(t.kind, o.names)}${o.place ? ` at ${o.place}` : ""}: ${outOf(Math.min(t.defence, t.mark), t.mark, unit)} to hold it off`,
   ];
   if (o.now !== undefined) parts.push(`ends in ${ticks(Math.max(0, t.ends - o.now))}`);
   if (t.why) parts.push(`why: ${chronicleLine(t.why, o.names)}`);

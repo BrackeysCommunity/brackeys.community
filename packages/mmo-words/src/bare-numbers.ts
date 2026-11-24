@@ -18,6 +18,7 @@ export const UNITS = new Set([
   "corruption",
   "prosperity",
   "standing",
+  "alignment",
   "tick",
   "ticks",
   "min",

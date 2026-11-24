@@ -38,6 +38,8 @@ const ENTRY: Record<string, (who: string, thing: string, more: string) => string
   asked: (who) => `${who} asked them for news`,
   slighted: (who) => `${who} passed them by without a word`,
   wronged: (who) => `${who} wronged them`,
+  robbed: (who, thing, more) =>
+    `${who} robbed them${thing ? ` of ${thing}${more ? `, worth ${more}` : ""}` : more ? ` of ${more}` : ""}`,
   helped: (who) => `${who} helped them`,
   traded: (who, thing) => (thing ? `${who} sold them ${thing}` : `${who} traded with them`),
   fought: (who, thing) =>
@@ -56,6 +58,7 @@ const FOLDED: Record<string, string> = {
   asked: "asked for news",
   slighted: "passed by",
   wronged: "wronged",
+  robbed: "robbed",
   helped: "helped",
   traded: "traded with",
   fought: "fought beside",
