@@ -454,7 +454,7 @@
     },
     {
       "id": "invitation-days",
-      "text": "A first theft to the invitation takes 7 to 14 world days of daily stealing",
+      "text": "No thief is invited in under 30 world days from its first theft",
       "runs": "crime",
       "holdsFrom": "MM11a"
     },

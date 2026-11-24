@@ -30,7 +30,7 @@ func TestCrimeSheets(t *testing.T) {
 		{b.TheftParams, "hot-reach", 12}, {b.TheftParams, "wanted-days", 3}, {b.TheftParams, "store-kept", 30},
 		{b.TheftParams, "betray-at", 25}, {b.TheftParams, "betrayal-standing", -50}, {b.TheftParams, "grudge-days", 60},
 		{b.TheftParams, "prey-share", 100}, {b.TheftParams, "walls-burglaries", 5}, {b.TheftParams, "walls-days", 7},
-		{b.SyndicateParams, "fence-pays", 60}, {b.SyndicateParams, "back-room-pays", 70}, {b.SyndicateParams, "fence-standing-coin", 25},
+		{b.SyndicateParams, "fence-pays", 60}, {b.SyndicateParams, "back-room-pays", 70}, {b.SyndicateParams, "fence-standing-coin", 40},
 		{b.SyndicateParams, "launder-percent", 10}, {b.SyndicateParams, "launder-standing-coin", 50}, {b.SyndicateParams, "gate", 25},
 		{b.SyndicateParams, "trusted", 50}, {b.SyndicateParams, "invite-again-days", 14}, {b.SyndicateParams, "dens-per-captain", 4},
 		{b.SyndicateParams, "job-share", 5}, {b.SyndicateParams, "job-worth", 40}, {b.SyndicateParams, "job-standing", 5},

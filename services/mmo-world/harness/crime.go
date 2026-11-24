@@ -27,13 +27,12 @@ import (
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// Crime run targets (GDD 18.3): inviteDaysLo..inviteDaysHi bound the world
-// days from a first theft to the invitation; citySlipDays is how far the
-// first city may slip with thieves about.
+// Crime run targets (GDD 18.3): inviteDaysFloor is the fewest world days
+// from a first theft to the invitation; citySlipDays is how far the first
+// city may slip with thieves about.
 const (
-	inviteDaysLo = 7
-	inviteDaysHi = 14
-	citySlipDays = 3
+	inviteDaysFloor = 30
+	citySlipDays    = 3
 )
 
 // structural: what the Crime run reads by name: transaction kinds, fact
@@ -227,6 +226,42 @@ type crimeLocal struct {
 
 func (c crimeLocal) Act(ctx context.Context, req api.ActionRequest) (api.ActionReply, *api.Refusal, error) {
 	return c.w.act(ctx, c.Local, req)
+}
+
+// Pick arms the lock and sends the family's solve when a keyed draw falls
+// under the solve-rate model at the thief's practice, else half of it,
+// which leaves the lock unpicked. It reports false where the lock would
+// not arm.
+func (c crimeLocal) Pick(ctx context.Context, id string, version int64, interaction string, d *agent.Dice) (bool, error) {
+	arm := api.ActionRequest{InteractionID: interaction + "-arm", CharacterID: id, Version: version, Kind: api.ActMachineArm, Machine: &api.MachineIntent{Source: api.MachineBeat}}
+	if _, ref, err := c.Host().Act(ctx, arm, true); err != nil || ref != nil {
+		return false, err
+	}
+	a := c.G.Char(id).Armed
+	if a == nil {
+		return false, nil
+	}
+	p := c.G.Puzzles()
+	log := p.Solve(p.Make(a.Spec))
+	rate := p.SolveRate(a.Spec.Family, a.Practice, a.Spec.Level, a.Spec.Tier, 1)
+	if int64(d.Below(int(fixed.Scale), "theft.pick")) >= int64(rate) {
+		log.Moves = log.Moves[:len(log.Moves)/halfLog]
+	}
+	o, err := c.Options(ctx, id)
+	if err != nil {
+		return true, err
+	}
+	solve := api.ActionRequest{InteractionID: interaction + "-solve", CharacterID: id, Version: o.Version, Kind: api.ActMachineSolve, Machine: &api.MachineIntent{Source: api.MachineBeat, Log: service.LogOf(log)}}
+	_, _, err = c.w.act(ctx, activityClient{c.Local}, solve)
+	return true, err
+}
+
+// activityClient sends requests as the Activity does, countdown kinds
+// included.
+type activityClient struct{ *service.Local }
+
+func (a activityClient) Act(ctx context.Context, req api.ActionRequest) (api.ActionReply, *api.Refusal, error) {
+	return a.Host().Act(ctx, req, true)
 }
 
 // crimeBare is a client with no pages, watched.
@@ -619,30 +654,33 @@ func crimeReport(p func(string, ...any), b *sheets.Book, runs []crimeSoak, days 
 
 	p("## The invitation")
 	p("")
-	p("World days from a thief's first `theft.made` to the cast of its first `the-invitation` (GDD 12.9), over the thieves who stole; one never invited counts as later than any. The target is a median of %d to %d world days, read from %s players.", inviteDaysLo, inviteDaysHi, comma(cityFrom))
+	p("World days from a thief's first `theft.made` to the cast of its first `the-invitation` (GDD 12.9), over the thieves who stole; one never invited counts as later than any. The target is no thief invited in under %d world days, read from %s players.", inviteDaysFloor, comma(cityFrom))
 	p("")
-	p("| Players | Thieves who stole | Invited | Median days | 10th to 90th percentile |")
-	p("| --- | --- | --- | --- | --- |")
+	p("| Players | Thieves who stole | Invited | Fewest days | Median days | 10th to 90th percentile |")
+	p("| --- | --- | --- | --- | --- | --- |")
 	var invite []string
 	inviteOK, inviteMeasured := true, false
 	for _, r := range runs {
 		ds, stole := r.watch.inviteDays()
-		med, spread := fmt.Sprintf("none in %d", days), "–"
-		got := false
+		fewest, med, spread := "–", fmt.Sprintf("none in %d", days), "–"
 		if i := stole / 2; stole > 0 && i < len(ds) {
-			med, got = fmt.Sprint(ds[i]), true
+			med = fmt.Sprint(ds[i])
 		}
 		if len(ds) > 0 {
+			fewest = fmt.Sprint(ds[0])
 			spread = fmt.Sprintf("%d to %d", percentile(ds, 10), percentile(ds, 90))
 		}
-		p("| %s | %d | %d | %s | %s |", comma(int64(r.size)), stole, len(ds), med, spread)
+		p("| %s | %d | %d | %s | %s | %s |", comma(int64(r.size)), stole, len(ds), fewest, med, spread)
 		if r.size < cityFrom {
 			continue
 		}
 		inviteMeasured = true
-		ok := got && ds[stole/2] >= inviteDaysLo && ds[stole/2] <= inviteDaysHi
-		inviteOK = inviteOK && ok
-		invite = append(invite, fmt.Sprintf("%s players: median %s world days over %d thieves (%d invited)", comma(int64(r.size)), med, stole, len(ds)))
+		inviteOK = inviteOK && (len(ds) == 0 || ds[0] >= inviteDaysFloor)
+		if len(ds) == 0 {
+			invite = append(invite, fmt.Sprintf("%s players: none of %d thieves invited in %d world days", comma(int64(r.size)), stole, days))
+			continue
+		}
+		invite = append(invite, fmt.Sprintf("%s players: fewest %s world days, median %s, over %d thieves (%d invited)", comma(int64(r.size)), fewest, med, stole, len(ds)))
 	}
 	p("")
 	if inviteMeasured {

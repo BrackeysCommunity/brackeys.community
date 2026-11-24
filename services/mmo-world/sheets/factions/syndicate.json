@@ -16,7 +16,7 @@
     },
     {
       "id": "fence-standing-coin",
-      "value": 25,
+      "value": 40,
       "unit": "coin",
       "doc": "GDD 4.5: coin a fence pays per point of syndicate standing."
     },

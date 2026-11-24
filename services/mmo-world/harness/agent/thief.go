@@ -3,6 +3,7 @@ package agent
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -21,6 +22,13 @@ type Crimes interface {
 	Here(ctx context.Context, characterID string) (api.Here, error)
 	Conversation(ctx context.Context, characterID, npc string) (api.Conversation, *api.Refusal, error)
 	Arcs(ctx context.Context, characterID string) (api.Arcs, error)
+}
+
+// Locks is a world where a thief works a theft's lock as a player does
+// in the Activity: it arms the beat's machine and sends a solve, which a
+// model of the player's practice decides.
+type Locks interface {
+	Pick(ctx context.Context, characterID string, version int64, interaction string, d *Dice) (bool, error)
 }
 
 // Thief is an Earner who also steals (GDD 6.5, 4.5): it answers the watch,
@@ -164,6 +172,12 @@ func theftPick(f *api.Fight, bands []string) string {
 	return pick
 }
 
+// lockHere reports whether a theft's beat is a lock the thief can pick.
+func lockHere(f *api.Fight) bool {
+	return f != nil && f.Theft != nil && !f.Theft.Flee && !f.Theft.Caught &&
+		slices.ContainsFunc(f.Options, func(o api.Option) bool { return o.Puzzle })
+}
+
 // bandRank is an option's place in bands, best first.
 func bandRank(f *api.Fight, bands []string, id string) int {
 	for _, o := range f.Options {
@@ -176,6 +190,12 @@ func bandRank(f *api.Fight, bands []string, id string) int {
 
 // Civic is the thief's crime before the Earner's guild and classes.
 func (t *Thief) Civic(o api.Options, desk *Desk, d *Dice) (api.ActionRequest, Verdict, error) {
+	if lk, ok := desk.pages.(Locks); ok && lockHere(o.Fight) {
+		picked, err := lk.Pick(desk.ctx, o.CharacterID, o.Version, fmt.Sprintf("%s-t%d-pick", desk.player.Discord, d.tick), d)
+		if picked || err != nil {
+			return api.ActionRequest{}, Wait, err
+		}
+	}
 	if t.idle(o) || o.Fight != nil || o.Long != nil || has(o.Conditions, api.CondDown) {
 		return t.Earner.Civic(t.clean(o), desk, d)
 	}

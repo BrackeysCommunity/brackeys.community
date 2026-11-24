@@ -692,6 +692,39 @@ func TestOfficerMendsTheMarketFirst(t *testing.T) {
 	}
 }
 
+func TestOfficerFetchesForAShutMarket(t *testing.T) {
+	g := testPlan()
+	page := homePage()
+	page.Settlements[0].Structures = []api.Structure{{Kind: "market", Stands: true, Closed: true,
+		Repairs: []api.Repair{{Points: 25, Cost: []api.CostLine{{Tag: "timber", Quantity: 40}}}}}}
+	home, near, far := api.Hex{}, api.Hex{Q: 2}, api.Hex{Q: 5}
+	tr := &trip{home: home}
+	o := api.Options{At: home, Purse: api.Purse{Coin: 400, Markets: []api.Hex{home, far, near}}}
+	line := g.shutLack(o, page)
+	if line == nil || line.Tag != "timber" || line.Quantity != 40 {
+		t.Fatalf("a shut market with no timber lacks %+v, want 40 timber", line)
+	}
+	tr.civic.fetch = line
+	if req, ok := g.fetchStep(o, tr); !ok || req.Kind != api.ActTravel || *req.To != near {
+		t.Fatalf("at home: %+v %v, want the nearest other market", req, ok)
+	}
+	o.At, o.Purse.Market, o.Purse.Quotes = near, true, []api.Quote{{Material: "timber", Ask: 5}}
+	if req, ok := g.fetchStep(o, tr); !ok || req.Kind != api.ActTake || req.Units != 40 {
+		t.Fatalf("at the market: %+v %v, want 40 timber taken", req, ok)
+	}
+	o.Purse.Goods = []api.Goods{{Material: "timber", Units: 40}}
+	if req, ok := g.fetchStep(o, tr); !ok || req.Kind != api.ActTravel || *req.To != home {
+		t.Fatalf("carrying it: %+v %v, want home", req, ok)
+	}
+	o.At = home
+	if _, ok := g.fetchStep(o, tr); ok || tr.civic.fetch != nil {
+		t.Fatalf("home with it: the errand should end for mendStep")
+	}
+	if g.shutLack(o, page) != nil {
+		t.Fatalf("carrying the timber, nothing is lacking")
+	}
+}
+
 func TestBeatsBackerSeeksEncounters(t *testing.T) {
 	at := api.Hex{Q: 2}
 	e := &Earner{Role: Gatherer, Back: testBacker()}

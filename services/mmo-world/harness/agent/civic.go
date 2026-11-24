@@ -452,6 +452,10 @@ type civic struct {
 	// and deliveries are what it then found to hand in.
 	read       bool
 	deliveries []api.ActionRequest
+	// fetch is what a shut home market's repair lacks, while it carries it
+	// back from another market; fetchDay the world day after it last set out.
+	fetch    *api.CostLine
+	fetchDay int64
 }
 
 // The phases of a founder's errand.
@@ -498,6 +502,9 @@ func (e *Earner) Civic(o api.Options, desk *Desk, d *Dice) (api.ActionRequest, V
 	if t.civic.phase != atHome {
 		return e.errand(o, t, b, desk, d, day)
 	}
+	if req, ok := e.Guild.fetchStep(o, t); ok {
+		return req, Act, nil
+	}
 	if !o.Purse.Market || o.At != t.home {
 		t.civic.gifts, t.civic.deliveries, t.civic.away, t.civic.read = nil, nil, true, false
 		if o.At == t.home && desk.Admin() {
@@ -508,6 +515,12 @@ func (e *Earner) Civic(o api.Options, desk *Desk, d *Dice) (api.ActionRequest, V
 			if req, ok := e.Guild.mendStep(o, page); ok && page.Officer {
 				b.fresh = false
 				return req, Act, nil
+			}
+			if line := e.Guild.shutLack(o, page); line != nil && page.Officer && t.civic.fetchDay != day {
+				t.civic.fetch, t.civic.fetchDay = line, day
+				if req, ok := e.Guild.fetchStep(o, t); ok {
+					return req, Act, nil
+				}
 			}
 		}
 		return api.ActionRequest{}, Pass, nil
@@ -785,6 +798,59 @@ func (g *GuildPlan) mendStep(o api.Options, page api.Guild) (api.ActionRequest, 
 		}
 	}
 	return api.ActionRequest{}, false
+}
+
+// shutLack is what the first repair of a shut home market lacks that
+// another market sells, or nil.
+func (g *GuildPlan) shutLack(o api.Options, page api.Guild) *api.CostLine {
+	s := home(page)
+	if s == nil {
+		return nil
+	}
+	for _, st := range s.Structures {
+		if st.Kind == structureMarket && st.Closed && mending(st, s.ConditionMax) {
+			if line := g.lacks(o.Purse, st.Repairs[0].Cost); line != nil && line.Tag != tagCoin {
+				return line
+			}
+		}
+	}
+	return nil
+}
+
+// fetchStep carries what a shut home market's repair lacks from the
+// nearest other market: it walks there, buys it with its own coin, and
+// walks home, where mendStep spends it. It gives up where it cannot buy.
+func (g *GuildPlan) fetchStep(o api.Options, t *trip) (api.ActionRequest, bool) {
+	f := t.civic.fetch
+	if f == nil {
+		return api.ActionRequest{}, false
+	}
+	have := g.carried(o.Purse, f.Tag)
+	switch {
+	case have >= f.Quantity && o.At == t.home:
+		t.civic.fetch = nil
+		return api.ActionRequest{}, false
+	case have >= f.Quantity:
+		home := t.home
+		return api.ActionRequest{Kind: api.ActTravel, To: &home}, true
+	case o.Purse.Market && o.At != t.home:
+		if req, ok := g.draw(o, api.Guild{}, api.CostLine{Tag: f.Tag, Quantity: f.Quantity - have}); ok {
+			return req, true
+		}
+		t.civic.fetch = nil
+		return api.ActionRequest{}, false
+	}
+	var to *api.Hex
+	for _, h := range o.Purse.Markets {
+		if h != t.home && h != o.At && (to == nil || hexDistance(o.At, h) < hexDistance(o.At, *to)) {
+			to = &h
+		}
+	}
+	if to == nil {
+		t.civic.fetch = nil
+		return api.ActionRequest{}, false
+	}
+	return api.ActionRequest{Kind: api.ActTravel, To: to}, true
 }
 
 // mending reports whether a structure is closed or worn to half.
