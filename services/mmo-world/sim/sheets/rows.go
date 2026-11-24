@@ -481,10 +481,7 @@ type NPCTrait struct {
 	ID      string `json:"id" unit:"id"`
 	Opposes string `json:"opposes,omitempty" unit:"ref" ref:"npcs.traits"`
 	Tag     string `json:"tag,omitempty" unit:"tag" ref:"tags.vocabulary" doc:"A tag rules can read."`
-	// Leaning rows are an NPC's leaning shown as a trait. They are drawn
-	// on their own label, never from the trait pool, so adding one moves
-	// no trait draw.
-	Leaning bool `json:"leaning,omitempty" unit:"flag" doc:"A leaning shown as a trait; never drawn as one (npcs.leanings)."`
+	Leaning bool   `json:"leaning,omitempty" unit:"flag" doc:"A leaning shown as a trait; never drawn as one (npcs.leanings)."`
 }
 
 // ---- Settlements ----

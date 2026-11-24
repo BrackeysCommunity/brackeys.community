@@ -21,7 +21,7 @@ const (
 )
 
 // entryRobbed is the memory a theft leaves on the NPC robbed.
-const entryRobbed = "robbed"
+const entryRobbed = npc.EntryRobbed
 
 // leaningRow is the npcs.leanings row an NPC draws from: its role's own
 // leaning, else the archetype of the faction holding its home region, else
@@ -72,9 +72,10 @@ func (g *Game) drawLeaning(n *npc.NPC) bool {
 }
 
 // factionKeyOf is the standing an NPC's choices and thefts from it move:
-// the syndicate's for its fences and notables, else standingKey's.
+// the syndicate's for its fences and notables, else the faction holding its
+// home region's, else its settlement's.
 func (g *Game) factionKeyOf(s npc.Stub) string {
-	if row := g.r.NPC.Role(s.Role); row != nil && row.Leaning == syndicateKey {
+	if fence, notable := g.syndicateRole(s.Role); fence || notable {
 		return syndicateKey
 	}
 	return standingKey(g.holderAt(s.Home), s.Home)

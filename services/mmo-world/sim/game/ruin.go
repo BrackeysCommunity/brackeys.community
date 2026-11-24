@@ -59,6 +59,9 @@ func (g *Game) ruin(n int, t int64) error {
 	for i := range p.Structures {
 		p.Structures[i].Condition = 0
 	}
+	if err := g.holdDen(n, t); err != nil {
+		return err
+	}
 	// Ruined 0 reads as standing, so a ruin in the world's first tick is
 	// dated a tick on.
 	p.Guild, p.City, p.Ruined = "", nil, max(t, 1)

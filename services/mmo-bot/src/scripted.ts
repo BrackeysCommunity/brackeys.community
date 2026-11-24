@@ -781,7 +781,7 @@ export interface CrimeRun extends Counted {
   /** The betrayal's grudge held, and the character no longer made. */
   betrayed: boolean;
   unmade: boolean;
-  /** How the syndicate NPC spoken to after the betrayal holds the character, and whether it offered only the cold shoulder. */
+  /** How a syndicate NPC holds the character after the betrayal, and whether it only turned it away. */
   syndicateMood: string;
   turnedAway: boolean;
   alignment: number;
@@ -936,7 +936,7 @@ export async function crimeRun(
         "select" in r && decodeId(r.select.customId)?.action === action ? r.select.options : [],
       )
       .find((o) => ok(o.value))?.value;
-  /** Presses the best winning option to the end; a caught theft is backed out of before a second failure downs the thief. */
+  /** Presses the best win to the end, backing out of a caught theft before a second failure. */
   const fightOut = async () => {
     for (let i = 0; i < 12 && p.has("press"); i++) {
       const o = await world.options(id);
@@ -970,7 +970,10 @@ export async function crimeRun(
     await p.press("item", undefined, hand.id);
     if (p.has("repair", hand.id)) await p.press("repair", hand.id);
   };
-  /** What the fences and the trader paid past the walk's capital goes back to the operator: a lone character's coin would fill the faucet's band and close the day's budget. */
+  /**
+   * Hands coin above CAPITAL back to the operator, so a lone character's
+   * earnings don't fill the faucet's band and close the day's budget.
+   */
   const spend = async () => {
     const over = (await coin()) - CAPITAL;
     if (over > 0) await correct("coin", -over);

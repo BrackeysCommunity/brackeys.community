@@ -286,20 +286,20 @@ func (g *Game) preySide(c *Char, h hex.Hex) string {
 // parts in per cent: the kind's base, each upright NPC among people who is
 // neither the victim nor warm to the character, less Sleight, the tile's
 // cover and a quiet kit; held between witness-least and witness-most. A
-// kind always seen is seen whatever the parts.
+// kind always seen is seen at its own witness, whatever the tile or the parts.
 func (g *Game) witnessAmong(c *Char, kind string, h hex.Hex, victim string, people []Person) (int64, []fight.Part) {
 	k, ok := g.TheftKind(kind)
 	if !ok {
 		return 0, nil
+	}
+	if k.Always {
+		return k.Witness, []fight.Part{{Label: partBase, Value: k.Witness}}
 	}
 	base := k.WitnessOut
 	if g.IsSettlement(h) {
 		base = k.Witness
 	}
 	parts := []fight.Part{{Label: partBase, Value: base}}
-	if k.Always {
-		return base, parts
-	}
 	var uprights int64
 	for _, p := range people {
 		if p.Leaning == npc.LeaningUpright && p.Mood != MoodWarm && refKey(npc.Ref(p.ID)) != victim {
@@ -342,16 +342,7 @@ func (g *Game) WorthAt(h hex.Hex, asset string, units int64) int64 {
 	if !ok || units <= 0 {
 		return 0
 	}
-	best, far := -1, int64(0)
-	for i, p := range g.Places {
-		if p.Ruined != 0 || !p.Open(structureMarket) {
-			continue
-		}
-		if d := hex.Distance(p.Hex, h); best < 0 || d < far {
-			best, far = i, d
-		}
-	}
-	if best >= 0 {
+	if best, ok := g.nearestPlace(h, func(_ int, p *Place) bool { return p.Open(structureMarket) }); ok {
 		if b := g.BookOf(best, mat); b != nil {
 			if price, _ := b.PriceAt(g.Tick()); price > 0 {
 				return units * price

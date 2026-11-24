@@ -35,7 +35,7 @@ func (g *Game) betraySeen(c *Char, faction, act string, cause fact.ID, public bo
 	}
 	day := t / sheets.TicksPerDay
 	a := c.C.Align()
-	a.Grudges = slices.DeleteFunc(a.Grudges, func(gr char.Grudge) bool { return gr.Ends <= day })
+	a.Grudges = slices.DeleteFunc(a.Grudges, func(gr char.Grudge) bool { return !gr.Live(day) })
 	ends := day + g.theftCell("grudge-days")
 	if i := slices.IndexFunc(a.Grudges, func(gr char.Grudge) bool { return gr.Faction == faction }); i >= 0 {
 		a.Grudges[i].Ends = max(a.Grudges[i].Ends, ends)
@@ -61,7 +61,7 @@ func (g *Game) unmake(c *Char, cause fact.ID, t int64) error {
 // GrudgeWith reports whether a faction, by standing key, still holds a
 // grudge against the character on a world day.
 func (c *Char) GrudgeWith(faction string, day int64) bool {
-	return slices.ContainsFunc(char.GrudgesOf(c.C), func(gr char.Grudge) bool { return gr.Faction == faction && day < gr.Ends })
+	return slices.ContainsFunc(char.GrudgesOf(c.C), func(gr char.Grudge) bool { return gr.Faction == faction && gr.Live(day) })
 }
 
 // standingRef is the fact ref a standing key names: a world faction as

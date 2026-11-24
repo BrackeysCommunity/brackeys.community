@@ -30,6 +30,12 @@ export function syndicateName(lex: Lexicon): string {
   return lex.name("factions.archetypes", SYNDICATE);
 }
 
+/** "Crooked, −15 alignment": the band with the value, the value alone when the world sent no band. */
+export function alignmentLine(value: number, band: string, lex: Lexicon): string {
+  const shown = amount(value, "alignment");
+  return band ? `${lex.name("alignment.bands", band)}, ${shown}` : shown;
+}
+
 /** A unix time as Discord draws it live: "in 2 minutes". */
 export function relative(ms: number): string {
   return `<t:${Math.floor(ms / 1000)}:R>`;
@@ -349,7 +355,7 @@ export function factLine(f: api.Fact, lex: Lexicon): string {
         ? `Paid a toll of ${amount(n(f, "coin"), "coin")} to cross a road.`
         : `Paid a toll in goods: ${amount(n(f, "units"), mat("material"))}.`;
     case "alignment.moved":
-      return `${signed(n(f, "delta"), "alignment")}${s(f, "act") ? ` for ${s(f, "act").replace(/-/g, " ")}` : ""}: now ${lex.name("alignment.bands", s(f, "band"))}, ${amount(n(f, "value"), "alignment")}.`;
+      return `${signed(n(f, "delta"), "alignment")}${s(f, "act") ? ` for ${s(f, "act").replace(/-/g, " ")}` : ""}: now ${alignmentLine(n(f, "value"), s(f, "band"), lex)}.`;
     case "theft.made":
       return theftFactLine(f, lex);
     case "watch.stopped":
@@ -376,8 +382,6 @@ export function factLine(f: api.Fact, lex: Lexicon): string {
       return `The ${syndicateName(lex)} cast you out.`;
     case "syndicate.posted":
       return `The ${syndicateName(lex)} posted a job.`;
-    case "character.betrayed":
-      return `A betrayal: standing with ${s(f, "faction") === SYNDICATE ? `the ${syndicateName(lex)}` : "a faction"} fell to ${amount(n(f, "standing"), "standing")}.`;
     case "den.moved":
       return "A den moved on to another settlement.";
     default:

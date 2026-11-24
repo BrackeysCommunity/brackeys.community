@@ -329,17 +329,12 @@ func (g *Game) sellItem(c *Char, cmd Command) error {
 	}
 	value := g.ItemValue(in)
 	pay := g.traderPaysTo(c, stub, in)
-	m := g.Market
 	// A settlement opened today has no trader's coin until its first day turn.
-	var left int64
-	if n < len(m.Trader) {
-		left = m.Trader[n]
-	}
-	if n >= len(m.Trader) || left < pay {
+	left, ok := g.traderLeft(n)
+	if !ok || left < pay {
 		return refuse(Busy, "the trader has spent today's coin; it pays %d coin and has %d coin left", pay, left)
 	}
 	tr := g.trader(stub)
-	m.Trader[n] -= pay
 	acc := ledger.Char(c.C.ID)
 	purse := ledger.NPCPool(tr.Stub.ID)
 	f, err := g.npcFact(c, tr, "npc.bought", g.Tick(), fact.S("item", in.ID), fact.S("kind", in.Kind), fact.N("coin", pay))
@@ -350,9 +345,8 @@ func (g *Game) sellItem(c *Char, cmd Command) error {
 	if err := g.postAll(ledger.Txn{Key: cmd.Key, Kind: "trader-bought", Tick: g.Tick(), Fact: f.ID, Legs: legs}, in); err != nil {
 		return err
 	}
-	m.Week.faucet(pay)
-	c.C.Earned.Bump("trader", pay)
-	m.Held = append(m.Held, Held{Item: in.ID, NPC: tr.Stub.ID, From: c.C.ID, Paid: pay, Bought: f.ID})
+	g.spendTrader(c, n, pay, "trader")
+	g.Market.Held = append(g.Market.Held, Held{Item: in.ID, NPC: tr.Stub.ID, From: c.C.ID, Paid: pay, Bought: f.ID})
 	if err := g.note(tr, c, npc.Entry{Kind: "traded", Player: c.C.ID, Weight: g.r.NPC.Param("traded-weight"), Tick: g.Tick(), Fact: int64(f.ID), Thing: g.KindName(in.Kind)}, g.Tick()); err != nil {
 		return err
 	}

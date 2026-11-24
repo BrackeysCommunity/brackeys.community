@@ -189,3 +189,37 @@ func TestFleeLost(t *testing.T) {
 	}
 	audit(t, g3)
 }
+
+// A hold whose entries lapse ends when the character walks off, so a later
+// entry that applies at that settlement does not hold it somewhere else.
+func TestStaleHoldEndsOffTheGate(t *testing.T) {
+	g, c, _ := stoppedThief(t)
+	n, ok := g.StoppedNow(c)
+	if !ok {
+		t.Fatal("the thief was not held")
+	}
+	h := g.SettlementHex(n)
+	a := c.C.Alignment
+	for i := range a.Wanted {
+		a.Wanted[i].Ends = g.Tick()
+	}
+	var off hex.Hex
+	for d := range hex.Directions {
+		if off = h.Neighbour(d); !g.IsSettlement(off) {
+			break
+		}
+	}
+	c.C.At = off
+	if err := g.tileEntered(c, off, g.Tick()); err != nil {
+		t.Fatal(err)
+	}
+	holder := g.holderAt(h)
+	a.Wanted = append(a.Wanted, char.Wanted{Victim: "npc:elsewhere", Faction: standingKey(holder, h), Place: n,
+		Ends: g.Tick() + g.hotCell("wanted-days")*sheets.TicksPerDay})
+	if _, ok := g.StoppedNow(c); ok || char.StoppedAt(c.C) != 0 {
+		t.Fatalf("the watch holds the character off its gate: stopped %d", char.StoppedAt(c.C))
+	}
+	if err := g.watchGuard(c, Travel); err != nil {
+		t.Fatalf("a character off the gate may not travel: %v", err)
+	}
+}

@@ -130,9 +130,10 @@ func TestDormantDenMoves(t *testing.T) {
 	audit(t, g)
 }
 
-// A city that fell back, never a starting settlement, keeps a den its
-// fence was met in until the world day moves it on; one nobody met is
-// gone with the city.
+// Dens reads a city that was never a starting settlement off the city
+// itself: with City cleared by hand a den nobody met is gone, and one whose
+// fence was met stays dormant until the world day moves it on. The ruin and
+// the fall-back save the fence first (holdDen), so neither loses a den.
 func TestFallenCityDen(t *testing.T) {
 	g := storyGame(t)
 	city := plainPlace(t, g, g.SettlementHex(0), 6)

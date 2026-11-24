@@ -39,8 +39,8 @@ func init() {
 	meetHooks = append(meetHooks, (*Game).pendInformer)
 }
 
-// Den is the den nearest a character still at the syndicate's gate and
-// not made, with the captain over it.
+// Den is the den nearest a character at or above the syndicate's gate
+// and not made, with the captain over it.
 func (v *storyView) Den(id string) (fence, notable string, settlement int, ok bool) {
 	g := v.g
 	c := g.Char(id)

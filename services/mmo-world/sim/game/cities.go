@@ -328,6 +328,9 @@ func (g *Game) citiesClose() error {
 				st.Tier = min(st.Tier, settle.Cap(row, g.r.Settle))
 			}
 		}
+		if err := g.holdDen(n, g.Tick()); err != nil {
+			return err
+		}
 		p.City = nil
 		if _, err := g.worldFact(p.Hex, "city.fell-back", []fact.Ref{arc.SettlementRef(n)}, nil,
 			append([]fact.Datum{fact.N("settlement", int64(n))}, fact.At(p.Hex)...)...); err != nil {

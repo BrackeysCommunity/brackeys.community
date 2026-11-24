@@ -237,7 +237,9 @@ func (g *Game) talk(c *Char, cmd Command) error {
 	}
 	if first && g.recognised(c, n) {
 		tr := g.trigger(TrigKnown)
-		g.standing(c, n, tr.Magnitude)
+		if err := g.standing(c, n, tr.Magnitude, met.ID, t); err != nil {
+			return err
+		}
 		if _, err := g.npcFact(c, n, "trigger.fired", t, fact.S("trigger", TrigKnown), fact.N("standing", tr.Magnitude)); err != nil {
 			return err
 		}
@@ -294,9 +296,7 @@ func (g *Game) recognised(c *Char, n *npc.NPC) bool {
 	})
 }
 
-// standingKey is whose standing an NPC's choices move: the syndicate's
-// for its own, else the faction holding its home region, else its
-// settlement.
+// standingKey is factionKeyOf for a saved NPC.
 func (g *Game) standingKey(n *npc.NPC) string { return g.factionKeyOf(n.Stub) }
 
 // StandingName resolves persisted standings for display.
@@ -314,8 +314,15 @@ func (g *Game) StandingName(key string) string {
 	return key
 }
 
-func (g *Game) standing(c *Char, n *npc.NPC, by int64) {
-	g.adjustStanding(c, g.standingKey(n), by)
+// standing moves a character's standing with the side an NPC answers to;
+// the syndicate's goes through its own rules, which can make or unmake.
+func (g *Game) standing(c *Char, n *npc.NPC, by int64, cause fact.ID, t int64) error {
+	key := g.standingKey(n)
+	if key == syndicateKey {
+		return g.addSyndicateStanding(c, by, cause, t)
+	}
+	g.adjustStanding(c, key, by)
+	return nil
 }
 
 func (g *Game) npcFact(c *Char, n *npc.NPC, kind string, t int64, data ...fact.Datum) (fact.Fact, error) {
@@ -713,6 +720,11 @@ func (g *Game) choose(c *Char, cmd Command) error {
 	if err != nil {
 		return err
 	}
+	if row.Effect == "standing" {
+		if err := g.standing(c, n, row.Standing, f.ID, t); err != nil {
+			return err
+		}
+	}
 	if row.Remember != "" {
 		if err := g.note(n, c, npc.Entry{Kind: row.Remember, Player: c.C.ID, Weight: row.Weight, Tick: t, Fact: int64(f.ID), Thing: lowerFirst(strings.TrimSuffix(row.Line, "."))}, t); err != nil {
 			return err
@@ -774,8 +786,7 @@ func (g *Game) effect(c *Char, n *npc.NPC, key string, row sheets.TopicChoice, t
 		return g.payOff(c, s, key, t)
 	case effectReturn:
 		return g.returnTo(c, refKey(npc.Ref(n.Stub.ID)), key, t)
-	case "standing":
-		g.standing(c, n, row.Standing)
+	case "standing": // applied once the choice's fact is written
 	case "coin":
 		purse := ledger.NPCPool(n.Stub.ID)
 		from, to, units := ledger.Char(c.C.ID), purse, -row.Coin

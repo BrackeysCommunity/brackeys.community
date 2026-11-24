@@ -612,7 +612,7 @@ func (g *Game) adjustStanding(c *Char, key string, by int64) int64 {
 	return d
 }
 
-// standingDelta is how far a standing would move by by, held between
+// standingDelta is the change adding by to a standing makes, held between
 // standing-min and standing-max.
 func (g *Game) standingDelta(c *Char, key string, by int64) int64 {
 	gp := g.r.Growth.Params()

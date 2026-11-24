@@ -18,7 +18,7 @@ import (
 // of its Wanted entries still applies there.
 func (g *Game) StoppedNow(c *Char) (int, bool) {
 	at := char.StoppedAt(c.C)
-	if at == 0 || len(g.wantedAt(c, at-1, g.Tick())) == 0 {
+	if at == 0 || c.C.At != g.SettlementHex(at-1) || len(g.wantedAt(c, at-1, g.Tick())) == 0 {
 		return 0, false
 	}
 	return at - 1, true
@@ -47,6 +47,7 @@ func (g *Game) watchGuard(c *Char, kind string) error {
 // while wanted there ends its journey and is held, the fine it would pay
 // told.
 func (g *Game) watchStops(c *Char, h hex.Hex, t int64) error {
+	g.unstop(c)
 	if _, ok := g.StoppedNow(c); ok {
 		return nil
 	}
@@ -65,6 +66,19 @@ func (g *Game) watchStops(c *Char, h hex.Hex, t int64) error {
 	g.touchOnce(c)
 	_, err := g.fact(c, factWatchStopped, t, append([]fact.Datum{fact.N("settlement", int64(n)), fact.N("fine", s.coin+s.fine)}, fact.At(h)...)...)
 	return err
+}
+
+// unstop ends a hold the watch no longer has: the character has left the
+// gate, or nothing it was held for applies there now.
+func (g *Game) unstop(c *Char) {
+	a := c.C.Alignment
+	if a == nil || a.Stopped == 0 {
+		return
+	}
+	if c.C.At != g.SettlementHex(a.Stopped-1) || len(g.wantedAt(c, a.Stopped-1, g.Tick())) == 0 {
+		a.Stopped = 0
+		g.touchOnce(c)
+	}
 }
 
 // unfollow stops a held character following its party's leader on.

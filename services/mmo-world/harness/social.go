@@ -792,12 +792,14 @@ func dayCost(b *sheets.Book, n int) (costResult, error) {
 	return out, nil
 }
 
-// Alignment rows (GDD 5.10, 18.3).
+// Alignment rows (GDD 5.10, 18.3): a character at alignFrom is back to
+// unremarked within alignBackMost good acts; one at alignDeep needs at least
+// alignLeaveLeast to leave notorious.
 const (
-	alignFrom       = -15 // a character this far down is back to unremarked
-	alignBackMost   = 3   // within this many good acts
-	alignDeep       = -80 // one this far down needs
-	alignLeaveLeast = 25  // at least this many to leave notorious
+	alignFrom       = -15
+	alignBackMost   = 3
+	alignDeep       = -80
+	alignLeaveLeast = 25
 )
 
 // structural: the alignment run's shape: posters a day for the depth

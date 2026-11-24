@@ -13,10 +13,7 @@ import {
   witnessPartLine,
 } from "../words.ts";
 
-/**
- * What a theft's witness odds are made of, each part in per cent, and the
- * odds the world holds them at where the parts sum past its bounds.
- */
+/** What a theft's witness odds are made of, part by part, and the odds the world holds them at when the parts sum past its bounds. */
 export function witnessList(t: Theft): HTMLElement {
   const list = el("ul", { class: "why" });
   const w = t.witnessWhy;

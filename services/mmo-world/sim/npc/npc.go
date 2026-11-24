@@ -128,8 +128,6 @@ type Rules struct {
 const traitsPer = 2
 
 func New(b *sheets.Book, gen, roll draw.Key) *Rules {
-	// Leanings are drawn on a label of their own, so the trait draws take
-	// their length from the pool without them.
 	r := &Rules{roles: b.NPCRoles, topics: b.Topics, params: b.NPCParams, traits: sheets.TraitPool(b.NPCTraits), gossip: b.Gossip,
 		gen: draw.NewDrawer(gen), roll: draw.NewDrawer(roll), perDay: sheets.TicksPerDay, traitsN: traitsPer}
 	r.lists = map[string][]string{}
@@ -415,14 +413,14 @@ func (r *Rules) Salience(e Entry, now int64) int64 {
 	if e.Player != "" {
 		decay = fixed.PercentOf(decay, r.Param("personal-decay-share"))
 	}
-	if e.Kind == entryRobbed {
+	if e.Kind == EntryRobbed {
 		decay = fixed.PercentOf(decay, r.Param("robbed-decay"))
 	}
 	return max(0, e.Weight-decay)
 }
 
 // structural: the memory a theft leaves on the NPC robbed.
-const entryRobbed = "robbed"
+const EntryRobbed = "robbed"
 
 // Remember adds an entry and keeps the most salient memory-cap of them;
 // the rest fold into the summary. A personal entry salient enough queues

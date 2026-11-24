@@ -369,10 +369,15 @@ func backer(x *Goal) string {
 	switch {
 	case x.Issuer.Kind == goal.ByAdmin, customGoal(x):
 		return TreasuryPool(x.Board)
-	case x.Issuer.Kind == goal.ByFaction, x.Issuer.Kind == goal.BySyndicate:
+	case mintedReward(x):
 		return ledger.ToFaction
 	}
 	return ledger.Char(x.Poster)
+}
+
+// mintedReward reports whether a goal's reward comes out of the faction sink.
+func mintedReward(x *Goal) bool {
+	return x.Issuer.Kind == goal.ByFaction || x.Issuer.Kind == goal.BySyndicate
 }
 
 // MusterGuild is the guild behind a muster or a raise's line, or nil.
@@ -1186,7 +1191,7 @@ func (g *Game) mayClaim(x *Goal, who string) error {
 // count, records them, and raises a structure a met project finishes.
 func (g *Game) payClaims(x *Goal, claims []goal.Claim, key string) error {
 	for i, cl := range claims {
-		if cl.Coin > 0 && (x.Issuer.Kind == goal.ByFaction || x.Issuer.Kind == goal.BySyndicate) {
+		if cl.Coin > 0 && mintedReward(x) {
 			// Only what the faction minted is new coin: a pledge was a
 			// player's already.
 			g.Market.Week.faucet(cl.Coin * (x.Reward - x.Pledges.Sum()) / x.Reward)

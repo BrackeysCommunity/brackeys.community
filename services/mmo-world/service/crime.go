@@ -88,7 +88,7 @@ func hotGoods(g *game.Game, c *game.Char, v *victims) []api.HotGoods {
 func liveWanted(g *game.Game, c *game.Char) []int {
 	var out []int
 	for i, w := range char.WantedOf(c.C) {
-		if w.Ends > g.Tick() {
+		if w.Live(g.Tick()) {
 			out = append(out, i)
 		}
 	}
@@ -133,7 +133,7 @@ func apiGrudges(g *game.Game, c *game.Char) []api.Grudge {
 	out := []api.Grudge{}
 	day := g.Tick() / sheets.TicksPerDay
 	for _, gr := range char.GrudgesOf(c.C) {
-		if day < gr.Ends {
+		if gr.Live(day) {
 			out = append(out, api.Grudge{With: gr.Faction, Name: g.StandingName(gr.Faction), Ends: gr.Ends})
 		}
 	}

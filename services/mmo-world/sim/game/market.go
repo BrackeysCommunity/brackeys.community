@@ -390,17 +390,13 @@ func (g *Game) order(c *Char, cmd Command, side market.Side, keep bool) error {
 	// Hot units listed beyond the theft's reach lose the mark once they
 	// sell (GDD 6.5); until then they rest in the order's Listed lots.
 	var lots []char.HotLot
-	var hot []char.HotLot
+	restore := func() {}
 	if side == market.Ask {
-		if a := c.C.Alignment; a != nil && a.Hot != nil {
-			hot = slices.Clone(a.Hot)
-		}
+		restore = holdMarks(c, nil)
 		lots = g.consumeHotBut(c, cmd.Material, units, day, barred)
 	}
 	if err := g.escrow(c, cmd.Key, id, asset, units); err != nil {
-		if a := c.C.Alignment; a != nil && side == market.Ask {
-			a.Hot = hot
-		}
+		restore()
 		return err
 	}
 	if len(lots) > 0 {
@@ -554,17 +550,45 @@ func (g *Game) match(b *market.Book, key string) error {
 }
 
 // mayNotTrade reports a pair that may not trade: an owner with itself, a
-// seller the faction will not buy from, or a young character past its
-// cap (see capped, which counts what it lets through).
+// seller the faction will not buy from or whose order rests its own hot
+// goods, or a young character past its cap (see capped, which counts
+// what it lets through).
 func (g *Game) mayNotTrade(b *market.Book, bid, ask market.Order) bool {
 	if bid.Owner == ask.Owner {
 		return true
 	}
 	if bid.Faction != nil {
+		if c := g.charOf(ask.Owner); c != nil && c.C.Alignment != nil {
+			key := standingKey(*bid.Faction, g.SettlementHex(b.Settlement))
+			day := g.Tick() / sheets.TicksPerDay
+			for _, l := range c.C.Alignment.Listed {
+				if l.Order == ask.ID && l.Mark.Faction == key && (&l.Mark).HotOn(day) {
+					return true
+				}
+			}
+		}
 		_, buys := g.factionPays(ask.Owner, *bid.Faction, b.Settlement, 0)
 		return !buys
 	}
 	return g.capped(b.Material, bid, ask, market.Price(bid, ask), min(bid.Qty, ask.Qty))
+}
+
+// traderLeft is the day's trader coin left at settlement n; false where
+// it has none yet.
+func (g *Game) traderLeft(n int) (int64, bool) {
+	if g.Market == nil || n >= len(g.Market.Trader) {
+		return 0, false
+	}
+	return g.Market.Trader[n], true
+}
+
+// spendTrader spends pay of settlement n's trader coin on a character,
+// booked as earnedAs.
+func (g *Game) spendTrader(c *Char, n int, pay int64, earnedAs string) {
+	m := g.Market
+	m.Trader[n] -= pay
+	m.Week.faucet(pay)
+	c.C.Earned.Bump(earnedAs, pay)
 }
 
 // factionPays is what a faction's bid of coin pays a seller at a

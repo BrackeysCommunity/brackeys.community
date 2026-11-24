@@ -16,8 +16,7 @@ func isLeaning(t NPCTrait) bool { return t.Leaning }
 // PickTraits takes up to n traits, a weighted pick without replacement
 // that never holds an opposed pair; when the open traits' weights total 0
 // they are taken evenly. weights of another length than traits count every
-// trait as 1. Leaning rows are never taken: they and their weights leave
-// before the pick, so it runs over the pool alone.
+// trait as 1. Leaning rows and their weights are left out first (TraitPool).
 func PickTraits(traits []NPCTrait, weights []int64, n int64, pick func([]int64) int) []string {
 	if slices.ContainsFunc(traits, isLeaning) {
 		var keptW []int64

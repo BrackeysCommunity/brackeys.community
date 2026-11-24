@@ -27,11 +27,13 @@ import (
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// Crime run targets (GDD 18.3).
+// Crime run targets (GDD 18.3): inviteDaysLo..inviteDaysHi bound the world
+// days from a first theft to the invitation; citySlipDays is how far the
+// first city may slip with thieves about.
 const (
-	inviteDaysLo = 7  // world days from a first theft to the invitation, at least
-	inviteDaysHi = 14 // and at most
-	citySlipDays = 3  // world days the first city may slip with thieves about
+	inviteDaysLo = 7
+	inviteDaysHi = 14
+	citySlipDays = 3
 )
 
 // structural: what the Crime run reads by name: transaction kinds, fact
@@ -106,8 +108,8 @@ func withCell(b *sheets.Book, id string, v int64) *sheets.Book {
 }
 
 // crimeSoak is one soak of the Crime run, with the run without thieves
-// at the same size beside it where one was made, and the run at half
-// the prey share when the first city slipped.
+// at the same size beside it where one was made, and the run at prey
+// share preyShareSlipped when the first city slipped.
 type crimeSoak struct {
 	economyResult
 	thieves bool
@@ -272,16 +274,16 @@ func (w *crimeWatch) act(ctx context.Context, c agent.Client, req api.ActionRequ
 			if _, ok := w.first[req.CharacterID]; !ok {
 				w.first[req.CharacterID] = f.Tick
 			}
-			kind, outcome := datumS(f, "kind"), datumS(f, "outcome")
-			w.where[datumN(f, "settlement")]++
+			kind, outcome := datum(f, "kind").S, datum(f, "outcome").S
+			w.where[datum(f, "settlement").N]++
 			if w.outcomes[kind] == nil {
 				w.outcomes[kind] = map[string]int{}
 			}
 			w.outcomes[kind][outcome]++
-			if datumN(f, "witnessed") > 0 && outcome == theftWon {
+			if datum(f, "witnessed").N > 0 && outcome == theftWon {
 				w.witnessed++
 			}
-			if datumS(f, "side") != "" && outcome == theftWon {
+			if datum(f, "side").S != "" && outcome == theftWon {
 				w.side++
 			}
 		case factFled:
@@ -312,24 +314,6 @@ func (w *crimeWatch) thiefOf(id string) bool {
 // crimeKind is a command only theft and the watch send.
 func crimeKind(kind string) bool {
 	return kind == api.ActSteal || kind == api.ActFence || kind == api.ActPayFine || kind == api.ActFlee
-}
-
-func datumS(f api.Fact, key string) string {
-	for _, d := range f.Data {
-		if d.Key == key {
-			return d.S
-		}
-	}
-	return ""
-}
-
-func datumN(f api.Fact, key string) int64 {
-	for _, d := range f.Data {
-		if d.Key == key {
-			return d.N
-		}
-	}
-	return 0
 }
 
 // snapSlice keeps the trader's slice of each settlement as the world day

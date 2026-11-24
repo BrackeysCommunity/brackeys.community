@@ -151,16 +151,10 @@ func (g *Game) denNPC(d Den, t int64) (*npc.NPC, error) {
 // home, so it keeps its memory, its leaning and its id.
 func (g *Game) moveDen(d Den, cause string, t int64) error {
 	dens := g.Dens()
-	to, far := -1, int64(0)
-	for i, p := range g.Places {
-		if i == d.Place || p.Ruined != 0 || slices.ContainsFunc(dens, func(x Den) bool { return x.At == p.Hex }) {
-			continue
-		}
-		if dist := hex.Distance(p.Hex, d.At); to < 0 || dist < far {
-			to, far = i, dist
-		}
-	}
-	if to < 0 {
+	to, ok := g.nearestPlace(d.At, func(i int, p *Place) bool {
+		return i != d.Place && !slices.ContainsFunc(dens, func(x Den) bool { return x.At == p.Hex })
+	})
+	if !ok {
 		return nil
 	}
 	n, err := g.denNPC(d, t)
@@ -187,8 +181,43 @@ func (g *Game) moveDen(d Den, cause string, t int64) error {
 // Crooked or worse, holds hot goods, or is made (GDD 4.5). An open
 // invitation keeps the fence in sight, so it can still be answered.
 func (g *Game) FenceVisible(c *Char) bool {
-	return char.IsMade(c.C) || g.crookedOrWorse(c) || len(g.HotGoods(c)) > 0 ||
+	return char.IsMade(c.C) || g.fenceWants(c) ||
 		(g.Story != nil && g.threadOpen(c, inviteTemplate))
+}
+
+// fenceWants reports whether a den's fence wants a character: Crooked or
+// worse, or holding anything hot.
+func (g *Game) fenceWants(c *Char) bool {
+	if g.crookedOrWorse(c) {
+		return true
+	}
+	day := g.Tick() / sheets.TicksPerDay
+	for _, l := range char.HotLotsOf(c.C) {
+		if len(g.liveLots(c, l.Material, day)) > 0 {
+			return true
+		}
+	}
+	for _, in := range c.C.Pack {
+		if in.Hot.HotOn(day) {
+			return true
+		}
+	}
+	return false
+}
+
+// holdDen saves the fence of a den born in city n before the city goes, so
+// the den stays and moves on at the next world day.
+func (g *Game) holdDen(n int, t int64) error {
+	p := g.Places[n]
+	if p.Lattice >= 0 {
+		return nil
+	}
+	d, ok := g.DenAt(p.Hex)
+	if !ok || d.Origin != p.Hex || d.At != p.Hex {
+		return nil
+	}
+	_, err := g.denNPC(d, t)
+	return err
 }
 
 // crookedOrWorse reports whether a character's band is Crooked or
@@ -273,7 +302,7 @@ func (g *Game) inviteBusy(c *Char, t int64) bool {
 // it is Crooked or worse or holds hot goods: the fence, saved on the spot,
 // queues a visit to it, once a character (GDD 4.5).
 func (g *Game) fenceCheck(c *Char, t int64) error {
-	if char.FenceFound(c.C) || (!g.crookedOrWorse(c) && len(g.HotGoods(c)) == 0) {
+	if char.FenceFound(c.C) || !g.fenceWants(c) {
 		return nil
 	}
 	d, ok := g.nearestDen(c.C.At)

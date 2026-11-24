@@ -61,8 +61,7 @@ func (g *Game) NotableName(id string) string {
 // Visible reports whether a viewer may read a fact of a kind about the
 // subjects: a pin's never (GDD 14.5), a thread's and an alignment move's
 // only by its own character (GDD 12.8, 5.10), the syndicate's only by a
-// character it names; viewer "" is the public. VisibleTo also lets the
-// made read the syndicate's.
+// character it names; viewer "" is the public.
 func Visible(viewer, kind string, subjects []fact.Ref) bool {
 	return VisibleTo(viewer, false, kind, subjects)
 }

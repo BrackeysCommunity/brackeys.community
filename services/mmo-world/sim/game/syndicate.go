@@ -112,8 +112,8 @@ func (g *Game) fence(c *Char, cmd Command) error {
 		if hot := g.HotUnits(c, cmd.Material, day); hot < cmd.Units {
 			return refuse(NotHot, "%s holds %d hot %s: a fence buys only hot goods", c.C.ID, hot, cmd.Material)
 		}
-		worth, units = g.WorthAt(c.C.At, ledger.Material(cmd.Material), cmd.Units), cmd.Units
-		legs = ledger.Pair(acc, purse, ledger.Material(cmd.Material), cmd.Units)
+		worth, units = g.WorthAt(c.C.At, ledger.Goods(cmd.Material), cmd.Units), cmd.Units
+		legs = ledger.Pair(acc, purse, ledger.Goods(cmd.Material), cmd.Units)
 		data = append(data, fact.S("material", cmd.Material))
 	default:
 		return refuse(BadArgs, "a fence buys an item, or units of a material")
@@ -122,12 +122,7 @@ func (g *Game) fence(c *Char, cmd Command) error {
 	if pay < 1 {
 		return refuse(BadArgs, "the fence gives nothing for goods worth %d coin", worth)
 	}
-	m := g.Market
-	if m == nil || d.Place >= len(m.Trader) || m.Trader[d.Place] < pay {
-		var left int64
-		if m != nil && d.Place < len(m.Trader) {
-			left = m.Trader[d.Place]
-		}
+	if left, ok := g.traderLeft(d.Place); !ok || left < pay {
 		return refuse(FenceSpent, "the fence has spent today's coin; it pays %d coin and has %d coin left", pay, left)
 	}
 	n, err := g.denNPC(d, t)
@@ -136,24 +131,22 @@ func (g *Game) fence(c *Char, cmd Command) error {
 	}
 	a := c.C.Align()
 	points, rest := earned(a.Fenced, pay, g.syp("fence-standing-coin"))
-	old := slices.Clone(a.Hot)
+	restore := holdMarks(c, moved)
 	if cmd.Item == "" {
 		g.takeHot(c, cmd.Material, cmd.Units, day)
 	}
 	f, err := g.npcFact(c, n, factFenceBought, t, append(data, fact.N("units", units), fact.N("worth", worth), fact.N("pay", pay),
 		fact.N("standing", points), fact.N("settlement", int64(d.Place)))...)
 	if err != nil {
-		a.Hot = old
+		restore()
 		return err
 	}
 	legs = append(legs, ledger.Pair(ledger.FromFaction, acc, ledger.Coin, pay)...)
 	if err := g.postAll(ledger.Txn{Key: cmd.Key, Kind: txnFence, Tick: t, Fact: f.ID, Legs: legs}, moved...); err != nil {
-		a.Hot = old
+		restore()
 		return err
 	}
-	m.Trader[d.Place] -= pay
-	m.Week.faucet(pay)
-	c.C.Earned.Bump(earnedFence, pay)
+	g.spendTrader(c, d.Place, pay, earnedFence)
 	a.Fenced = rest
 	g.touchOnce(c)
 	if points > 0 {

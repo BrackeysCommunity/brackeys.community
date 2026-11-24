@@ -9,6 +9,7 @@ import { encodeId, target } from "../ids.ts";
 import { capitalise, type Lexicon } from "../lexicon.ts";
 import { amount, list, num, percent, plural, signed, signedPercent } from "../units.ts";
 import {
+  alignmentLine,
   back,
   banner,
   btn,
@@ -33,7 +34,7 @@ import {
  * from the world or the sheet's Numbers; nothing here decides an outcome.
  */
 
-export { SYNDICATE, syndicateName } from "./common.ts";
+export { alignmentLine, SYNDICATE, syndicateName } from "./common.ts";
 
 /** The verb a syndicate job is posted with. */
 export const STEAL_VERB = "steal";
@@ -46,12 +47,6 @@ export function theftKind(kind: string, lex: Lexicon): string {
 /** Whether a fight is a run from the watch rather than a theft. */
 export function isFlight(t: api.Theft): boolean {
   return !!t.flee || t.kind === api.TheftFlee;
-}
-
-/** "Crooked, −15 alignment": the band with the value, the value alone when the world sent no band. */
-export function alignmentLine(value: number, band: string, lex: Lexicon): string {
-  const shown = amount(value, "alignment");
-  return band ? `${lex.name("alignment.bands", band)}, ${shown}` : shown;
 }
 
 /** What a witness part counts, in words. */
@@ -167,6 +162,15 @@ export function wantedLine(w: api.WantedIn): string {
   return `${w.places.length ? `in ${list(w.places)}` : "here"}, for robbing ${w.victim}: a fine of ${amount(w.fine, "coin")}, ${plural(w.days, "day")} left`;
 }
 
+const WANTED_SHOWN = 4;
+const HOT_SHOWN = 6;
+
+/** The wanted entries as one field, or none when nobody wants the character. */
+function wantedField(wanted: api.WantedIn[], name = "Wanted"): EmbedField | undefined {
+  if (!wanted.length) return undefined;
+  return { name, value: wanted.slice(0, WANTED_SHOWN).map(wantedLine).join("\n") };
+}
+
 /** Everything a character carries: its kit and its pack. */
 function carried(sheet: api.Sheet): api.Item[] {
   return [...sheet.kit, ...sheet.pack];
@@ -187,6 +191,23 @@ export function hotLine(h: api.HotGoods, lex: Lexicon, items: readonly api.Item[
   const what = capitalise(hotWhat(h, items, lex));
   const far = h.reach ? `${plural(h.reach, "tile")} from where it was taken` : "where it was taken";
   return `${what}, from ${h.victim}: hot for ${plural(h.days, "day")} more, ${far}`;
+}
+
+/** The hot goods as one field, or none when nothing carried is hot. */
+function hotField(
+  hot: api.HotGoods[],
+  lex: Lexicon,
+  items: readonly api.Item[],
+  name: string,
+): EmbedField | undefined {
+  if (!hot.length) return undefined;
+  return {
+    name,
+    value: hot
+      .slice(0, HOT_SHOWN)
+      .map((h) => hotLine(h, lex, items))
+      .join("\n"),
+  };
 }
 
 /** A theft or a flight over: what it took, its worth, the mark, standing, alignment and the watch. */
@@ -271,9 +292,8 @@ export function theftResolvedCard(
       name: "Betrayed",
       value: `${capitalise(betrayedName(factStr(b, "faction"), lex))}: standing to ${amount(factNum(b, "standing"), "standing")}, and a grudge for ${plural(n.grudgeDays, "day")}`,
     });
-  const wanted = after?.wanted ?? [];
-  if (wanted.length)
-    fields.push({ name: "Wanted", value: wanted.slice(0, 4).map(wantedLine).join("\n") });
+  const wantedAfter = wantedField(after?.wanted ?? []);
+  if (wantedAfter) fields.push(wantedAfter);
   const buttons: Button[] = [];
   if (o.conditions.includes(api.CondDown)) buttons.push(...downButtons(o, v));
   buttons.push(btn("Where I am", "where", "", v), btn("Character", "character", "", v), back(v));
@@ -305,8 +325,8 @@ export function watchCard(o: api.Options, here: api.Here, sheet: api.Sheet, lex:
       inline: true,
     },
   ];
-  if (wanted.length)
-    fields.push({ name: "Wanted here", value: wanted.slice(0, 4).map(wantedLine).join("\n") });
+  const wantedHere = wantedField(wanted, "Wanted here");
+  if (wantedHere) fields.push(wantedHere);
   if (!stop.canPay)
     fields.push({ name: "Short", value: "You cannot cover the fine: running is the only way." });
   return {
@@ -437,16 +457,7 @@ export function fenceParts(
     return btn(buttonLabel(`Fence ${what}`), "fence", fenceTarget(npc, h), v, { style: "success" });
   });
   return {
-    fields: [
-      {
-        name: "Hot goods you carry",
-        value: hot
-          .slice(0, 6)
-          .map((h) => hotLine(h, lex, items))
-          .join("\n"),
-      },
-      { name: "The fence", value: pays },
-    ],
+    fields: [hotField(hot, lex, items, "Hot goods you carry")!, { name: "The fence", value: pays }],
     rows: [{ buttons }],
   };
 }
@@ -469,18 +480,10 @@ export function standingFields(sheet: api.Sheet, lex: Lexicon): EmbedField[] {
       value: sheet.grudges.map((g) => `${g.name}, until day ${g.ends}`).join("\n"),
       inline: true,
     });
-  const hot = c.hot ?? [];
-  if (hot.length)
-    fields.push({
-      name: "Hot goods",
-      value: hot
-        .slice(0, 6)
-        .map((h) => hotLine(h, lex, carried(sheet)))
-        .join("\n"),
-    });
-  const wanted = c.wanted ?? [];
-  if (wanted.length)
-    fields.push({ name: "Wanted", value: wanted.slice(0, 4).map(wantedLine).join("\n") });
+  const hot = hotField(c.hot ?? [], lex, carried(sheet), "Hot goods");
+  if (hot) fields.push(hot);
+  const wanted = wantedField(c.wanted ?? []);
+  if (wanted) fields.push(wanted);
   return fields;
 }
 

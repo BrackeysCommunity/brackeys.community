@@ -281,10 +281,14 @@ func (g *Game) layRoad(path []hex.Hex, via string, cause fact.ID) error {
 
 // nearestOpen is the open settlement nearest a tile, the lowest index on a
 // tie.
-func (g *Game) nearestOpen(h hex.Hex) (int, bool) {
+func (g *Game) nearestOpen(h hex.Hex) (int, bool) { return g.nearestPlace(h, nil) }
+
+// nearestPlace is the open settlement nearest a tile that keep accepts
+// (nil keeps all), the lowest index on a tie.
+func (g *Game) nearestPlace(h hex.Hex, keep func(i int, p *Place) bool) (int, bool) {
 	best, far := -1, int64(0)
 	for i, pl := range g.Places {
-		if pl.Ruined != 0 {
+		if pl.Ruined != 0 || (keep != nil && !keep(i, pl)) {
 			continue
 		}
 		if d := hex.Distance(pl.Hex, h); best < 0 || d < far {

@@ -591,7 +591,9 @@ func (x effect) disposition() error {
 		kind, weight = entryWronged, -weight
 	}
 	for _, c := range x.whom() {
-		g.standing(c, n, x.e.Amount)
+		if err := g.standing(c, n, x.e.Amount, x.cause, x.t); err != nil {
+			return err
+		}
 		g.r.NPC.Remember(n, npc.Entry{Kind: kind, Player: c.C.ID, Weight: weight, Tick: x.t, Fact: int64(x.cause)}, x.t)
 		g.touchOnce(c)
 	}

@@ -256,6 +256,9 @@ type Grudge struct {
 	Ends    int64  `json:"ends"`
 }
 
+// Live reports whether the grudge still holds on a world day.
+func (g Grudge) Live(day int64) bool { return day < g.Ends }
+
 // HotLot is a quantity of a material carried under a theft's mark.
 type HotLot struct {
 	Material string   `json:"material"`
@@ -277,6 +280,9 @@ type Wanted struct {
 	Fact    int64        `json:"fact"`
 	Ends    int64        `json:"ends"` // tick
 }
+
+// Live reports whether the watch still holds the entry at a tick.
+func (w Wanted) Live(tick int64) bool { return w.Ends > tick }
 
 // Align is the character's alignment, made on first use.
 func (c *Character) Align() *Alignment {

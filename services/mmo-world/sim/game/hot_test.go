@@ -531,6 +531,35 @@ func TestReturnShortOfCoinAndAwayFromTheMarket(t *testing.T) {
 	audit(t, g)
 }
 
+// An item given back away from the theft's market still goes back on its
+// owner's listing there.
+func TestReturnAwayRelistsAtTheTheftsMarket(t *testing.T) {
+	g := guardGame(t)
+	c := mustCreate(t, g, "a", "knife")
+	n, _, victim, _, in := robbedOf(t, g, c)
+	away := pastReach(g, c.C.At)
+	if g.IsSettlement(away) {
+		t.Fatal("the tile away is a settlement")
+	}
+	c.C.At = away
+	purse := ledger.NPCPool("r-test-0")
+	if err := g.returnTo(c, victim, "ret", g.Tick()); err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(g.Market.Listings, func(l market.Listing) bool { return l.Item != nil && l.Item.ID == in.ID })
+	switch {
+	case i < 0:
+		t.Fatal("the item is on no listing")
+	case g.Market.Listings[i].Settlement != n || g.Market.Listings[i].Seller != purse:
+		t.Fatalf("the item is listed %+v, want the purse's at %d", g.Market.Listings[i], n)
+	case g.Ledger.Of(ledger.EscrowPool(g.Market.Listings[i].ID), ledger.Item(in.ID)) != 1:
+		t.Fatal("the listed item is not in escrow")
+	case g.Ledger.Of(purse, ledger.Item(in.ID)) != 0 || c.C.Item(in.ID) != nil || in.Hot != nil:
+		t.Fatal("the item stayed with the thief, went to the purse or kept its mark")
+	}
+	audit(t, g)
+}
+
 func TestBurgledGoodsBackRestoreStock(t *testing.T) {
 	g := guardGame(t)
 	c := mustCreate(t, g, "a", "knife")

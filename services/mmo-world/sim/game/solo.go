@@ -585,7 +585,7 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 	day := t / sheets.TicksPerDay
 	var hot []char.HotLot
 	var laundered int64
-	oldHot := slices.Clone(char.HotLotsOf(c.C))
+	restore := holdMarks(c, nil)
 	if cmd.BackRoom {
 		laundered = g.launder(c, res.Consumed, day)
 	} else {
@@ -607,9 +607,7 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 		legs = append(legs, ledger.Pair(ledger.FromSalvage, acc, ledger.Material(s.Material), s.Qty)...)
 	}
 	if err := g.receive(c, ledger.Txn{Key: cmd.Key, Kind: "craft", Tick: t, Legs: ledger.Merge(legs)}); err != nil {
-		if c.C.Alignment != nil {
-			c.C.Alignment.Hot = oldHot
-		}
+		restore()
 		return err
 	}
 	if mark, ok := latestMark(hot); ok {
