@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"maps"
@@ -105,12 +106,67 @@ func (s *Server) mediaHandler(w http.ResponseWriter, r *http.Request) {
 	key := strings.TrimSuffix(r.PathValue("key"), ".png")
 	b, ok := s.media.get(key)
 	if !ok {
+		b, ok = s.drawLate(r.Context(), key)
+	}
+	if !ok {
 		refuse(w, http.StatusNotFound, api.Refusal{Code: api.CodeNotFound, Message: "no picture " + key})
 		return
 	}
 	w.Header().Set("Content-Type", "image/png")
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	_, _ = w.Write(b)
+}
+
+// drawLate draws a picture whose key a read served without drawing it: an
+// art slot, or the portrait of a creature someone is fighting now, found
+// under the lock and drawn after it.
+func (s *Server) drawLate(ctx context.Context, key string) ([]byte, bool) {
+	kit, err := render.DefaultKit()
+	if err != nil {
+		return nil, false
+	}
+	palette := s.rules.Load().Book.Palette
+	var draw func() (*render.Canvas, error)
+	switch {
+	case strings.HasPrefix(key, artKind+"-"):
+		_, slots := artTable()
+		slot, ok := slots[key]
+		if !ok {
+			return nil, false
+		}
+		draw = func() (*render.Canvas, error) { return render.Art(slot, kit, palette) }
+	case strings.HasPrefix(key, portraitKind+"-"):
+		unlock, err := s.take(ctx, true)
+		if err != nil {
+			return nil, false
+		}
+		var in render.PortraitInput
+		found := false
+		for _, c := range s.g.Chars {
+			if p, ok := fightPortrait(s.g, c); ok && portraitKey(p) == key {
+				in, found = p, true
+				break
+			}
+		}
+		unlock()
+		if !found {
+			return nil, false
+		}
+		draw = func() (*render.Canvas, error) { return render.Portrait(in, kit, palette) }
+	default:
+		return nil, false
+	}
+	if _, err := s.media.put(key, func() ([]byte, error) {
+		c, err := draw()
+		if err != nil {
+			return nil, err
+		}
+		return c.PNG()
+	}); err != nil {
+		s.cfg.Log.Error("picture failed", "key", key, "err", err.Error())
+		return nil, false
+	}
+	return s.media.get(key)
 }
 
 // withCharErr is withChar for a read that may refuse; it writes the
@@ -383,8 +439,23 @@ func (s *Server) bannerInput(h hex.Hex) render.BannerInput {
 	if w, ok := g.World.Weather(h); ok {
 		in.Weather = w.Kind
 	}
+	if p := g.PlaceAt(h); p != nil {
+		if st := p.Get(wallStructure); st != nil {
+			in.Wall, in.WallDown = st.Tier, st.Closed()
+		}
+		in.Ruined = p.Ruined != 0
+		in.City = !in.Ruined && (p.City != nil || p.Faction != nil)
+		if a := g.TroubleAt(p.N); a != nil {
+			if row := g.TroubleRow(a); row != nil {
+				in.Trouble = row.ID
+			}
+		}
+	}
 	return in
 }
+
+// structural: the structure a banner draws as a settlement's palisade.
+const wallStructure = "wall"
 
 func (s *Server) banner(in render.BannerInput) (string, error) {
 	b := s.rules.Load().Book

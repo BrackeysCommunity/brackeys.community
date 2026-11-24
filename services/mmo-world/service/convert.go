@@ -1,9 +1,11 @@
 package service
 
 import (
+	"encoding/json"
 	"slices"
 
 	"jams.team/mmo-world/api"
+	"jams.team/mmo-world/render"
 	"jams.team/mmo-world/sim/arc"
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/fact"
@@ -194,6 +196,9 @@ func apiFight(g *game.Game, c *game.Char, f *game.FightView) *api.Fight {
 	e := c.Fight.E
 	v.Floor, v.Hidden = e.Floor, int64(e.At) < e.Hidden
 	v.CreatureName, v.Variant = variantSeen(g, c.C.At, e)
+	if in, ok := fightPortrait(g, c); ok {
+		v.Portrait = portraitKey(in)
+	}
 	for _, in := range g.SwapDecks(c) {
 		v.Decks = append(v.Decks, api.DeckView{ID: in.ID, Name: g.KindName(in.Kind)})
 	}
@@ -205,6 +210,42 @@ func apiFight(g *game.Game, c *game.Char, f *game.FightView) *api.Fight {
 	}
 	return v
 }
+
+// fightPortrait is the portrait input of the creature a character fights,
+// from what its fight already shows: false outside a fight, or without
+// the kit.
+func fightPortrait(g *game.Game, c *game.Char) (render.PortraitInput, bool) {
+	kit, err := render.DefaultKit()
+	if c.Fight == nil || c.Fight.E == nil || err != nil {
+		return render.PortraitInput{}, false
+	}
+	e := c.Fight.E
+	_, variant := variantSeen(g, c.C.At, e)
+	ts := make([]string, len(e.Creature.Tags))
+	for i, t := range e.Creature.Tags {
+		ts[i] = string(t)
+	}
+	var resists []string
+	for _, r := range e.Resist {
+		if r.Bands > 0 {
+			resists = append(resists, string(r.Tag))
+		}
+	}
+	return kit.PortraitInput(e.Creature.Archetype, e.Creature.Tier, ts, variant, resists), true
+}
+
+// portraitKey is a portrait's media key; it is drawn on its first fetch,
+// never under the lock a read holds.
+func portraitKey(in render.PortraitInput) string {
+	body, _ := json.Marshal(in) // a struct of strings and an int always marshals
+	return render.Key(portraitKind, body)
+}
+
+// structural: the media kinds drawn from the kit.
+const (
+	portraitKind = "portrait"
+	artKind      = "art"
+)
 
 func apiPurse(g *game.Game, c *game.Char) api.Purse {
 	p := api.Purse{Coin: c.C.Coin, Provisions: c.C.Provisions, Goods: apiGoods(c.C.Goods), Load: api.Load{Carried: c.Carried(), Capacity: g.Capacity(c)},

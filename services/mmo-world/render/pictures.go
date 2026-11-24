@@ -165,6 +165,13 @@ type BannerInput struct {
 	Overrun    bool     `json:"overrun"` // the raid or overrun line holds
 	Tags       []string `json:"tags,omitempty"`
 	Corrupted  bool     `json:"corrupted"`
+	// A settlement's state: its wall's tier (0 is none) and whether the
+	// wall is down, the open trouble's template, a ruin, a city.
+	Wall     int64  `json:"wall,omitempty"`
+	WallDown bool   `json:"wallDown,omitempty"`
+	Trouble  string `json:"trouble,omitempty"`
+	Ruined   bool   `json:"ruined,omitempty"`
+	City     bool   `json:"city,omitempty"`
 }
 
 // structural: banner size in pixels, and the mark's scale on the pack's
@@ -177,9 +184,12 @@ const (
 )
 
 // Banner draws a region banner: sky by the hour, ground by the biome, the
-// weather, a stencilled region mark from the pack's layers, a palisade
-// for a settlement, hazard stripes under threat, fire when overrun, and a
-// corruption tint.
+// weather, a stencilled region mark from the pack's layers, hazard
+// stripes under threat, fire when overrun, and a corruption tint. A
+// settlement shows its state (GDD 16.4): a skyline, taller for a city and
+// broken for a ruin; fire behind its wall under a raid and flames in its
+// streets under a fire; a pennant for any other trouble; and a palisade
+// only when a wall stands, broken when it is down.
 func Banner(in BannerInput, layers []sheets.BannerLayer, palette []sheets.Palette) (*Canvas, error) {
 	c := NewCanvas(bannerW, bannerH, sky(in.Hour))
 	ground := terrainOf(in.Terrain)
@@ -192,11 +202,8 @@ func Banner(in BannerInput, layers []sheets.BannerLayer, palette []sheets.Palett
 		c.Fill([][]Pt{{{x, y}, {x + 18, y - 2}, {x + 16, y + 3}, {x - 1, y + 4}}}, Alpha(tar, 0x40))
 	}
 	if in.Settlement {
-		for x := 300.0; x < 600; x += 14 {
-			c.Fill([][]Pt{{{x, gy - 34}, {x + 5, gy - 42}, {x + 10, gy - 34}, {x + 10, gy + 6}, {x, gy + 6}}}, Hex("#5d4a37"))
-		}
-	}
-	if in.Overrun {
+		town(c, in, seed, gy)
+	} else if in.Overrun {
 		for i := 0; i < 9; i++ {
 			x := 320 + float64(i)*30
 			c.Fill([][]Pt{{{x, gy}, {x + 12, gy - 40 - float64(seed[i]%30)}, {x + 24, gy}}}, Alpha(rust, 0xd0))
@@ -224,6 +231,101 @@ func Banner(in BannerInput, layers []sheets.BannerLayer, palette []sheets.Palett
 		c.Fill([][]Pt{{{0, 0}, {bannerW, 0}, {bannerW, bannerH}, {0, bannerH}}}, Alpha(corrupt, 0x30))
 	}
 	return c, nil
+}
+
+// Trouble templates a banner draws in flames.
+const (
+	TroubleRaid = "raid"
+	TroubleFire = "fire"
+)
+
+// structural: where a settlement stands on its banner, its houses' and
+// wall's sizes, and how much of a broken wall is gone.
+const (
+	townLeft, townRight = 296.0, 612.0
+	houseStep           = 26.0
+	houseLow, houseHigh = 22.0, 40.0
+	cityLow, cityHigh   = 52.0, 96.0
+	stakeStep           = 14.0
+	wallBase, wallRise  = 24.0, 6.0
+	brokenEvery         = 3
+)
+
+var (
+	timber = Hex("#5d4a37")
+	house  = Hex("#3a3631")
+	window = Alpha(hazard, 0xb0)
+)
+
+// town draws a settlement's skyline, its fires and its wall, back to
+// front.
+func town(c *Canvas, in BannerInput, seed []byte, gy float64) {
+	base := gy - 8
+	low, high := houseLow, houseHigh
+	if in.City {
+		low, high = cityLow, cityHigh
+	}
+	k := 0
+	for x := townLeft; x+houseStep <= townRight; x += houseStep {
+		k++
+		h := low + float64(seed[k%len(seed)])/255*(high-low)
+		top := base - h
+		if in.Ruined {
+			c.Fill([][]Pt{{{x + 2, base}, {x + 2, top + h/3}, {x + 8, top + h/2}, {x + 13, top}, {x + 18, top + h/2.5}, {x + houseStep - 4, top + h/3}, {x + houseStep - 4, base}}}, Alpha(house, 0xd0))
+			continue
+		}
+		c.Fill([][]Pt{{{x + 2, base}, {x + 2, top}, {x + houseStep/2, top - 10}, {x + houseStep - 4, top}, {x + houseStep - 4, base}}}, house)
+		if in.City {
+			c.Fill([][]Pt{{{x + 9, top - 10}, {x + 9, top - 24}, {x + 13, top - 28}, {x + 17, top - 24}, {x + 17, top - 10}}}, house)
+		}
+		if in.Trouble == TroubleFire || seed[(k+5)%len(seed)]%3 == 0 {
+			c.Fill([][]Pt{{{x + 8, top + 8}, {x + 14, top + 8}, {x + 14, top + 15}, {x + 8, top + 15}}}, window)
+		}
+	}
+	if in.Trouble == TroubleRaid || in.Overrun {
+		for i := 0; i < 11; i++ {
+			x := townLeft + float64(i)*28
+			rise := 56 + float64(seed[i]%40)
+			c.Fill([][]Pt{{{x, gy}, {x + 8, gy - rise*0.7}, {x + 14, gy - rise}, {x + 20, gy - rise*0.6}, {x + 28, gy}}}, Alpha(rust, 0xd8))
+			c.Fill([][]Pt{{{x + 7, gy}, {x + 14, gy - rise*0.55}, {x + 21, gy}}}, Alpha(hazard, 0xd8))
+			c.Circle(Pt{x + 14, gy - rise - 14}, 9+float64(seed[i+11]%8), Alpha(tar, 0x70))
+		}
+	}
+	if in.Trouble == TroubleFire {
+		for i := 0; i < 6; i++ {
+			x := townLeft + 18 + float64(i)*50 + float64(seed[i+3]%14)
+			rise := high + 12 + float64(seed[i+21]%16)
+			c.Fill([][]Pt{{{x, base}, {x + 7, base - rise*0.7}, {x + 12, base - rise*0.5}, {x + 17, base - rise}, {x + 26, base}}}, Alpha(rust, 0xe8))
+			c.Fill([][]Pt{{{x + 7, base}, {x + 14, base - rise*0.6}, {x + 20, base}}}, Alpha(hazard, 0xe8))
+		}
+	}
+	if in.Trouble != "" && in.Trouble != TroubleRaid && in.Trouble != TroubleFire {
+		c.Line([]Pt{{townLeft + 4, base}, {townLeft + 4, base - high - 30}}, 2, ink)
+		c.Fill([][]Pt{{{townLeft + 5, base - high - 30}, {townLeft + 29, base - high - 23}, {townLeft + 5, base - high - 16}}}, hazard)
+	}
+	if in.Wall <= 0 {
+		return
+	}
+	tall := wallBase + wallRise*float64(in.Wall)
+	broken := in.WallDown || in.Ruined
+	k = 0
+	for x := townLeft - 6; x+10 <= townRight+6; x += stakeStep {
+		k++
+		if broken && seed[k%len(seed)]%brokenEvery == 0 {
+			c.Fill([][]Pt{{{x, gy + 6}, {x + 14, gy + 2}, {x + 16, gy + 6}}}, timber)
+			continue
+		}
+		top := gy + 6 - tall
+		lean := 0.0
+		if broken {
+			top += float64(seed[(k+9)%len(seed)] % 14)
+			lean = float64(int(seed[(k+17)%len(seed)]%9) - 4)
+		}
+		c.Fill([][]Pt{{{x + lean, top}, {x + 5 + lean, top - 8}, {x + 10 + lean, top}, {x + 10, gy + 6}, {x, gy + 6}}}, timber)
+	}
+	if !broken {
+		c.Line([]Pt{{townLeft - 6, gy - tall/2}, {townRight + 4, gy - tall/2}}, 3, Alpha(ink, 0xc0))
+	}
 }
 
 func sky(hour int64) color.RGBA {
@@ -414,8 +516,8 @@ func reverse(p []Pt) []Pt {
 }
 
 // Key is the media key of a picture's input: its kind and the digest of
-// its JSON, so the same state gives the same key.
+// the drawing version and its JSON, so the same state gives the same key.
 func Key(kind string, body []byte) string {
-	h := sha256.Sum256(append([]byte(kind+":"), body...))
+	h := sha256.Sum256(append([]byte(Version+":"+kind+":"), body...))
 	return kind + "-" + hex.EncodeToString(h[:12])
 }

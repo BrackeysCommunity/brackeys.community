@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"jams.team/mmo-world/api"
+	"jams.team/mmo-world/render"
 	"jams.team/mmo-world/service"
 	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/arc"
@@ -86,8 +87,8 @@ func TestNarrationWire(t *testing.T) {
 	ch := read[api.Chronicle](t, r, true, api.PathChronicle+"?server=srv-1&day=0", 200)
 	noCharacterNamed(t, "the chronicle", ch.Names)
 	namesAre(t, "the chronicle", ch.Names, want)
-	if ch.Cover != nil {
-		t.Fatalf("a chronicle with a cover before any art: %+v", ch.Cover)
+	if ch.Cover == nil || ch.Cover.Key == "" || !slices.Contains(render.Slots, ch.Cover.Slot) {
+		t.Fatalf("a chronicle with no cover from the kit: %+v", ch.Cover)
 	}
 
 	fc := read[api.FactCauses](t, r, true, fmt.Sprintf("%s?id=%d&characterId=%s", api.PathChronicleFact, city, a.ID), 200)
@@ -104,8 +105,8 @@ func TestNarrationWire(t *testing.T) {
 	events := read[api.StoryEvents](t, r, true, fmt.Sprintf("%s?after=%d", api.PathStoryEvents, storyIDs), 200)
 	for _, e := range events.Events {
 		noCharacterNamed(t, e.Fact.Kind, e.Names)
-		if e.Art != nil {
-			t.Fatalf("an event with art before any art: %+v", e.Art)
+		if e.Art == nil || e.Art.Key == "" || !slices.Contains(render.Slots, e.Art.Slot) {
+			t.Fatalf("%s has no art from the kit: %+v", e.Fact.Kind, e.Art)
 		}
 	}
 

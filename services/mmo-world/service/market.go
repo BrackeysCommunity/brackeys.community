@@ -209,7 +209,7 @@ func apiReport(r game.Report, every int64) api.Report {
 // supplySeries is coin per active character over the weekly reports,
 // against the band, under the lock.
 func (s *Server) supplySeries() render.Series {
-	series := render.Series{Title: "coin per active character", Unit: "coin", Band: [2]int64{s.g.Rules().Faucet.Low, s.g.Rules().Faucet.High}}
+	series := render.Series{Title: "against the band", Unit: "coin per active character", XLabel: dayAxis, Band: [2]int64{s.g.Rules().Faucet.Low, s.g.Rules().Faucet.High}}
 	if m := s.g.Market; m != nil {
 		for _, r := range m.Reports {
 			series.Days = append(series.Days, r.Day)
@@ -219,8 +219,12 @@ func (s *Server) supplySeries() render.Series {
 	return series
 }
 
+// dayAxis is every chart's day axis label.
+const dayAxis = "days"
+
 // history is one material's price over the last days at the settlement a
-// character stands in, as a chart with causes marked.
+// character stands in, as a chart with each day that has a cause marked
+// and lettered A, B, C in day order, as the card letters the same days.
 func (s *Server) history(w http.ResponseWriter, r *http.Request) {
 	material := r.URL.Query().Get("material")
 	var out api.History
@@ -234,12 +238,11 @@ func (s *Server) history(w http.ResponseWriter, r *http.Request) {
 		}
 		name := g.MaterialName(material)
 		out = api.History{Material: material, Name: name, Days: []api.PricePt{}}
-		series = render.Series{Title: name + ", coin each", Unit: "coin"}
+		series = render.Series{Title: name + " at close", Unit: "coin per " + name, XLabel: dayAxis}
 		for _, d := range b.Days[max(0, len(b.Days)-historyShown):] {
 			pt := api.PricePt{Day: d.Day, Close: d.Close, Units: d.Units}
-			if d.Cause != 0 {
-				pt.Cause = causeText(g, fact.ID(d.Cause))
-				series.Marks = append(series.Marks, d.Day)
+			if pt.Cause = causeText(g, fact.ID(d.Cause)); pt.Cause != "" {
+				series.Mark(d.Day, d.Cause)
 			}
 			out.Days = append(out.Days, pt)
 			series.Days = append(series.Days, d.Day)

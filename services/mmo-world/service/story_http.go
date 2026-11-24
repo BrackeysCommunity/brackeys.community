@@ -2,14 +2,17 @@ package service
 
 import (
 	"cmp"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"jams.team/mmo-world/api"
+	"jams.team/mmo-world/render"
 	"jams.team/mmo-world/sim/arc"
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/fact"
@@ -467,8 +470,68 @@ func (s *Server) chronicle(w http.ResponseWriter, r *http.Request) {
 		lines[i] = l.Fact
 	}
 	out.Names = factNames(s.g, "", lines...)
+	out.Cover = coverOf(facts)
 	reply(w, http.StatusOK, out)
 }
+
+// coverOf is a chronicle's cover: the art of its heaviest line, the first
+// on a tie, or the day's when it has none.
+func coverOf(lines []fact.Fact) *api.Art {
+	if len(lines) == 0 {
+		return artOf(render.SlotDay)
+	}
+	top := lines[0]
+	for _, f := range lines[1:] {
+		if f.Weight > top.Weight {
+			top = f
+		}
+	}
+	return artOf(factSlot(top))
+}
+
+// factSlot is the art slot of a fact, from its kind and the template,
+// trouble or occasion it names; a stage's or an arc's end asks by whether
+// it lapsed.
+func factSlot(f fact.Fact) string {
+	tpl := ""
+	for _, k := range []string{"template", "occasion"} {
+		if d, ok := f.Get(k); ok && d.S != "" {
+			tpl = d.S
+			break
+		}
+	}
+	if f.Kind == "arc.stage-ended" || f.Kind == "arc.ended" {
+		if d, ok := f.Get("lapsed"); ok && d.N != 0 {
+			tpl = render.Lapsed
+		}
+	}
+	return render.SlotFor(f.Kind, tpl)
+}
+
+// artOf is a slot's art as the wire carries it; nil without the kit.
+func artOf(slot string) *api.Art {
+	keys, _ := artTable()
+	if keys == nil {
+		return nil
+	}
+	return &api.Art{Key: keys[slot], Slot: slot}
+}
+
+// artTable is every slot's media key and every key's slot for the default
+// kit; nil when the kit does not load.
+var artTable = sync.OnceValues(func() (keys, slots map[string]string) {
+	kit, err := render.DefaultKit()
+	if err != nil {
+		return nil, nil
+	}
+	keys, slots = map[string]string{}, map[string]string{}
+	for _, slot := range render.Slots {
+		body, _ := json.Marshal(render.ArtInput{Slot: slot, Kit: kit.Digest}) // two strings always marshal
+		k := render.Key(artKind, body)
+		keys[slot], slots[k] = k, slot
+	}
+	return keys, slots
+})
 
 // chronicleFact is a fact with its causes one level deep; a cause opens
 // the same way. A pin's fact and another character's thread are not found.
@@ -557,7 +620,7 @@ func storyEvent(g *game.Game, f fact.Fact) (api.StoryEvent, bool) {
 	if !ok {
 		return api.StoryEvent{}, false
 	}
-	ev := api.StoryEvent{Fact: v, Promotion: promotionOf(g, f), Names: factNames(g, "", v)}
+	ev := api.StoryEvent{Fact: v, Promotion: promotionOf(g, f), Names: factNames(g, "", v), Art: artOf(factSlot(f))}
 	if d, ok := f.Get("arc"); ok {
 		if a := g.ArcByID(d.S); a != nil && a.Scope == arc.Settlement {
 			ev.Trouble = troubleView(g, a)
