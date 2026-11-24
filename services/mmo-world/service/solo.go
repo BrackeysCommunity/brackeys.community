@@ -455,7 +455,9 @@ func apiPerson(g *game.Game, p game.Person) api.Person {
 // conversing is the NPC a character talks to, with its leaning and how it
 // holds the character.
 func conversing(g *game.Game, c *game.Char, s npc.Stub) game.Person {
-	return game.Person{Stub: s, Saved: true, Leaning: g.LeaningOf(s), Mood: g.Mood(c, s.ID), Fence: isFence(g, s.ID)}
+	p := g.PersonOf(c, s, g.NPCs.Get(s.ID), c.C.At)
+	p.Saved = true
+	return p
 }
 
 func (s *Server) bannerInput(h hex.Hex) render.BannerInput {

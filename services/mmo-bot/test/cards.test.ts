@@ -2458,10 +2458,10 @@ const texts = (c: Card) =>
     "\n",
   );
 
-test("the alignment line names the band with the value, never the number alone", () => {
+test("the alignment line names the band with the value, the value alone when no band is sent", () => {
   expect(alignmentLine(-15, "crooked", lex)).toBe("Crooked, −15 alignment");
-  expect(alignmentLine(0, "", lex)).toBe("Unremarked, 0 alignment");
-  expect(alignmentLine(-60, "", lex)).toBe("Notorious, −60 alignment");
+  expect(alignmentLine(0, "unremarked", lex)).toBe("Unremarked, 0 alignment");
+  expect(alignmentLine(-60, "", lex)).toBe("−60 alignment");
   const card = characterCard(o, here, mm11a.crooked, lex);
   expect(card.fields?.find((f) => f.name === "Alignment")?.value).toStartWith(
     "Crooked, −15 alignment",

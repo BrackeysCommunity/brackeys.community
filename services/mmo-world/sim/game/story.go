@@ -35,6 +35,8 @@ type Story struct {
 	// threads is the open personal threads by character and offering
 	// faction, never saved.
 	threads *threadIndex
+	// active is this tick's active count for the offer cap, never saved.
+	active activeCount
 	// queued counts the candidates pend took since the story loaded, for
 	// the harness; never saved.
 	queued Queued
@@ -203,4 +205,9 @@ type Caller struct {
 	NPC  string  `json:"npc"`
 	At   hex.Hex `json:"at"`
 	Tick int64   `json:"tick"`
+}
+
+type activeCount struct {
+	tick, n int64
+	ok      bool
 }

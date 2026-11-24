@@ -2,7 +2,6 @@ package game
 
 import (
 	"slices"
-	"strconv"
 	"strings"
 
 	"jams.team/mmo-world/sim/arc"
@@ -73,8 +72,8 @@ func (v *storyView) Captain(id, captain string) (settlement, den int, ok bool) {
 // captainOver is the syndicate captain a den answers to, as
 // SyndicateNotables homes them.
 func (g *Game) captainOver(d Den) string {
-	per := max(1, sheets.IntParam(g.r.Book.SyndicateParams, "dens-per-captain"))
-	return synCaptainID + strconv.FormatInt(int64(d.Index)/per, decimal)
+	per := max(1, g.syp("dens-per-captain"))
+	return captainID(int64(d.Index) / per)
 }
 
 // informable reports whether a watch captain would take a character's word
@@ -109,13 +108,21 @@ func (g *Game) pendInformer(c *Char, n *npc.NPC, t int64) error {
 		return nil
 	}
 	who := char.Ref(c.C.ID)
-	if g.resting(arc.ScopeInformer, who, t) || g.threadOpen(c, informerTemplate) ||
-		slices.ContainsFunc(s.Pending, func(p arc.Pending) bool { return p.Kind == arc.PendInformer && p.Char == c.C.ID }) {
+	if g.threadBusyFor(c, arc.PendInformer, arc.ScopeInformer, informerTemplate, t) {
 		return nil
 	}
 	g.pend(arc.Pending{Kind: arc.PendInformer, Char: c.C.ID, Ref: npc.Ref(n.Stub.ID), Tick: t, Fact: g.metFact(c, n, t)})
 	s.rest(ScopeRest{Scope: arc.ScopeInformer, Ref: who, Until: t + g.r.Story.InformerRestDays*sheets.TicksPerDay})
 	return nil
+}
+
+// threadBusyFor reports whether a character has a personal thread of a
+// kind pending, resting at its scope or open.
+func (g *Game) threadBusyFor(c *Char, kind, scope, template string, t int64) bool {
+	if slices.ContainsFunc(g.Story.Pending, func(p arc.Pending) bool { return p.Kind == kind && p.Char == c.C.ID }) {
+		return true
+	}
+	return g.resting(scope, char.Ref(c.C.ID), t) || g.threadOpen(c, template)
 }
 
 // threadOpen reports whether a character follows an open thread of a
@@ -220,7 +227,7 @@ func (x effect) moveDen(cause string) error {
 // trustedFence is the fence a made character trusted at the syndicate's
 // trusted standing met last, through whom the syndicate offers a thread.
 func (g *Game) trustedFence(c *Char) (string, bool) {
-	if !char.IsMade(c.C) || c.C.Standing.Get(syndicateKey) < sheets.IntParam(g.r.Book.SyndicateParams, "trusted") {
+	if !char.IsMade(c.C) || c.C.Standing.Get(syndicateKey) < g.syp("trusted") {
 		return "", false
 	}
 	for i := len(c.C.Company) - 1; i >= 0; i-- {

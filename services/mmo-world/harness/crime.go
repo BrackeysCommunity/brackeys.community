@@ -7,7 +7,6 @@ import (
 	"os"
 	"runtime"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -56,24 +55,12 @@ const (
 	preyShareSlipped = 50
 )
 
-// CrimeRun is the Economy run with thieves (GDD 6.5, 18.3): the same
-// players under the same key and dice, with one main player in ten a
-// thief. It reads that no theft adds coin or goods (every haul leaves an
-// NPC's purse, a faction's store, a caravan or an NPC's listing; fences
-// pay inside the trader's slice of the day's faction budget; the audit is
-// clean), that coin per active character holds the band, how long a
-// thief's first theft takes to bring the syndicate's invitation, and, at
-// 1,000 players, the first city and the road wars against the same world
-// without thieves.
+// CrimeRun is the Economy run with one main player in ten a thief (GDD 6.5,
+// 18.3): no theft mints, coin per active character holds the band, a
+// first theft brings the invitation in time, and at 1,000 players the
+// first city and road wars are read against a world without thieves.
 func CrimeRun(b *sheets.Book, out string, n int) ([]Measured, error) {
-	sizes := economySizes
-	if n > 0 {
-		sizes = []int{n}
-	}
-	days := int64(economyDays)
-	if v, err := strconv.Atoi(os.Getenv("ECONOMY_DAYS")); err == nil && v > economyWarmup {
-		days = int64(v)
-	}
+	sizes, days := economyPlan(n)
 	var runs []crimeSoak
 	for _, size := range sizes {
 		r, err := soakCrime(b, size, days, true)
@@ -549,15 +536,10 @@ func crimeReport(p func(string, ...any), b *sheets.Book, runs []crimeSoak, days 
 	p("| Players | Thieves | Coin per active character, days %d–%d | Rule | Holds | Thefts | Theft-never-mints | Conservation | Time |", economyWarmup, days)
 	p("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
 	for _, r := range runs {
-		mn, mx, ok := bandOver(r.days, lo, hi)
-		rule := fmt.Sprintf("band %d–%d", lo, hi)
-		if r.size < bandFrom {
-			d := driftOver(r.days, lo, hi)
-			ok = d.ok
-			rule = fmt.Sprintf("drift: %d–%d coin over the last two thirds, distance %d → %d coin", d.lo, d.hi, d.middle, d.last)
-		}
-		ok = ok && len(r.audit) == 0
-		if r.size < bandFrom {
+		v := bandVerdict(r.days, r.size, lo, hi)
+		mn, mx, rule := v.mn, v.mx, v.rule
+		ok := v.ok && len(r.audit) == 0
+		if v.drifts {
 			allDrift = allDrift && ok
 			drifted = append(drifted, comma(int64(r.size)))
 		} else {
@@ -646,12 +628,8 @@ func crimeReport(p func(string, ...any), b *sheets.Book, runs []crimeSoak, days 
 	}
 	var hold []string
 	for _, r := range runs {
-		mn, mx, _ := bandOver(r.days, lo, hi)
-		if r.size < bandFrom {
-			d := driftOver(r.days, lo, hi)
-			mn, mx = d.lo, d.hi
-		}
-		hold = append(hold, fmt.Sprintf("%s players %d–%d coin", comma(int64(r.size)), mn, mx))
+		v := bandVerdict(r.days, r.size, lo, hi)
+		hold = append(hold, fmt.Sprintf("%s players %d–%d coin", comma(int64(r.size)), v.readLo, v.readHi))
 	}
 	readings = append(readings, Measured{Target: "thieves-hold-band", Value: strings.Join(hold, "; "), Holds: allBand && allDrift})
 
@@ -760,17 +738,8 @@ const auditShown = 10
 
 func firstOf(xs []string, n int) []string { return xs[:min(len(xs), n)] }
 
-// auditWord is the conservation check in a word, or the count of what it
-// found.
-func auditWord(audit []string) string {
-	return either(len(audit) == 0, "clean", fmt.Sprintf("**%d discrepancies**", len(audit)))
-}
-
-// witnessOf is the witness formula (GDD 6.5) read straight from the
-// sheets: a theft kind's base in a settlement or away, plus witness-upright
-// for each upright NPC about, less witness-sleight a Sleight level, the
-// tile's cover over witness-cover and witness-quiet for a quiet kit, held
-// between witness-least and witness-most; a kind always seen is seen.
+// witnessOf is the witness formula (GDD 6.5) worked from the sheets alone,
+// so the run can check the game's odds and rolls against it.
 func witnessOf(b *sheets.Book, k sheets.TheftKind, settlement bool, uprights, sleight, cover int64, quiet bool) int64 {
 	if k.Always {
 		return k.Witness
@@ -797,10 +766,8 @@ func seenRoll(d *draw.Drawer, witness int64, who, encounter string) bool {
 	return d.Percent(witness, "theft.witness", draw.Str(who), draw.Str(encounter))
 }
 
-// theftWorld is a world whose characters stand at its first starting
-// settlement with something to lift there: every NPC about has coin
-// booked to its purse, an operator's correction made as a fixture, so a
-// lift is open to each of them at once.
+// theftWorld is characters standing at the first starting settlement; fund
+// books coin to every NPC about, so each can be lifted from at once.
 type theftWorld struct {
 	g    *game.Game
 	k    keys.Set

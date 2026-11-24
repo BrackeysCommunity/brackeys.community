@@ -79,6 +79,16 @@ type Person struct {
 	Fence   bool   `json:"fence,omitempty"`
 }
 
+// PersonOf is an NPC as a character at h sees it now.
+func (g *Game) PersonOf(c *Char, s npc.Stub, n *npc.NPC, h hex.Hex) Person {
+	fence, _ := g.syndicateRole(s.Role)
+	p := Person{Stub: s, Saved: n != nil, Leaning: g.LeaningOf(s), Mood: g.moodFor(c, s, n, g.Tick()), Fence: fence}
+	if n != nil {
+		p.Visit, p.Called = slices.Contains(n.Visits, c.C.ID), c.calling(s.ID, h)
+	}
+	return p
+}
+
 // PeopleHere are the NPCs on a tile at this hour: a settlement's
 // residents at home or on their routes, saved NPCs whose routes pass now,
 // those calling on the character, and the day's wanderer. A den's fence
@@ -94,14 +104,7 @@ func (g *Game) PeopleHere(c *Char, h hex.Hex) []Person {
 		fence, notable := g.syndicateRole(s.Role)
 		return (fence && !fenceSeen) || (notable && !made)
 	}
-	person := func(s npc.Stub, n *npc.NPC) Person {
-		fence, _ := g.syndicateRole(s.Role)
-		p := Person{Stub: s, Saved: n != nil, Leaning: g.LeaningOf(s), Mood: g.moodOf(g.disposition(c, s, n, t)), Fence: fence}
-		if n != nil {
-			p.Visit, p.Called = slices.Contains(n.Visits, c.C.ID), c.calling(s.ID, h)
-		}
-		return p
-	}
+	person := func(s npc.Stub, n *npc.NPC) Person { return g.PersonOf(c, s, n, h) }
 	add := func(n *npc.NPC) {
 		if !seen(n.Stub.ID) && !hidden(n.Stub) {
 			out = append(out, person(n.Stub, n))
@@ -193,6 +196,15 @@ func (g *Game) npcDraw(h hex.Hex) npc.Draw {
 // Visitors are the saved NPCs that want a word with a character.
 func (g *Game) Visitors(c *Char) []*npc.NPC { return g.NPCs.Visiting(c.C.ID) }
 
+// saveNPC saves an NPC met for the first time and lays its route.
+func (g *Game) saveNPC(s npc.Stub, t int64) *npc.NPC {
+	n := g.NPCs.Save(s, t)
+	old := n.Route
+	g.r.NPC.LayRoute(n, t, g.routeCost)
+	g.NPCs.Routed(n, old)
+	return n
+}
+
 // talk opens a conversation: the NPC is saved on its first, the meeting
 // is recorded, and a first meeting may set off recognised (GDD 8.6).
 func (g *Game) talk(c *Char, cmd Command) error {
@@ -208,10 +220,7 @@ func (g *Game) talk(c *Char, cmd Command) error {
 	t := g.Tick()
 	n := g.NPCs.Get(p.ID)
 	if n == nil {
-		n = g.NPCs.Save(p.Stub, t)
-		old := n.Route
-		g.r.NPC.LayRoute(n, t, g.routeCost)
-		g.NPCs.Routed(n, old)
+		n = g.saveNPC(p.Stub, t)
 	} else {
 		if _, err := g.wake(n, t); err != nil {
 			return err
@@ -246,7 +255,7 @@ func (g *Game) talk(c *Char, cmd Command) error {
 // hostileDebt has a hostile notable queue the debt with the character it
 // met (GDD 4.18, 12.9).
 func (g *Game) hostileDebt(c *Char, n *npc.NPC, cause fact.ID, t int64) {
-	if g.Story == nil || !g.isNotable(c, n.Stub.ID) || g.moodOf(g.disposition(c, n.Stub, n, t)) != MoodHostile {
+	if g.Story == nil || !g.isNotable(c, n.Stub.ID) || g.moodFor(c, n.Stub, n, t) != MoodHostile {
 		return
 	}
 	g.pendOnce(arc.Pending{Kind: arc.PendDebt, Char: c.C.ID, Ref: npc.Ref(n.Stub.ID), Tick: t, Fact: cause})
@@ -306,8 +315,7 @@ func (g *Game) StandingName(key string) string {
 }
 
 func (g *Game) standing(c *Char, n *npc.NPC, by int64) {
-	gp := g.r.Growth.Params()
-	c.C.AdjustStanding(g.standingKey(n), by, sheets.IntParam(gp, "standing-min"), sheets.IntParam(gp, "standing-max"))
+	g.adjustStanding(c, g.standingKey(n), by)
 }
 
 func (g *Game) npcFact(c *Char, n *npc.NPC, kind string, t int64, data ...fact.Datum) (fact.Fact, error) {
@@ -372,7 +380,7 @@ func (g *Game) Converse(c *Char, id string) (Conversation, error) {
 // one raises it first (GDD 4.18).
 func (g *Game) Candidates(c *Char, n *npc.NPC) []TopicView {
 	t := g.Tick()
-	mood := g.moodOf(g.disposition(c, n.Stub, n, t))
+	mood := g.moodFor(c, n.Stub, n, t)
 	var cands []TopicView
 	var turned []string
 	for _, row := range g.r.NPC.Topics() {
@@ -413,7 +421,7 @@ func (g *Game) tieBreak(n *npc.NPC, c *Char, day int64, topic string) uint64 {
 // topic tests one topic's predicate against what the NPC remembers and
 // knows now, and voices it from fields.
 func (g *Game) topic(c *Char, n *npc.NPC, row sheets.Topic, t int64) (TopicView, bool) {
-	return g.topicIn(c, n, row, t, g.moodOf(g.disposition(c, n.Stub, n, t)))
+	return g.topicIn(c, n, row, t, g.moodFor(c, n.Stub, n, t))
 }
 
 // topicIn is topic with the NPC's mood toward the character worked out.
@@ -574,9 +582,9 @@ const (
 	whenKnowsGoods      = "knows-these-goods"
 	whenGoodName        = "a-good-name"
 	whenInvitation      = inviteTemplate
-	whenInformer        = "the-informer"
-	topicWatchRole      = "settlement-watch"
-	topicCastNPC        = "npc"
+	whenInformer        = informerTemplate
+	topicWatchRole      = roleWatchCaptain
+	topicCastNPC        = roleThreadNPC
 	topicCastDen        = "den"
 )
 
@@ -677,7 +685,7 @@ func (g *Game) choose(c *Char, cmd Command) error {
 		return err
 	}
 	topicID, choiceID, _ := strings.Cut(cmd.Option, "/")
-	if n := g.NPCs.Get(cmd.NPC); g.moodOf(g.disposition(c, n.Stub, n, g.Tick())) == MoodHostile && g.topicWhen(topicID) != whenTurnedAway {
+	if n := g.NPCs.Get(cmd.NPC); g.moodFor(c, n.Stub, n, g.Tick()) == MoodHostile && g.topicWhen(topicID) != whenTurnedAway {
 		return refuse(HostileCode, "%s will not hear %s past the cold shoulder", cmd.NPC, c.C.ID)
 	}
 	ti := slices.IndexFunc(conv.Topics, func(v TopicView) bool { return v.ID == topicID })

@@ -606,9 +606,18 @@ func (g *Game) credit(c *Char, sponsor, opponent int, at hex.Hex, worth int64) {
 
 // adjustStanding moves a character's standing under key, clamped to the
 // growth sheet's bounds.
-func (g *Game) adjustStanding(c *Char, key string, by int64) {
+func (g *Game) adjustStanding(c *Char, key string, by int64) int64 {
+	d := g.standingDelta(c, key, by)
+	c.C.Standing.Bump(key, d)
+	return d
+}
+
+// standingDelta is how far a standing would move by by, held between
+// standing-min and standing-max.
+func (g *Game) standingDelta(c *Char, key string, by int64) int64 {
 	gp := g.r.Growth.Params()
-	c.C.AdjustStanding(key, by, sheets.IntParam(gp, "standing-min"), sheets.IntParam(gp, "standing-max"))
+	now := c.C.Standing.Get(key)
+	return min(sheets.IntParam(gp, "standing-max"), max(sheets.IntParam(gp, "standing-min"), now+by)) - now
 }
 
 // accrue adds worth under a key and gives the whole points it now owes.

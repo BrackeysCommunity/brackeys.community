@@ -93,14 +93,7 @@ type economyResult struct {
 // classes did, and a founding world of the smallest guild
 // (ECONOMY_ONLY=founding runs that alone).
 func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
-	sizes := economySizes
-	if n > 0 {
-		sizes = []int{n}
-	}
-	days := int64(economyDays)
-	if v, err := strconv.Atoi(os.Getenv("ECONOMY_DAYS")); err == nil && v > economyWarmup {
-		days = int64(v)
-	}
+	sizes, days := economyPlan(n)
 	if os.Getenv("ECONOMY_ONLY") == "founding" {
 		sizes = nil
 	}
@@ -133,12 +126,9 @@ func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	p("| Players | Coin per active character, days %d–%d | Rule | Holds | Faucet rate at the end | Units traded at the unplayed settlement | Conservation | Time |", economyWarmup, days)
 	p("| --- | --- | --- | --- | --- | --- | --- | --- |")
 	for _, r := range results {
-		mn, mx, ok := bandOver(r.days, lo, hi)
-		rule := fmt.Sprintf("band %d–%d", lo, hi)
-		if r.size < bandFrom {
-			d := driftOver(r.days, lo, hi)
-			ok = d.ok
-			rule = fmt.Sprintf("drift: %d–%d coin over the last two thirds, distance %d → %d coin", d.lo, d.hi, d.middle, d.last)
+		v := bandVerdict(r.days, r.size, lo, hi)
+		mn, mx, ok, rule := v.mn, v.mx, v.ok, v.rule
+		if v.drifts {
 			allDrift = allDrift && ok
 			drifted = append(drifted, comma(int64(r.size)))
 		} else {
@@ -147,7 +137,7 @@ func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 		}
 		clean = clean && len(r.audit) == 0
 		end := r.days[len(r.days)-1]
-		p("| %s | %d to %d coin | %s | %s | %d coin per active character per day | %d | %s | %s |", comma(int64(r.size)), mn, mx, rule, holds(ok), end.rate, r.second, either(len(r.audit) == 0, "clean", fmt.Sprintf("**%d discrepancies**", len(r.audit))), r.elapsed.Round(time.Second))
+		p("| %s | %d to %d coin | %s | %s | %d coin per active character per day | %d | %s | %s |", comma(int64(r.size)), mn, mx, rule, holds(ok), end.rate, r.second, auditWord(r.audit), r.elapsed.Round(time.Second))
 	}
 	p("")
 	for _, r := range results {
@@ -193,6 +183,49 @@ func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 type drift struct {
 	lo, hi, middle, last int64
 	ok                   bool
+}
+
+// economyPlan is the sizes to soak, economySizes or n alone, and the world
+// days to soak them for, economyDays unless ECONOMY_DAYS overrides it.
+func economyPlan(n int) (sizes []int, days int64) {
+	sizes = economySizes
+	if n > 0 {
+		sizes = []int{n}
+	}
+	days = int64(economyDays)
+	if v, err := strconv.Atoi(os.Getenv("ECONOMY_DAYS")); err == nil && v > economyWarmup {
+		days = int64(v)
+	}
+	return sizes, days
+}
+
+// verdict is one soak read against the band, or for drift below bandFrom.
+type verdict struct {
+	mn, mx int64 // least and most coin per active character after the warm-up
+	readLo int64 // the range the rule read: mn and mx, or drift's over the last two thirds
+	readHi int64
+	ok     bool
+	rule   string
+	drifts bool
+}
+
+func bandVerdict(days []economyDay, size int, lo, hi int64) verdict {
+	v := verdict{rule: fmt.Sprintf("band %d–%d", lo, hi)}
+	v.mn, v.mx, v.ok = bandOver(days, lo, hi)
+	v.readLo, v.readHi = v.mn, v.mx
+	if size < bandFrom {
+		d := driftOver(days, lo, hi)
+		v.ok, v.drifts = d.ok, true
+		v.readLo, v.readHi = d.lo, d.hi
+		v.rule = fmt.Sprintf("drift: %d–%d coin over the last two thirds, distance %d → %d coin", d.lo, d.hi, d.middle, d.last)
+	}
+	return v
+}
+
+// auditWord is the conservation check in a word, or the count of what it
+// found.
+func auditWord(audit []string) string {
+	return either(len(audit) == 0, "clean", fmt.Sprintf("**%d discrepancies**", len(audit)))
 }
 
 // driftOver reads days by thirds (see bandFrom).

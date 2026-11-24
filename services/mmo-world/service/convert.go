@@ -172,7 +172,7 @@ func apiOptions(g *game.Game, c *game.Char) api.Options {
 	}
 	out.Fight = apiFight(g, c, ch.Fight)
 	out.Purse = apiPurse(g, c)
-	out.Steals = apiSteals(g, c, ch)
+	out.Steals = apiSteals(g, c)
 	for _, s := range g.SidesFor(c) {
 		out.Sides = append(out.Sides, api.SideOption{Goal: s.Goal, Arc: s.Arc, Side: s.Side, Wants: s.Wants, Tag: s.Tag, Left: s.Left,
 			At: apiHex(s.At), Region: s.Region, Backed: s.Backed})

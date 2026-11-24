@@ -222,8 +222,11 @@ type Alignment struct {
 	Grudges []Grudge `json:"grudges,omitempty"`
 	Made    bool     `json:"made,omitempty"`
 	// Found: a fence has come for it.
-	Found  bool     `json:"found,omitempty"`
-	Hot    []HotLot `json:"hot,omitempty"`
+	Found bool     `json:"found,omitempty"`
+	Hot   []HotLot `json:"hot,omitempty"`
+	// Listed are the lots resting in an open ask's escrow, by order; they
+	// come back hot if the units come back unsold.
+	Listed []HotLot `json:"listed,omitempty"`
 	Wanted []Wanted `json:"wanted,omitempty"`
 	// Stopped is the settlement index + 1 the watch holds it at.
 	Stopped int `json:"stopped,omitempty"`
@@ -258,6 +261,7 @@ type HotLot struct {
 	Material string   `json:"material"`
 	Units    int64    `json:"units"`
 	Mark     item.Hot `json:"mark"`
+	Order    string   `json:"order,omitempty"`
 }
 
 // Wanted is one theft the watch wants it for, and what settles it.

@@ -134,12 +134,6 @@ func (g *Game) barredBy(faction string, near *hex.Hex) func(item.Hot) bool {
 // anyMark bars every hot unit.
 func anyMark(item.Hot) bool { return true }
 
-// hotFor is how many hot units of a material are barred from a buyer under
-// a faction key, or from a market at near.
-func (g *Game) hotFor(c *Char, material string, faction string, near hex.Hex, day int64) int64 {
-	return g.hotBarred(c, material, day, g.barredBy(faction, &near))
-}
-
 // hotBarred is how many hot units of a material a rule bars.
 func (g *Game) hotBarred(c *Char, material string, day int64, barred func(item.Hot) bool) int64 {
 	var n int64
@@ -213,6 +207,52 @@ func (g *Game) passHot(from, to *Char, material string, units, day int64) (after
 			g.markHot(to, []item.Spoil{{Material: l.Material, Qty: l.Units}}, l.Mark)
 		}
 	}
+}
+
+// listedSold drops units sold from an ask's Listed lots, oldest first:
+// sold far from the theft, they lose the mark.
+func listedSold(c *Char, order string, units int64) {
+	a := c.C.Alignment
+	if a == nil || len(a.Listed) == 0 {
+		return
+	}
+	for i := range a.Listed {
+		l := &a.Listed[i]
+		if units <= 0 {
+			break
+		}
+		if l.Order == order {
+			cut := min(units, l.Units)
+			l.Units -= cut
+			units -= cut
+		}
+	}
+	a.Listed = slices.DeleteFunc(a.Listed, func(l char.HotLot) bool { return l.Units <= 0 })
+	if len(a.Listed) == 0 {
+		a.Listed = nil
+	}
+}
+
+// listedBack marks an ask's unsold units hot again as they come back from
+// its escrow. Call it after they are back, so the trim keeps the marks.
+func (g *Game) listedBack(c *Char, order string) {
+	a := c.C.Alignment
+	if a == nil || len(a.Listed) == 0 {
+		return
+	}
+	day := g.Tick() / sheets.TicksPerDay
+	var keep []char.HotLot
+	for _, l := range a.Listed {
+		if l.Order != order {
+			keep = append(keep, l)
+			continue
+		}
+		if l.Mark.HotOn(day) {
+			g.markHot(c, []item.Spoil{{Material: l.Material, Qty: l.Units}}, l.Mark)
+		}
+	}
+	a.Listed = keep
+	g.touchOnce(c)
 }
 
 // heldWas is what a character carrying lots of a material held of it
@@ -326,9 +366,7 @@ func (g *Game) marketBarred(n int, material string) func(item.Hot) bool {
 	}
 }
 
-// Stores: what a faction buys or a caravan brings in, a
-// material at a time, is kept in its store up to store-kept units and
-// the rest is eaten, in the one transaction.
+// Stores.
 
 // storeLegs move units of an asset from an account to a faction: into
 // its store while it keeps fewer than store-kept of it, the rest into the
@@ -392,6 +430,14 @@ type settling struct {
 	fine   int64
 	units  int64 // goods and items returned
 	causes []fact.ID
+	stock  []stocked
+}
+
+// stocked is burgled goods going back to a faction's store, whose Stock
+// the burglary lowered.
+type stocked struct {
+	fi    int
+	units int64
 }
 
 // relisted is a returned item that goes back up on its owner's listing.
@@ -402,7 +448,8 @@ type relisted struct {
 }
 
 // settleWanted works out what clearing entries moves, changing nothing.
-// With fined unset, nothing but the goods and items goes back.
+// With fined unset, nothing but the goods and items goes back. Goods going
+// back to the store they were burgled from are noted to restore its Stock.
 func (g *Game) settleWanted(c *Char, idx []int, fined bool, t int64) settling {
 	day := t / sheets.TicksPerDay
 	acc := ledger.Char(c.C.ID)
@@ -428,7 +475,11 @@ func (g *Game) settleWanted(c *Char, idx []int, fined bool, t int64) settling {
 			taken[k] += back
 			s.units += back
 			s.lots = append(s.lots, char.HotLot{Material: gd.Material, Units: back, Mark: item.Hot{Victim: w.Victim}})
-			s.legs = append(s.legs, ledger.Pair(acc, g.returnAccount(w), ledger.Goods(gd.Material), back)...)
+			to := g.returnAccount(w)
+			s.legs = append(s.legs, ledger.Pair(acc, to, ledger.Goods(gd.Material), back)...)
+			if fi, ok := ledger.StoreOf(w.Source); ok && to == w.Source {
+				s.stock = append(s.stock, stocked{fi, back})
+			}
 		}
 		for _, id := range w.Items {
 			all++
@@ -520,11 +571,10 @@ func victimNPC(victim string) (string, bool) {
 	return r.ID, true
 }
 
-// payOff pays the watch at settlement n: the goods and
-// items still held go back, lifted coin goes back to the purse, and the
-// haul's worth, plus the worth of what is gone, is the fine into the fees
-// sink. Every entry that applies there ends; one short of coin pays
-// nothing.
+// payOff pays the watch at settlement n: goods and items still held and
+// lifted coin go back, and the haul's worth plus the worth of what is gone
+// is the fine into the fees sink. Every entry that applies there ends; one
+// short of coin pays nothing.
 func (g *Game) payOff(c *Char, n int, key string, t int64) error {
 	idx := g.wantedAt(c, n, t)
 	if len(idx) == 0 {
@@ -544,8 +594,8 @@ func (g *Game) payOff(c *Char, n int, key string, t int64) error {
 }
 
 // takeBack is the watch catching a character that fled at settlement n:
-// the goods and items still held go back with no fine and
-// no coin, and every entry that applies there ends.
+// goods and items still held go back with no fine and no coin, and every
+// entry that applies there ends.
 func (g *Game) takeBack(c *Char, n int, key string, cause fact.ID, t int64) error {
 	idx := g.wantedAt(c, n, t)
 	if len(idx) == 0 {
@@ -554,11 +604,12 @@ func (g *Game) takeBack(c *Char, n int, key string, cause fact.ID, t int64) erro
 	return g.cleared(c, idx, g.settleWanted(c, idx, false, t), "caught", key, cause, n, t)
 }
 
-// cleared posts a settling and ends its entries.
+// cleared posts a settling, puts burgled goods back in their faction's
+// Stock, and ends its entries.
 func (g *Game) cleared(c *Char, idx []int, s settling, kind, key string, fid fact.ID, n int, t int64) error {
 	day := t / sheets.TicksPerDay
 	a := c.C.Align()
-	old := slices.Clone(a.Hot)
+	restore := holdMarks(c, s.items)
 	for _, l := range s.lots {
 		g.takeLots(c, l.Material, l.Mark.Victim, l.Units, day)
 	}
@@ -567,8 +618,15 @@ func (g *Game) cleared(c *Char, idx []int, s settling, kind, key string, fid fac
 	}
 	if len(s.legs) > 0 {
 		if err := g.postAll(ledger.Txn{Key: key, Kind: kind, Tick: t, Fact: fid, Legs: ledger.Merge(s.legs)}, s.items...); err != nil {
-			a.Hot = old
+			restore()
 			return err
+		}
+	}
+	if k, ok := g.TheftKind(KindBurgle); ok {
+		for _, st := range s.stock {
+			if st.fi >= 0 && st.fi < len(g.World.Factions) {
+				g.World.Factions[st.fi].Stock += k.GoodsPerUnit * st.units
+			}
 		}
 	}
 	for i, r := range s.relist {
@@ -603,6 +661,27 @@ func (g *Game) relist(c *Char, r relisted, key string) error {
 	return nil
 }
 
+// holdMarks notes a character's lots and items' marks so a failed post
+// can put them back.
+func holdMarks(c *Char, items []*item.Instance) (restore func()) {
+	var hot []char.HotLot
+	if a := c.C.Alignment; a != nil && a.Hot != nil {
+		hot = slices.Clone(a.Hot)
+	}
+	marks := make([]*item.Hot, len(items))
+	for i, in := range items {
+		marks[i] = in.Hot
+	}
+	return func() {
+		if a := c.C.Alignment; a != nil {
+			a.Hot = hot
+		}
+		for i, in := range items {
+			in.Hot = marks[i]
+		}
+	}
+}
+
 // takeLots takes units of a material out of the lots naming a victim,
 // oldest first.
 func (g *Game) takeLots(c *Char, material, victim string, units, day int64) {
@@ -628,9 +707,15 @@ func (g *Game) takeLots(c *Char, material, victim string, units, day int64) {
 	}
 }
 
-// wantedCondition runs the wanted condition to the latest live entry's
-// end, or clears it.
+// wantedCondition drops entries past their end and runs the wanted
+// condition to the latest live entry's end, or clears it.
 func (g *Game) wantedCondition(c *Char) {
+	if a := c.C.Alignment; a != nil && len(a.Wanted) > 0 {
+		a.Wanted = slices.DeleteFunc(a.Wanted, func(w char.Wanted) bool { return w.Ends <= g.Tick() })
+		if len(a.Wanted) == 0 {
+			a.Wanted = nil
+		}
+	}
 	var ends int64
 	for _, w := range char.WantedOf(c.C) {
 		ends = max(ends, w.Ends)
@@ -642,11 +727,10 @@ func (g *Game) wantedCondition(c *Char) {
 	c.C.Clear(char.WantedCondition)
 }
 
-// returnTo gives back to a victim NPC what a character took from it:
-// its hot goods and items to the purse, or an item back on
-// its listing, and the coin lifted from it. The lots clear; the Wanted
-// entries stay until paid or run out, holding only what was not given
-// back.
+// returnTo gives back to a victim NPC what a character took from it: its
+// hot goods, and items relisted at the theft's market or else into the
+// purse, and the coin lifted it still has. The lots clear; Wanted entries
+// stay, holding only what was not given back.
 func (g *Game) returnTo(c *Char, victim, key string, t int64) error {
 	id, ok := victimNPC(victim)
 	if !ok {
@@ -672,45 +756,44 @@ func (g *Game) returnTo(c *Char, victim, key string, t int64) error {
 	n, atMarket := g.MarketAt(c.C.At)
 	atMarket = atMarket && g.Market != nil
 	for _, in := range c.C.Pack {
-		if in.Hot.HotOn(day) && in.Hot.Victim == victim {
-			items = append(items, in)
-			if atMarket {
-				relist = append(relist, relisted{in: in, npc: id, n: n})
-			} else {
-				legs = append(legs, itemLegs(in, acc, purse)...)
-			}
+		if !in.Hot.HotOn(day) || in.Hot.Victim != victim {
+			continue
+		}
+		items = append(items, in)
+		at, ok := hex.ParseRef(in.Hot.At)
+		if theftAt, here := g.SettlementAt(at); atMarket && ok && here && theftAt == n {
+			relist = append(relist, relisted{in: in, npc: id, n: n})
+		} else {
+			legs = append(legs, itemLegs(in, acc, purse)...)
 		}
 	}
-	var coin int64
+	var owed int64
 	for _, w := range char.WantedOf(c.C) {
-		if w.Victim == victim {
-			coin += w.Coin
+		if w.Victim == victim && w.Ends > t {
+			owed += w.Coin
 		}
 	}
-	if coin > 0 {
-		if have := g.balance(c, ledger.Coin); have < coin {
-			return refuse(ShortCode, "%s took %d coin from %s and has %d", c.C.ID, coin, id, have)
-		}
-		legs = append(legs, ledger.Pair(acc, purse, ledger.Coin, coin)...)
+	pay := min(owed, max(g.balance(c, ledger.Coin), 0))
+	if pay > 0 {
+		legs = append(legs, ledger.Pair(acc, purse, ledger.Coin, pay)...)
 	}
-	if len(lots) == 0 && len(items) == 0 && coin == 0 {
+	if len(lots) == 0 && len(items) == 0 && pay == 0 {
+		if owed > 0 {
+			return refuse(ShortCode, "%s took %d coin from %s and has none", c.C.ID, owed, id)
+		}
 		return refuse(BadArgs, "%s holds nothing of %s's", c.C.ID, id)
 	}
 	a := c.C.Align()
-	old := slices.Clone(a.Hot)
+	restore := holdMarks(c, items)
 	for _, l := range lots {
 		g.takeLots(c, l.Material, victim, l.Units, day)
 	}
-	marks := make([]*item.Hot, len(items))
-	for i, in := range items {
-		marks[i], in.Hot = in.Hot, nil
+	for _, in := range items {
+		in.Hot = nil
 	}
 	if len(legs) > 0 {
 		if err := g.postAll(ledger.Txn{Key: key, Kind: "return", Tick: t, Legs: ledger.Merge(legs)}, items...); err != nil {
-			a.Hot = old
-			for i, in := range items {
-				in.Hot = marks[i]
-			}
+			restore()
 			return err
 		}
 	}
@@ -724,7 +807,11 @@ func (g *Game) returnTo(c *Char, victim, key string, t int64) error {
 		if w.Victim != victim {
 			continue
 		}
-		w.Coin = 0
+		if w.Ends > t {
+			cut := min(pay, w.Coin)
+			w.Coin -= cut
+			pay -= cut
+		}
 		w.Items = slices.DeleteFunc(slices.Clone(w.Items), func(x string) bool {
 			return slices.ContainsFunc(items, func(in *item.Instance) bool { return in.ID == x })
 		})

@@ -5,7 +5,6 @@ import (
 
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/draw"
-	"jams.team/mmo-world/sim/econ"
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/npc"
 	"jams.team/mmo-world/sim/sheets"
@@ -31,10 +30,8 @@ func (g *Game) leaningRow(s npc.Stub) string {
 	if row := g.r.NPC.Role(s.Role); row != nil && row.Leaning != "" {
 		return row.Leaning
 	}
-	if r := g.World.RegionAt(s.Home); r >= 0 {
-		if fi := g.World.Regions[r].Holder; fi >= 0 && fi < len(g.World.Factions) {
-			return g.World.Factions[fi].Archetype
-		}
+	if fi := g.holderAt(s.Home); fi >= 0 && fi < len(g.World.Factions) {
+		return g.World.Factions[fi].Archetype
 	}
 	return sheets.LeanNone
 }
@@ -80,11 +77,12 @@ func (g *Game) factionKeyOf(s npc.Stub) string {
 	if row := g.r.NPC.Role(s.Role); row != nil && row.Leaning == syndicateKey {
 		return syndicateKey
 	}
-	fi := econ.Keepers
-	if r := g.World.RegionAt(s.Home); r >= 0 && g.World.Regions[r].Holder >= 0 {
-		fi = g.World.Regions[r].Holder
-	}
-	return standingKey(fi, s.Home)
+	return standingKey(g.holderAt(s.Home), s.Home)
+}
+
+// moodFor is how an NPC holds a character at tick t.
+func (g *Game) moodFor(c *Char, s npc.Stub, n *npc.NPC, t int64) string {
+	return g.moodOf(g.disposition(c, s, n, t))
 }
 
 // canKnow reports whether an NPC knows a character's band: Notorious and
@@ -100,7 +98,7 @@ func (g *Game) canKnow(s npc.Stub, n *npc.NPC, c *Char, t int64) bool {
 	if len(known) == 0 {
 		return false
 	}
-	since := t - sheets.IntParam(g.r.Book.AlignParams, "know-days")*sheets.TicksPerDay
+	since := t - g.AlignParams().KnowDays*sheets.TicksPerDay
 	if n != nil {
 		if m := n.Meeting(c.C.ID); m != nil {
 			switch {

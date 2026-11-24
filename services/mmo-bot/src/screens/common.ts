@@ -18,9 +18,17 @@ import type * as api from "../api.ts";
 import type { Picture } from "../card.ts";
 import { type Action, encodeId, type LaunchCard, launchTarget, target } from "../ids.ts";
 import { capitalise, type Lexicon } from "../lexicon.ts";
-import { amount, num, outOf, plural, seconds, signed, ticks } from "../units.ts";
+import { amount, list, num, outOf, plural, seconds, signed, ticks } from "../units.ts";
 
 export { placedLine } from "../../../../packages/mmo-words/src/index.ts";
+
+/** The syndicate's standing key, and the archetype row its name comes from. */
+export const SYNDICATE = "syndicate";
+
+/** The syndicate as the setting names it. */
+export function syndicateName(lex: Lexicon): string {
+  return lex.name("factions.archetypes", SYNDICATE);
+}
 
 /** A unix time as Discord draws it live: "in 2 minutes". */
 export function relative(ms: number): string {
@@ -363,13 +371,13 @@ export function factLine(f: api.Fact, lex: Lexicon): string {
     case "craft.laundered":
       return `Goods worth ${amount(n(f, "worth"), "coin")} were made clean in a back room, for a fee of ${amount(n(f, "fee"), "coin")}.`;
     case "syndicate.made":
-      return `Made: the ${lex.name("factions.archetypes", "syndicate")} took you in as one of its own.`;
+      return `Made: the ${syndicateName(lex)} took you in as one of its own.`;
     case "syndicate.unmade":
-      return `The ${lex.name("factions.archetypes", "syndicate")} cast you out.`;
+      return `The ${syndicateName(lex)} cast you out.`;
     case "syndicate.posted":
-      return `The ${lex.name("factions.archetypes", "syndicate")} posted a job.`;
+      return `The ${syndicateName(lex)} posted a job.`;
     case "character.betrayed":
-      return `A betrayal: standing with ${s(f, "faction") === "syndicate" ? `the ${lex.name("factions.archetypes", "syndicate")}` : "a faction"} fell to ${amount(n(f, "standing"), "standing")}.`;
+      return `A betrayal: standing with ${s(f, "faction") === SYNDICATE ? `the ${syndicateName(lex)}` : "a faction"} fell to ${amount(n(f, "standing"), "standing")}.`;
     case "den.moved":
       return "A den moved on to another settlement.";
     default:
@@ -379,20 +387,27 @@ export function factLine(f: api.Fact, lex: Lexicon): string {
   }
 }
 
+/** What a theft took, from its fact. */
+export function takenLine(f: api.Fact, lex: Lexicon): string {
+  const coin = n(f, "coin");
+  const units = n(f, "units");
+  const material = s(f, "material");
+  const what = [
+    coin ? amount(coin, "coin") : "",
+    units ? amount(units, material ? lex.material(material) : "goods") : "",
+    s(f, "item") ? "an item" : "",
+  ].filter(Boolean);
+  return what.length ? list(what) : "nothing";
+}
+
 /** A theft as one line: its kind, how it went and what it took, naming nobody. */
 function theftFactLine(f: api.Fact, lex: Lexicon): string {
   const kind = lex.name("theft.kinds", s(f, "kind"));
   const outcome = s(f, "outcome");
   if (outcome === "lost") return `${kind}: caught in the act, and nothing taken.`;
   if (outcome === "empty") return `${kind}: nothing left to take.`;
-  const coin = n(f, "coin");
-  const units = n(f, "units");
-  const what = [
-    coin ? amount(coin, "coin") : "",
-    units ? amount(units, s(f, "material") ? lex.material(s(f, "material")) : "goods") : "",
-    s(f, "item") ? "an item" : "",
-  ].filter(Boolean);
-  return `${kind}: ${what.length ? what.join(" and ") : "goods"} taken, worth ${amount(n(f, "worth"), "coin")}, ${n(f, "witnessed") ? "and seen" : "unseen"}.`;
+  const taken = takenLine(f, lex);
+  return `${kind}: ${taken === "nothing" ? "goods" : taken} taken, worth ${amount(n(f, "worth"), "coin")}, ${n(f, "witnessed") ? "and seen" : "unseen"}.`;
 }
 
 /** The names a story line is told with: the setting's rows, and the refs an arc's cast names. */

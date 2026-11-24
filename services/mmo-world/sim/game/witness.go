@@ -65,8 +65,8 @@ func (g *Game) TheftKind(id string) (sheets.TheftKind, bool) {
 
 func (g *Game) theftCell(id string) int64 { return sheets.IntParam(g.r.Book.TheftParams, id) }
 
-// nextTheftID is the encounter id the character's next theft or flight
-// begins with: its count of them, after the one beginning.
+// nextTheftID is the encounter id of the character's next theft or flight:
+// its count of them so far, plus one.
 func nextTheftID(c *Char) string {
 	var n int64
 	if c.C.Alignment != nil {
@@ -78,8 +78,12 @@ func nextTheftID(c *Char) string {
 // StealTargets are what a character can steal on its tile now, sorted by
 // kind, then victim: a lift from each NPC here with something booked to
 // it, a burglary of the store of the faction holding this settlement's
-// region, and a waylay of each caravan crossing the tile.
+// region, and a waylay of each caravan crossing the tile. A character the
+// steal command would refuse outright has none.
 func (g *Game) StealTargets(c *Char) []StealTarget {
+	if g.stealGuard(c) != nil {
+		return nil
+	}
 	h, t := c.C.At, g.Tick()
 	people := g.PeopleHere(c, h)
 	enc := nextTheftID(c)
@@ -181,16 +185,8 @@ func (g *Game) purseItems(purse string) []purseItem {
 // store's units, as many units as the store, the faction's stock and the
 // kind's goods allow.
 func (g *Game) burglePlan(c *Char, k sheets.TheftKind, h hex.Hex, enc string) (int, Haul, bool) {
-	n, ok := g.SettlementAt(h)
-	if !ok || g.Places[n].Ruined != 0 || k.GoodsPerUnit <= 0 {
-		return 0, Haul{}, false
-	}
-	r := g.World.RegionAt(h)
-	if r < 0 {
-		return 0, Haul{}, false
-	}
-	fi := g.World.Regions[r].Holder
-	if fi < 0 || fi >= len(g.World.Factions) || g.World.Factions[fi].Fallen {
+	fi, ok := g.burglable(h)
+	if !ok || k.GoodsPerUnit <= 0 {
 		return 0, Haul{}, false
 	}
 	most := min(k.Goods, g.World.Factions[fi].Stock) / k.GoodsPerUnit
@@ -214,15 +210,39 @@ func (g *Game) burglePlan(c *Char, k sheets.TheftKind, h hex.Hex, enc string) (i
 	return fi, Haul{Goods: []item.Spoil{{Material: mats[i], Qty: u}}, Worth: g.WorthAt(h, ledger.Material(mats[i]), u)}, true
 }
 
+// burglable is the living faction holding the region of an open
+// settlement at h, whose store a burglary there would take from.
+func (g *Game) burglable(h hex.Hex) (int, bool) {
+	n, ok := g.SettlementAt(h)
+	if !ok || g.Places[n].Ruined != 0 {
+		return 0, false
+	}
+	fi := g.holderAt(h)
+	return fi, fi >= 0 && fi < len(g.World.Factions) && !g.World.Factions[fi].Fallen
+}
+
+// caravanBalances are what caravanHolds books to one caravan's pool.
+func (g *Game) caravanBalances(pool string) []ledger.Balance {
+	return slices.DeleteFunc(caravanHolds(g), func(b ledger.Balance) bool { return b.Account != pool })
+}
+
+// caravanHeld is how many units of an asset a caravan's pool holds.
+func (g *Game) caravanHeld(pool, asset string) int64 {
+	var held int64
+	for _, b := range g.caravanBalances(pool) {
+		if b.Asset == asset {
+			held = b.Units
+		}
+	}
+	return held
+}
+
 // waylayPlan is the kind's share of each good a caravan holds, held to its
 // manifest.
 func (g *Game) waylayPlan(id string, k sheets.TheftKind, h hex.Hex) (Haul, bool) {
 	pool := ledger.CaravanPool(id)
 	var plan Haul
-	for _, b := range caravanHolds(g) {
-		if b.Account != pool {
-			continue
-		}
+	for _, b := range g.caravanBalances(pool) {
 		mat, ok := ledger.GoodsOf(b.Asset)
 		if u := fixed.PercentFloor(b.Units, k.Share); ok && u > 0 {
 			plan.Goods = item.AddSpoil(plan.Goods, mat, u)
@@ -238,10 +258,8 @@ func (g *Game) caravanVictim(to int) string {
 	if !g.placeIndex(to) {
 		return ""
 	}
-	if r := g.World.RegionAt(g.SettlementHex(to)); r >= 0 {
-		if fi := g.World.Regions[r].Holder; fi >= 0 {
-			return factionOwner(fi)
-		}
+	if fi := g.holderAt(g.SettlementHex(to)); fi >= 0 {
+		return factionOwner(fi)
 	}
 	return ""
 }
@@ -264,15 +282,11 @@ func (g *Game) preySide(c *Char, h hex.Hex) string {
 	return ""
 }
 
-// witness is the odds a theft of a kind on tile h is seen, and its parts
-// in per cent: the kind's base, each upright NPC here who is neither the
-// victim nor warm to the character, less Sleight, the tile's cover and a
-// quiet kit; held between witness-least and witness-most. A kind always
-// seen is seen whatever the parts.
-func (g *Game) witness(c *Char, kind string, h hex.Hex, victim string) (int64, []fight.Part) {
-	return g.witnessAmong(c, kind, h, victim, g.PeopleHere(c, h))
-}
-
+// witnessAmong is the odds a theft of a kind on tile h is seen, and its
+// parts in per cent: the kind's base, each upright NPC among people who is
+// neither the victim nor warm to the character, less Sleight, the tile's
+// cover and a quiet kit; held between witness-least and witness-most. A
+// kind always seen is seen whatever the parts.
 func (g *Game) witnessAmong(c *Char, kind string, h hex.Hex, victim string, people []Person) (int64, []fight.Part) {
 	k, ok := g.TheftKind(kind)
 	if !ok {

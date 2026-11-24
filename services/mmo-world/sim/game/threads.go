@@ -138,7 +138,17 @@ func (g *Game) resting(scope string, ref fact.Ref, t int64) bool {
 // pending or running.
 func (g *Game) offerCap() int64 {
 	p := g.r.Story
-	return p.OffersFloor + p.OffersPerThousand*(g.Active()/perThousand)
+	return p.OffersFloor + p.OffersPerThousand*(g.activeNow()/perThousand)
+}
+
+// activeNow is Active, counted once a tick: offerRoom asks on every
+// command.
+func (g *Game) activeNow() int64 {
+	a := &g.Story.active
+	if !a.ok || a.tick != g.Tick() {
+		*a = activeCount{tick: g.Tick(), n: g.Active(), ok: true}
+	}
+	return a.n
 }
 
 // offerRoom reports whether a faction is under its cap: its pending

@@ -1,9 +1,9 @@
 #!/bin/sh
 # Proves theft and alignment (GDD 4.5, 5.10, 18.3): alignment's depth
 # rule, a scripted thief from its first burglary to the syndicate's grudge,
-# a world saved before MM11a reopening unremarked with no earlier draw
-# moved (in the sim and through the store), and the Crime run at 10
-# players, which must show theft-never-mints and coin-drift holding with a
+# a world saved before theft and alignment reopening unremarked with no
+# earlier draw moved (in the sim and through the store), and the Crime run
+# at 10 players, which must show theft-never-mints and coin-drift holding with a
 # clean audit.
 #
 #   sh scripts/mm11a-proof.sh <out dir>

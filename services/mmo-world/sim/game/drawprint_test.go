@@ -32,8 +32,8 @@ type preMM11aMeeting struct {
 	After json.RawMessage `json:"after"`
 }
 
-// A world saved before MM11a attaches at its digest with every character
-// unremarked, a saved NPC met keeps everything but a new leaning, and it
+// A world saved before theft and alignment attaches at its digest with
+// every character unremarked, a saved NPC met keeps everything but a new leaning, and it
 // plays a world day with the ledger holding.
 func TestPreMM11aWorldLoads(t *testing.T) {
 	r := testkit.Rules(t, testkit.Book(t), keys.Throwaway("pre-mm11a"))
@@ -239,8 +239,8 @@ func mm11aKind(kind string) bool {
 // factIDData are the data that hold a fact id.
 var factIDData = map[string][]string{"goal.claimed": {"fact"}}
 
-// baseKinds are the facts of kinds a world before MM11a wrote, with no
-// fact ids in their data.
+// baseKinds are the facts of kinds a world before theft and alignment
+// wrote, with no fact ids in their data.
 func baseKinds(lines []factLine) []factLine {
 	var out []factLine
 	for _, l := range lines {
@@ -256,8 +256,8 @@ func baseKinds(lines []factLine) []factLine {
 }
 
 // Every replay fixture's scene, replayed at HEAD, writes the facts the
-// base wrote, apart from MM11a's kinds: no draw an earlier world made
-// has moved.
+// base wrote, apart from theft and alignment's kinds: no draw an earlier
+// world made has moved.
 func TestNoDrawMoved(t *testing.T) {
 	for _, dir := range []string{"replay-mm8", "replay-mm8a", "replay-mm9", "replay-mm10"} {
 		t.Run(dir, func(t *testing.T) {

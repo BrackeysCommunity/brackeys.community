@@ -81,7 +81,7 @@ func TestWitnessParts(t *testing.T) {
 	if w, parts := g.witnessAmong(c, KindWaylay, h, "", crowd); w != fixed.Hundredths || len(parts) != 1 {
 		t.Fatalf("a waylay is seen at %d", w)
 	}
-	if w, _ := g.witness(c, KindLift, h, victim); w < least || w > most {
+	if w, _ := g.witnessAmong(c, KindLift, h, victim, g.PeopleHere(c, h)); w < least || w > most {
 		t.Fatalf("the people here see a lift at %d", w)
 	}
 }

@@ -64,7 +64,7 @@ func (g *Game) Dossier(c *Char, id string) (DossierView, error) {
 	for _, tr := range n.Stub.Traits {
 		out.Traits = append(out.Traits, cmp.Or(g.r.Name("npcs.traits:"+tr), tr))
 	}
-	out.Leaning, out.Mood = g.LeaningOf(n.Stub), g.moodOf(g.disposition(c, n.Stub, n, t))
+	out.Leaning, out.Mood = g.LeaningOf(n.Stub), g.moodFor(c, n.Stub, n, t)
 	// A leaning shows as the trait of its name.
 	if out.Leaning != npc.LeaningNone {
 		out.Traits = append(out.Traits, cmp.Or(g.r.Name("npcs.traits:"+out.Leaning), out.Leaning))

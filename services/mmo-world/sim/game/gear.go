@@ -255,7 +255,7 @@ func (g *Game) traderPaysTo(c *Char, s npc.Stub, in *item.Instance) int64 {
 	pay := g.TraderPays(in)
 	p := g.r.NPC.Param("disposition-price")
 	var shift int64
-	switch g.moodOf(g.disposition(c, s, g.NPCs.Get(s.ID), g.Tick())) {
+	switch g.moodFor(c, s, g.NPCs.Get(s.ID), g.Tick()) {
 	case MoodWarm:
 		shift = p
 		if slices.Contains(c.C.Flags, flagDiscount+s.ID) {
@@ -273,7 +273,7 @@ func (g *Game) traderPaysTo(c *Char, s npc.Stub, in *item.Instance) int64 {
 // tradeMood is how an NPC trading with a character holds it; a hostile one
 // will not trade (GDD 4.18).
 func (g *Game) tradeMood(c *Char, s npc.Stub) (string, error) {
-	mood := g.moodOf(g.disposition(c, s, g.NPCs.Get(s.ID), g.Tick()))
+	mood := g.moodFor(c, s, g.NPCs.Get(s.ID), g.Tick())
 	if mood == MoodHostile {
 		return mood, refuse(HostileCode, "%s will not trade with %s", s.Name, c.C.ID)
 	}
@@ -297,10 +297,7 @@ func (g *Game) traderStub(h hex.Hex) (npc.Stub, bool) {
 func (g *Game) trader(s npc.Stub) *npc.NPC {
 	n := g.NPCs.Get(s.ID)
 	if n == nil {
-		n = g.NPCs.Save(s, g.Tick())
-		old := n.Route
-		g.r.NPC.LayRoute(n, g.Tick(), g.routeCost)
-		g.NPCs.Routed(n, old)
+		n = g.saveNPC(s, g.Tick())
 	}
 	return n
 }
@@ -324,7 +321,7 @@ func (g *Game) sellItem(c *Char, cmd Command) error {
 		return refuse(NotHere, "no trader here")
 	}
 	// The trader buys for its faction and lists what it buys right here.
-	if err := g.hotItemGuard(in, g.standingKey(&npc.NPC{Stub: stub}), c.C.At); err != nil {
+	if err := g.hotItemGuard(in, g.factionKeyOf(stub), c.C.At); err != nil {
 		return err
 	}
 	if _, err := g.tradeMood(c, stub); err != nil {

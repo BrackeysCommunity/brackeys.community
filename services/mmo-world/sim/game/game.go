@@ -436,19 +436,7 @@ func (g *Game) fact(c *Char, kind string, tick int64, data ...fact.Datum) (fact.
 // factWith writes a fact about a character and others it names; a heavy
 // one stays in the character's memory.
 func (g *Game) factWith(c *Char, also []fact.Ref, kind string, tick int64, data ...fact.Datum) (fact.Fact, error) {
-	region := ""
-	if r := g.World.RegionAt(c.C.At); r >= 0 {
-		region = world.RegionRef(r)
-	}
-	f, err := g.r.weights.New(tick, kind, region, append([]fact.Ref{char.Ref(c.C.ID)}, also...), nil, data...)
-	if err != nil {
-		return f, err
-	}
-	f.ID, err = g.Log.Append(f)
-	if err == nil && f.Weight >= sheets.IntParam(g.r.Book.TileParams, "heavy-fact-weight") {
-		c.C.Remember(f.ID, g.r.limits)
-	}
-	return f, err
+	return g.factCaused(c, also, kind, tick, 0, data...)
 }
 
 // post moves goods or coin through the ledger.

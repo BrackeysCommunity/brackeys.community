@@ -122,3 +122,27 @@ func TestStandingRef(t *testing.T) {
 		t.Fatal(standingRef(factionOwner(3)), standingRef(syndicateKey))
 	}
 }
+
+// TestBetrayalUnseen: a private betrayal moves alignment without the
+// public coming to know of it; a public one is known.
+func TestBetrayalUnseen(t *testing.T) {
+	g := guardGame(t)
+	cs := alChars(t, g, "knife", 2)
+	quiet, loud := cs[0], cs[1]
+	for _, c := range cs {
+		c.C.Align().Made = true
+		c.C.Standing.Bump(syndicateKey, 40)
+	}
+	if err := g.betraySeen(quiet, syndicateKey, ActTheft, 1, false, g.Tick()); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.betraySeen(loud, syndicateKey, ActTheft, 1, true, g.Tick()); err != nil {
+		t.Fatal(err)
+	}
+	if AlignmentOf(quiet) >= 0 || len(char.KnownOf(quiet.C)) != 0 {
+		t.Fatalf("unseen betrayal: alignment %d, known %+v", AlignmentOf(quiet), char.KnownOf(quiet.C))
+	}
+	if len(char.KnownOf(loud.C)) != 1 {
+		t.Fatalf("seen betrayal known %+v", char.KnownOf(loud.C))
+	}
+}

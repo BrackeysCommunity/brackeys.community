@@ -1,11 +1,8 @@
 package api
 
 // Action kinds of theft and the watch (GDD 6.5, 4.5). A steal names its
-// theft kind in Option, the NPC lifted from in NPC and the caravan waylaid
-// in Target; ForSide sends a waylay's haul to the prey side the character
-// backs. A fence sale names Material and Units, or Item. Pay-fine and flee
-// take nothing: they answer the watch holding the character. A craft with
-// BackRoom set works a den's back room.
+// kind in Option and its NPC or caravan in NPC or Target; a fence sale
+// names Material and Units, or Item; pay-fine and flee take nothing.
 const (
 	ActSteal   = "steal"
 	ActFence   = "fence"

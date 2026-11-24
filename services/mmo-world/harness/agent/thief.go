@@ -23,13 +23,9 @@ type Crimes interface {
 	Arcs(ctx context.Context, characterID string) (api.Arcs, error)
 }
 
-// Thief is an Earner who also steals (GDD 6.5, 4.5): up to PerDay times a
-// world day when something is there to take, burgling first, then lifting,
-// then waylaying (for the prey side it backs, if it backs one); it fences
-// what it carries hot wherever a fence will see it, pays the watch that
-// stops it or runs, walks to its invitation's den and takes the job, and
-// once made goes for the syndicate's jobs first. Otherwise it plays its
-// Earner, whose draws it leaves alone.
+// Thief is an Earner who also steals (GDD 6.5, 4.5): it answers the watch,
+// its invitation and a fence before up to PerDay thefts a world day, and
+// otherwise plays its Earner, whose draws it leaves alone.
 type Thief struct {
 	*Earner
 	PerDay int
@@ -144,12 +140,10 @@ func (t *Thief) clean(o api.Options) api.Options {
 	return o
 }
 
-// theftPick is the option likeliest to carry the beat, never a machine (a
-// lock is held through, as chat plays it): a win, or short of the last
-// beat a hold, which passes it as well. A long shot or worse on a theft
-// not yet begun is given up by backing out, which costs nothing then. Once caught, a theft goes on as the getaway, where a
-// second failure downs the thief, so it backs out; a flight from the watch
-// is pressed to the end.
+// theftPick is the option likeliest to carry the beat, never a machine: a
+// win, or before the last beat a hold that bands better. A long shot at a
+// theft's first beat is backed out of, free then; once caught it backs out
+// before a second failure downs the thief. A flight is pressed to the end.
 func theftPick(f *api.Fight, bands []string) string {
 	out := bestOf(f, bands, "way-out")
 	if f.Theft.Caught && !f.Theft.Flee && out != "" {

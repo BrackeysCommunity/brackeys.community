@@ -85,9 +85,9 @@ func loadPreMM11a(t *testing.T) *Game {
 	return &g
 }
 
-// Every NPC saved before MM11a draws, at its next meeting, the leaning a
-// fresh stub of it would, and stores it; nothing else of it is touched by
-// the draw.
+// Every NPC saved before theft and alignment draws, at its next meeting,
+// the leaning a fresh stub of it would, and stores it; nothing else of it
+// is touched by the draw.
 func TestSavedNPCDrawsItsStubsLeaning(t *testing.T) {
 	g, fresh := loadPreMM11a(t), loadPreMM11a(t)
 	fresh.NPCs = npc.Book{}

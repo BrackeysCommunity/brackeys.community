@@ -43,14 +43,8 @@ const (
 // steal begins a theft of a kind on the character's tile: a target from
 // StealTargets, its haul and witness odds fixed now.
 func (g *Game) steal(c *Char, cmd Command) error {
-	if err := free(c); err != nil {
+	if err := g.stealGuard(c); err != nil {
 		return err
-	}
-	if c.Delving != nil {
-		return refuse(Busy, "%s is inside a dungeon", c.C.ID)
-	}
-	if _, ok := g.StoppedNow(c); ok {
-		return refuse(StoppedCode, "the watch holds %s", c.C.ID)
 	}
 	k, ok := g.TheftKind(cmd.Option)
 	if !ok || k.Watch {
@@ -81,6 +75,21 @@ func (g *Game) steal(c *Char, cmd Command) error {
 	return nil
 }
 
+// stealGuard is why a character may not steal at all now, or nil: not
+// free, inside a dungeon, or held by the watch.
+func (g *Game) stealGuard(c *Char) error {
+	if err := free(c); err != nil {
+		return err
+	}
+	if c.Delving != nil {
+		return refuse(Busy, "%s is inside a dungeon", c.C.ID)
+	}
+	if _, ok := g.StoppedNow(c); ok {
+		return refuse(StoppedCode, "the watch holds %s", c.C.ID)
+	}
+	return nil
+}
+
 // stealTarget is the target a steal names, or why there is none: nothing
 // to name here, or someone here with nothing booked to it.
 func (g *Game) stealTarget(c *Char, kind string, cmd Command) (StealTarget, error) {
@@ -102,10 +111,7 @@ func (g *Game) stealTarget(c *Char, kind string, cmd Command) (StealTarget, erro
 		cv := g.castCaravan(cmd.Target)
 		here = cv != nil && g.caravanAt(cv, g.Tick()) == h
 	case KindBurgle:
-		if n, ok := g.SettlementAt(h); ok && g.Places[n].Ruined == 0 {
-			fi := g.holderAt(h)
-			here = fi >= 0 && fi < len(g.World.Factions) && !g.World.Factions[fi].Fallen
-		}
+		_, here = g.burglable(h)
 	}
 	if here {
 		return StealTarget{}, refuse(NothingToSteal, "nothing is booked there to take")
@@ -284,13 +290,7 @@ func (g *Game) takeable(c *Char, th *Theft) taking {
 		}
 		for _, s := range th.Goods {
 			asset := ledger.Goods(s.Material)
-			var held int64
-			for _, b := range caravanHolds(g) {
-				if b.Account == th.Source && b.Asset == asset {
-					held = b.Units
-				}
-			}
-			if u := min(s.Qty, held); u > 0 {
+			if u := min(s.Qty, g.caravanHeld(th.Source, asset)); u > 0 {
 				tk.goods = item.AddSpoil(tk.goods, s.Material, u)
 				tk.legs = append(tk.legs, ledger.Pair(th.Source, dest, asset, u)...)
 			}
@@ -361,8 +361,7 @@ func (g *Game) theftResolved(c *Char, th *Theft, outcome string, tk taking, seen
 	var loss, delta int64
 	if seen && th.Faction != "" && outcome != theftEmpty {
 		loss = max(g.theftCell("standing-least"), worth/max(g.theftCell("standing-coin"), 1))
-		gp := g.r.Growth.Params()
-		delta = min(sheets.IntParam(gp, "standing-max"), max(sheets.IntParam(gp, "standing-min"), standingBefore-loss)) - standingBefore
+		delta = g.standingDelta(c, th.Faction, -loss)
 	}
 	material := ""
 	if len(tk.goods) > 0 {
@@ -429,7 +428,7 @@ func (g *Game) theftResolved(c *Char, th *Theft, outcome string, tk taking, seen
 		}
 	}
 	if madeBefore && isFenceID(th.NPC) && betrayed != syndicateKey {
-		if err := g.betray(c, syndicateKey, ActTheft, f.ID, t); err != nil {
+		if err := g.betraySeen(c, syndicateKey, ActTheft, f.ID, seen, t); err != nil {
 			return err
 		}
 	}

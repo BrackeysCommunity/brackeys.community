@@ -2,6 +2,7 @@ package game
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"jams.team/mmo-world/sim/char"
@@ -9,6 +10,7 @@ import (
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
+	"jams.team/mmo-world/sim/market"
 	"jams.team/mmo-world/sim/npc"
 	"jams.team/mmo-world/sim/sheets"
 )
@@ -53,13 +55,14 @@ func TestConsumeHotCleanFirst(t *testing.T) {
 	if got := g.HotUnits(c, m, day); got != 4 {
 		t.Fatalf("4 of 10 are hot, got %d", got)
 	}
-	if got := g.hotFor(c, m, "", c.C.At, day); got != 4 {
+	here, far := c.C.At, pastReach(g, c.C.At)
+	if got := g.hotBarred(c, m, day, g.barredBy("", &here)); got != 4 {
 		t.Fatalf("all 4 are barred at the theft's tile, got %d", got)
 	}
-	if got := g.hotFor(c, m, "", pastReach(g, c.C.At), day); got != 0 {
+	if got := g.hotBarred(c, m, day, g.barredBy("", &far)); got != 0 {
 		t.Fatalf("none are barred past hot-reach, got %d", got)
 	}
-	if got := g.hotFor(c, m, factionOwner(0), pastReach(g, c.C.At), day); got != 4 {
+	if got := g.hotBarred(c, m, day, g.barredBy(factionOwner(0), &far)); got != 4 {
 		t.Fatalf("all 4 are barred from the victim's faction, got %d", got)
 	}
 	if left := g.consumeHot(c, m, 3, day); len(left) != 0 {
@@ -420,4 +423,127 @@ func TestGivePassesHotGoods(t *testing.T) {
 		t.Fatalf("the clean 6 went first and the receiver holds 2 hot: %+v", l)
 	}
 	audit(t, g)
+}
+
+// hotAtMarket gives a character units of a material with a faction bid at
+// its market, all hot under a mark from past hot-reach.
+func hotAtMarket(t *testing.T, g *Game, c *Char, units int64) (string, market.Order) {
+	t.Helper()
+	_, b, o := factionBidHere(t, g, c, 1)
+	grantFor(t, g, c, ledger.Material(b.Material), units)
+	g.markHot(c, []item.Spoil{{Material: b.Material, Qty: units}}, g.hotMark("faction:9", factionOwner(9), pastReach(g, c.C.At), g.Tick()))
+	return b.Material, o
+}
+
+func TestUnsoldAskComesBackHot(t *testing.T) {
+	g := guardGame(t)
+	c := mustCreate(t, g, "a", "knife")
+	m, _ := hotAtMarket(t, g, c, 3)
+	lots := slices.Clone(char.HotLotsOf(c.C))
+	high := int64(1) << 40
+	unchanged := func(what string) {
+		t.Helper()
+		if got := g.HotUnits(c, m, hotDay(g)); got != 3 || !slices.Equal(char.HotLotsOf(c.C), lots) || len(c.C.Alignment.Listed) != 0 {
+			t.Fatalf("%s left %d hot, lots %+v, listed %+v", what, got, char.HotLotsOf(c.C), c.C.Alignment.Listed)
+		}
+	}
+	if _, err := g.Act(Command{Key: "ask", Char: c.C.ID, Kind: Ask, Material: m, Units: 3, Price: high}); err != nil {
+		t.Fatal(err)
+	}
+	listed := c.C.Alignment.Listed
+	if len(listed) != 1 || listed[0].Units != 3 || listed[0].Order == "" {
+		t.Fatalf("the resting ask holds the lots: %+v", listed)
+	}
+	if _, err := g.Act(Command{Key: "withdraw", Char: c.C.ID, Kind: Withdraw, Item: listed[0].Order}); err != nil {
+		t.Fatal(err)
+	}
+	unchanged("an ask withdrawn")
+	if _, err := g.Act(Command{Key: "sell", Char: c.C.ID, Kind: Sell, Material: m, Units: 3, Price: high}); err != nil {
+		t.Fatal(err)
+	}
+	unchanged("a sale that did not fill")
+	audit(t, g)
+}
+
+func TestPartlySoldAskKeepsTheRestHot(t *testing.T) {
+	g := guardGame(t)
+	c := mustCreate(t, g, "a", "knife")
+	_, _, o := factionBidHere(t, g, c, 1)
+	units := o.Qty + 2
+	m, _ := hotAtMarket(t, g, c, units)
+	if _, err := g.Act(Command{Key: "sell", Char: c.C.ID, Kind: Sell, Material: m, Units: units, Price: o.Price}); err != nil {
+		t.Fatal(err)
+	}
+	held := g.hotHeld(c, m)
+	if held == 0 || held == units {
+		t.Fatalf("the sale filled %d of %d, not a part", units-held, units)
+	}
+	if got := g.HotUnits(c, m, hotDay(g)); got != held {
+		t.Fatalf("the %d unsold units come back hot, got %d", held, got)
+	}
+	if len(c.C.Alignment.Listed) != 0 {
+		t.Fatalf("listed lots outlive the order: %+v", c.C.Alignment.Listed)
+	}
+	audit(t, g)
+}
+
+func TestReturnShortOfCoinAndAwayFromTheMarket(t *testing.T) {
+	g := guardGame(t)
+	c := mustCreate(t, g, "a", "knife")
+	_, _, victim, _, in := robbedOf(t, g, c)
+	purse := ledger.NPCPool("r-test-0")
+	in.Hot.At = pastReach(g, c.C.At).Ref()
+	spend := func(left int64) {
+		t.Helper()
+		if c.C.Coin <= left {
+			return
+		}
+		if err := g.postAll(ledger.Move("spend-"+i64(g.Ledger.Posted), "test", g.Tick(), ledger.Char(c.C.ID), ledger.ToFees, ledger.Coin, c.C.Coin-left)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	spend(4)
+	// An entry past its end is not charged.
+	a := c.C.Alignment
+	a.Wanted = append(a.Wanted, char.Wanted{Victim: victim, Place: -1, Coin: 5, Ends: g.Tick()})
+	coin := g.Ledger.Of(purse, ledger.Coin)
+	if err := g.returnTo(c, victim, "ret", g.Tick()); err != nil {
+		t.Fatal(err)
+	}
+	if got := g.Ledger.Of(purse, ledger.Coin) - coin; got != 4 {
+		t.Fatalf("the purse got back %d coin, want the 4 there were", got)
+	}
+	if g.Ledger.Of(purse, ledger.Item(in.ID)) != 1 || c.C.Item(in.ID) != nil {
+		t.Fatal("an item given back away from the theft's market is not in the purse")
+	}
+	if ws := char.WantedOf(c.C); ws[0].Coin != 6 || ws[2].Coin != 5 {
+		t.Fatalf("the live entry holds the 6 not given back, the dead one is untouched: %+v", ws)
+	}
+	spend(0)
+	hotRefused(t, g, ShortCode, "giving back coin with none", func() error { return g.returnTo(c, victim, "ret-2", g.Tick()) })
+	// The next entry prunes the dead one.
+	g.wantedFor(c, &Theft{Victim: "npc:z", Place: -1}, taking{}, 0, g.Tick())
+	for _, w := range char.WantedOf(c.C) {
+		if w.Ends <= g.Tick() {
+			t.Fatalf("an entry past its end stays: %+v", char.WantedOf(c.C))
+		}
+	}
+	audit(t, g)
+}
+
+func TestBurgledGoodsBackRestoreStock(t *testing.T) {
+	g := guardGame(t)
+	c := mustCreate(t, g, "a", "knife")
+	n, fi, _, _, _ := robbedOf(t, g, c)
+	k, ok := g.TheftKind(KindBurgle)
+	if !ok || fi >= len(g.World.Factions) {
+		t.Skip("no burglary kind or faction")
+	}
+	stock := g.World.Factions[fi].Stock
+	if err := g.takeBack(c, n, "caught", 0, g.Tick()); err != nil {
+		t.Fatal(err)
+	}
+	if got := g.World.Factions[fi].Stock - stock; got != k.GoodsPerUnit*5 {
+		t.Fatalf("the store's Stock rose %d, want %d", got, k.GoodsPerUnit*5)
+	}
 }

@@ -212,20 +212,16 @@ func (g *Game) SyndicateNotables() []npc.Stub {
 		}
 		return g.r.NPC.StubFor(id, role, home, npc.Draw{})
 	}
-	per := max(1, sheets.IntParam(g.r.Book.SyndicateParams, "dens-per-captain"))
+	per := max(1, g.syp("dens-per-captain"))
 	out := []npc.Stub{stub(synLeaderID, roleSynLeader, dens[0].At)}
 	captains := max(1, (int64(len(dens))+per-1)/per)
 	for k := range captains {
-		out = append(out, stub(synCaptainID+strconv.FormatInt(k, decimal), roleSynCaptain, dens[k*per].At))
+		out = append(out, stub(captainID(k), roleSynCaptain, dens[k*per].At))
 	}
 	return out
 }
 
-// IsSyndicateNPC reports whether an NPC is a den's fence or a syndicate
-// notable.
-func (g *Game) IsSyndicateNPC(id string) bool {
-	return isFenceID(id) || isNotableID(id)
-}
+func captainID(k int64) string { return synCaptainID + strconv.FormatInt(k, decimal) }
 
 func isFenceID(id string) bool {
 	return strings.HasPrefix(id, "r-") && strings.Contains(id, "-"+roleDenFence+"-")
@@ -245,8 +241,8 @@ func (g *Game) syndicateRole(role string) (fence, notable bool) {
 
 // addSyndicateStanding moves a character's syndicate standing within the
 // growth sheet's bounds. A made character falling under 0 is unmade; one
-// not made reaching the gate is queued for the invitation, unless one is
-// open, pending or resting (GDD 4.5, 12.9).
+// not made gaining standing at or above the gate is queued for the
+// invitation, unless one is open, pending or resting (GDD 4.5, 12.9).
 func (g *Game) addSyndicateStanding(c *Char, delta int64, cause fact.ID, t int64) error {
 	g.adjustStanding(c, syndicateKey, delta)
 	now := c.C.Standing.Get(syndicateKey)
@@ -256,7 +252,7 @@ func (g *Game) addSyndicateStanding(c *Char, delta int64, cause fact.ID, t int64
 		}
 		return g.unmake(c, cause, t)
 	}
-	if now < sheets.IntParam(g.r.Book.SyndicateParams, "gate") || g.inviteBusy(c, t) {
+	if delta <= 0 || now < g.syp("gate") || g.inviteBusy(c, t) {
 		return nil
 	}
 	g.pend(arc.Pending{Kind: arc.PendInvite, Char: c.C.ID, Ref: fact.Ref{Kind: syndicateKey, ID: syndicateIssuer}, Tick: t, Fact: cause})
@@ -270,13 +266,7 @@ func (g *Game) inviteBusy(c *Char, t int64) bool {
 	if s == nil {
 		return true
 	}
-	if slices.ContainsFunc(s.Pending, func(p arc.Pending) bool { return p.Kind == arc.PendInvite && p.Char == c.C.ID }) {
-		return true
-	}
-	if g.resting(arc.ScopeInvite, char.Ref(c.C.ID), t) {
-		return true
-	}
-	return slices.ContainsFunc(s.Arcs, func(a *Arc) bool { return !a.over() && a.Template == inviteTemplate && a.Char == c.C.ID })
+	return g.threadBusyFor(c, arc.PendInvite, arc.ScopeInvite, inviteTemplate, t)
 }
 
 // fenceCheck sends the nearest den's fence to a character the first time

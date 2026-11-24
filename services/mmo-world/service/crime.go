@@ -140,19 +140,9 @@ func apiGrudges(g *game.Game, c *game.Char) []api.Grudge {
 	return out
 }
 
-// stealsOpen reports whether a character could begin a theft now: free,
-// unheld by the watch and outside a dungeon.
-func stealsOpen(g *game.Game, c *game.Char, ch game.Choices) bool {
-	_, stopped := g.StoppedNow(c)
-	return ch.FreeToMove && !stopped && !g.IsDungeon(c.C.At)
-}
-
 // apiSteals are what a character could steal here now; never nil.
-func apiSteals(g *game.Game, c *game.Char, ch game.Choices) []api.StealTarget {
+func apiSteals(g *game.Game, c *game.Char) []api.StealTarget {
 	out := []api.StealTarget{}
-	if !stealsOpen(g, c, ch) {
-		return out
-	}
 	v := newVictims(g, c)
 	for _, st := range g.StealTargets(c) {
 		out = append(out, api.StealTarget{Kind: st.Kind, NPC: st.NPC, Caravan: st.Caravan, Name: v.name(st.Victim, st.Faction), Worth: st.Worth,
@@ -203,11 +193,6 @@ func itemName(g *game.Game, c *game.Char, id, listing string) string {
 		return ""
 	}
 	return g.KindName(in.Kind)
-}
-
-// isFence reports whether an NPC is a den's fence.
-func isFence(g *game.Game, id string) bool {
-	return slices.ContainsFunc(g.Dens(), func(d game.Den) bool { return d.Fence == id })
 }
 
 // syndicateGoal reports whether a goal is a syndicate job, which only the

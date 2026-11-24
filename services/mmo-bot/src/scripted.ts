@@ -855,13 +855,8 @@ function keepingCrimeActs(world: World, kept: Record<string, unknown>): World {
 
 /**
  * The crime walk: one character from its first theft to the syndicate's
- * grudge, pressing only what the cards offer. It shapes tools, sells them
- * to its settlement's trader and lifts them back off the trader's stall,
- * fences them at the den, is held at the gate and pays once and runs once,
- * answers the invitation at the fence, names the fence to the watch
- * captain and ends turned away by the syndicate. The operator only sets
- * a manual clock and stocks the tools' material and a little coin; every
- * haul is the trader's real stock.
+ * grudge, pressing only what the cards offer. The operator only sets a
+ * manual clock and stocks material and a little coin; every haul is real stock.
  */
 export async function crimeRun(
   ctx: Ctx,
@@ -941,7 +936,7 @@ export async function crimeRun(
         "select" in r && decodeId(r.select.customId)?.action === action ? r.select.options : [],
       )
       .find((o) => ok(o.value))?.value;
-  /** Presses the fight's best winning option until it is over, as a tester does; a theft already caught is backed out of before a second failure downs the thief. */
+  /** Presses the best winning option to the end; a caught theft is backed out of before a second failure downs the thief. */
   const fightOut = async () => {
     for (let i = 0; i < 12 && p.has("press"); i++) {
       const o = await world.options(id);
@@ -965,7 +960,7 @@ export async function crimeRun(
     throw new Error("the home trader leans upright: run the walk on another world");
   await correct("coin", CAPITAL);
 
-  /** Mends the hand's weapon at the forge once it is a third worn, as a tester would. */
+  /** Mends the hand's weapon at the forge once it is a third worn. */
   const mend = async () => {
     const hand = (await sheet()).kit.find((i) => i.worn === "hand");
     if (!hand || (hand.durability * 3 >= hand.max && !hand.dormant)) return;

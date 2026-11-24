@@ -387,12 +387,28 @@ func (g *Game) order(c *Char, cmd Command, side market.Side, keep bool) error {
 	b := g.Book(n, cmd.Material)
 	id, seq := g.nextID("o-")
 	o := market.Order{ID: id, Owner: acc, Side: side, Price: price, Qty: cmd.Units, Placed: g.Tick(), Expires: g.expiry(), Seq: seq}
-	// Hot units listed beyond the theft's reach lose the mark (GDD 6.5).
+	// Hot units listed beyond the theft's reach lose the mark once they
+	// sell (GDD 6.5); until then they rest in the order's Listed lots.
+	var lots []char.HotLot
+	var hot []char.HotLot
 	if side == market.Ask {
-		g.consumeHotBut(c, cmd.Material, units, day, barred)
+		if a := c.C.Alignment; a != nil && a.Hot != nil {
+			hot = slices.Clone(a.Hot)
+		}
+		lots = g.consumeHotBut(c, cmd.Material, units, day, barred)
 	}
 	if err := g.escrow(c, cmd.Key, id, asset, units); err != nil {
+		if a := c.C.Alignment; a != nil && side == market.Ask {
+			a.Hot = hot
+		}
 		return err
+	}
+	if len(lots) > 0 {
+		a := c.C.Align()
+		for _, l := range lots {
+			l.Order = id
+			a.Listed = append(a.Listed, l)
+		}
 	}
 	b.Add(o)
 	g.Market.opened(acc, 1)
@@ -466,7 +482,13 @@ func (g *Game) unescrow(id, owner, key string, moved ...*item.Instance) error {
 	if len(legs) == 0 {
 		return nil
 	}
-	return g.postAll(ledger.Txn{Key: key, Kind: "escrow-back", Tick: g.Tick(), Legs: legs}, moved...)
+	if err := g.postAll(ledger.Txn{Key: key, Kind: "escrow-back", Tick: g.Tick(), Legs: legs}, moved...); err != nil {
+		return err
+	}
+	if c := g.charOf(owner); c != nil {
+		g.listedBack(c, id)
+	}
+	return nil
 }
 
 // postAll posts a transaction and syncs each character it touches,
@@ -597,6 +619,7 @@ func (g *Game) settle(b *market.Book, f market.Fill, key string) error {
 	}
 	b.Record(f)
 	if c := g.charOf(seller); c != nil {
+		listedSold(c, f.Ask.ID, f.Qty)
 		c.C.Earned.Bump("market", coin-fee)
 		if faction {
 			g.soldTo(c, standingKey(*f.Bid.Faction, g.SettlementHex(b.Settlement)), standing)
@@ -692,8 +715,7 @@ func (g *Game) soldTo(c *Char, key string, coin int64) {
 	before := c.Sold.Get(key)
 	c.Sold.Bump(key, coin)
 	if gain := (before+coin)/per - before/per; gain > 0 {
-		gp := g.r.Growth.Params()
-		c.C.AdjustStanding(key, gain, sheets.IntParam(gp, "standing-min"), sheets.IntParam(gp, "standing-max"))
+		g.adjustStanding(c, key, gain)
 	}
 }
 

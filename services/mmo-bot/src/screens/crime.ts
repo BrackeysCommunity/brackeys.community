@@ -21,6 +21,9 @@ import {
   PRIVATE,
   ROW_MOST,
   SELECT_MOST,
+  SYNDICATE,
+  syndicateName,
+  takenLine,
 } from "./common.ts";
 
 /**
@@ -30,16 +33,10 @@ import {
  * from the world or the sheet's Numbers; nothing here decides an outcome.
  */
 
-/** The syndicate's standing key, and the archetype row its name comes from. */
-export const SYNDICATE = "syndicate";
+export { SYNDICATE, syndicateName } from "./common.ts";
 
 /** The verb a syndicate job is posted with. */
 export const STEAL_VERB = "steal";
-
-/** The syndicate as the setting names it. */
-export function syndicateName(lex: Lexicon): string {
-  return lex.name("factions.archetypes", SYNDICATE);
-}
 
 /** A theft kind as the setting names it: "Lift", "Run from the watch". */
 export function theftKind(kind: string, lex: Lexicon): string {
@@ -51,19 +48,10 @@ export function isFlight(t: api.Theft): boolean {
   return !!t.flee || t.kind === api.TheftFlee;
 }
 
-/** The band a value falls in, from the sheet's edges, when the world sent none. */
-function bandOf(value: number, lex: Lexicon): string {
-  const e = lex.numbers.bandEdges;
-  if (value <= e.notorious) return api.BandNotorious;
-  if (value <= e.crooked) return api.BandCrooked;
-  if (value >= e.upright) return api.BandUpright;
-  if (value >= e.decent) return api.BandDecent;
-  return api.BandUnremarked;
-}
-
-/** "Crooked, −15 alignment": the band and the value together, never the number alone. */
+/** "Crooked, −15 alignment": the band with the value, the value alone when the world sent no band. */
 export function alignmentLine(value: number, band: string, lex: Lexicon): string {
-  return `${lex.name("alignment.bands", band || bandOf(value, lex))}, ${amount(value, "alignment")}`;
+  const shown = amount(value, "alignment");
+  return band ? `${lex.name("alignment.bands", band)}, ${shown}` : shown;
 }
 
 /** What a witness part counts, in words. */
@@ -81,13 +69,12 @@ export function witnessLine(t: Pick<api.Theft, "witness">): string {
 }
 
 /** The parts the chance of being seen is made of, each in per cent, and where it is held. */
-export function witnessWhy(t: Pick<api.Theft, "witness" | "witnessWhy" | "kind">): string {
+export function witnessWhy(t: Pick<api.Theft, "witness" | "witnessWhy">): string {
   const parts = t.witnessWhy.parts.map(
     (p) =>
       `${WITNESS_PARTS[p.label] ?? p.label.replace(/-/g, " ")} ${p.label === "base" ? percent(p.value) : signedPercent(p.value)}`,
   );
-  if (!parts.length)
-    return t.kind === api.TheftWaylay ? "a waylay is always seen" : "nothing changes it";
+  if (!parts.length) return "nothing changes it";
   const sum = t.witnessWhy.parts.reduce((n, p) => n + p.value, 0);
   if (sum !== t.witness) parts.push(`held at ${percent(t.witness)}`);
   return parts.join(", ");
@@ -170,19 +157,6 @@ export function theftEnd(facts: readonly api.Fact[]): api.Fact | undefined {
   return facts.find((f) => THEFT_ENDS.has(f.kind));
 }
 
-/** What a theft took, from its fact. */
-function takenLine(f: api.Fact, lex: Lexicon): string {
-  const coin = factNum(f, "coin");
-  const units = factNum(f, "units");
-  const material = factStr(f, "material");
-  const what = [
-    coin ? amount(coin, "coin") : "",
-    units ? amount(units, material ? lex.material(material) : "goods") : "",
-    factStr(f, "item") ? "an item" : "",
-  ].filter(Boolean);
-  return what.length ? list(what) : "nothing";
-}
-
 /** Whom a betrayal was of, in words. */
 function betrayedName(key: string, lex: Lexicon): string {
   return key === SYNDICATE ? syndicateName(lex) : "a faction you stood with";
@@ -193,11 +167,24 @@ export function wantedLine(w: api.WantedIn): string {
   return `${w.places.length ? `in ${list(w.places)}` : "here"}, for robbing ${w.victim}: a fine of ${amount(w.fine, "coin")}, ${plural(w.days, "day")} left`;
 }
 
+/** Everything a character carries: its kit and its pack. */
+function carried(sheet: api.Sheet): api.Item[] {
+  return [...sheet.kit, ...sheet.pack];
+}
+
+/** What hot goods are: the item's name, or the units of the material as named. */
+function hotWhat(
+  h: api.HotGoods,
+  items: readonly api.Item[],
+  lex: Lexicon,
+  material = lex.material(h.material ?? ""),
+): string {
+  return h.item ? items.find((i) => i.id === h.item)?.name || "an item" : amount(h.units, material);
+}
+
 /** Hot goods as one line: what, whose, how long the mark lasts and how far from where they were taken. */
 export function hotLine(h: api.HotGoods, lex: Lexicon, items: readonly api.Item[] = []): string {
-  const what = h.item
-    ? capitalise(items.find((i) => i.id === h.item)?.name || "an item")
-    : amount(h.units, lex.material(h.material ?? ""));
+  const what = capitalise(hotWhat(h, items, lex));
   const far = h.reach ? `${plural(h.reach, "tile")} from where it was taken` : "where it was taken";
   return `${what}, from ${h.victim}: hot for ${plural(h.days, "day")} more, ${far}`;
 }
@@ -440,15 +427,13 @@ export function fenceParts(
   v: number,
 ): { fields: EmbedField[]; rows: Row[] } {
   const hot = sheet.character.hot ?? [];
-  const items = [...sheet.kit, ...sheet.pack];
+  const items = carried(sheet);
   const n = lex.numbers;
   const pays = `A fence pays ${percent(n.fencePays)} of what goods are worth, ${percent(n.backRoomPays)} to the made at a den. Fenced goods never come back to a market.`;
   if (!hot.length)
     return { fields: [{ name: "The fence", value: `You carry nothing hot. ${pays}` }], rows: [] };
   const buttons = hot.slice(0, ROW_MOST).map((h) => {
-    const what = h.item
-      ? items.find((i) => i.id === h.item)?.name || "the item"
-      : amount(h.units, lex.material(h.material ?? "").toLowerCase());
+    const what = hotWhat(h, items, lex, lex.material(h.material ?? "").toLowerCase());
     return btn(buttonLabel(`Fence ${what}`), "fence", fenceTarget(npc, h), v, { style: "success" });
   });
   return {
@@ -490,7 +475,7 @@ export function standingFields(sheet: api.Sheet, lex: Lexicon): EmbedField[] {
       name: "Hot goods",
       value: hot
         .slice(0, 6)
-        .map((h) => hotLine(h, lex, [...sheet.kit, ...sheet.pack]))
+        .map((h) => hotLine(h, lex, carried(sheet)))
         .join("\n"),
     });
   const wanted = c.wanted ?? [];

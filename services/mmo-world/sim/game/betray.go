@@ -2,8 +2,6 @@ package game
 
 import (
 	"slices"
-	"strconv"
-	"strings"
 
 	"jams.team/mmo-world/sim/arc"
 	"jams.team/mmo-world/sim/char"
@@ -17,7 +15,13 @@ import (
 // grudge-days, a second betrayal running it on from today. Betraying the
 // syndicate unmakes a made character. Other factions are untouched.
 func (g *Game) betray(c *Char, faction string, act string, cause fact.ID, t int64) error {
-	floor := sheets.IntParam(g.r.Book.TheftParams, "betrayal-standing")
+	return g.betraySeen(c, faction, act, cause, true, t)
+}
+
+// betraySeen is a betrayal whose alignment move NPCs may come to know of
+// only when public.
+func (g *Game) betraySeen(c *Char, faction, act string, cause fact.ID, public bool, t int64) error {
+	floor := g.theftCell("betrayal-standing")
 	now := c.C.Standing.Get(faction)
 	standing := min(now, floor)
 	f, err := g.factCaused(c, []fact.Ref{standingRef(faction)}, factBetrayed, t, cause,
@@ -25,16 +29,14 @@ func (g *Game) betray(c *Char, faction string, act string, cause fact.ID, t int6
 	if err != nil {
 		return err
 	}
-	if standing != now {
-		c.C.Standing.Bump(faction, standing-now)
-	}
-	if err := g.moveFor(c, ActBetrayal, f.ID, "", t); err != nil {
+	g.adjustStanding(c, faction, standing-now)
+	if _, err := g.moveAlignment(c, ActBetrayal, g.actMove(ActBetrayal, 0), f.ID, "", public, t); err != nil {
 		return err
 	}
 	day := t / sheets.TicksPerDay
 	a := c.C.Align()
 	a.Grudges = slices.DeleteFunc(a.Grudges, func(gr char.Grudge) bool { return gr.Ends <= day })
-	ends := day + sheets.IntParam(g.r.Book.TheftParams, "grudge-days")
+	ends := day + g.theftCell("grudge-days")
 	if i := slices.IndexFunc(a.Grudges, func(gr char.Grudge) bool { return gr.Faction == faction }); i >= 0 {
 		a.Grudges[i].Ends = max(a.Grudges[i].Ends, ends)
 	} else {
@@ -65,10 +67,8 @@ func (c *Char) GrudgeWith(faction string, day int64) bool {
 // standingRef is the fact ref a standing key names: a world faction as
 // the story names it, else the key itself as a faction.
 func standingRef(key string) fact.Ref {
-	if id, ok := strings.CutPrefix(key, ownerFaction); ok {
-		if fi, err := strconv.Atoi(id); err == nil && fi >= 0 {
-			return arc.FactionRef(fi)
-		}
+	if fi, _, ok := parseStandingKey(key); ok && fi >= 0 {
+		return arc.FactionRef(fi)
 	}
 	return fact.Ref{Kind: kindFactionRef, ID: key}
 }

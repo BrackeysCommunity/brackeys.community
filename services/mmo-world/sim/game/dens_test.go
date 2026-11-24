@@ -177,7 +177,7 @@ func TestFenceVisibility(t *testing.T) {
 			if p.ID == d.Fence {
 				fence = p.Fence
 			}
-			notables = notables || g.IsSyndicateNPC(p.ID) && p.ID != d.Fence
+			notables = notables || (isFenceID(p.ID) || isNotableID(p.ID)) && p.ID != d.Fence
 		}
 		return fence, notables
 	}
@@ -225,7 +225,7 @@ func TestSyndicateNotables(t *testing.T) {
 		t.Fatalf("%d dens have notables %+v", len(dens), ns)
 	}
 	for k, s := range ns[1:] {
-		if s.Home != dens[int64(k)*per].At || s.Role != roleSynCaptain || !g.IsSyndicateNPC(s.ID) {
+		if s.Home != dens[int64(k)*per].At || s.Role != roleSynCaptain || !isNotableID(s.ID) {
 			t.Fatalf("captain %d is %+v", k, s)
 		}
 	}
@@ -254,6 +254,9 @@ func TestSyndicateStanding(t *testing.T) {
 		t.Fatal("a second invitation while one waits")
 	}
 	g.Story.Pending = nil
+	if err := g.addSyndicateStanding(c, -1, 0, g.Tick()); err != nil || invites() != 0 {
+		t.Fatal("a loss above the gate queued an invitation")
+	}
 	g.Story.Rests = append(g.Story.Rests, ScopeRest{Scope: arc.ScopeInvite, Ref: char.Ref(c.C.ID), Until: g.Tick() + sheets.TicksPerDay})
 	slices.SortFunc(g.Story.Rests, cmpRest)
 	if err := g.addSyndicateStanding(c, 1, 0, g.Tick()); err != nil || invites() != 0 {
