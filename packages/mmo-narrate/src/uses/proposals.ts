@@ -124,7 +124,7 @@ export function checkProposals(i: ProposalsIn, reply: unknown): CheckResult<unkn
   }
   const schema = arcRowSchema(i.kit);
   if (!schema) return fail("schema", "the kit's schema does not parse");
-  const taken = new Set(i.kit.templates);
+  const taken = new Set(i.kit.taken ?? i.kit.templates);
   const when = new Set(i.kit.when);
   const effects = new Set(i.kit.effects);
   for (const [n, row] of rows.entries()) {
@@ -133,7 +133,7 @@ export function checkProposals(i: ProposalsIn, reply: unknown): CheckResult<unkn
     if (p) return fail("schema", p);
     const r = row as { id: string; when: string };
     if (!ID.test(r.id)) return fail("bad-id", `${at}: id ${JSON.stringify(r.id)}`);
-    if (taken.has(r.id)) return fail("bad-id", `${at}: ${r.id} is already a template`);
+    if (taken.has(r.id)) return fail("bad-id", `${at}: ${r.id} is already taken`);
     taken.add(r.id);
     if (!when.has(r.when)) return fail("bad-id", `${at}: when ${r.when} is not registered`);
     for (const k of rowEffects(row)) {
@@ -161,7 +161,7 @@ function stubRow(i: ProposalsIn): Record<string, unknown> {
   const { kit } = i;
   const nothing = pick(kit.effects, "nothing");
   return {
-    id: freshId(`proposed-season-${i.season}`, kit.templates),
+    id: freshId(`proposed-season-${i.season}`, kit.taken ?? kit.templates),
     scope: "region",
     when: pick(kit.when, "dry-region"),
     chance: 30,

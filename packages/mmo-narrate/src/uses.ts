@@ -4,11 +4,7 @@ const DAY = 86_400;
 const BOT_INPUT = 60_000;
 const OFFLINE_INPUT = 200_000;
 
-/**
- * How each use calls the model: a small fast model for narration and voices,
- * a larger one for names, summaries and the digest, the largest for the
- * offline jobs. Every number the pipeline reads lives here.
- */
+/** How each use calls the model. Every number the pipeline reads lives here. */
 export const USE_CONFIG: Record<UseId, UseConfig> = {
   chronicle: {
     model: "claude-haiku-5-5",

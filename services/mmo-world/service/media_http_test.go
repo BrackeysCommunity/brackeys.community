@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"jams.team/mmo-world/sim/market"
 	"jams.team/mmo-world/sim/settle"
 	"jams.team/mmo-world/sim/sheets"
+	"jams.team/mmo-world/store/pgtest"
 )
 
 // picture GETs a media key and decodes it as a PNG of the size wanted.
@@ -74,7 +76,14 @@ func mediaWhileHeld(t *testing.T, r *running, key string) int {
 // are each served by their key as a PNG, and each key holds while the
 // state it was drawn from does.
 func TestMediaKeys(t *testing.T) {
-	r := start(t, io.Discard)
+	var frozen atomic.Int64
+	clock := func() time.Time {
+		if at := frozen.Load(); at != 0 {
+			return time.Unix(0, at)
+		}
+		return time.Now()
+	}
+	r := startOn(t, pgtest.Pool(t), io.Discard, func(c *service.Config) { c.Now = clock })
 	ctx := context.Background()
 	rep, ref, err := r.cli.Act(ctx, api.ActionRequest{InteractionID: "start", DiscordID: "media", Kind: api.ActCreate, Option: api.StartHook})
 	if err != nil || ref != nil {
@@ -114,9 +123,15 @@ func TestMediaKeys(t *testing.T) {
 		t.Fatal("a portrait drew differently once its fight was over")
 	}
 	madeUp := "portrait-000000000000000000000000"
+	frozen.Store(time.Now().UnixNano())
 	if refusal := readSolo[api.Refusal](t, r, api.PathMedia+madeUp+".png", 404); refusal.Code != api.CodeNotFound {
 		t.Fatal(refusal)
 	}
+	// with the clock stopped the scan budget stays spent, and a key that arrives then answers without the lock
+	if status := mediaWhileHeld(t, r, "portrait-111111111111111111111111"); status != http.StatusNotFound {
+		t.Fatalf("a second made-up portrait answered %d while the world was held", status)
+	}
+	frozen.Store(0)
 	if status := mediaWhileHeld(t, r, madeUp); status != http.StatusNotFound {
 		t.Fatalf("a made-up portrait answered %d the second time", status)
 	}

@@ -8,6 +8,20 @@
 export const MINUTES_PER_TICK = 10;
 export const TICKS_PER_HOUR = 60 / MINUTES_PER_TICK;
 
+/** An id as words: "iron-ore" reads "iron ore". */
+export function idWords(id: string): string {
+  return id.replace(/[-_]/g, " ");
+}
+
+export function capital(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** An id as words, capitalised: "Iron ore". */
+export function readable(id: string): string {
+  return capital(idWords(id));
+}
+
 export function num(n: number): string {
   const whole = Math.round(n);
   const digits = Math.abs(whole).toLocaleString("en-US");

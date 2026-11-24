@@ -1,5 +1,5 @@
 import type { Names } from "./story.ts";
-import { amount, list, num, plural, TICKS_PER_HOUR } from "./units.ts";
+import { amount, capital, idWords, list, num, plural, readable, TICKS_PER_HOUR } from "./units.ts";
 
 /**
  * What an NPC remembers, told without a model: the oldest entries it
@@ -73,12 +73,10 @@ const THING_SHEETS: Record<string, string> = {
 
 const ID_SHAPE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-const words = (id: string) => id.replace(/[-_]/g, " ");
-const readable = (id: string) => {
-  const s = words(id);
-  return s.charAt(0).toUpperCase() + s.slice(1);
-};
-const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** A folded entry kind as the card and the summary prompt both name it. */
+export function foldedWords(type: string): string {
+  return FOLDED[type] ?? idWords(type);
+}
 
 /** Who an entry is about, as anyone outside the world may read it: "you", a traveller, or a traveller from a guild in names; a character id is never shown. */
 export function toldWho(who: string | undefined, names: Readonly<Record<string, string>>): string {
@@ -105,20 +103,18 @@ function entryLine(m: MemoryLike, d: DossierLike, names: Names): string {
   const more = m.n && m.unit ? amount(m.n, m.unit) : "";
   const tell = ENTRY[m.kind];
   if (tell) return tell(who, thing, more);
-  const what = [words(m.kind), thing].filter(Boolean).join(": ");
+  const what = [idWords(m.kind), thing].filter(Boolean).join(": ");
   return who === SOMEONE ? what : `${what} (${who})`;
 }
 
 /** The oldest entries, each by its world day, then the folded counts with their units. */
 export function memoryLines(d: DossierLike, names: Names): string[] {
   const out = d.oldest.map(
-    (m) => `Day ${num(Math.floor(m.tick / TICKS_PER_DAY))}: ${capitalise(entryLine(m, d, names))}.`,
+    (m) => `Day ${num(Math.floor(m.tick / TICKS_PER_DAY))}: ${capital(entryLine(m, d, names))}.`,
   );
   const folded = (d.folded ?? []).filter((x) => x.count > 0);
   if (folded.length) {
-    const parts = folded.map(
-      (x) => `${FOLDED[x.type] ?? words(x.type)} ${plural(x.count, "time")}`,
-    );
+    const parts = folded.map((x) => `${foldedWords(x.type)} ${plural(x.count, "time")}`);
     out.push(`Older memories folded away: ${list(parts)}.`);
   }
   return out;

@@ -1,4 +1,5 @@
 import type * as api from "../../../mmo-api/src/index.ts";
+import { foldedWords } from "../../../mmo-words/src/memory.ts";
 import { proseProblem } from "../check.ts";
 import { namesBlock, properNames, systemPrompt, untrusted } from "../prompt.ts";
 import type { CheckResult, JsonSchema, UseSpec } from "../types.ts";
@@ -34,8 +35,6 @@ const SENTENCE = /[^.!?]+(?:[.!?]+|$)/g;
 
 const sentences = (s: string) => (s.match(SENTENCE) ?? []).filter((x) => x.trim());
 
-const kindWords = (kind: string) => kind.replace(/[-_]/g, " ");
-
 function allowedNames(i: SummaryIn): string[] {
   const things = i.oldest.map((m) => m.thing ?? "").filter(Boolean);
   const who = i.oldest.map((m) => toldWho(m.who, i.names)).filter(Boolean);
@@ -68,7 +67,7 @@ const schema: JsonSchema = {
   additionalProperties: false,
 };
 
-/** An NPC's memory past its memory cap, summed up (GDD 15.2). The summary is context for the voice and shown on the talk card; it never reaches the world. */
+/** An NPC's memory past its cap, summed up (GDD 15.2): context for the voice and shown on the talk card, never sent to the world. */
 export const summaryUse: UseSpec<SummaryIn, string> = {
   use: "summary",
   version: 2,
@@ -100,7 +99,7 @@ export const summaryUse: UseSpec<SummaryIn, string> = {
         ),
         untrusted(
           "folded",
-          i.folded.map((x) => `- ${kindWords(x.type)}: ${x.count}`).join("\n") || "(none)",
+          i.folded.map((x) => `- ${foldedWords(x.type)}: ${x.count}`).join("\n") || "(none)",
         ),
         namesBlock(i.names),
       ].join("\n\n"),

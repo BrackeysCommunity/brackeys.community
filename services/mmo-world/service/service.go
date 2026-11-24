@@ -83,7 +83,9 @@ type Server struct {
 	ready   atomic.Bool
 	audit   time.Time
 	media   media
-	subs    listeners
+	// portraitScan is when the last world scan for a portrait key began, in UnixNano.
+	portraitScan atomic.Int64
+	subs         listeners
 	// pool reads who plays whom, for the party threads; ended keeps the
 	// parties that ended lately, under mu.
 	pool  *pgxpool.Pool

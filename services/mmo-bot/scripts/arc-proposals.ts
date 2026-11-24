@@ -13,12 +13,13 @@ import {
 } from "../../../packages/mmo-narrate/src/index.ts";
 import { proposalsUse } from "../../../packages/mmo-narrate/src/uses/proposals.ts";
 import * as api from "../src/api.ts";
-import { NARRATION_DAY_USD } from "../src/config.ts";
+import { NARRATION_DAY_USD, narrationDayUsd } from "../src/config.ts";
 import { Lexicon } from "../src/lexicon.ts";
 import { anthropicModel } from "../src/narration/anthropic.ts";
 import { redisNarrationStore } from "../src/narration/redis.ts";
 import { redisSwitch } from "../src/narration/switch.ts";
-import { storyLine } from "../src/screens/common.ts";
+import { datum } from "../src/screens/common.ts";
+import { chronicleLines } from "../src/screens/story.ts";
 
 /**
  * Arc proposals between seasons (GDD 12.9), for the owner to approve:
@@ -113,17 +114,12 @@ export async function writeOut(path: string, body: string): Promise<void> {
 
 /** The bot's settings an offline job shares: the world, its tokens and the budget. */
 export function jobEnv(env: Record<string, string | undefined> = process.env) {
-  const day = env.MMO_NARRATION_DAY_USD?.trim();
-  const dayUsd = day ? Number(day) : NARRATION_DAY_USD;
-  if (!Number.isFinite(dayUsd) || dayUsd <= 0) {
-    throw new Error(`MMO_NARRATION_DAY_USD must be a positive number, not "${day}"`);
-  }
   return {
     worldUrl: env.MMO_WORLD_URL?.trim() || "http://localhost:8080",
     apiToken: env.MMO_API_TOKEN?.trim() ?? "",
     operatorToken: env.MMO_OPERATOR_TOKEN?.trim() ?? "",
     redisUrl: env.REDIS_URL?.trim() || undefined,
-    dayUsd,
+    dayUsd: narrationDayUsd(env),
   };
 }
 
@@ -131,8 +127,6 @@ export interface SeasonDays {
   from: number;
   to: number;
 }
-
-const datum = (f: api.Fact, k: string) => f.data.find((d) => d.k === k)?.n;
 
 /** structural: how far back the job looks for a season's close before it asks for --from and --to. */
 const WALK_DAYS = 400;
@@ -149,7 +143,7 @@ export async function seasonDays(
 ): Promise<SeasonDays> {
   const cur = last.season;
   if (cur.days === 0) throw new Error("the world keeps no season clock");
-  const start = last.day + 2 - cur.day;
+  const start = seasonStart(last);
   if (season === cur.n) return { from: start, to: start + cur.days - 1 };
   if (season > cur.n) throw new Error(`season ${season} has not begun; season ${cur.n} is running`);
   // A season's close lands on the first day of the next, so the close of
@@ -157,9 +151,9 @@ export async function seasonDays(
   // close before it gives where it began.
   for (let d = Math.min(last.day, start), walked = 0; d >= 0 && walked < WALK_DAYS; d--, walked++) {
     for (const l of (await chronicle(d))?.lines ?? []) {
-      const n = datum(l.fact, "season");
-      const from = datum(l.fact, "start");
-      const days = datum(l.fact, "days");
+      const n = datum(l.fact, "season")?.n;
+      const from = datum(l.fact, "start")?.n;
+      const days = datum(l.fact, "days")?.n;
       if (l.fact.kind !== "season.closed" || n === undefined) continue;
       if (n === season && from !== undefined && days !== undefined) {
         return { from, to: from + days - 1 };
@@ -173,10 +167,14 @@ export async function seasonDays(
   throw new Error(`season ${season}'s close is not in the chronicle; pass --from and --to`);
 }
 
+/** The running season's first world day. */
+function seasonStart(last: api.Chronicle): number {
+  return last.day + 2 - last.season.day;
+}
+
 /** The world's ticks a day, from the running season's close tick: ends = (start + days) × ticks a day. */
 function ticksPerDay(last: api.Chronicle): number | null {
-  const start = last.day + 2 - last.season.day;
-  const days = start + last.season.days;
+  const days = seasonStart(last) + last.season.days;
   return days > 0 && last.season.ends % days === 0 ? last.season.ends / days : null;
 }
 
@@ -245,8 +243,7 @@ export function seasonLedger(i: LedgerIn): string {
     "The chronicle, day by day (its heaviest lines):",
   );
   for (const d of i.days) {
-    const refs = new Map(Object.entries(d.names ?? {}));
-    const lines = d.lines.map((l) => storyLine(l.fact, i.lex, refs));
+    const lines = chronicleLines(d, i.lex, i.story.arcs).map((x) => x.text);
     out.push(
       `Day ${d.day}: ${lines.join(" ") || "nothing told"}${d.more ? ` (${d.more} more lines)` : ""}`,
     );

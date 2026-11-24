@@ -222,9 +222,7 @@ func (s *Server) supplySeries() render.Series {
 // dayAxis is every chart's day axis label.
 const dayAxis = "days"
 
-// history is one material's price over the last days at the settlement a
-// character stands in, as a chart with each day that has a cause marked
-// and lettered A, B, C in day order, as the card letters the same days.
+// history is one material's recent closing prices at the character's settlement, as a chart with each day that has a cause marked.
 func (s *Server) history(w http.ResponseWriter, r *http.Request) {
 	material := r.URL.Query().Get("material")
 	var out api.History

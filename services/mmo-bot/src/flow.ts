@@ -3,23 +3,24 @@ import type { Narrator } from "../../../packages/mmo-narrate/src/index.ts";
 import * as api from "./api.ts";
 import type { Card } from "./card.ts";
 import { type Action, fields, type Id, integerTarget, type Launch, launchOf } from "./ids.ts";
-import { capitalise, type Lexicon, readable } from "./lexicon.ts";
+import { capitalise, type Lexicon } from "./lexicon.ts";
 import type { CommandName } from "./manifest.ts";
 import { type DayClock, dayClock, type Narration, offNarration } from "./narration/hooks.ts";
 import {
+  dungeonNaming,
+  kindNameFacts,
   type NameCtx,
   type NameFacts,
   type NameOffers,
   nameOffers,
+  promotionNaming,
   type ScreenCtx,
 } from "./narration/names.ts";
 import type { PartyNote } from "./party.ts";
 import { backCards } from "./screens/back.ts";
 import { classesCard } from "./screens/classes.ts";
-import { factStr } from "./screens/common.ts";
 import {
   bottomCard,
-  dungeonName,
   dungeonNameModal,
   entranceCard,
   forkCard,
@@ -27,7 +28,7 @@ import {
   pushLeaveCard,
   reachedBottom,
 } from "./screens/dungeon.ts";
-import { NAME_INPUT, tagName } from "./screens/emergence.ts";
+import { NAME_INPUT } from "./screens/emergence.ts";
 import { beatCard, downCard, fieldCard, resolvedCard, whyCard } from "./screens/fight.ts";
 import {
   boardCard,
@@ -419,26 +420,13 @@ class Session {
             "kind",
             k.kind,
             k.name,
-            this.kindFacts(k),
+            kindNameFacts(k, this.lex),
             this.nameCtx("cached"),
           );
           if (offer?.description) descriptions.set(k.kind, offer.description);
         }),
     );
     return this.retitled(this.done(recipesCard(o, here, r, this.lex, descriptions)), notice);
-  }
-
-  /** What a kind is and is made of, in words, as its names are asked for. */
-  private kindFacts(k: api.Known): NameFacts {
-    const lower = (s: string) => s.toLowerCase();
-    return {
-      traits: [
-        lower(this.lex.name("items.processes", k.recipe.process)),
-        lower(this.lex.name("items.methods", k.recipe.method)),
-        ...(k.recipe.slot ? [lower(this.lex.name("items.slots", k.recipe.slot))] : []),
-      ],
-      lineage: k.recipe.inputs.map((i) => lower(this.lex.material(i.material))),
-    };
   }
 
   /** The thing a naming card is about: its name now, its facts, and whether it may still be named. */
@@ -448,36 +436,19 @@ class Session {
     switch (t.subject) {
       case "kind": {
         const k = (await this.world.recipes(this.character)).known.find((x) => x.kind === t.row);
-        return k ? { plain: k.name, facts: this.kindFacts(k), open: !!k.renamable } : null;
+        return k ? { plain: k.name, facts: kindNameFacts(k, this.lex), open: !!k.renamable } : null;
       }
       case "promotion": {
         const recap = await this.world.recap(this.character);
         this.day.saw(recap.day);
         const f = recap.lines.find((l) => l.promotion === t.row)?.fact;
-        if (!f) return null;
-        const resists = factStr(f, "resists");
-        const of = factStr(f, "of");
-        return {
-          plain: factStr(f, "name") || readable(factStr(f, "type")),
-          facts: {
-            traits: [factStr(f, "type"), ...(resists ? [tagName(resists, this.lex)] : [])].filter(
-              Boolean,
-            ),
-            lineage: of ? [readable(of).toLowerCase()] : [],
-          },
-          open: true,
-        };
+        return f ? { ...promotionNaming(f, this.lex), open: true } : null;
       }
       case "dungeon": {
         const here = await this.world.here(this.character);
         const f = here.floor;
         if (!f || f.dungeon !== t.row) return null;
-        const kind = this.lex.name("map.dungeons", f.kind).toLowerCase();
-        return {
-          plain: dungeonName(f, this.lex),
-          facts: { traits: [kind, ...(f.up ? ["relay tower"] : [])], lineage: [] },
-          open: !f.name,
-        };
+        return { ...dungeonNaming(f, this.lex), open: !f.name };
       }
     }
   }
@@ -541,6 +512,19 @@ class Session {
     if (!name) return send();
     const verdict = await this.names.screen(name, { ...this.nameCtx(), use, target });
     return verdict === "hold" ? held(HELD_NOTICE) : send();
+  }
+
+  /** A typed name for a thing: none asks again, otherwise it is screened and then sent. */
+  private submitName(t: NameTarget, raw: string, v: number): Promise<Answer> {
+    const name = raw.trim();
+    if (!name) return this.nameHome(t, NO_NAME);
+    return this.screened(
+      name,
+      t.subject,
+      t.row,
+      (held) => this.nameHome(t, held),
+      () => this.sendName(t, name, v),
+    );
   }
 
   async fight(last?: api.ActionReply): Promise<Answer> {
@@ -942,7 +926,7 @@ class Session {
         "kind",
         kind,
         k.name,
-        this.kindFacts(k),
+        kindNameFacts(k, this.lex),
         this.nameCtx(),
       );
       return offer?.description;
@@ -1178,19 +1162,13 @@ class Session {
       case "pr-name":
         if (!id.target) return backCards.unknown(this.character);
         return this.naming({ subject: "promotion", row: id.target });
-      case "pr-named": {
-        const name = (this.press.fields?.[NAME_INPUT] ?? "").trim();
+      case "pr-named":
         if (!id.target) return backCards.unknown(this.character);
-        if (!name) return this.recap(NO_NAME);
-        const t: NameTarget = { subject: "promotion", row: id.target };
-        return this.screened(
-          name,
-          t.subject,
-          t.row,
-          (held) => this.nameHome(t, held),
-          () => this.sendName(t, name, v),
+        return this.submitName(
+          { subject: "promotion", row: id.target },
+          this.press.fields?.[NAME_INPUT] ?? "",
+          v,
         );
-      }
       case "kn-name":
       case "kn-own": {
         const t = parseNameTarget(id.target);
@@ -1205,16 +1183,8 @@ class Session {
       }
       case "kn-named": {
         const t = parseNameTarget(id.target);
-        const name = (this.press.fields?.[NAME_INPUT] ?? "").trim();
         if (!t) return backCards.unknown(this.character);
-        if (!name) return this.nameHome(t, NO_NAME);
-        return this.screened(
-          name,
-          t.subject,
-          t.row,
-          (held) => this.nameHome(t, held),
-          () => this.sendName(t, name, v),
-        );
+        return this.submitName(t, this.press.fields?.[NAME_INPUT] ?? "", v);
       }
       case "step":
         return this.write(api.ActStep, v, { dir: Number(id.target) }, async (_, why) =>
@@ -1564,18 +1534,13 @@ class Session {
         });
       case "d-name":
         return this.dungeon();
-      case "d-named": {
-        const name = (this.press.fields?.name ?? "").trim();
+      case "d-named":
         if (!hexOf(id.target)) return backCards.unknown(this.character);
-        const t: NameTarget = { subject: "dungeon", row: id.target };
-        return this.screened(
-          name,
-          t.subject,
-          t.row,
-          (held) => this.nameHome(t, held),
-          () => this.sendName(t, name, v),
+        return this.submitName(
+          { subject: "dungeon", row: id.target },
+          this.press.fields?.[NAME_INPUT] ?? "",
+          v,
         );
-      }
       case "hunt":
         return this.hunt(id.target || undefined);
       case "h-press": {

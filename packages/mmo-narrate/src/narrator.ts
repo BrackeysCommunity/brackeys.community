@@ -31,7 +31,7 @@ export interface NarratorDeps {
   model: NarrationModel | null;
   store: NarrationStore;
   switch: Switch;
-  /** MMO_NARRATION_DAY_USD */
+  /** The world-wide budget a world day, in dollars. */
   dayUsd: number;
   /** One line per call or fallback; never text or keys. */
   log: (line: string) => void;
@@ -83,8 +83,8 @@ export class Narrator {
   private readonly reserved = new Map<number, number>();
   /** Cap slots held by calls still running, so concurrent presses cannot pass a cap. */
   private readonly capsInFlight = new Map<string, number>();
-  /** Inputs whose first caller is checking or holding a cap slot and has not started its call. */
-  private readonly capPending = new Set<string>();
+  /** Inputs whose first caller is checking or holding a cap slot and has not started its call, to that caller's cap key. */
+  private readonly capPending = new Map<string, string>();
 
   constructor(private readonly deps: NarratorDeps) {}
 
@@ -143,6 +143,7 @@ export class Narrator {
 
     let cap: string | null = null;
     let held = false;
+    let claimed = false;
     const upper = upperMicros(cfg.model, chars, cfg.maxTokens);
     try {
       if (cfg.perDayCap !== null) {
@@ -150,17 +151,20 @@ export class Narrator {
         if (!who) return this.fallback(use, day, "cap");
         cap = capKey(use, who, day);
         // A call that will join the same input costs nothing, so it is not counted.
-        if (!this.inFlight.has(key) && !this.capPending.has(key)) {
-          this.capPending.add(key);
+        if (!this.inFlight.has(key) && this.capPending.get(key) !== cap) {
+          if (!this.capPending.has(key)) {
+            this.capPending.set(key, cap);
+            claimed = true;
+          }
           let stored: number;
           try {
             stored = Number((await store.get(cap)) ?? 0);
           } catch (e) {
-            this.capPending.delete(key);
+            if (claimed) this.capPending.delete(key);
             throw e;
           }
           if (stored + (this.capsInFlight.get(cap) ?? 0) >= cfg.perDayCap) {
-            this.capPending.delete(key);
+            if (claimed) this.capPending.delete(key);
             return this.fallback(use, day, "cap");
           }
           this.holdCap(cap);
@@ -187,8 +191,8 @@ export class Narrator {
     const joining = task !== undefined;
     if (held) this.releaseCap(cap!, key);
     if (!task) {
-      // A caller that skipped the check starts only in place of a holder, which will join it.
-      if (cap && !held && !this.capPending.has(key)) return this.fallback(use, day, "cap");
+      // A caller that skipped the cap check starts the call only while another caller with the same cap still holds this input's pending claim; that holder then joins it instead of starting its own.
+      if (cap && !held && this.capPending.get(key) !== cap) return this.fallback(use, day, "cap");
       const slot = cap;
       if (slot) this.holdCap(slot);
       const call: ModelCall = {
@@ -365,7 +369,7 @@ export class Narrator {
     const left = (this.capsInFlight.get(cap) ?? 0) - 1;
     if (left > 0) this.capsInFlight.set(cap, left);
     else this.capsInFlight.delete(cap);
-    if (key) this.capPending.delete(key);
+    if (key && this.capPending.get(key) === cap) this.capPending.delete(key);
   }
 
   /** Best-effort ledger counts: a missed count never changes what is shown. */

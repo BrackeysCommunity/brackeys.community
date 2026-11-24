@@ -32,7 +32,7 @@ func (s *Server) arcKit(w http.ResponseWriter, r *http.Request) {
 	}
 	defer unlock()
 	out := api.ArcKit{Season: apiSeason(s.g).N, Templates: []string{}, When: slices.Sorted(maps.Keys(arc.Predicates)),
-		Effects: sheets.StoryEffectKinds(), Schema: string(schema)}
+		Effects: sheets.StoryEffectKinds(), Schema: string(schema), Taken: slices.Sorted(maps.Keys(s.g.Rules().Book.StoryIDs()))}
 	for _, a := range s.g.Rules().Book.Arcs {
 		out.Templates = append(out.Templates, a.ID)
 	}

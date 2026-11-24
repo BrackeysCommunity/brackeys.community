@@ -295,7 +295,7 @@ describe("arc proposals", () => {
     expect(reasons({ ...good, when: "no-such-predicate" })).toContain(
       "bad-id: row 1: when no-such-predicate",
     );
-    expect(reasons({ ...good, id: "the-grudge" })).toContain("already a template");
+    expect(reasons({ ...good, id: "the-grudge" })).toContain("already taken");
     const famine = structuredClone(good) as { stages: { lapse: { kind: string }[] }[] };
     famine.stages[0]!.lapse = [{ kind: "famine" }];
     expect(reasons(famine)).toContain("schema");
@@ -303,7 +303,7 @@ describe("arc proposals", () => {
     expect(reasons({ ...good, scope: "galaxy" })).toContain("schema");
     expect(reasons({ ...good, chance: 101 })).toContain("above 100");
     const twice = checkProposals(input, { rows: [good, good] });
-    expect(twice.ok ? "ok" : twice.detail).toContain("already a template");
+    expect(twice.ok ? "ok" : twice.detail).toContain("already taken");
     const many = checkProposals(input, {
       rows: Array.from({ length: PROPOSALS_MOST + 1 }, (_, i) => ({
         ...good,

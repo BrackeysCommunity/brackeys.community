@@ -59,4 +59,14 @@ export const capKey = (use: UseId, who: string, day: number) =>
   `${KEY_PREFIX}cap:${use}:${who}:${day}`;
 
 /** The day ledger, a hash of micro-dollars and counts. */
-export const costKey = (day: number) => `${KEY_PREFIX}cost:${day}`;
+export const COST_PREFIX = `${KEY_PREFIX}cost:`;
+export const costKey = (day: number) => `${COST_PREFIX}${day}`;
+
+/** The day a ledger key is for, or null when the key is not one. */
+export function costDay(key: string): number | null {
+  if (!key.startsWith(COST_PREFIX)) return null;
+  const rest = key.slice(COST_PREFIX.length);
+  if (!/^\d+$/.test(rest)) return null;
+  const day = Number(rest);
+  return Number.isSafeInteger(day) ? day : null;
+}

@@ -99,8 +99,7 @@ func (g *Game) Dossier(c *Char, id string) (DossierView, error) {
 	return out, nil
 }
 
-// memoryView tells an entry to c, naming its player under consent, and
-// adds the name it uses to names.
+// memoryView tells an entry to c, naming its player under consent, and adds the guild it names to names.
 func (g *Game) memoryView(c *Char, e npc.Entry, names map[string]string) MemoryView {
 	v := MemoryView{Kind: e.Kind, Tick: e.Tick, Fact: e.Fact, Thing: e.Thing, N: e.N}
 	if e.N != 0 {

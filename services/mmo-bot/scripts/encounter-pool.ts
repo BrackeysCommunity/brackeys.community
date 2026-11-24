@@ -30,7 +30,7 @@ import { redisSwitch } from "../src/narration/switch.ts";
  *   bun run scripts/encounter-pool.ts [--stub] [--out <file>] [--keys clash,guardian:barrow-warden]
  *   bun run scripts/encounter-pool.ts --real [--usd 3] [--out <file>] [--write]
  *
- * Each key gets six new lines under the same check the committed pool
+ * Each key gets POOL_LINES new lines under the same check the committed pool
  * passes. The candidate pool goes to --out (a temporary file by default),
  * never over the committed pool unless --write is given; --write is only
  * taken with --real, so stub text never replaces the authored lines. The

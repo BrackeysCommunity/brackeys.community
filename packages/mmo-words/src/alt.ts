@@ -1,5 +1,5 @@
 import type { Names } from "./story.ts";
-import { amount, countWords, list, num, plural } from "./units.ts";
+import { amount, capital, countWords, list, num, plural } from "./units.ts";
 
 /**
  * Alt text for the game's pictures (GDD 16.1): what each one shows, in
@@ -204,8 +204,4 @@ export function sigilAlt(s: SigilLike): string {
   return clampAlt(
     parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0]!,
   );
-}
-
-function capital(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }

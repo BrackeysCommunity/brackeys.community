@@ -12,7 +12,7 @@ import { SWITCH_KEY, type SwitchLevels } from "../src/narration/switch.ts";
  *   bun run scripts/narration-switch.ts server <guild id> on|off
  *
  * It reads REDIS_URL and nothing else. The master switch is the bot's own
- * MMO_NARRATION=on with its key and Redis; the bot reads a flip within 30 s.
+ * MMO_NARRATION=on with its key and Redis; the bot reads a flip within SWITCH_CACHE_MS.
  */
 
 export type SwitchCommand =

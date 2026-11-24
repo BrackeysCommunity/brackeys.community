@@ -37,7 +37,7 @@ export class ChroniclePoster {
     private readonly prefix = "mmo-bot:chronicle:",
     private readonly log: (line: string) => void = console.log,
     card?: ChronicleCard,
-    /** Told the day after the last closed one on every poll that reads one. */
+    /** Called with the last closed day + 1 on every poll that reads one, posted or not, so the day clock keeps up. */
     private readonly onDay?: (day: number) => void,
   ) {
     this.template = (ch) => chronicleCard(ch, lex, 0, true);

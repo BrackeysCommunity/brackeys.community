@@ -388,7 +388,7 @@ export function factCard(fc: api.FactCauses, lex: Lexicon, version: number): Car
 
 type Refs = ReadonlyMap<string, string>;
 
-/** A place, road or caravan event's picture: none, since it has no art slot of its own. */
+/** The picture of a card outside ART_KINDS: a form, whatever art the world sent. */
 const NO_PICTURE: Picture | "form" = "form";
 
 /** An authored art slot's picture, headed by the card's title; a form when the world sent none. */

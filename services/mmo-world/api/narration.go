@@ -16,8 +16,7 @@ type Art struct {
 
 // Dossier is what an NPC brings to a conversation beyond its topics: who
 // it is, what it remembers of the viewer and of the world, and what it has
-// folded away (GDD 4.18). Another player is named only as their consent
-// allows.
+// folded away (GDD 4.18). Another player is never shown by id (see Memory).
 type Dossier struct {
 	Day         int64             `json:"day"`
 	Role        string            `json:"role"`
@@ -32,13 +31,13 @@ type Dossier struct {
 	Names       map[string]string `json:"names"`
 }
 
-// Memory is one remembered entry as a client may tell it.
+// Memory is one remembered entry. A Who that is a character id is shown as "a traveller"; clients never show the id.
 type Memory struct {
 	Kind  string `json:"kind"`
 	Tick  int64  `json:"tick"`
 	Fact  int64  `json:"fact,omitempty"`
 	Thing string `json:"thing,omitempty"` // a name
-	Who   string `json:"who,omitempty"`   // "you", the character id of a player who allows naming, "a traveller", or "a traveller from <guild>"
+	Who   string `json:"who,omitempty"`   // "you", a character id, "a traveller" or "a traveller from <guild>"
 	N     int64  `json:"n,omitempty"`
 	Unit  string `json:"unit,omitempty"`
 }
@@ -49,5 +48,6 @@ type ArcKit struct {
 	Templates []string `json:"templates"`
 	When      []string `json:"when"`
 	Effects   []string `json:"effects"`
-	Schema    string   `json:"schema"` // the story.arcs row schema, as JSON
+	Schema    string   `json:"schema"`          // the story.arcs row schema, as JSON
+	Taken     []string `json:"taken,omitempty"` // the arc, trouble and occasion ids a new row may not take
 }

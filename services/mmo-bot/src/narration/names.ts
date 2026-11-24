@@ -1,12 +1,19 @@
 import {
+  digestOf,
   KEY_PREFIX,
   type NarrateCtx,
   type NarrationStore,
   type Narrator,
+  USE_CONFIG,
   type UseId,
 } from "../../../../packages/mmo-narrate/src/index.ts";
 import { type NameSubject, namesUse } from "../../../../packages/mmo-narrate/src/uses/names.ts";
-import { screenUse } from "../../../../packages/mmo-narrate/src/uses/screen.ts";
+import { screenKey, screenUse } from "../../../../packages/mmo-narrate/src/uses/screen.ts";
+import type * as api from "../api.ts";
+import { type Lexicon, readable } from "../lexicon.ts";
+import { factStr } from "../screens/common.ts";
+import { dungeonName } from "../screens/dungeon.ts";
+import { tagName } from "../screens/emergence.ts";
 
 export type { NameSubject } from "../../../../packages/mmo-narrate/src/uses/names.ts";
 
@@ -14,12 +21,51 @@ export type { NameSubject } from "../../../../packages/mmo-narrate/src/uses/name
 export const HELD_KEY = `${KEY_PREFIX}held`;
 /** structural: the held list keeps the last this many. */
 export const HELD_KEEP = 500;
+const HELD_SEEN_TTL_SECONDS = 30 * 86_400;
 
 /** What a thing is and came from, in words: the names prompt's facts. */
 export interface NameFacts {
   traits: string[];
   lineage: string[];
   tier?: number;
+}
+
+/** What a kind is and is made of, in words, as its names are asked for. */
+export function kindNameFacts(k: api.Known, lex: Lexicon): NameFacts {
+  const lower = (s: string) => s.toLowerCase();
+  return {
+    traits: [
+      lower(lex.name("items.processes", k.recipe.process)),
+      lower(lex.name("items.methods", k.recipe.method)),
+      ...(k.recipe.slot ? [lower(lex.name("items.slots", k.recipe.slot))] : []),
+    ],
+    lineage: k.recipe.inputs.map((i) => lower(lex.material(i.material))),
+  };
+}
+
+/** A promotion's name now and its facts, from the fact that promoted it. */
+export function promotionNaming(f: api.Fact, lex: Lexicon): { plain: string; facts: NameFacts } {
+  const resists = factStr(f, "resists");
+  const of = factStr(f, "of");
+  return {
+    plain: factStr(f, "name") || readable(factStr(f, "type")),
+    facts: {
+      traits: [factStr(f, "type"), ...(resists ? [tagName(resists, lex)] : [])].filter(Boolean),
+      lineage: of ? [readable(of).toLowerCase()] : [],
+    },
+  };
+}
+
+/** A dungeon's name now and its facts, from the floor the player stands on. */
+export function dungeonNaming(
+  f: NonNullable<api.Here["floor"]>,
+  lex: Lexicon,
+): { plain: string; facts: NameFacts } {
+  const kind = lex.name("map.dungeons", f.kind).toLowerCase();
+  return {
+    plain: dungeonName(f, lex),
+    facts: { traits: [kind, ...(f.up ? ["relay tower"] : [])], lineage: [] },
+  };
 }
 
 export interface NameCtx {
@@ -129,7 +175,12 @@ export function nameOffers(
       };
       try {
         if (!held) throw new Error("no store for held names");
-        await held.push(HELD_KEY, JSON.stringify(entry), HELD_KEEP);
+        // One player resubmitting a held name records it once, so others' holds stay in the list.
+        const seen = `${HELD_KEY}:seen:${digestOf({ use: ctx.use, user: ctx.user, target: ctx.target, name: screenKey(name) })}`;
+        if (!(await held.get(seen))) {
+          await held.push(HELD_KEY, JSON.stringify(entry), HELD_KEEP);
+          await held.set(seen, "1", USE_CONFIG.screen.ttlSeconds ?? HELD_SEEN_TTL_SECONDS);
+        }
       } catch (e) {
         log(
           `[narration] a held ${ctx.use} name was not recorded: ${e instanceof Error ? e.message : String(e)}`,

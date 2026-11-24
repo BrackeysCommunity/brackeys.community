@@ -29,7 +29,7 @@ const DAYS_A_WEEK = 7;
 /** Season zero's length in world days, which proposals run once after. */
 const SEASON_DAYS = 14;
 
-/** Model calls each use makes a world day: an assumption until a real world's ledger (scripts/narration-ledger.ts) gives counts to replace it with. Cache hits are not counted. */
+/** Model calls each use makes a world day, cache hits excluded: an assumption until scripts/narration-ledger.ts gives a real world's counts. */
 export const VOLUME: Record<UseId, Volume> = {
   chronicle: {
     fixed: 0,

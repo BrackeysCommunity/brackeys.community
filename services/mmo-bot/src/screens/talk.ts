@@ -10,12 +10,8 @@ import { back, benchLine, btn, launch, PRIVATE } from "./common.ts";
 const BENCH_KEEPER = "tinker";
 
 /**
- * A conversation: the topics the NPC raises and the choices (GDD 4.18),
- * voiced from templates or, when the narration voiced them, in the NPC's
- * own words under the same ids. bench is the tinker's bench standing open
- * here, which the tinker's own card leads to. remembers is what the NPC
- * holds of the past, shown when there is any, cut at whole lines to fit a
- * field.
+ * A conversation (GDD 4.18): the NPC's topics and choices, voiced from templates or by the
+ * narration under the same ids. bench is the tinker's open bench; remembers fills one field.
  */
 export function talkCard(
   o: api.Options,

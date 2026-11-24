@@ -58,13 +58,20 @@ function voicedConv(conv: api.Conversation, v: Voiced, last: string | undefined)
   return { ...conv, topics, ...(conv.last ? { last: last ?? conv.last } : {}) };
 }
 
+/** The summary prompt's input: the NPC's name and the memory it folded. */
+export function summaryInput(conv: Pick<api.Conversation, "npc">, d: api.Dossier) {
+  return { npc: conv.npc.name, folded: d.folded ?? [], oldest: d.oldest, names: d.names };
+}
+
 export type VoiceNarration = Pick<Narration, "talk" | "wantsDossier"> & {
   /** Resolves once every background summary has been made and stored. */
   idle(): Promise<void>;
 };
 
 /**
- * The voice of notables and saved NPCs (GDD 4.18, 15.2): the world's conversation voiced through the narrator, or unchanged when it falls back. An NPC past its memory cap gets a background summary at most once a world day, with its oldest entries shown until one exists. A choice press keeps the world's ids.
+ * The voice of notables and saved NPCs (GDD 4.18): the world's conversation
+ * voiced, or unchanged on a fallback. While the summary use is on, an NPC past
+ * its memory cap is summarised in the background at most once a world day.
  */
 export function voiceNarration(
   narrator: Narrator,
@@ -95,11 +102,7 @@ export function voiceNarration(
     if ((await read(summaryDayKey(npc))) === day) return;
     if (!(await write(summaryDayKey(npc), day, SUMMARY_TTL_SECONDS))) return;
     const job = narrator
-      .narrate(
-        summaryUse,
-        { npc: conv.npc.name, folded: d.folded ?? [], oldest: d.oldest, names: d.names },
-        { day: d.day, server, npc },
-      )
+      .narrate(summaryUse, summaryInput(conv, d), { day: d.day, server, npc })
       .then(async (r) => {
         if (r.ok) await write(summaryKey(npc), r.value, SUMMARY_TTL_SECONDS);
       })

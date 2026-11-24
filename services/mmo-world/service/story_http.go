@@ -224,8 +224,7 @@ func castName(g *game.Game, ref fact.Ref, viewer string) string {
 	return ""
 }
 
-// settlementData are the data keys a fact names a settlement by, past
-// its settlement datum, by the fact kinds whose lines read them.
+// settlementData are the data keys, besides "settlement", that name a settlement in a fact, by fact kind.
 var settlementData = map[string][]string{
 	"caravan.departed": {"from", "to"}, "caravan.arrived": {"from", "to"}, "caravan.robbed": {"from", "to"}, "caravan.lost": {"from", "to"},
 	game.FactPromotion: {"a", "b"},

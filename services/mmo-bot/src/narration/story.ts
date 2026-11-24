@@ -1,7 +1,9 @@
 import type {
   CitedSentence,
+  NarrateCtx,
   Narrator,
   PromptFact,
+  UseSpec,
 } from "../../../../packages/mmo-narrate/src/index.ts";
 import { RECAP_AWAY_HOURS } from "../../../../packages/mmo-narrate/src/index.ts";
 import {
@@ -19,13 +21,6 @@ import { recapLine } from "../screens/hub.ts";
 import { chronicleLines, refsOf } from "../screens/story.ts";
 import { withProse } from "./card.ts";
 import { type DayClock, dayClock, type Narration } from "./hooks.ts";
-
-/**
- * The story told in prose: the chronicle of each world day, each stage
- * ending with what led to it, and since you left. Every prompt line is
- * the line the template card shows, so the prose retells the card, and
- * the card's own lines stay on it under "The record".
- */
 
 /** The causes a stage ending is told with: its heaviest. */
 const STAGE_CAUSES = 1;
@@ -95,46 +90,51 @@ export function recapTold(r: api.Recap): boolean {
 }
 
 /**
- * The story's narration. clock gives the world day a stage ending is
- * counted under, since an event carries none of its own.
+ * The chronicle, stage endings and since you left told in prose. Every prompt line is the line
+ * the template card shows, and those lines stay on the card under "The record". clock gives the
+ * world day a stage ending is counted under, since an event carries none.
  */
 export function storyNarration(
   narrator: Narrator,
   lex: Lexicon,
   clock: DayClock = dayClock(),
 ): Pick<Narration, "chronicle" | "event" | "recap"> {
+  const told = async <I>(
+    spec: UseSpec<I, CitedSentence[]>,
+    input: I,
+    ctx: NarrateCtx,
+    card: Card,
+  ): Promise<Card> => {
+    const r = await narrator.narrate(spec, input, ctx);
+    return r.ok ? withProse(card, prose(r.value)) : card;
+  };
   return {
     async chronicle(ch, server, mode, template) {
       const card = template();
       if (ch.day < 0 || !ch.lines.length) return card;
-      const told = await narrator.narrate(chronicleUse, chronicleInput(ch, lex), {
-        day: ch.day,
-        server,
-        mode: mode === "cached" ? "cached" : "call",
-      });
-      return told.ok ? withProse(card, prose(told.value)) : card;
+      return told(
+        chronicleUse,
+        chronicleInput(ch, lex),
+        { day: ch.day, server, mode: mode === "cached" ? "cached" : "call" },
+        card,
+      );
     },
 
     async event(e, server, mode, template) {
       const card = template();
       if (!TOLD_WITH_CAUSES.has(e.fact.kind)) return card;
-      const told = await narrator.narrate(stageUse, stageInput(e, lex), {
-        day: clock.today(),
-        server,
-        mode: mode === "cached" ? "cached" : "call",
-      });
-      return told.ok ? withProse(card, prose(told.value)) : card;
+      return told(
+        stageUse,
+        stageInput(e, lex),
+        { day: clock.today(), server, mode: mode === "cached" ? "cached" : "call" },
+        card,
+      );
     },
 
     async recap(r, user, server, template) {
       const card = template();
       if (!recapTold(r)) return card;
-      const told = await narrator.narrate(recapUse, recapInput(r, lex), {
-        day: r.day,
-        server,
-        player: user,
-      });
-      return told.ok ? withProse(card, prose(told.value)) : card;
+      return told(recapUse, recapInput(r, lex), { day: r.day, server, player: user }, card);
     },
   };
 }

@@ -260,7 +260,7 @@ export function dungeonPlace(d: Pick<FloorView, "name" | "kind">): string {
 }
 
 /**
- * The place a beat's encounter line names, as chat's card names it: a
+ * The place a beat's encounter line names, as the bot's card names it: a
  * party's beat on a dungeon floor is in the dungeon, any other in the
  * place the character stands.
  */
@@ -270,7 +270,7 @@ export function beatPlace(st: Pick<ActivityState, "fight" | "floor" | "place">):
   return st.place.name ?? "";
 }
 
-/** The beat's opening line from the setting's encounter pool: the pick chat's card makes; "" when none fits. */
+/** The beat's opening line from the encounter pool, the same pick the bot's card makes; "" when none fits. */
 export function beatLine(st: Pick<ActivityState, "fight" | "floor" | "place">): string {
   const f = st.fight;
   if (!f) return "";

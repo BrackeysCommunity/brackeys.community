@@ -103,9 +103,13 @@ function lineProblem(
   const p = proseProblem(text, rules);
   if (p) return p;
   const kept = new Set(numberPairs(template));
-  const lost = numberPairs(text).find((pair) => !kept.has(pair));
-  return lost
-    ? { reason: "number", detail: `"${lost.trim()}" is not as the template says it` }
+  const said = numberPairs(text);
+  const lost = said.find((pair) => !kept.has(pair));
+  if (lost) return { reason: "number", detail: `"${lost.trim()}" is not as the template says it` };
+  const voiced = new Set(said);
+  const dropped = [...kept].find((pair) => !voiced.has(pair));
+  return dropped
+    ? { reason: "number", detail: `"${dropped.trim()}" is in the template but not the line` }
     : null;
 }
 

@@ -1,5 +1,6 @@
 import type { Button } from "../../../packages/discord-kit/src/index.ts";
 import {
+  costDay,
   type DayLedger,
   fixedSwitch,
   memoryStore as narrationMemory,
@@ -787,8 +788,12 @@ export function scriptedCtx(
       },
       async ledgers() {
         await narrator.drain();
-        const days = [...new Set(store.keys().filter((k) => k.includes(":cost:")))];
-        return Promise.all(days.map((k) => narrator.ledger(Number(k.split(":").at(-1)))));
+        const days = new Set<number>();
+        for (const k of store.keys()) {
+          const d = costDay(k);
+          if (d !== null) days.add(d);
+        }
+        return Promise.all([...days].map((d) => narrator.ledger(d)));
       },
     },
   };

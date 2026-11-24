@@ -35,11 +35,9 @@ import {
 } from "../../../packages/mmo-narrate/src/volume.ts";
 import { WASTELAND_ENCOUNTERS } from "../../../packages/mmo-words/src/encounters.ts";
 import type * as api from "../src/api.ts";
-import { readable } from "../src/lexicon.ts";
+import { dungeonNaming, kindNameFacts, promotionNaming } from "../src/narration/names.ts";
 import { chronicleInput, recapInput, stageInput } from "../src/narration/story.ts";
-import { factStr } from "../src/screens/common.ts";
-import { dungeonName } from "../src/screens/dungeon.ts";
-import { tagName } from "../src/screens/emergence.ts";
+import { summaryInput } from "../src/narration/voice.ts";
 import * as mm8 from "../test/fixtures/mm8.ts";
 import * as mm9 from "../test/fixtures/mm9.ts";
 import * as mm10 from "../test/fixtures/mm10.ts";
@@ -147,42 +145,19 @@ function recaps(): [string, api.Recap][] {
 
 /** A kind's facts, as the naming card reads them. */
 function kindNames(k: api.Known): NamesIn {
-  const lower = (s: string) => s.toLowerCase();
-  return {
-    subject: "kind",
-    id: k.kind,
-    plain: k.name,
-    traits: [
-      lower(lex.name("items.processes", k.recipe.process)),
-      lower(lex.name("items.methods", k.recipe.method)),
-      ...(k.recipe.slot ? [lower(lex.name("items.slots", k.recipe.slot))] : []),
-    ],
-    lineage: k.recipe.inputs.map((i) => lower(lex.material(i.material))),
-  };
+  return { subject: "kind", id: k.kind, plain: k.name, ...kindNameFacts(k, lex) };
 }
 
 /** A promotion's facts, as the naming card reads them. */
 function promotionNames(id: string, f: api.Fact): NamesIn {
-  const resists = factStr(f, "resists");
-  const of = factStr(f, "of");
-  return {
-    subject: "promotion",
-    id,
-    plain: factStr(f, "name") || readable(factStr(f, "type")),
-    traits: [factStr(f, "type"), ...(resists ? [tagName(resists, lex)] : [])].filter(Boolean),
-    lineage: of ? [readable(of).toLowerCase()] : [],
-  };
+  const { plain, facts } = promotionNaming(f, lex);
+  return { subject: "promotion", id, plain, ...facts };
 }
 
 function dungeonNames(): NamesIn {
   const f = mm8.named.floor!;
-  return {
-    subject: "dungeon",
-    id: f.dungeon,
-    plain: dungeonName(f, lex),
-    traits: [lex.name("map.dungeons", f.kind).toLowerCase(), ...(f.up ? ["relay tower"] : [])],
-    lineage: [],
-  };
+  const { plain, facts } = dungeonNaming(f, lex);
+  return { subject: "dungeon", id: f.dungeon, plain, ...facts };
 }
 
 function promotionsNamed(): NamesIn[] {
@@ -284,18 +259,19 @@ export async function samples(): Promise<Sample[]> {
 
   const d = voice.dossier;
   out.push(
-    sample(summaryUse, "the tinker", {
-      npc: voice.npc.name,
-      folded: d.folded ?? [],
-      oldest: d.oldest,
-      names: d.names,
-    }),
-    sample(summaryUse, "the tinker, oldest two", {
-      npc: voice.npc.name,
-      folded: (d.folded ?? []).slice(0, 1),
-      oldest: d.oldest.slice(0, 2),
-      names: d.names,
-    }),
+    sample(summaryUse, "the tinker", summaryInput({ npc: voice.npc }, d)),
+    sample(
+      summaryUse,
+      "the tinker, oldest two",
+      summaryInput(
+        { npc: voice.npc },
+        {
+          ...d,
+          folded: (d.folded ?? []).slice(0, 1),
+          oldest: d.oldest.slice(0, 2),
+        },
+      ),
+    ),
   );
 
   for (const name of ["Rust Tooth", ...named.map((n) => n.plain)]) {

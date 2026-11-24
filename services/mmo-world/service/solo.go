@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
-	"sync"
+	"time"
 
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/render"
@@ -28,6 +28,8 @@ const (
 	mapRadiusMax = 6    // tiles
 	recentFacts  = 5    // facts shown on a place card
 	mediaKept    = 1024 // cached images
+	// structural:
+	portraitScanEvery = 2 * time.Second // the least time between two scans of the world for a portrait key no read served
 )
 
 func simRecipe(r api.Recipe) item.Recipe {
@@ -48,9 +50,7 @@ func apiRecipe(r item.Recipe) api.Recipe {
 
 // media keeps rendered pictures by key, oldest dropped first.
 type media struct {
-	mu    sync.Mutex
-	png   map[string][]byte
-	order []string
+	png bounded[string, []byte]
 }
 
 // put draws a picture outside the cache's lock, so pictures render side
@@ -63,28 +63,12 @@ func (m *media) put(key string, draw func() ([]byte, error)) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.png == nil {
-		m.png = map[string][]byte{}
-	}
-	if _, ok := m.png[key]; ok {
-		return key, nil
-	}
-	m.png[key] = b
-	m.order = append(m.order, key)
-	if len(m.order) > mediaKept {
-		delete(m.png, m.order[0])
-		m.order = m.order[1:]
-	}
+	m.png.add(key, b)
 	return key, nil
 }
 
 func (m *media) get(key string) ([]byte, bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	b, ok := m.png[key]
-	return b, ok
+	return m.png.get(key)
 }
 
 // pictureKey is the media key of a picture's input.
@@ -166,13 +150,18 @@ func (s *Server) drawLate(ctx context.Context, key string) ([]byte, bool) {
 }
 
 // portraitFor is the input of a portrait key: from the keys reads served,
-// else from one scan of the world for keys served before a restart. A key
-// no scan found is not scanned for again.
+// else from a scan of the world for keys served before a restart. A key no
+// read served is looked for by at most one scan every portraitScanEvery,
+// and a key no scan found is not scanned for again.
 func (s *Server) portraitFor(ctx context.Context, key string) (render.PortraitInput, bool) {
 	if in, ok := portraits.input(key); ok {
 		return in, true
 	}
 	if portraits.missed(key) {
+		return render.PortraitInput{}, false
+	}
+	now, last := s.cfg.Now().UnixNano(), s.portraitScan.Load()
+	if now-last < int64(portraitScanEvery) || !s.portraitScan.CompareAndSwap(last, now) {
 		return render.PortraitInput{}, false
 	}
 	unlock, err := s.take(ctx, true)

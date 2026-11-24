@@ -454,6 +454,24 @@ describe("Narrator.narrate", () => {
     });
   });
 
+  test("a player whose cap is spent cannot start a call another player is checking", async () => {
+    const { narrator, model, store } = setup({
+      mode: "slow",
+      delayMs: 20,
+      config: { chronicle: { perDayCap: 1, capBy: "player" } },
+    });
+    await store.incr(capKey("chronicle", "pB", DAY), CAP_TTL_SECONDS);
+    const [a, b] = await Promise.all([
+      narrator.narrate(toyUse(), toyInput(), { day: DAY, player: "pA" }),
+      narrator.narrate(toyUse(), toyInput(), { day: DAY, player: "pB" }),
+    ]);
+    await narrator.drain();
+    expect(a).toMatchObject({ ok: true, from: "model" });
+    expect(model.calls).toHaveLength(1);
+    expect(b.ok ? b.from === "cache" : b.reason === "cap").toBe(true);
+    expect(Number(await store.get(capKey("chronicle", "pB", DAY)))).toBe(1);
+  });
+
   test("cached mode reads the cache and never calls", async () => {
     const { narrator, model } = setup();
     const spec = toyUse();

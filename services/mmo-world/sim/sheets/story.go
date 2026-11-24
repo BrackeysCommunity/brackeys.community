@@ -87,6 +87,21 @@ func StoryEffectKinds() []string {
 	return strings.Split(f.Tag.Get("enum"), "|")
 }
 
+// StoryIDs are the ids a new story row may not take, each with the sheet that holds it.
+func (b *Book) StoryIDs() map[string]string {
+	taken := map[string]string{}
+	for _, a := range b.Arcs {
+		taken[a.ID] = "a story.arcs row"
+	}
+	for _, t := range b.Troubles {
+		taken[t.ID] = "a story.troubles row"
+	}
+	for _, o := range b.Occasions {
+		taken[o.ID] = "a story.occasions row"
+	}
+	return taken
+}
+
 // TroubleRow is a settlement trouble (GDD 12.5, 12.10).
 type TroubleRow struct {
 	ID      string        `json:"id" unit:"id"`

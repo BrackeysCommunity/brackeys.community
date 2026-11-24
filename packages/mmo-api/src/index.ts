@@ -1795,8 +1795,7 @@ export interface Art {
 /**
  * Dossier is what an NPC brings to a conversation beyond its topics: who
  * it is, what it remembers of the viewer and of the world, and what it has
- * folded away (GDD 4.18). Another player is named only as their consent
- * allows.
+ * folded away (GDD 4.18). Another player is never shown by id (see Memory).
  */
 export interface Dossier {
   day: number /* int64 */;
@@ -1812,14 +1811,14 @@ export interface Dossier {
   names: { [key: string]: string };
 }
 /**
- * Memory is one remembered entry as a client may tell it.
+ * Memory is one remembered entry. A Who that is a character id is shown as "a traveller"; clients never show the id.
  */
 export interface Memory {
   kind: string;
   tick: number /* int64 */;
   fact?: number /* int64 */;
   thing?: string; // a name
-  who?: string; // "you", the character id of a player who allows naming, "a traveller", or "a traveller from <guild>"
+  who?: string; // "you", a character id, "a traveller" or "a traveller from <guild>"
   n?: number /* int64 */;
   unit?: string;
 }
@@ -1832,6 +1831,7 @@ export interface ArcKit {
   when: string[];
   effects: string[];
   schema: string; // the story.arcs row schema, as JSON
+  taken?: string[]; // the arc, trouble and occasion ids a new row may not take
 }
 
 //////////

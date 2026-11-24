@@ -1,10 +1,11 @@
 import IORedis from "ioredis";
 
 import {
+  COST_PREFIX,
+  costDay,
   type DayLedger,
   type FallbackReason,
   fixedSwitch,
-  KEY_PREFIX,
   Narrator,
   type UseId,
 } from "../../../packages/mmo-narrate/src/index.ts";
@@ -20,8 +21,6 @@ import { redisNarrationStore } from "../src/narration/redis.ts";
  *
  * It reads REDIS_URL and nothing else, and never calls a model.
  */
-
-const COST_PREFIX = `${KEY_PREFIX}cost:`;
 
 /** The days asked for, or "all"; a message when the argument is not a day or a range. */
 export function parseDays(args: readonly string[]): { days: number[] | "all" } | string {
@@ -115,8 +114,8 @@ if (import.meta.main) {
         const [next, keys] = await redis.scan(cursor, "MATCH", `${COST_PREFIX}*`, "COUNT", 200);
         cursor = next;
         for (const k of keys) {
-          const d = Number(k.slice(COST_PREFIX.length));
-          if (Number.isSafeInteger(d)) found.add(d);
+          const d = costDay(k);
+          if (d !== null) found.add(d);
         }
       } while (cursor !== "0");
       list = [...found].sort((a, b) => a - b);

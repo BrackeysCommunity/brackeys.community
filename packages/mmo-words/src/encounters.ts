@@ -17,6 +17,7 @@ export const WASTELAND_ENCOUNTERS: EncounterPool = wasteland;
 
 /** The slots a pool line may hold; nothing else in braces is allowed. */
 export const ENCOUNTER_SLOTS = ["creature", "place"] as const;
+export type EncounterSlot = (typeof ENCOUNTER_SLOTS)[number];
 
 /** One line per beat kind, shown when a pool has nothing for the beat. */
 export const AUTHORED: Record<string, string> = {
@@ -67,7 +68,7 @@ export function encounterLines(
   return pool?.lines[kind] ?? [];
 }
 
-const SLOT = /(\b[Tt]he )?\{(creature|place)\}/g;
+const SLOT = new RegExp(`(\\b[Tt]he )?\\{(${ENCOUNTER_SLOTS.join("|")})\\}`, "g");
 const THE = /^the /i;
 
 /** Fills the slots. A name's own "The" gives way to the line's article, or is lowered where the slot does not open a sentence. */
@@ -83,19 +84,18 @@ export function fillSlots(line: string, names: EncounterNames): string {
 }
 
 /**
- * The encounter line for a fight beat, stable for the fight and the beat:
- * FNV-1a of version|id|beat picks among the pool's lines (the creature's own, else the kind's),
- * then the authored line, then "" when the kind is unknown. A line with a
- * slot that has no name is passed over.
+ * The encounter line for a fight beat, stable for the fight and the beat: a
+ * hash picks among the pool lines that fit (the creature's own, else the kind's),
+ * else the authored line; "" when none fits. A line whose slot has no name does not fit.
  */
 export function encounterLine(
   pool: EncounterPool | null,
   f: EncounterFight,
   names: EncounterNames,
 ): string {
+  const named: Record<EncounterSlot, string> = { creature: names.creature, place: names.place };
   const fits = (l: string) =>
-    (names.creature !== "" || !l.includes("{creature}")) &&
-    (names.place !== "" || !l.includes("{place}"));
+    ENCOUNTER_SLOTS.every((s) => named[s] !== "" || !l.includes(`{${s}}`));
   const lines = encounterLines(pool, f.kind, f.creature).filter(fits);
   const authored = AUTHORED[f.kind];
   const line = lines.length

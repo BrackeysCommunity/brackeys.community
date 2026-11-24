@@ -164,7 +164,7 @@ export function priceLadder(ref: number, percents: number[]): { pct: number; pri
   return out;
 }
 
-function datum(f: api.Fact, k: string): api.Datum | undefined {
+export function datum(f: api.Fact, k: string): api.Datum | undefined {
   return f.data.find((d) => d.k === k);
 }
 /** A fact's number under a key, or 0. */

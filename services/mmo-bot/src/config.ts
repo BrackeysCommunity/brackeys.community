@@ -46,12 +46,13 @@ function integer(name: string): number | undefined {
   return n;
 }
 
-function dollars(name: string, fallback: number): number {
-  const v = process.env[name]?.trim();
-  if (!v) return fallback;
+/** The narration budget a world day from MMO_NARRATION_DAY_USD, or NARRATION_DAY_USD when unset. */
+export function narrationDayUsd(env: Record<string, string | undefined> = process.env): number {
+  const v = env.MMO_NARRATION_DAY_USD?.trim();
+  if (!v) return NARRATION_DAY_USD;
   const n = Number(v);
   if (!Number.isFinite(n) || n <= 0)
-    throw new Error(`${name} must be a positive number, not "${v}"`);
+    throw new Error(`MMO_NARRATION_DAY_USD must be a positive number, not "${v}"`);
   return n;
 }
 
@@ -91,7 +92,7 @@ export function loadConfig(): Config {
     eventsAlarmRole: process.env.MMO_EVENTS_ALARM_ROLE?.trim() || undefined,
     lexiconRefreshMs: integer("LEXICON_REFRESH_MS"),
     narration: process.env.MMO_NARRATION?.trim() === "on",
-    narrationDayUsd: dollars("MMO_NARRATION_DAY_USD", NARRATION_DAY_USD),
+    narrationDayUsd: narrationDayUsd(),
   };
   return withKey(config, process.env.ANTHROPIC_API_KEY?.trim() || undefined);
 }

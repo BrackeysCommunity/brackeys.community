@@ -158,6 +158,18 @@ describe("voiceUse", () => {
     expect(voiceUse.check(input, choice)).toMatchObject({ ok: false, reason: "number" });
   });
 
+  test("a voiced line that drops the template's number fails", () => {
+    const priced: VoiceIn = structuredClone(input);
+    priced.conv.topics[0]!.line = "Ada Mercer asks 30 coin for the map.";
+    const reply = () => structuredClone(voiceUse.stub(priced) as Reply);
+    const dropped = reply();
+    dropped.topics[0]!.line = "Ada Mercer will sell you the map.";
+    expect(voiceUse.check(priced, dropped)).toMatchObject({ ok: false, reason: "number" });
+    const kept = reply();
+    kept.topics[0]!.line = "Ada Mercer wants 30 coin for her map.";
+    expect(voiceUse.check(priced, kept)).toMatchObject({ ok: true });
+  });
+
   test("names, mentions, markup and length follow the prose rules", () => {
     const named = good();
     named.topics[1]!.line = "Ada Mercer says Zarnok speaks well of you.";

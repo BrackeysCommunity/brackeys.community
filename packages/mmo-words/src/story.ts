@@ -1,5 +1,5 @@
 import { claimSideName, promotionNoun, seasonAddedWhat, SIDE_NAMES } from "./emergence.ts";
-import { amount, list, num, outOf, plural, signed, ticks } from "./units.ts";
+import { amount, capital, list, num, outOf, plural, readable, signed, ticks } from "./units.ts";
 
 /**
  * How the story reads: the chronicle's lines, an arc's sides, a trouble's
@@ -53,11 +53,6 @@ export function castNames(arcs: { cast: (Ref & { name?: string })[] }[]): Map<st
 
 const CHARACTER = "character";
 
-function readable(id: string): string {
-  const s = id.replace(/[-_]/g, " ");
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
 /** A sheet row's name, or its id made readable; "" for no id. */
 function rowName(sheet: string, id: string, names?: Names): string {
   if (!id) return "";
@@ -100,10 +95,6 @@ export function isLapsed(f: StoryFact): boolean {
   const d = f.data.find((x) => x.k === "lapsed");
   if (d) return !!d.n;
   return f.data.some((x) => (x.k === "side" || x.k === "outcome") && x.s === LAPSED);
-}
-
-function capital(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 /** A common noun mid-sentence: "Raid" reads "raid", "Raider Compact" stays. */

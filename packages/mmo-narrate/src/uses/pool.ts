@@ -1,3 +1,4 @@
+import { ENCOUNTER_SLOTS } from "../../../mmo-words/src/encounters.ts";
 import { proseProblem } from "../check.ts";
 import { systemPrompt, untrusted } from "../prompt.ts";
 import type { CheckReason, CheckResult, UseSpec } from "../types.ts";
@@ -25,7 +26,7 @@ export interface PoolIn {
 export const poolKey = (i: Pick<PoolIn, "beat" | "archetype">): string =>
   i.archetype ? `${i.beat}:${i.archetype}` : i.beat;
 
-const SLOTS = new Set(["creature", "place"]);
+const SLOTS = new Set<string>(ENCOUNTER_SLOTS);
 const BRACED = /\{([^{}]*)\}/g;
 const SECOND_PERSON = /\b(you|your|yours|yourself|yourselves)\b/i;
 
@@ -128,7 +129,7 @@ const fail = (reason: CheckReason, detail: string): CheckResult<string[]> => ({
   detail,
 });
 
-/** Six new encounter lines for a beat kind or a creature's beat, written offline with the largest model. */
+/** New encounter lines (POOL_LINES) for a beat kind or a creature's beat, written offline. */
 export const poolUse: UseSpec<PoolIn, string[]> = {
   use: "pool",
   version: 1,

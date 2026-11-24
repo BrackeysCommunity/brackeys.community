@@ -453,6 +453,17 @@ test("nameOffers: no narrator suggests nothing and allows every name", async () 
   ).toBe("allow");
 });
 
+test("a held name resubmitted by the same player is recorded once", async () => {
+  const { narrator, store } = narratorOf(holdingModel());
+  const offers = nameOffers(narrator, store);
+  const ctx = { day: DAY, server: "g", use: "kind" as const, target: kind.kind };
+  expect(await offers.screen("Some Name", { ...ctx, user: "u1" })).toBe("hold");
+  expect(await offers.screen("some  name", { ...ctx, user: "u1" })).toBe("hold");
+  expect(store.list(HELD_KEY)).toHaveLength(1);
+  expect(await offers.screen("Some Name", { ...ctx, user: "u2" })).toBe("hold");
+  expect(store.list(HELD_KEY).map((e) => JSON.parse(e).user)).toEqual(["u2", "u1"]);
+});
+
 test("the held list reads as lines, newest first, and tolerates a bad entry", () => {
   expect(heldLines([])).toEqual(["no names are held"]);
   const entry = JSON.stringify({
