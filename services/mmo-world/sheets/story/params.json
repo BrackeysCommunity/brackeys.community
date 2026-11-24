@@ -361,6 +361,24 @@
       "value": 20,
       "unit": "defence",
       "doc": "Defence a running Stocked wall adds to a raid (settlements.guild-works stocked-wall)."
+    },
+    {
+      "id": "offers-floor",
+      "value": 4,
+      "unit": "count",
+      "doc": "Threads a faction's notables may have offered at once, pending or running, whatever the population (GDD 5.4). Provisional."
+    },
+    {
+      "id": "offers-per-thousand",
+      "value": 4,
+      "unit": "count",
+      "doc": "Offered threads a faction may add per thousand active characters. Provisional."
+    },
+    {
+      "id": "offer-rest-days",
+      "value": 5,
+      "unit": "days",
+      "doc": "A character whose offered thread left the queue uncast is offered none for this many world days. Provisional."
     }
   ]
 }

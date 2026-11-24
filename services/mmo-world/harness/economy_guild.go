@@ -2,12 +2,14 @@ package harness
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
 	"jams.team/mmo-world/harness/agent"
 	"jams.team/mmo-world/sim/arc"
 	"jams.team/mmo-world/sim/class"
+	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/ledger"
@@ -592,6 +594,122 @@ func quietSection(p func(string, ...any), b *sheets.Book, results []economyResul
 			for _, a := range qp.audit {
 				p("- %s players, the ruin of %s: %s", comma(int64(r.size)), qp.name, a)
 			}
+		}
+	}
+}
+
+// threadResult is a soak's personal threads: the candidates queued by
+// where they came from, and the threads open on the last day and at their
+// peak, by template and by the faction that offered them.
+type threadResult struct {
+	queued     game.Queued
+	open, peak int64
+	read       threadRead
+	byTemplate map[string]*openCount
+	byFaction  map[string]*openCount
+}
+
+// threadRead is the threads as they stood at the end of threadsReadDay.
+type threadRead struct {
+	reached           bool
+	gate, open, rival int64
+}
+
+// structural: the world day the threads are also read at, before a city
+// forms at 1,000 players, so the bound reads against a busy world.
+const threadsReadDay = 38
+
+// openCount is one template's or faction's open threads.
+type openCount struct{ last, peak int64 }
+
+// structural: how the threads section names a thread no faction's cap
+// counts, and the template the gate and arc winners cast.
+const (
+	earnedThread = "none (earned)"
+	rivalThread  = "the-rival"
+)
+
+// day counts the personal threads open at a world day's end.
+func (r *threadResult) day(g *game.Game) {
+	if g.Story == nil {
+		return
+	}
+	if r.byTemplate == nil {
+		r.byTemplate, r.byFaction = map[string]*openCount{}, map[string]*openCount{}
+	}
+	tpl, fac := map[string]int64{}, map[string]int64{}
+	var n int64
+	for _, a := range g.Story.Arcs {
+		if a.Outcome != "" || a.Scope != arc.Personal {
+			continue
+		}
+		n++
+		tpl[a.Template]++
+		fac[viaName(g, a.Via)]++
+	}
+	r.open, r.peak = n, max(r.peak, n)
+	if g.Tick()/sheets.TicksPerDay == threadsReadDay {
+		r.read = threadRead{reached: true, gate: g.Queued().Gate, open: n, rival: tpl[rivalThread]}
+	}
+	tally := func(into map[string]*openCount, today map[string]int64) {
+		for _, c := range into {
+			c.last = 0
+		}
+		for k, v := range today {
+			c := into[k]
+			if c == nil {
+				c = &openCount{}
+				into[k] = c
+			}
+			c.last, c.peak = v, max(c.peak, v)
+		}
+	}
+	tally(r.byTemplate, tpl)
+	tally(r.byFaction, fac)
+}
+
+// viaName is the faction a thread was offered by, with its archetype.
+func viaName(g *game.Game, via fact.Ref) string {
+	fi, ok := arc.RefIndex(via)
+	if via == (fact.Ref{}) || !ok || fi < 0 || fi >= len(g.World.Factions) {
+		return either(via == (fact.Ref{}), earnedThread, via.String())
+	}
+	return fmt.Sprintf("%s (%s)", via.ID, g.World.Factions[fi].Archetype)
+}
+
+// threadSection reports each soak's personal threads, so the per-faction
+// offer cap can be read against the churn it bounds.
+func threadSection(p func(string, ...any), results []economyResult) {
+	p("## Personal threads")
+	p("")
+	p("Personal thread candidates queued over the whole run, by source: the thread gate (a faction's notables offering a character standing high with them), a won arc side's contributors against the faction it beat, and every other hook (an NPC's debt, a return, a broken vow). Then the personal threads open at the last world day and at their peak, by template and by the faction whose offer cap each counts against: the one that offered it, or the one a rival is against.")
+	p("")
+	p("| Players | Queued by the gate | Queued for arc winners | Queued otherwise | Open on the last day | Peak open | Gate by day %d | Open on day %d | Rivals open on day %d |", threadsReadDay, threadsReadDay, threadsReadDay)
+	p("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+	for _, r := range results {
+		th := r.threads
+		at := func(n int64) string { return either(th.read.reached, comma(n), "–") }
+		p("| %s | %s | %s | %s | %s | %s | %s | %s | %s |", comma(int64(r.size)), comma(th.queued.Gate), comma(th.queued.Winners), comma(th.queued.Other), comma(th.open), comma(th.peak),
+			at(th.read.gate), at(th.read.open), at(th.read.rival))
+	}
+	p("")
+	for _, r := range results {
+		for _, by := range []struct {
+			name   string
+			counts map[string]*openCount
+		}{{"template", r.threads.byTemplate}, {"faction counted against", r.threads.byFaction}} {
+			if len(by.counts) == 0 {
+				continue
+			}
+			p("Open personal threads at %s players by %s:", comma(int64(r.size)), by.name)
+			p("")
+			p("| %s | Last day | Peak |", strings.ToUpper(by.name[:1])+by.name[1:])
+			p("| --- | --- | --- |")
+			for _, k := range slices.Sorted(maps.Keys(by.counts)) {
+				c := by.counts[k]
+				p("| %s | %s | %s |", k, comma(c.last), comma(c.peak))
+			}
+			p("")
 		}
 	}
 }

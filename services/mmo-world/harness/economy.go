@@ -82,6 +82,7 @@ type economyResult struct {
 	reports []game.Report
 	guild   guildResult
 	classes classResult
+	threads threadResult
 	digest  string // the world at the soak's end, to tell two builds apart
 }
 
@@ -171,6 +172,7 @@ func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 			p("- %s", a)
 		}
 	}
+	threadSection(p, results)
 	society := guildSections(p, b, results, fr, days)
 	if err := doc.save(out, "economy.md"); err != nil {
 		return nil, err
@@ -417,6 +419,7 @@ func soak(b *sheets.Book, pop population, days int64) (economyResult, error) {
 				res.second += units
 			}
 			res.guild.day(g, pop.plan, stocked)
+			res.threads.day(g)
 			if pop.until != nil && pop.until(g) {
 				break
 			}
@@ -431,6 +434,7 @@ func soak(b *sheets.Book, pop population, days int64) (economyResult, error) {
 		res.reports = g.Market.Reports
 	}
 	res.guild.close(g, stocked)
+	res.threads.queued = g.Queued()
 	res.classes = classesOf(g, players)
 	sum, err := g.Digest()
 	if err != nil {

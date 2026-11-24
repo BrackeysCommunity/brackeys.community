@@ -41,7 +41,7 @@ func thread(w World, pd Pending, seat hex.Hex, regions []int, cast ...Binding) C
 		causes = []fact.ID{pd.Fact}
 	}
 	cast = append(cast, bind("character", fact.Ref{Kind: kindCharacter, ID: pd.Char}))
-	return Candidate{Cast: cast, Regions: regions, Seat: seat, Causes: causes, Pressure: max(w.Day()-dayOf(pd.Tick), 0), Char: pd.Char, Place: -1, From: &pd}
+	return Candidate{Cast: cast, Regions: regions, Seat: seat, Causes: causes, Pressure: max(w.Day()-dayOf(pd.Tick), 0), Char: pd.Char, Place: -1, From: &pd, Via: pd.Faction()}
 }
 
 // npcOwed is the debt: an NPC queued a visit about something it owes or

@@ -68,7 +68,13 @@ func (g *Game) forget() {
 	}
 	gone := slices.Clone(s.Memory[:young])
 	s.Memory = s.Memory[young:]
-	s.Pending = slices.DeleteFunc(s.Pending, func(p arc.Pending) bool { return old(p.Tick) })
+	s.Pending = slices.DeleteFunc(s.Pending, func(p arc.Pending) bool {
+		if !old(p.Tick) {
+			return false
+		}
+		g.offerLeft(p)
+		return true
+	})
 	defer func() { x.drop(gone, s.Memory) }()
 	over := len(s.Memory) - int(g.r.Story.MemoryKept)
 	if over <= 0 {
@@ -227,16 +233,20 @@ func (g *Game) pendOath(f fact.Fact) {
 	g.pend(arc.Pending{Kind: arc.PendOath, Char: who, Ref: arc.SettlementRef(board), Tick: f.Tick, Fact: f.ID})
 }
 
-// pend queues a personal thread candidate, dropping the oldest past
-// pending-kept.
+// pend queues a personal thread candidate. Past pending-kept the oldest
+// gate offer goes first, so an earned candidate goes only when no offer is
+// left to drop.
 func (g *Game) pend(p arc.Pending) {
 	s := g.Story
 	if s == nil {
 		return
 	}
+	s.queued.add(p)
 	s.Pending = append(s.Pending, p)
-	if over := len(s.Pending) - int(g.r.Story.PendingKept); over > 0 {
-		s.Pending = slices.Delete(s.Pending, 0, over)
+	for len(s.Pending) > int(g.r.Story.PendingKept) {
+		i := max(slices.IndexFunc(s.Pending, func(q arc.Pending) bool { return q.Offer }), 0)
+		g.offerLeft(s.Pending[i])
+		s.Pending = slices.Delete(s.Pending, i, i+1)
 	}
 }
 

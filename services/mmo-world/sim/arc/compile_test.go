@@ -128,6 +128,7 @@ func TestParamsOfShippedBook(t *testing.T) {
 		{"haywire-least", p.HaywireLeast, 200}, {"haywire-most", p.HaywireMost, 400},
 		{"beacon-cost", p.BeaconCost, 20}, {"chain-distance", p.ChainDistance, 40}, {"chain-tries", p.ChainTries, 6},
 		{"stocked-wall-defence", p.StockedWallDefence, 20},
+		{"offers-floor", p.OffersFloor, 4}, {"offers-per-thousand", p.OffersPerThousand, 4}, {"offer-rest-days", p.OfferRestDays, 5},
 	} {
 		read[c.name] = true
 		if c.got != c.want {

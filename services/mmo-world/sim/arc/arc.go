@@ -92,6 +92,7 @@ type Candidate struct {
 	Char     string   // personal: whose thread
 	Place    int      // settlement scope: the place; -1 otherwise
 	From     *Pending // personal: the pending candidate it was cast from
+	Via      fact.Ref // personal: the faction whose offer cap it counts against
 }
 
 // World is what predicates read. Every method costs at most the regions,
@@ -172,6 +173,23 @@ type Pending struct {
 	Ref  fact.Ref `json:"ref"`
 	Tick int64    `json:"tick"`
 	Fact fact.ID  `json:"fact"`
+	// Via is the faction whose standing offered it; zero for a candidate
+	// the character earned.
+	Via fact.Ref `json:"via,omitempty,omitzero"`
+	// Offer marks the thread gate's, which goes before any earned
+	// candidate when the queue is full.
+	Offer bool `json:"offer,omitempty"`
+}
+
+// Faction is the faction whose offer cap a candidate counts against: the
+// one that offered it, else the one a rival is against. A rival's Ref is
+// already its faction, so a won side's rivals keep no Via and save as
+// they always have.
+func (p Pending) Faction() fact.Ref {
+	if p.Via != (fact.Ref{}) || p.Kind != PendRival {
+		return p.Via
+	}
+	return p.Ref
 }
 
 // Predicate finds the casts a template could take today.

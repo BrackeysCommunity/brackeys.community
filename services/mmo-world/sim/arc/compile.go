@@ -61,6 +61,7 @@ type Params struct {
 	HaywireLeast, HaywireMost, BeaconCost, ChainDistance, ChainTries int64
 	StockedWallDefence                                               int64
 	RoadWarLoad, CaravanThreat                                       int64
+	OffersFloor, OffersPerThousand, OfferRestDays                    int64
 }
 
 // ParamsOf reads them; a missing cell panics, as every params reader does.
@@ -128,6 +129,9 @@ func ParamsOf(b *sheets.Book) Params {
 		ChainDistance:       i("chain-distance"),
 		ChainTries:          i("chain-tries"),
 		StockedWallDefence:  i("stocked-wall-defence"),
+		OffersFloor:         i("offers-floor"),
+		OffersPerThousand:   i("offers-per-thousand"),
+		OfferRestDays:       i("offer-rest-days"),
 		RoadWarLoad:         em("road-war-load"),
 		CaravanThreat:       em("caravan-threat"),
 	}

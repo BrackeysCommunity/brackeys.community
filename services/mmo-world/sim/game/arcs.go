@@ -466,7 +466,7 @@ func (g *Game) castFrom(tpl arc.Template, c arc.Candidate, by string, t int64) (
 	a := &Arc{ID: arcPrefix + i64(s.NextArc), Template: tpl.Row.ID, Scope: scope, Cast: arc.Sorted(c.Cast), Regions: slices.Clone(c.Regions),
 		Seat: c.Seat, By: by, Began: t, Cause: slices.Clone(c.Causes)}
 	if scope == arc.Personal {
-		a.Char = c.Char
+		a.Char, a.Via = c.Char, c.Via
 	}
 	if scope == arc.Settlement && c.Place >= 0 {
 		a.Place = goal.SettlementRef(c.Place)
@@ -478,6 +478,7 @@ func (g *Game) castFrom(tpl arc.Template, c arc.Candidate, by string, t int64) (
 		}
 	}
 	s.Arcs = append(s.Arcs, a)
+	s.threads = nil
 	if err := g.wakeCast(a, t); err != nil {
 		return nil, err
 	}
@@ -611,13 +612,13 @@ func (g *Game) wakeCast(a *Arc, t int64) error {
 // world arc, the region slots or a region or ref another region arc holds,
 // a place's one trouble or occasion, a character's one thread.
 func (g *Game) slotFree(scope string, c arc.Candidate) error {
-	open := g.openArcs(scope)
 	switch scope {
 	case arc.ScopeWorld:
-		if len(open) > 0 {
+		if open := g.openArcs(scope); len(open) > 0 {
 			return refuse(SlotBusy, "%s is the world's arc", open[0].ID)
 		}
 	case arc.Region:
+		open := g.openArcs(scope)
 		if slots := g.regionSlots(); int64(len(open)) >= slots {
 			return refuse(SlotBusy, "%d region arcs already run", len(open))
 		}
@@ -637,7 +638,7 @@ func (g *Game) slotFree(scope string, c arc.Candidate) error {
 		if c.Char == "" {
 			return refuse(CastMisfit, "a thread is cast for a character")
 		}
-		if slices.ContainsFunc(open, func(a *Arc) bool { return a.Char == c.Char }) {
+		if g.threads().open[c.Char] {
 			return refuse(SlotBusy, "%s already follows a thread", c.Char)
 		}
 	}
@@ -682,8 +683,12 @@ func (g *Game) restScope(scope string, ref fact.Ref, t int64) {
 	if days <= 0 {
 		return
 	}
-	s := g.Story
-	r := ScopeRest{Scope: scope, Ref: ref, Until: t + days*sheets.TicksPerDay}
+	g.Story.rest(ScopeRest{Scope: scope, Ref: ref, Until: t + days*sheets.TicksPerDay})
+}
+
+// rest keeps a rest in scope and ref order, a longer one outlasting a
+// shorter one already there.
+func (s *Story) rest(r ScopeRest) {
 	i, found := slices.BinarySearchFunc(s.Rests, r, cmpRest)
 	if found {
 		s.Rests[i].Until = max(s.Rests[i].Until, r.Until)
@@ -1596,7 +1601,9 @@ func (g *Game) troubleEnded(a *Arc, won string, t int64) {
 
 // rivals queues, once, a rival thread against the losing faction for each
 // living contributor to the winning side who has no thread running,
-// resting or pending (GDD 12.8).
+// resting or pending (GDD 12.8). It counts against the faction's offer cap
+// (arc.Pending.Faction) but is earned, so a full faction does not refuse
+// it.
 func (g *Game) rivals(winner *SideRun, f fact.ID, t int64) {
 	if winner == nil || winner.Opponent < 0 || winner.Opponent == winner.Sponsor {
 		return
@@ -1617,6 +1624,7 @@ func (g *Game) rivals(winner *SideRun, f fact.ID, t int64) {
 // scope's rest.
 func (g *Game) endArc(a *Arc, won string, last fact.ID, t int64) error {
 	a.Ended, a.Outcome = t, cmp.Or(won, outcomeLapsed)
+	g.Story.threads = nil
 	if a.Scope == arc.ScopeWorld || a.Scope == arc.Region {
 		lapsed := int64(0)
 		if won == "" {

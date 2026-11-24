@@ -32,6 +32,12 @@ type Story struct {
 	clues *clueCache
 	// kinds is Memory by kind, never saved.
 	kinds *ringIndex
+	// threads is the open personal threads by character and offering
+	// faction, never saved.
+	threads *threadIndex
+	// queued counts the candidates pend took since the story loaded, for
+	// the harness; never saved.
+	queued Queued
 }
 
 // UnmarshalJSON loads a story and indexes its memory ring, so the first
@@ -68,6 +74,9 @@ type Arc struct {
 	// HuntSlain: the raid's hunt fell, kept here since a closed hunt is
 	// forgotten next day.
 	HuntSlain bool `json:"huntSlain,omitempty"`
+	// Via is the faction whose offer cap a personal thread counts against
+	// while it runs: the one that offered it, or the one a rival is against.
+	Via fact.Ref `json:"via,omitempty,omitzero"`
 }
 
 // StageRun is one stage of an arc as it runs.
