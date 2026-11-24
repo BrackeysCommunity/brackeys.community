@@ -1,7 +1,8 @@
-import type { Button } from "../../../../packages/discord-kit/src/index.ts";
+import { type Button, EMBED_FIELD_VALUE_MAX } from "../../../../packages/discord-kit/src/index.ts";
 import type * as api from "../api.ts";
 import type { Card } from "../card.ts";
 import { target } from "../ids.ts";
+import { splitLines } from "../narration/card.ts";
 import { amount, signed } from "../units.ts";
 import { back, benchLine, btn, launch, PRIVATE } from "./common.ts";
 
@@ -9,10 +10,12 @@ import { back, benchLine, btn, launch, PRIVATE } from "./common.ts";
 const BENCH_KEEPER = "tinker";
 
 /**
- * A conversation: the topics the NPC raises, voiced from templates, and the
- * choices (GDD 4.18). bench is the tinker's bench standing open here, which
- * the tinker's own card leads to. remembers is what the NPC holds of the
- * past, shown when there is any.
+ * A conversation: the topics the NPC raises and the choices (GDD 4.18),
+ * voiced from templates or, when the narration voiced them, in the NPC's
+ * own words under the same ids. bench is the tinker's bench standing open
+ * here, which the tinker's own card leads to. remembers is what the NPC
+ * holds of the past, shown when there is any, cut at whole lines to fit a
+ * field.
  */
 export function talkCard(
   o: api.Options,
@@ -38,6 +41,7 @@ export function talkCard(
     ],
   });
   const lines = conv.topics.slice(0, 3).map((t) => `• ${t.line}`);
+  const remembered = remembers ? splitLines(remembers, EMBED_FIELD_VALUE_MAX)[0] : undefined;
   return {
     context: PRIVATE,
     author: `${conv.npc.role} · ${conv.met > 1 ? `met ${amount(conv.met, "times")}` : "a first meeting"}`,
@@ -49,7 +53,7 @@ export function talkCard(
     fields: [
       { name: "Traits", value: conv.npc.traits.join(", ") || "none shown", inline: true },
       ...(keeps ? [{ name: "The bench", value: benchLine(keeps), inline: true }] : []),
-      ...(remembers ? [{ name: "Remembers", value: remembers }] : []),
+      ...(remembered ? [{ name: "Remembers", value: remembered }] : []),
     ],
     footer: "What you choose is remembered: by this NPC, and by the people it talks to.",
     rows,

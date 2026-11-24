@@ -1,0 +1,158 @@
+import {
+  KEY_PREFIX,
+  type NarrationStore,
+  type Narrator,
+  type Switch,
+} from "../../../../packages/mmo-narrate/src/index.ts";
+import { summaryUse } from "../../../../packages/mmo-narrate/src/uses/summary.ts";
+import { type Voiced, voiceUse } from "../../../../packages/mmo-narrate/src/uses/voice.ts";
+import { memoryLines } from "../../../../packages/mmo-words/src/memory.ts";
+import type * as api from "../api.ts";
+import type { Lexicon } from "../lexicon.ts";
+import type { Narration } from "./hooks.ts";
+import { redisSwitch } from "./switch.ts";
+
+const DAY = 86_400;
+/** A voiced last line is kept while the world may still say the line it replaced. */
+export const LAST_TTL_SECONDS = 90 * DAY;
+export const SUMMARY_TTL_SECONDS = 30 * DAY;
+
+/** How an NPC voiced the line it said to a player last time: `{template, voiced}`. */
+export const lastKey = (npc: string, user: string) => `${KEY_PREFIX}last:${npc}:${user}`;
+/** An NPC's memory summary, and the world day one was last asked for. */
+export const summaryKey = (npc: string) => `${KEY_PREFIX}summary:${npc}`;
+export const summaryDayKey = (npc: string) => `${KEY_PREFIX}summary-day:${npc}`;
+
+interface LastLine {
+  template: string;
+  voiced: string;
+}
+
+function parseLast(raw: string | null): LastLine | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as Partial<LastLine>;
+    return typeof v.template === "string" && typeof v.voiced === "string"
+      ? { template: v.template, voiced: v.voiced }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The world's conversation with the voiced lines in, the picked topics in the model's order. */
+function voicedConv(conv: api.Conversation, v: Voiced, last: string | undefined): api.Conversation {
+  const byId = new Map(conv.topics.map((t) => [t.id, t]));
+  const topics: api.Topic[] = [];
+  for (const vt of v.topics) {
+    const t = byId.get(vt.id);
+    if (!t) continue;
+    const said = new Map(vt.choices.map((c) => [c.id, c.line]));
+    topics.push({
+      ...t,
+      line: vt.line,
+      choices: t.choices.map((c) => ({ ...c, line: said.get(c.id) ?? c.line })),
+    });
+  }
+  return { ...conv, topics, ...(conv.last ? { last: last ?? conv.last } : {}) };
+}
+
+export type VoiceNarration = Pick<Narration, "talk" | "wantsDossier"> & {
+  /** Resolves once every background summary has been made and stored. */
+  idle(): Promise<void>;
+};
+
+/**
+ * The voice of notables and saved NPCs (GDD 4.18, 15.2). A conversation
+ * read with its dossier is voiced through the narrator: cached per NPC,
+ * player and world day, at most the voice's cap of model calls a player
+ * a day, and the world's own conversation whenever the narrator falls
+ * back. An NPC whose memory passed its cap gets a summary made in the
+ * background at most once a world day, shown as what it remembers, with
+ * the oldest entries listed until one exists. Nothing here reaches the
+ * world: a choice press is the same press with the same ids.
+ */
+export function voiceNarration(
+  narrator: Narrator,
+  store: NarrationStore,
+  lex: Lexicon,
+  sw: Switch = redisSwitch(store, true),
+): VoiceNarration {
+  const pending = new Set<Promise<void>>();
+  const read = async (key: string) => {
+    try {
+      return await store.get(key);
+    } catch {
+      return null;
+    }
+  };
+  const write = async (key: string, value: string, ttl: number) => {
+    try {
+      await store.set(key, value, ttl);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const summarise = async (conv: api.Conversation, d: api.Dossier, server: string) => {
+    const npc = conv.npc.id;
+    const day = String(d.day);
+    if ((await read(summaryDayKey(npc))) === day) return;
+    if (!(await write(summaryDayKey(npc), day, SUMMARY_TTL_SECONDS))) return;
+    const job = narrator
+      .narrate(
+        summaryUse,
+        { npc: conv.npc.name, folded: d.folded ?? [], oldest: d.oldest, names: d.names },
+        { day: d.day, server, npc },
+      )
+      .then(async (r) => {
+        if (r.ok) await write(summaryKey(npc), r.value, SUMMARY_TTL_SECONDS);
+      })
+      // The narrator logs its own fallbacks; a lost summary is asked for again tomorrow.
+      .catch(() => {});
+    pending.add(job);
+    void job.finally(() => pending.delete(job));
+  };
+
+  return {
+    wantsDossier: (_user, server) => sw.on("voice", server),
+
+    async talk(conv, user, server) {
+      const d = conv.dossier;
+      if (!d) return { conv };
+      const npc = conv.npc.id;
+      const remembering = d.foldedTotal > 0;
+      const [stored, summary] = await Promise.all([
+        read(lastKey(npc, user)).then(parseLast),
+        remembering ? read(summaryKey(npc)) : null,
+      ]);
+      if (remembering) await summarise(conv, d, server);
+
+      const last = stored && conv.last && stored.template === conv.last ? stored.voiced : undefined;
+      let out = conv;
+      if (conv.topics.length || conv.last) {
+        const r = await narrator.narrate(
+          voiceUse,
+          { conv, dossier: d, summary: summary ?? undefined, last },
+          { day: d.day, server, player: user, npc },
+        );
+        if (r.ok) {
+          const fresh = last === undefined && conv.last ? r.value.last : undefined;
+          if (fresh && conv.last) {
+            const line: LastLine = { template: conv.last, voiced: fresh };
+            await write(lastKey(npc, user), JSON.stringify(line), LAST_TTL_SECONDS);
+          }
+          out = voicedConv(conv, r.value, last ?? fresh);
+        }
+      }
+      if (!remembering) return { conv: out };
+      const remembers = summary || memoryLines(d, lex).join("\n");
+      return remembers ? { conv: out, remembers } : { conv: out };
+    },
+
+    async idle() {
+      while (pending.size) await Promise.all(pending);
+    },
+  };
+}

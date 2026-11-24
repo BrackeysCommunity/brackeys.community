@@ -1,0 +1,95 @@
+import { proseProblem } from "../check.ts";
+import { namesBlock, properNames, systemPrompt, untrusted } from "../prompt.ts";
+import type { CheckResult, JsonSchema, UseSpec } from "../types.ts";
+import { memoryData, toldWho, type VoiceMemory } from "./voice.ts";
+
+export interface SummaryIn {
+  /** The NPC's name. */
+  npc: string;
+  /** What the NPC folded away past its memory cap, by entry kind. */
+  folded: { type: string; count: number }[];
+  oldest: VoiceMemory[];
+  names: Record<string, string>;
+}
+
+export const SUMMARY_MAX_CHARS = 400;
+export const SUMMARY_MAX_SENTENCES = 3;
+
+const SENTENCE = /[^.!?]+(?:[.!?]+|$)/g;
+
+const sentences = (s: string) => (s.match(SENTENCE) ?? []).filter((x) => x.trim());
+
+const kindWords = (kind: string) => kind.replace(/[-_]/g, " ");
+
+function allowedNames(i: SummaryIn): string[] {
+  const things = i.oldest.map((m) => m.thing ?? "").filter(Boolean);
+  const who = i.oldest.map((m) => toldWho(m.who, i.names)).filter(Boolean);
+  return [...Object.values(i.names), i.npc, ...things, ...properNames([...things, ...who])];
+}
+
+function check(i: SummaryIn, reply: unknown): CheckResult<string> {
+  const text = (reply as { summary?: unknown } | null)?.summary;
+  if (typeof text !== "string") return { ok: false, reason: "schema", detail: "no summary" };
+  const summary = text.trim();
+  const p = proseProblem(summary, { names: allowedNames(i), maxChars: SUMMARY_MAX_CHARS });
+  if (p) return { ok: false, ...p };
+  const n = sentences(summary).length;
+  if (n > SUMMARY_MAX_SENTENCES) {
+    return {
+      ok: false,
+      reason: "bad-count",
+      detail: `${n} sentences, at most ${SUMMARY_MAX_SENTENCES}`,
+    };
+  }
+  return { ok: true, value: summary };
+}
+
+const RULES = `Sum up what this person remembers, from the oldest entries they keep and the kinds of things they have folded away, in at most ${SUMMARY_MAX_SENTENCES} sentences and ${SUMMARY_MAX_CHARS} characters in all. Speak of them in the third person, by name or as they. Say what weighs on them most, not every entry. No numbers at all, not even the counts. Return the text as summary.`;
+
+const schema: JsonSchema = {
+  type: "object",
+  properties: { summary: { type: "string" } },
+  required: ["summary"],
+  additionalProperties: false,
+};
+
+/**
+ * An NPC's memory past its cap, summed up (GDD 15.2, "when its memory
+ * passes 40 entries"). The summary is context for the voice and shown on
+ * the talk card; it never reaches the world.
+ */
+export const summaryUse: UseSpec<SummaryIn, string> = {
+  use: "summary",
+  version: 1,
+  input: (i) => ({
+    npc: i.npc,
+    folded: i.folded.map((x) => ({ type: x.type, count: x.count })),
+    oldest: i.oldest.map((m) => ({
+      kind: m.kind,
+      tick: m.tick,
+      thing: m.thing ?? "",
+      who: toldWho(m.who, i.names),
+      n: m.n ?? 0,
+      unit: m.unit ?? "",
+    })),
+    names: i.names,
+  }),
+  prompt: (i) => ({
+    system: systemPrompt("summary", RULES),
+    user: [
+      untrusted("person", i.npc),
+      untrusted(
+        "oldest",
+        i.oldest.map((m) => `- ${memoryData(m, i.names)}`).join("\n") || "(none)",
+      ),
+      untrusted(
+        "folded",
+        i.folded.map((x) => `- ${kindWords(x.type)}: ${x.count}`).join("\n") || "(none)",
+      ),
+      namesBlock(i.names),
+    ].join("\n\n"),
+  }),
+  schema,
+  check,
+  stub: (i) => ({ summary: `${i.npc} remembers more than they can tell, the oldest of it best.` }),
+};
