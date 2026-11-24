@@ -230,7 +230,13 @@
           }
         ],
         "inFight": false,
-        "walked": 0
+        "walked": 0,
+        "alignment": {
+          "value": 0,
+          "band": "unremarked",
+          "goodToday": 0,
+          "made": false
+        }
       },
       "facts": [
         {
@@ -609,7 +615,8 @@
           "price": 60
         }
       ]
-    }
+    },
+    "steals": []
   },
   "here": {
     "place": {
@@ -1116,7 +1123,13 @@
         }
       ],
       "inFight": false,
-      "walked": 2
+      "walked": 2,
+      "alignment": {
+        "value": 0,
+        "band": "unremarked",
+        "goodToday": 0,
+        "made": false
+      }
     },
     "start": "knife",
     "kit": [
@@ -1261,7 +1274,8 @@
       "sameServer": true,
       "otherServers": false
     },
-    "vows": []
+    "vows": [],
+    "grudges": []
   },
   "map": {
     "tick": 13,
@@ -1343,7 +1357,13 @@
           ]
         },
         "inFight": false,
-        "walked": 0
+        "walked": 0,
+        "alignment": {
+          "value": 0,
+          "band": "unremarked",
+          "goodToday": 0,
+          "made": false
+        }
       },
       "facts": []
     }
@@ -1419,7 +1439,8 @@
       "items": [],
       "mounted": false,
       "owed": 0
-    }
+    },
+    "steals": []
   },
   "recap": {
     "since": 11,
@@ -1490,7 +1511,13 @@
           }
         ],
         "inFight": false,
-        "walked": 2
+        "walked": 2,
+        "alignment": {
+          "value": 0,
+          "band": "unremarked",
+          "goodToday": 0,
+          "made": false
+        }
       },
       "facts": []
     }
@@ -1531,7 +1558,13 @@
           }
         ],
         "inFight": true,
-        "walked": 1
+        "walked": 1,
+        "alignment": {
+          "value": 0,
+          "band": "unremarked",
+          "goodToday": 0,
+          "made": false
+        }
       },
       "facts": [
         {
@@ -1740,7 +1773,8 @@
       "items": [],
       "mounted": false,
       "owed": 0
-    }
+    },
+    "steals": []
   },
   "act:press": {
     "ok": true,
@@ -1778,7 +1812,13 @@
           }
         ],
         "inFight": false,
-        "walked": 1
+        "walked": 1,
+        "alignment": {
+          "value": 0,
+          "band": "unremarked",
+          "goodToday": 0,
+          "made": false
+        }
       },
       "facts": [
         {
@@ -1997,7 +2037,8 @@
       "items": [],
       "mounted": false,
       "owed": 0
-    }
+    },
+    "steals": []
   },
   "options:down": {
     "characterId": "c-1",
@@ -2060,7 +2101,8 @@
       "items": [],
       "mounted": false,
       "owed": 0
-    }
+    },
+    "steals": []
   },
   "act:crawl": {
     "ok": true,
@@ -2103,7 +2145,13 @@
           "ends": 7
         },
         "inFight": false,
-        "walked": 1
+        "walked": 1,
+        "alignment": {
+          "value": 0,
+          "band": "unremarked",
+          "goodToday": 0,
+          "made": false
+        }
       },
       "facts": []
     }
@@ -2159,7 +2207,13 @@
           "left": 1
         },
         "inFight": false,
-        "walked": 1
+        "walked": 1,
+        "alignment": {
+          "value": 0,
+          "band": "unremarked",
+          "goodToday": 0,
+          "made": false
+        }
       },
       "facts": []
     }
@@ -2226,7 +2280,13 @@
           ]
         },
         "inFight": false,
-        "walked": 1
+        "walked": 1,
+        "alignment": {
+          "value": 0,
+          "band": "unremarked",
+          "goodToday": 0,
+          "made": false
+        }
       },
       "facts": []
     }
@@ -2680,7 +2740,13 @@
           }
         ],
         "inFight": false,
-        "walked": 2
+        "walked": 2,
+        "alignment": {
+          "value": 0,
+          "band": "unremarked",
+          "goodToday": 0,
+          "made": false
+        }
       },
       "facts": [
         {
@@ -2909,7 +2975,13 @@
           }
         ],
         "inFight": false,
-        "walked": 2
+        "walked": 2,
+        "alignment": {
+          "value": 0,
+          "band": "unremarked",
+          "goodToday": 0,
+          "made": false
+        }
       },
       "facts": [
         {
@@ -3511,7 +3583,13 @@
           }
         ],
         "inFight": false,
-        "walked": 2
+        "walked": 2,
+        "alignment": {
+          "value": 0,
+          "band": "unremarked",
+          "goodToday": 0,
+          "made": false
+        }
       },
       "facts": [
         {
@@ -3631,7 +3709,13 @@
           }
         ],
         "inFight": false,
-        "walked": 2
+        "walked": 2,
+        "alignment": {
+          "value": 0,
+          "band": "unremarked",
+          "goodToday": 0,
+          "made": false
+        }
       },
       "facts": [
         {
@@ -4122,7 +4206,13 @@
           }
         ],
         "inFight": false,
-        "walked": 2
+        "walked": 2,
+        "alignment": {
+          "value": 0,
+          "band": "unremarked",
+          "goodToday": 0,
+          "made": false
+        }
       },
       "facts": [
         {
@@ -4900,7 +4990,13 @@
           }
         ],
         "inFight": false,
-        "walked": 2
+        "walked": 2,
+        "alignment": {
+          "value": 0,
+          "band": "unremarked",
+          "goodToday": 0,
+          "made": false
+        }
       },
       "facts": [
         {
@@ -5042,7 +5138,13 @@
           }
         ],
         "inFight": false,
-        "walked": 2
+        "walked": 2,
+        "alignment": {
+          "value": 0,
+          "band": "unremarked",
+          "goodToday": 0,
+          "made": false
+        }
       },
       "facts": [
         {

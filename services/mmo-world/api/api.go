@@ -113,6 +113,10 @@ type ActionRequest struct {
 	Machine *MachineIntent `json:"machine,omitempty"`
 	// Along is the Haul goal whose shared route a travel follows.
 	Along string `json:"along,omitempty"`
+	// BackRoom works a craft in a den's back room; ForSide sends a waylay's
+	// haul to the prey side the character backs (GDD 4.5, 6.5).
+	BackRoom bool `json:"backRoom,omitempty"`
+	ForSide  bool `json:"forSide,omitempty"`
 }
 
 // OperatorRequest is an operator's correction, grant or ban: recorded as
@@ -237,6 +241,13 @@ type Character struct {
 	Armed   bool     `json:"armed,omitempty"`
 	// Floor is the dungeon floor it stands on; 0 is outside.
 	Floor int64 `json:"floor,omitempty"`
+	// Alignment is where it stands (GDD 5.10); Hot the stolen goods it
+	// holds, Wanted the thefts the watch wants it for, and Stopped the
+	// watch holding it at a gate.
+	Alignment Alignment  `json:"alignment"`
+	Hot       []HotGoods `json:"hot,omitempty"`
+	Wanted    []WantedIn `json:"wanted,omitempty"`
+	Stopped   *WatchStop `json:"stopped,omitempty"`
 }
 
 // Move is a step in one of six directions: open or not, and what it
@@ -290,6 +301,8 @@ type Fight struct {
 	Decks []DeckView `json:"decks,omitempty"`
 	// Portrait is the creature's picture, a media key.
 	Portrait string `json:"portrait,omitempty"`
+	// Theft is set on a theft or a flight from the watch.
+	Theft *Theft `json:"theft,omitempty"`
 }
 
 // Options is everything a character can do now. Version is the row
@@ -313,6 +326,8 @@ type Options struct {
 	Rescue      *Rescue  `json:"rescue,omitempty"`
 	// Sides are the arc sides the character could back now.
 	Sides []SideOption `json:"sides,omitempty"`
+	// Steals are what the character could steal here now.
+	Steals []StealTarget `json:"steals"`
 }
 
 // Rescue is a character's part in a rescue (GDD 11.6): whether it has

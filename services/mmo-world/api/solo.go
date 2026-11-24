@@ -93,6 +93,8 @@ type Item struct {
 	Sigil      string   `json:"sigil"`           // a media key
 	Value      int64    `json:"value"`           // coin, at reference
 	TraderPays int64    `json:"traderPays"`      // coin a settlement's trader pays for it, as worn
+	// Hot is set while the item is stolen and marked.
+	Hot *HotGoods `json:"hot,omitempty"`
 }
 
 // Standing is standing with a faction or a place.
@@ -132,6 +134,8 @@ type Sheet struct {
 	Consent   Consent    `json:"consent"`
 	// Vows are the character's own unpaid goals still up (GDD 11.7).
 	Vows []Vow `json:"vows"`
+	// Grudges are the factions it betrayed, while they remember.
+	Grudges []Grudge `json:"grudges"`
 }
 
 // Vow is a goal a character posted for no reward: its own word.
@@ -188,6 +192,11 @@ type Person struct {
 	Visit  bool     `json:"visit"`
 	// Called: it came to meet the character here, on its route.
 	Called bool `json:"called,omitempty"`
+	// Leaning is upright, crooked or none; Mood how it holds the viewer
+	// (warm, cold, hostile, or "" for none); Fence: it buys stolen goods.
+	Leaning string `json:"leaning,omitempty"`
+	Mood    string `json:"mood,omitempty"`
+	Fence   bool   `json:"fence,omitempty"`
 }
 
 // Trail is someone who passed recently, and where they stand now.
@@ -363,7 +372,9 @@ type Topic struct {
 	Choices []Choice `json:"choices"`
 }
 
-// Choice is one answer and what it does.
+// Choice is one answer and what it does. Effect is none, standing, coin,
+// discount, rumour or goal; fine pays off the watch here, and return gives
+// back the stolen goods and coin that name this NPC.
 type Choice struct {
 	ID       string `json:"id"`
 	Line     string `json:"line"`
@@ -409,4 +420,17 @@ type Numbers struct {
 	CampTier       int64 `json:"campTier"`       // the tier a camp's station works at
 	MastersEase    int64 `json:"mastersEase"`    // levels a masters' bench takes off its family's machines
 	CustomSeasons  int64 `json:"customSeasons"`  // seasons running a goal is posted before it is a custom
+	// Theft and alignment (GDD 4.5, 5.10, 6.5).
+	BandEdges      BandEdges `json:"bandEdges"`
+	GoodDay        int64     `json:"goodDay"`        // alignment a world day's good acts may add
+	PairDay        int64     `json:"pairDay"`        // alignment a world day's goals between one pair may add
+	HotDays        int64     `json:"hotDays"`        // world days stolen goods stay hot
+	HotReach       int64     `json:"hotReach"`       // tiles from a theft within which its goods cannot be listed
+	WantedDays     int64     `json:"wantedDays"`     // world days the watch wants a thief
+	FencePays      int64     `json:"fencePays"`      // per cent of worth a fence pays
+	BackRoomPays   int64     `json:"backRoomPays"`   // per cent of worth a den's fence pays the made
+	Gate           int64     `json:"gate"`           // syndicate standing its invitation needs
+	Trusted        int64     `json:"trusted"`        // syndicate standing it trusts the made at
+	GrudgeDays     int64     `json:"grudgeDays"`     // world days a betrayed faction holds a grudge
+	LaunderPercent int64     `json:"launderPercent"` // per cent of inputs' worth a back room takes
 }

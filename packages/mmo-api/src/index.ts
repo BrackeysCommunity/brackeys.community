@@ -721,6 +721,12 @@ export interface ActionRequest {
    * Along is the Haul goal whose shared route a travel follows.
    */
   along?: string;
+  /**
+   * BackRoom works a craft in a den's back room; ForSide sends a waylay's
+   * haul to the prey side the character backs (GDD 4.5, 6.5).
+   */
+  backRoom?: boolean;
+  forSide?: boolean;
 }
 /**
  * OperatorRequest is an operator's correction, grant or ban: recorded as
@@ -906,6 +912,15 @@ export interface Character {
    * Floor is the dungeon floor it stands on; 0 is outside.
    */
   floor?: number /* int64 */;
+  /**
+   * Alignment is where it stands (GDD 5.10); Hot the stolen goods it
+   * holds, Wanted the thefts the watch wants it for, and Stopped the
+   * watch holding it at a gate.
+   */
+  alignment: Alignment;
+  hot?: HotGoods[];
+  wanted?: WantedIn[];
+  stopped?: WatchStop;
 }
 /**
  * Move is a step in one of six directions: open or not, and what it
@@ -968,6 +983,10 @@ export interface Fight {
    * Portrait is the creature's picture, a media key.
    */
   portrait?: string;
+  /**
+   * Theft is set on a theft or a flight from the watch.
+   */
+  theft?: Theft;
 }
 /**
  * Options is everything a character can do now. Version is the row
@@ -994,6 +1013,10 @@ export interface Options {
    * Sides are the arc sides the character could back now.
    */
   sides?: SideOption[];
+  /**
+   * Steals are what the character could steal here now.
+   */
+  steals: StealTarget[];
 }
 /**
  * Rescue is a character's part in a rescue (GDD 11.6): whether it has
@@ -1365,6 +1388,271 @@ export interface Pin {
  */
 export interface Pins {
   pins: Pin[];
+}
+
+//////////
+// source: crime.go
+
+/**
+ * Action kinds of theft and the watch (GDD 6.5, 4.5). A steal names its
+ * theft kind in Option, the NPC lifted from in NPC and the caravan waylaid
+ * in Target; ForSide sends a waylay's haul to the prey side the character
+ * backs. A fence sale names Material and Units, or Item. Pay-fine and flee
+ * take nothing: they answer the watch holding the character. A craft with
+ * BackRoom set works a den's back room.
+ */
+export const ActSteal = "steal";
+/**
+ * Action kinds of theft and the watch (GDD 6.5, 4.5). A steal names its
+ * theft kind in Option, the NPC lifted from in NPC and the caravan waylaid
+ * in Target; ForSide sends a waylay's haul to the prey side the character
+ * backs. A fence sale names Material and Units, or Item. Pay-fine and flee
+ * take nothing: they answer the watch holding the character. A craft with
+ * BackRoom set works a den's back room.
+ */
+export const ActFence = "fence";
+/**
+ * Action kinds of theft and the watch (GDD 6.5, 4.5). A steal names its
+ * theft kind in Option, the NPC lifted from in NPC and the caravan waylaid
+ * in Target; ForSide sends a waylay's haul to the prey side the character
+ * backs. A fence sale names Material and Units, or Item. Pay-fine and flee
+ * take nothing: they answer the watch holding the character. A craft with
+ * BackRoom set works a den's back room.
+ */
+export const ActPayFine = "pay-fine";
+/**
+ * Action kinds of theft and the watch (GDD 6.5, 4.5). A steal names its
+ * theft kind in Option, the NPC lifted from in NPC and the caravan waylaid
+ * in Target; ForSide sends a waylay's haul to the prey side the character
+ * backs. A fence sale names Material and Units, or Item. Pay-fine and flee
+ * take nothing: they answer the watch holding the character. A craft with
+ * BackRoom set works a den's back room.
+ */
+export const ActFlee = "flee";
+/**
+ * Theft kinds, the theft.kinds rows. Flee is the run from the watch.
+ */
+export const TheftLift = "lift";
+/**
+ * Theft kinds, the theft.kinds rows. Flee is the run from the watch.
+ */
+export const TheftBurgle = "burgle";
+/**
+ * Theft kinds, the theft.kinds rows. Flee is the run from the watch.
+ */
+export const TheftWaylay = "waylay";
+/**
+ * Theft kinds, the theft.kinds rows. Flee is the run from the watch.
+ */
+export const TheftFlee = "flee";
+/**
+ * Alignment bands, the alignment.bands rows, worst first (GDD 5.10).
+ */
+export const BandNotorious = "notorious";
+/**
+ * Alignment bands, the alignment.bands rows, worst first (GDD 5.10).
+ */
+export const BandCrooked = "crooked";
+/**
+ * Alignment bands, the alignment.bands rows, worst first (GDD 5.10).
+ */
+export const BandUnremarked = "unremarked";
+/**
+ * Alignment bands, the alignment.bands rows, worst first (GDD 5.10).
+ */
+export const BandDecent = "decent";
+/**
+ * Alignment bands, the alignment.bands rows, worst first (GDD 5.10).
+ */
+export const BandUpright = "upright";
+/**
+ * Leanings an NPC holds (GDD 4.18).
+ */
+export const LeaningUpright = "upright";
+/**
+ * Leanings an NPC holds (GDD 4.18).
+ */
+export const LeaningCrooked = "crooked";
+/**
+ * Leanings an NPC holds (GDD 4.18).
+ */
+export const LeaningNone = "none";
+/**
+ * Moods an NPC holds toward a character, from its disposition; none is "".
+ */
+export const MoodWarm = "warm";
+/**
+ * Moods an NPC holds toward a character, from its disposition; none is "".
+ */
+export const MoodCold = "cold";
+/**
+ * Moods an NPC holds toward a character, from its disposition; none is "".
+ */
+export const MoodHostile = "hostile";
+/**
+ * CondWanted is set while the watch wants the character somewhere.
+ */
+export const CondWanted = "wanted";
+/**
+ * Refusal codes of theft, the watch and the syndicate. A fine the
+ * character cannot pay is CodeShort.
+ */
+export const CodeNoTarget = "no-target";
+/**
+ * Refusal codes of theft, the watch and the syndicate. A fine the
+ * character cannot pay is CodeShort.
+ */
+export const CodeNothingToSteal = "nothing-to-steal";
+/**
+ * Refusal codes of theft, the watch and the syndicate. A fine the
+ * character cannot pay is CodeShort.
+ */
+export const CodeStoppedByWatch = "stopped-by-watch";
+/**
+ * Refusal codes of theft, the watch and the syndicate. A fine the
+ * character cannot pay is CodeShort.
+ */
+export const CodeNotStopped = "not-stopped";
+/**
+ * Refusal codes of theft, the watch and the syndicate. A fine the
+ * character cannot pay is CodeShort.
+ */
+export const CodeNotHot = "not-hot";
+/**
+ * Refusal codes of theft, the watch and the syndicate. A fine the
+ * character cannot pay is CodeShort.
+ */
+export const CodeHotGoods = "hot-goods";
+/**
+ * Refusal codes of theft, the watch and the syndicate. A fine the
+ * character cannot pay is CodeShort.
+ */
+export const CodeFenceHidden = "fence-hidden";
+/**
+ * Refusal codes of theft, the watch and the syndicate. A fine the
+ * character cannot pay is CodeShort.
+ */
+export const CodeFenceSpent = "fence-spent";
+/**
+ * Refusal codes of theft, the watch and the syndicate. A fine the
+ * character cannot pay is CodeShort.
+ */
+export const CodeNotMade = "not-made";
+/**
+ * Refusal codes of theft, the watch and the syndicate. A fine the
+ * character cannot pay is CodeShort.
+ */
+export const CodeNoDen = "no-den";
+/**
+ * Refusal codes of theft, the watch and the syndicate. A fine the
+ * character cannot pay is CodeShort.
+ */
+export const CodeHostile = "hostile";
+/**
+ * Refusal codes of theft, the watch and the syndicate. A fine the
+ * character cannot pay is CodeShort.
+ */
+export const CodeNotABacker = "not-a-backer";
+/**
+ * Alignment is where a character stands (GDD 5.10). GoodToday is the
+ * good it has gained this world day, against Numbers.GoodDay. Made: the
+ * syndicate has made it one of its own.
+ */
+export interface Alignment {
+  value: number /* int64 */;
+  band: string;
+  goodToday: number /* int64 */;
+  made: boolean;
+}
+/**
+ * Grudge is a faction the character betrayed: With is its standing key,
+ * Name what it is called, Ends the world day the grudge ends.
+ */
+export interface Grudge {
+  with: string;
+  name: string;
+  ends: number /* int64 */;
+}
+/**
+ * HotGoods are stolen goods the character holds: units of a material, or
+ * an item by id. Victim is who they were taken from, in words; Days the
+ * world days the mark has left; Reach the tiles from here to where they
+ * were taken (beyond Numbers.HotReach they may be listed and sold).
+ */
+export interface HotGoods {
+  material?: string;
+  item?: string;
+  units: number /* int64 */;
+  victim: string;
+  days: number /* int64 */;
+  reach: number /* int64 */;
+}
+/**
+ * WantedIn is one theft the watch wants the character for: whom it robbed,
+ * in words, the settlements whose watch stops it, the coin paying it off
+ * costs, and the world days it has left.
+ */
+export interface WantedIn {
+  victim: string;
+  places: string[];
+  fine: number /* int64 */;
+  days: number /* int64 */;
+}
+/**
+ * WatchStop is the watch holding the character at a settlement's gate:
+ * it pays the fine or flees. CanPay: it holds the coin the fine takes.
+ */
+export interface WatchStop {
+  settlement: number /* int */;
+  name: string;
+  fine: number /* int64 */;
+  canPay: boolean;
+}
+/**
+ * Theft is a theft or a flight from the watch as its encounter shows it,
+ * fixed when it began. Witness is the per cent chance a won theft is seen,
+ * shown before every press, and WitnessWhy its parts in per cent. Coin,
+ * Haul and Item are what is planned (Item is the item's name); Caught is
+ * set once a beat has failed. ForSide is the prey side's goal a waylay's
+ * haul feeds.
+ */
+export interface Theft {
+  kind: string;
+  victim: string;
+  witness: number /* int64 */;
+  witnessWhy: Why;
+  worth: number /* int64 */;
+  coin?: number /* int64 */;
+  haul?: Goods[];
+  item?: string;
+  flee?: boolean;
+  caught?: boolean;
+  forSide?: string;
+}
+/**
+ * StealTarget is something the character could steal here now: a steal
+ * sends Kind, and NPC or Caravan. Name is the victim in words, Worth the
+ * planned haul's coin and Witness the per cent chance it is seen. ForSide
+ * is the prey side's goal a waylay could feed, for its backer.
+ */
+export interface StealTarget {
+  kind: string;
+  npc?: string;
+  caravan?: string;
+  name: string;
+  worth: number /* int64 */;
+  witness: number /* int64 */;
+  forSide?: string;
+}
+/**
+ * BandEdges are where the alignment bands begin: at or below Notorious
+ * and Crooked, at or above Decent and Upright; between is unremarked.
+ */
+export interface BandEdges {
+  notorious: number /* int64 */;
+  crooked: number /* int64 */;
+  decent: number /* int64 */;
+  upright: number /* int64 */;
 }
 
 //////////
@@ -1802,6 +2090,8 @@ export interface Dossier {
   role: string;
   traits: string[];
   faction?: string;
+  leaning?: string; // upright, crooked or none
+  mood?: string; // warm, cold or hostile toward the viewer
   place: string;
   about: Memory[]; // most salient about the viewer
   world: Memory[]; // most salient about the world
@@ -3244,6 +3534,10 @@ export interface Item {
   sigil: string; // a media key
   value: number /* int64 */; // coin, at reference
   traderPays: number /* int64 */; // coin a settlement's trader pays for it, as worn
+  /**
+   * Hot is set while the item is stolen and marked.
+   */
+  hot?: HotGoods;
 }
 /**
  * Standing is standing with a faction or a place.
@@ -3289,6 +3583,10 @@ export interface Sheet {
    * Vows are the character's own unpaid goals still up (GDD 11.7).
    */
   vows: Vow[];
+  /**
+   * Grudges are the factions it betrayed, while they remember.
+   */
+  grudges: Grudge[];
 }
 /**
  * Vow is a goal a character posted for no reward: its own word.
@@ -3357,6 +3655,13 @@ export interface Person {
    * Called: it came to meet the character here, on its route.
    */
   called?: boolean;
+  /**
+   * Leaning is upright, crooked or none; Mood how it holds the viewer
+   * (warm, cold, hostile, or "" for none); Fence: it buys stolen goods.
+   */
+  leaning?: string;
+  mood?: string;
+  fence?: boolean;
 }
 /**
  * Trail is someone who passed recently, and where they stand now.
@@ -3566,7 +3871,9 @@ export interface Topic {
   choices: Choice[];
 }
 /**
- * Choice is one answer and what it does.
+ * Choice is one answer and what it does. Effect is none, standing, coin,
+ * discount, rumour or goal; fine pays off the watch here, and return gives
+ * back the stolen goods and coin that name this NPC.
  */
 export interface Choice {
   id: string;
@@ -3616,6 +3923,21 @@ export interface Numbers {
   campTier: number /* int64 */; // the tier a camp's station works at
   mastersEase: number /* int64 */; // levels a masters' bench takes off its family's machines
   customSeasons: number /* int64 */; // seasons running a goal is posted before it is a custom
+  /**
+   * Theft and alignment (GDD 4.5, 5.10, 6.5).
+   */
+  bandEdges: BandEdges;
+  goodDay: number /* int64 */; // alignment a world day's good acts may add
+  pairDay: number /* int64 */; // alignment a world day's goals between one pair may add
+  hotDays: number /* int64 */; // world days stolen goods stay hot
+  hotReach: number /* int64 */; // tiles from a theft within which its goods cannot be listed
+  wantedDays: number /* int64 */; // world days the watch wants a thief
+  fencePays: number /* int64 */; // per cent of worth a fence pays
+  backRoomPays: number /* int64 */; // per cent of worth a den's fence pays the made
+  gate: number /* int64 */; // syndicate standing its invitation needs
+  trusted: number /* int64 */; // syndicate standing it trusts the made at
+  grudgeDays: number /* int64 */; // world days a betrayed faction holds a grudge
+  launderPercent: number /* int64 */; // per cent of inputs' worth a back room takes
 }
 
 //////////

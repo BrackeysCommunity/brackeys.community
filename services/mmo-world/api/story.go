@@ -41,6 +41,7 @@ var EventKinds = []string{
 	"city.raised", "city.fell-back", "settlement.ruined", "faction.city",
 	"core.opened", "pattern.solved",
 	"road.cut", "road.tolled", "caravan.robbed",
+	"theft.made",
 }
 
 // Refusal codes of the story.

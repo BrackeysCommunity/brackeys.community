@@ -33,6 +33,18 @@ const NUMBERS: api.Numbers = {
   campTier: 1,
   mastersEase: 1,
   customSeasons: 3,
+  bandEdges: { notorious: -50, crooked: -10, decent: 10, upright: 50 },
+  goodDay: 6,
+  pairDay: 2,
+  hotDays: 7,
+  hotReach: 12,
+  wantedDays: 3,
+  fencePays: 60,
+  backRoomPays: 70,
+  gate: 25,
+  trusted: 50,
+  grudgeDays: 60,
+  launderPercent: 10,
 };
 /** The lexicon as the world served it before play found anything. */
 const before = (): api.Lexicon => ({

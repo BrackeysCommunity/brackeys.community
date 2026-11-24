@@ -22,6 +22,8 @@ type Dossier struct {
 	Role        string            `json:"role"`
 	Traits      []string          `json:"traits"`
 	Faction     string            `json:"faction,omitempty"`
+	Leaning     string            `json:"leaning,omitempty"` // upright, crooked or none
+	Mood        string            `json:"mood,omitempty"`    // warm, cold or hostile toward the viewer
 	Place       string            `json:"place"`
 	About       []Memory          `json:"about"`  // most salient about the viewer
 	World       []Memory          `json:"world"`  // most salient about the world

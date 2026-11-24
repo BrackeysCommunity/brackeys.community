@@ -92,6 +92,7 @@ export function stateAt(version: number, more: Partial<ActivityState> = {}): Act
       practice: [],
       inFight: false,
       walked: 0,
+      alignment: { value: 0, band: "unremarked", goodToday: 0, made: false },
     },
     place: {
       tile: {
