@@ -1,4 +1,4 @@
-import type { Button } from "../../../packages/discord-kit/src/index.ts";
+import type { Button, Select } from "../../../packages/discord-kit/src/index.ts";
 import {
   costDay,
   type DayLedger,
@@ -19,8 +19,17 @@ import { narrationParts } from "./narration/index.ts";
 import { PartyPoster } from "./party.ts";
 import { ThreadBudget } from "./publish.ts";
 import { recording } from "./record.ts";
+import { isFlight, SYNDICATE, syndicateName } from "./screens/crime.ts";
 import { LISTS } from "./screens/market.ts";
 import { httpWorld, type World } from "./world.ts";
+
+/** Whether a select is for action and, given a target, offers it. */
+function offers(sel: Select, action: string, target?: string): boolean {
+  return (
+    decodeId(sel.customId)?.action === action &&
+    (target === undefined || sel.options.some((o) => o.value === target))
+  );
+}
 
 /**
  * The scripted client: one player through the first sitting (GDD 3.1),
@@ -136,8 +145,8 @@ export async function scripted(
           run.launches.push(launch.from);
           return card;
         }
-      } else if (decodeId(row.select.customId)?.action === action) {
-        const pick = value ?? row.select.options[0]?.value;
+      } else if (offers(row.select, action, target)) {
+        const pick = value ?? target ?? row.select.options[0]?.value;
         if (pick !== undefined) return send({ id: decodeId(row.select.customId)!, values: [pick] });
       }
     }
@@ -154,7 +163,7 @@ export async function scripted(
     card.rows.some((r) =>
       "buttons" in r
         ? r.buttons.some((b) => matching(b, action, target) !== undefined)
-        : decodeId(r.select.customId)?.action === action,
+        : offers(r.select, action, target),
     );
   /** /play, and on past since-you-left to the hub when it shows first. */
   const openHub = async (): Promise<void> => {
@@ -500,6 +509,13 @@ export interface PartyRun {
   log: string[];
 }
 
+/** What every scripted run counts of the cards it was shown. */
+interface Counted {
+  presses: number;
+  cards: number;
+  problems: string[];
+}
+
 /** One scripted player pressing only what the bot's cards offer. */
 class Player {
   card!: Card;
@@ -509,7 +525,7 @@ class Player {
   constructor(
     private readonly ctx: Ctx,
     readonly user: string,
-    private readonly run: PartyRun,
+    private readonly run: Counted,
     private readonly names: Set<string>,
     private readonly onAnswer: (a: Answer) => Promise<void>,
   ) {}
@@ -547,7 +563,7 @@ class Player {
     for (const r of this.card.rows) {
       if ("select" in r) {
         const id = decodeId(r.select.customId);
-        if (id?.action === action) out.push(id);
+        if (id && offers(r.select, action, target)) out.push(id);
         continue;
       }
       for (const b of r.buttons) {
@@ -567,7 +583,9 @@ class Player {
     const id = this.ids(action, target)[0];
     if (!id)
       throw new Error(`${this.user}: no "${action}" on "${this.card.author} / ${this.card.title}"`);
-    return this.send({ id, values: value === undefined ? undefined : [value] });
+    // A select's id carries no target; the target is its pick.
+    const pick = value ?? (target !== undefined && id.target !== target ? target : undefined);
+    return this.send({ id, values: pick === undefined ? undefined : [pick] });
   }
 
   async idle(world: World) {
@@ -737,6 +755,443 @@ export async function partyRun(
   return run;
 }
 
+/** What the crime walk did (GDD 4.5, 6.5, 12.9). */
+export interface CrimeRun extends Counted {
+  /** "manual" when the operator sets the world's clock, "wall" when it keeps time. */
+  clock: string;
+  /** World days the walk spent stealing and fencing until the invitation. */
+  days: number;
+  /** Thefts begun from the picker, and those seen, caught or come to nothing. */
+  thefts: number;
+  seen: number;
+  caught: number;
+  empty: number;
+  /** Coin the fences paid, and the syndicate standing the walk had when invited. */
+  fenced: number;
+  standing: number;
+  /** The tick the invitation was cast at, -1 for never. */
+  invited: number;
+  made: boolean;
+  /** The watch's fine paid and its run made at the gate. */
+  paid: boolean;
+  fled: boolean;
+  /** The informer cast, and the fence named to the watch. */
+  informer: boolean;
+  informed: boolean;
+  /** The betrayal's grudge held, and the character no longer made. */
+  betrayed: boolean;
+  unmade: boolean;
+  /** How the syndicate NPC spoken to after the betrayal holds the character, and whether it offered only the cold shoulder. */
+  syndicateMood: string;
+  turnedAway: boolean;
+  alignment: number;
+  band: string;
+  audit: string[];
+  log: string[];
+}
+
+/** The act kinds the crime walk records for the fixtures, latest accepted reply of each. */
+export const CRIME_ACTS = [api.ActSteal, api.ActFence, api.ActPayFine, api.ActFlee] as const;
+
+// structural: the world's ticks a day and an hour (sim/sheets units), the
+// ledger's prefix for a material, the material and recipe the walk shapes
+// its tools from, the topics and choices it answers, and how far it goes.
+const TICKS_PER_DAY = 144;
+const TICKS_PER_HOUR = 6;
+const MATERIAL_ASSET = "mat:";
+const THIEF_START = "hook";
+const UPRIGHT = "upright";
+const TOOL = { process: "shape", method: "narrow-grind", slot: "tool", material: "bog-iron" };
+const THEFT_ENDED = "Theft · how it ended";
+const TOPIC_INVITATION = "the-invitation";
+const TOPIC_INFORMER = "the-informer";
+const TOPIC_TURNED_AWAY = "turned-away";
+const TAKE_THE_JOB = "take-the-job";
+const NAME_THE_FENCE = "name-the-fence";
+const ROLE_TRADER = "-settlement-trader-";
+const ROLE_WATCH = "-settlement-watch-";
+const CRIME_DAYS = 60;
+const SOLD_A_DAY = 8;
+const LIFTS_A_DAY = 8;
+const HOURS_WAITED = 24;
+const CAPITAL = 120;
+
+/** The world's clock as a run waits on it: the operator's when the world keeps a manual one, else wall time. */
+async function worldClock(op: { url: string; token: string }, world: World, id: string) {
+  const tick = async () => (await world.options(id)).tick;
+  const set = (due: number) =>
+    fetch(`${op.url}${api.PathOperatorClock}`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${op.token}`, "content-type": "application/json" },
+      body: JSON.stringify({ due } satisfies api.ClockRequest),
+    });
+  const manual = (await set(await tick())).ok;
+  const until = async (to: number) => {
+    if (manual) await set(to);
+    while ((await tick()) < to) await Bun.sleep(manual ? 100 : 1_000);
+  };
+  return {
+    manual,
+    tick,
+    pass: async (ticks: number) => until((await tick()) + ticks),
+    /** On past the next world day's turn, when orders and the trader's coin are new. */
+    nextDay: async () =>
+      until((Math.floor((await tick()) / TICKS_PER_DAY) + 1) * TICKS_PER_DAY + 1),
+  };
+}
+
+/** A World that also keeps the latest accepted reply of each crime act, for the fixtures. */
+function keepingCrimeActs(world: World, kept: Record<string, unknown>): World {
+  const kinds = new Set<string>(CRIME_ACTS);
+  return {
+    ...world,
+    act: async (req) => {
+      const r = await world.act(req);
+      if (r.ok && kinds.has(req.kind)) kept[`act:${req.kind}`] = r;
+      return r;
+    },
+  };
+}
+
+/**
+ * The crime walk: one character from its first theft to the syndicate's
+ * grudge, pressing only what the cards offer. It shapes tools, sells them
+ * to its settlement's trader and lifts them back off the trader's stall,
+ * fences them at the den, is held at the gate and pays once and runs once,
+ * answers the invitation at the fence, names the fence to the watch
+ * captain and ends turned away by the syndicate. The operator only sets
+ * a manual clock and stocks the tools' material and a little coin; every
+ * haul is the trader's real stock.
+ */
+export async function crimeRun(
+  ctx: Ctx,
+  opts: { operator: { url: string; token: string }; user?: string; keep?: Record<string, unknown> },
+): Promise<CrimeRun> {
+  const world = opts.keep ? keepingCrimeActs(ctx.world, opts.keep) : ctx.world;
+  const c: Ctx = { ...ctx, world };
+  const op = opts.operator;
+  const names = ctx.lex.goodsNames();
+  const run: CrimeRun = {
+    presses: 0,
+    cards: 0,
+    problems: [],
+    clock: "",
+    days: 0,
+    thefts: 0,
+    seen: 0,
+    caught: 0,
+    empty: 0,
+    fenced: 0,
+    standing: 0,
+    invited: -1,
+    made: false,
+    paid: false,
+    fled: false,
+    informer: false,
+    informed: false,
+    betrayed: false,
+    unmade: false,
+    syndicateMood: "",
+    turnedAway: false,
+    alignment: 0,
+    band: "",
+    audit: [],
+    log: [],
+  };
+  const note = (s: string) => run.log.push(s);
+  const p = new Player(c, opts.user ?? `crime-${Date.now()}`, run, names, async () => {});
+  await p.command("play");
+  // The hook leads with Flex, which a lift's palm is pressed with.
+  await p.press("start", THIEF_START);
+  const id = (p.id = await world.player(p.user));
+  const clock = await worldClock(op, world, id);
+  run.clock = clock.manual ? "manual" : "wall";
+  let ops = 0;
+  const correct = async (asset: string, units: number) => {
+    const res = await operate(op, {
+      interactionId: `crime-${id}-${++ops}`,
+      characterId: id,
+      kind: api.OpCorrect,
+      asset,
+      units,
+      note: "The scripted crime run's stock.",
+    });
+    if (!res.ok) throw new Error(`the correction of ${asset} was refused: ${await res.text()}`);
+  };
+  const sheet = () => world.sheet(id);
+  const coin = async () => (await sheet()).character.coin;
+  const standing = async () =>
+    (await sheet()).standing.find((s) => s.with === syndicateName(ctx.lex))?.value ?? 0;
+  const idle = async () => {
+    for (let i = 0; i < 400 && (await world.options(id)).long; i++) await clock.pass(1);
+  };
+  const hub = async () => {
+    await p.command("play");
+    if (p.card.author.startsWith("Chronicle")) await p.press("hub");
+    if (p.card.author === "Down") {
+      await p.press("crawl");
+      await idle();
+      await hub();
+    }
+  };
+  /** The value of the select option for action whose value passes ok. */
+  const optionFor = (action: string, ok: (v: string) => boolean) =>
+    p.card.rows
+      .flatMap((r) =>
+        "select" in r && decodeId(r.select.customId)?.action === action ? r.select.options : [],
+      )
+      .find((o) => ok(o.value))?.value;
+  /** Presses the fight's best winning option until it is over, as a tester does; a theft already caught is backed out of before a second failure downs the thief. */
+  const fightOut = async () => {
+    for (let i = 0; i < 12 && p.has("press"); i++) {
+      const o = await world.options(id);
+      const wins = (o.fight?.options ?? []).filter((x) => x.kind === "win" && !x.puzzle);
+      const best = wins.sort((a, b) => ctx.lex.bandRank(a.band) - ctx.lex.bandRank(b.band))[0];
+      const caught = o.fight?.theft?.caught && !isFlight(o.fight.theft);
+      await p.press("press", caught || !best ? "back-out" : best.id);
+    }
+  };
+
+  // The world day turns before the market opens.
+  await clock.nextDay();
+  const home = (await world.options(id)).at;
+  const people = async () => (await world.here(id)).people;
+  const trader = (await people()).find((x) => x.id.includes(ROLE_TRADER));
+  if (!trader) throw new Error("no trader stands in the home settlement");
+  note(`home ${home.q},${home.r}; the trader ${trader.id} leans ${trader.leaning || "none"}`);
+  // Robbed and facing a notorious thief, an upright trader turns hostile and
+  // buys nothing more, and a lone world has no other stock to lift.
+  if (trader.leaning === UPRIGHT)
+    throw new Error("the home trader leans upright: run the walk on another world");
+  await correct("coin", CAPITAL);
+
+  /** Mends the hand's weapon at the forge once it is a third worn, as a tester would. */
+  const mend = async () => {
+    const hand = (await sheet()).kit.find((i) => i.worn === "hand");
+    if (!hand || (hand.durability * 3 >= hand.max && !hand.dormant)) return;
+    const cost = (await world.options(id)).purse.hand?.repair;
+    if (cost?.material && cost.units) await correct(MATERIAL_ASSET + cost.material, cost.units);
+    await p.command("character");
+    await p.press("item", undefined, hand.id);
+    if (p.has("repair", hand.id)) await p.press("repair", hand.id);
+  };
+  /** What the fences and the trader paid past the walk's capital goes back to the operator: a lone character's coin would fill the faucet's band and close the day's budget. */
+  const spend = async () => {
+    const over = (await coin()) - CAPITAL;
+    if (over > 0) await correct("coin", -over);
+  };
+  const clean = async () => {
+    const s = await sheet();
+    const hot = new Set((s.character.hot ?? []).map((h) => h.item));
+    return [...s.kit, ...s.pack].filter(
+      (i) => !i.worn && !i.mount && !hot.has(i.id) && i.name.endsWith(" tool"),
+    );
+  };
+  const hotTools = async () => ((await sheet()).character.hot ?? []).filter((h) => h.item);
+  const shapeTool = async () => {
+    const have = (await sheet()).character.goods.find((g) => g.material === TOOL.material);
+    if ((have?.units ?? 0) < 2) await correct(MATERIAL_ASSET + TOOL.material, 2);
+    await hub();
+    await p.press("craft");
+    await p.press("craft-p", undefined, TOOL.process);
+    await p.press("craft-m", undefined, TOOL.method);
+    await p.press("craft-s", undefined, TOOL.slot);
+    await p.press("craft-i", undefined, TOOL.material);
+    await p.press("craft-q");
+    if (p.has("craft-go")) await p.press("craft-go");
+  };
+  const sell = async (item: string) => {
+    await p.command("character");
+    await p.press("item", undefined, item);
+    if (!p.has("sell-item", item)) return false;
+    const before = await coin();
+    await p.press("sell-item", item);
+    return (await coin()) > before;
+  };
+  /** Opens the where card, waiting the hours out until who is here. */
+  const whereWith = async (who: (x: api.Person) => boolean) => {
+    for (let h = 0; h < HOURS_WAITED; h++) {
+      if ((await people()).some(who)) break;
+      await clock.pass(TICKS_PER_HOUR);
+    }
+    await hub();
+    await p.press("where");
+  };
+  const lift = async (): Promise<boolean> => {
+    await whereWith((x) => x.id === trader.id);
+    if (!p.has("steal")) return false;
+    await p.press("steal");
+    const pick = optionFor("steal", (v) => v.startsWith(`${api.TheftLift}/${trader.id}/`));
+    if (!pick) return false;
+    await p.press("steal", undefined, pick);
+    if (!p.has("press")) {
+      note(`the lift did not begin: ${p.card.title}`);
+      return false;
+    }
+    await fightOut();
+    if (p.card.author !== THEFT_ENDED) {
+      note(`the lift ended on "${p.card.author} / ${p.card.title}"`);
+      return false;
+    }
+    run.thefts++;
+    if (p.card.title === "Seen, and wanted") run.seen++;
+    else if (p.card.title === "Caught in the act") run.caught++;
+    else if (p.card.title === "Nothing left to take") run.empty++;
+    return true;
+  };
+  const talkTo = async (who: (x: api.Person) => boolean) => {
+    await whereWith(who);
+    const n = (await people()).find(who);
+    if (!n) return undefined;
+    if (p.has("talk", n.id)) await p.press("talk", n.id);
+    else {
+      // The where card has Talk for its first few people only; the rest
+      // are pressed as their button would be.
+      if (!unbuttoned.has(n.id)) note(`no Talk button for ${n.id}: pressed as its button`);
+      unbuttoned.add(n.id);
+      await p.send({
+        id: { action: "talk", target: n.id, version: (await world.options(id)).version },
+      });
+    }
+    return n.id;
+  };
+  const unbuttoned = new Set<string>();
+  const isFence = (x: api.Person) => !!x.fence;
+  const fenceAll = async () => {
+    if (!(await hotTools()).length || !(await talkTo(isFence))) return;
+    for (let i = 0; i < SOLD_A_DAY && p.has("fence"); i++) {
+      const before = await coin();
+      await p.press("fence");
+      const paid = (await coin()) - before;
+      if (paid <= 0) break;
+      run.fenced += paid;
+    }
+  };
+  /** Steps off the settlement and back, so the watch at its gate stops a wanted character. */
+  const backThroughTheGate = async () => {
+    const o = await world.options(id);
+    const out = o.moves.find((m) => m.open);
+    if (!out) return false;
+    await p.command("map");
+    await p.press("step", String(out.dir));
+    await idle();
+    if ((await world.options(id)).fight) await fightOut();
+    const back = (await world.options(id)).moves.find(
+      (m) => m.open && m.to.q === home.q && m.to.r === home.r,
+    );
+    if (!back) return false;
+    await p.command("map");
+    await p.press("step", String(back.dir));
+    await idle();
+    await hub();
+    return p.has("pay-fine") || p.has("flee");
+  };
+  const atTheGate = async () => {
+    if (!(await sheet()).character.wanted?.length || (run.paid && run.fled)) return;
+    if (!(await backThroughTheGate())) return;
+    const fine = (await sheet()).character.stopped;
+    if (!run.paid && fine?.canPay) {
+      await p.press("pay-fine");
+      run.paid = !(await sheet()).character.stopped;
+    } else {
+      await p.press("flee");
+      await fightOut();
+      run.fled = !(await sheet()).character.stopped;
+    }
+    await hub();
+  };
+  const arc = async (template: string) =>
+    (await world.arcs(id)).open.find((a) => a.template === template && !a.outcome);
+
+  // Steal, fence and sell until the syndicate's invitation is cast.
+  for (let day = 0; day < CRIME_DAYS && !(await arc(TOPIC_INVITATION)); day++) {
+    run.days = day + 1;
+    await fenceAll();
+    for (let i = 0; i < SOLD_A_DAY; i++) {
+      if (!(await clean()).length) await shapeTool();
+      const tool = (await clean())[0];
+      if (!tool || !(await sell(tool.id))) break;
+    }
+    for (let i = 0; i < LIFTS_A_DAY; i++) {
+      await mend();
+      if (!(await lift())) break;
+    }
+    await fenceAll();
+    await atTheGate();
+    await spend();
+    const s = await sheet();
+    note(
+      `day ${Math.floor((await clock.tick()) / TICKS_PER_DAY)}: ${run.thefts} thefts, ${run.fenced} coin fenced, standing ${await standing()}, ${s.character.alignment.band} ${s.character.alignment.value}`,
+    );
+    await clock.nextDay();
+  }
+  const invitation = await arc(TOPIC_INVITATION);
+  run.standing = await standing();
+  if (!invitation) {
+    note("the invitation was never cast");
+    return finish();
+  }
+  run.invited = invitation.began;
+
+  // The invitation is answered at the fence it casts.
+  await openStage(invitation.id);
+  const fence = await talkTo(isFence);
+  if (!fence) throw new Error("the invited character finds no fence to answer");
+  await p.press("choose", `${fence}/${TOPIC_INVITATION}/${TAKE_THE_JOB}`);
+  await clock.pass(2);
+  run.made = (await sheet()).character.alignment.made;
+  note(`invited at standing ${run.standing}; made ${run.made}`);
+
+  // Made, it meets the watch captain until the informer is cast, and names the fence.
+  const isCaptain = (x: api.Person) => x.id.includes(ROLE_WATCH);
+  let informer = await arc(TOPIC_INFORMER);
+  for (let day = 0; day < CRIME_DAYS && run.made && !informer; day++) {
+    await talkTo(isCaptain);
+    await clock.nextDay();
+    informer = await arc(TOPIC_INFORMER);
+  }
+  run.informer = !!informer;
+  if (informer) {
+    const captain = await talkTo(isCaptain);
+    if (captain) await p.press("choose", `${captain}/${TOPIC_INFORMER}/${NAME_THE_FENCE}`);
+    await clock.pass(2);
+    const after = await world.arcs(id);
+    run.informed = after.ended.some((a) => a.id === informer!.id && a.outcome === NAME_THE_FENCE);
+    const s = await sheet();
+    run.betrayed = s.grudges.some((g) => g.with === SYNDICATE);
+    run.unmade = !s.character.alignment.made;
+  }
+
+  // The syndicate holds the grudge: its fence turns the character away.
+  const syn = await talkTo(isFence);
+  if (syn) {
+    const conv = await world.npc(id, syn);
+    if (conv.ok) {
+      run.syndicateMood = conv.reply.npc.mood ?? "";
+      run.turnedAway =
+        conv.reply.topics.length > 0 && conv.reply.topics.every((t) => t.id === TOPIC_TURNED_AWAY);
+    }
+  } else note("no syndicate NPC stands here after the betrayal: the den moved on");
+  return finish();
+
+  /** The thread's stage card, from the chronicle's select of arcs. */
+  async function openStage(arcId: string) {
+    await p.command("chronicle");
+    if (optionFor("arc", (v) => v === arcId)) await p.press("arc", undefined, arcId);
+    else note(`the chronicle offers no stage card for ${arcId}`);
+  }
+  async function finish(): Promise<CrimeRun> {
+    const s = await world.sheet(id);
+    run.alignment = s.character.alignment.value;
+    run.band = s.character.alignment.band;
+    const res = await fetch(`${op.url}${api.PathOperatorAudit}`, {
+      headers: { authorization: `Bearer ${op.token}` },
+    });
+    run.audit = ((await res.json()) as api.Audit).discrepancies ?? [];
+    return run;
+  }
+}
+
 export type NarrationMode = "off" | "stub";
 
 /** --narration off|stub, off when absent; a message when the value is neither. */
@@ -840,7 +1295,62 @@ if (import.meta.main && process.env.SCRIPTED === "party") {
   process.exit(r.problems.length || !r.party || !r.beats || !r.ended || !r.thread.length ? 1 : 0);
 }
 
-if (import.meta.main && process.env.SCRIPTED !== "party") {
+if (import.meta.main && process.env.SCRIPTED === "crime") {
+  const url = process.env.MMO_WORLD_URL ?? "http://localhost:8080";
+  const world = httpWorld(url, process.env.MMO_API_TOKEN ?? "");
+  const lex = new Lexicon(await world.lexicon());
+  const { ctx, narration } = scriptedCtx(
+    { world, lex, threatLine: lex.numbers.ambushLine },
+    modeOrExit(),
+  );
+  const started = Date.now();
+  const kept: Record<string, unknown> = {};
+  const r = await crimeRun(ctx, {
+    operator: { url, token: process.env.MMO_OPERATOR_TOKEN ?? "local-operator" },
+    keep: process.env.RECORD ? kept : undefined,
+  }).catch((e: unknown) => {
+    console.error(e);
+    process.exit(2);
+  });
+  console.log(
+    JSON.stringify(
+      {
+        ...r,
+        narration: await narrationReport(narration),
+        seconds: Math.round((Date.now() - started) / 1000),
+      },
+      null,
+      2,
+    ),
+  );
+  // RECORD names the card tests' fixture: the crime acts' replies are merged
+  // into it, and every other sample in it is kept as it was recorded.
+  if (process.env.RECORD) {
+    const file = Bun.file(process.env.RECORD);
+    const samples = (await file.exists()) ? ((await file.json()) as Record<string, unknown>) : {};
+    for (const kind of CRIME_ACTS)
+      if (kept[`act:${kind}`]) samples[`act:${kind}`] = kept[`act:${kind}`];
+    await Bun.write(process.env.RECORD, `${JSON.stringify(samples, null, 2)}\n`);
+  }
+  process.exit(
+    r.problems.length ||
+      r.audit.length ||
+      !r.thefts ||
+      !r.fenced ||
+      !r.paid ||
+      !r.fled ||
+      !r.made ||
+      !r.informed ||
+      !r.betrayed ||
+      !r.unmade ||
+      r.syndicateMood !== api.MoodHostile ||
+      !r.turnedAway
+      ? 1
+      : 0,
+  );
+}
+
+if (import.meta.main && !["party", "crime"].includes(process.env.SCRIPTED ?? "")) {
   const url = process.env.MMO_WORLD_URL ?? "http://localhost:8080";
   const samples: Record<string, unknown> = {};
   const base: World = httpWorld(url, process.env.MMO_API_TOKEN ?? "");

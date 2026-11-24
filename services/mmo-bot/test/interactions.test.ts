@@ -75,10 +75,6 @@ const UNRECORDED = new Set<string>([
   api.ActBackSide,
   api.ActPatternSet,
   api.ActCityRaise,
-  api.ActSteal,
-  api.ActFence,
-  api.ActPayFine,
-  api.ActFlee,
 ]);
 /** The reads that name no character: the bot's own, world-wide. */
 const WORLD_WIDE = new Set<string>([api.PathHunts, api.PathParties, api.PathStoryEvents]);

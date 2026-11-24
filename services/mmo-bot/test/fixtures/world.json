@@ -5176,5 +5176,629 @@
         }
       ]
     }
+  },
+  "act:steal": {
+    "ok": true,
+    "reply": {
+      "duplicate": false,
+      "tick": 4177,
+      "character": {
+        "id": "c-1",
+        "version": 2368,
+        "at": {
+          "q": -28,
+          "r": 29
+        },
+        "coin": 95,
+        "provisions": 0,
+        "goods": [
+          {
+            "material": "bog-iron",
+            "units": 1
+          }
+        ],
+        "conditions": ["wanted"],
+        "practice": [
+          {
+            "id": "craft",
+            "level": 4
+          },
+          {
+            "id": "fight",
+            "level": 6
+          },
+          {
+            "id": "sleight",
+            "level": 4
+          },
+          {
+            "id": "travel",
+            "level": 3
+          }
+        ],
+        "inFight": true,
+        "walked": 4,
+        "alignment": {
+          "value": -100,
+          "band": "notorious",
+          "goodToday": 0,
+          "made": false
+        },
+        "hot": [
+          {
+            "item": "scripted-crime-1795510869028-3371",
+            "units": 1,
+            "victim": "Echo Flint",
+            "days": 7,
+            "reach": 0
+          },
+          {
+            "item": "scripted-crime-1795510869028-2970",
+            "units": 1,
+            "victim": "Echo Flint",
+            "days": 7,
+            "reach": 0
+          },
+          {
+            "item": "scripted-crime-1795510869028-3675",
+            "units": 1,
+            "victim": "Echo Flint",
+            "days": 7,
+            "reach": 0
+          },
+          {
+            "item": "scripted-crime-1795510869028-3253",
+            "units": 1,
+            "victim": "Echo Flint",
+            "days": 7,
+            "reach": 0
+          },
+          {
+            "item": "scripted-crime-1795510869028-3642",
+            "units": 1,
+            "victim": "Echo Flint",
+            "days": 7,
+            "reach": 0
+          }
+        ],
+        "wanted": [
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 1
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 20,
+            "days": 1
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 20,
+            "days": 1
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 1
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 1
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 1
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 20,
+            "days": 1
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 20,
+            "days": 2
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 2
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 20,
+            "days": 2
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 2
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 2
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 2
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 3
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 3
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 3
+          }
+        ]
+      },
+      "facts": []
+    }
+  },
+  "act:fence": {
+    "ok": true,
+    "reply": {
+      "duplicate": false,
+      "tick": 4177,
+      "character": {
+        "id": "c-1",
+        "version": 2384,
+        "at": {
+          "q": -28,
+          "r": 29
+        },
+        "coin": 131,
+        "provisions": 0,
+        "goods": [
+          {
+            "material": "bog-iron",
+            "units": 1
+          }
+        ],
+        "conditions": ["wanted"],
+        "practice": [
+          {
+            "id": "craft",
+            "level": 4
+          },
+          {
+            "id": "fight",
+            "level": 6
+          },
+          {
+            "id": "sleight",
+            "level": 4
+          },
+          {
+            "id": "travel",
+            "level": 3
+          }
+        ],
+        "inFight": false,
+        "walked": 4,
+        "alignment": {
+          "value": -100,
+          "band": "notorious",
+          "goodToday": 0,
+          "made": false
+        },
+        "wanted": [
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 1
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 20,
+            "days": 1
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 20,
+            "days": 1
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 1
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 1
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 1
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 20,
+            "days": 1
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 20,
+            "days": 2
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 2
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 20,
+            "days": 2
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 2
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 2
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 2
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 20,
+            "days": 3
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 3
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 3
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 20,
+            "days": 3
+          }
+        ]
+      },
+      "facts": [
+        {
+          "id": 1343,
+          "tick": 4177,
+          "kind": "fence.bought",
+          "region": "r-0",
+          "subjects": [
+            {
+              "kind": "character",
+              "id": "c-1"
+            },
+            {
+              "kind": "npc",
+              "id": "r--28,29-den-fence-0"
+            }
+          ],
+          "data": [
+            {
+              "k": "item",
+              "s": "scripted-crime-1795510869028-3921"
+            },
+            {
+              "k": "kind",
+              "s": "93978e8dbeb50c64798c011213622802"
+            },
+            {
+              "k": "pay",
+              "n": 6
+            },
+            {
+              "k": "settlement"
+            },
+            {
+              "k": "standing",
+              "n": 1
+            },
+            {
+              "k": "units",
+              "n": 1
+            },
+            {
+              "k": "worth",
+              "n": 10
+            }
+          ],
+          "weight": 10
+        }
+      ]
+    }
+  },
+  "act:pay-fine": {
+    "ok": true,
+    "reply": {
+      "duplicate": false,
+      "tick": 147,
+      "character": {
+        "id": "c-1",
+        "version": 91,
+        "at": {
+          "q": -28,
+          "r": 29
+        },
+        "coin": 84,
+        "provisions": 0,
+        "goods": [
+          {
+            "material": "bog-iron",
+            "units": 2
+          }
+        ],
+        "conditions": [],
+        "practice": [
+          {
+            "id": "craft",
+            "level": 0
+          },
+          {
+            "id": "fight",
+            "level": 6
+          },
+          {
+            "id": "sleight",
+            "level": 0
+          },
+          {
+            "id": "travel",
+            "level": 0
+          }
+        ],
+        "inFight": false,
+        "walked": 2,
+        "alignment": {
+          "value": -16,
+          "band": "crooked",
+          "goodToday": 0,
+          "made": false
+        }
+      },
+      "facts": [
+        {
+          "id": 63,
+          "tick": 147,
+          "kind": "watch.paid",
+          "region": "r-0",
+          "subjects": [
+            {
+              "kind": "character",
+              "id": "c-1"
+            }
+          ],
+          "data": [
+            {
+              "k": "coin"
+            },
+            {
+              "k": "fine",
+              "n": 70
+            },
+            {
+              "k": "q",
+              "n": -28
+            },
+            {
+              "k": "r",
+              "n": 29
+            },
+            {
+              "k": "settlement"
+            },
+            {
+              "k": "units",
+              "n": 1
+            }
+          ],
+          "weight": 10,
+          "causes": [37, 40, 47, 49, 51, 53]
+        }
+      ]
+    }
+  },
+  "act:flee": {
+    "ok": true,
+    "reply": {
+      "duplicate": false,
+      "tick": 291,
+      "character": {
+        "id": "c-1",
+        "version": 167,
+        "at": {
+          "q": -28,
+          "r": 29
+        },
+        "coin": 94,
+        "provisions": 0,
+        "goods": [
+          {
+            "material": "bog-iron",
+            "units": 2
+          }
+        ],
+        "conditions": ["wanted"],
+        "practice": [
+          {
+            "id": "craft",
+            "level": 0
+          },
+          {
+            "id": "fight",
+            "level": 6
+          },
+          {
+            "id": "sleight",
+            "level": 1
+          },
+          {
+            "id": "travel",
+            "level": 0
+          }
+        ],
+        "inFight": true,
+        "walked": 4,
+        "alignment": {
+          "value": -32,
+          "band": "crooked",
+          "goodToday": 0,
+          "made": false
+        },
+        "hot": [
+          {
+            "item": "scripted-crime-1795510869028-178",
+            "units": 1,
+            "victim": "Echo Flint",
+            "days": 7,
+            "reach": 0
+          },
+          {
+            "item": "scripted-crime-1795510869028-233",
+            "units": 1,
+            "victim": "Echo Flint",
+            "days": 7,
+            "reach": 0
+          },
+          {
+            "item": "scripted-crime-1795510869028-33",
+            "units": 1,
+            "victim": "Echo Flint",
+            "days": 7,
+            "reach": 0
+          },
+          {
+            "item": "scripted-crime-1795510869028-200",
+            "units": 1,
+            "victim": "Echo Flint",
+            "days": 7,
+            "reach": 0
+          },
+          {
+            "item": "scripted-crime-1795510869028-55",
+            "units": 1,
+            "victim": "Echo Flint",
+            "days": 7,
+            "reach": 0
+          },
+          {
+            "item": "scripted-crime-1795510869028-77",
+            "units": 1,
+            "victim": "Echo Flint",
+            "days": 7,
+            "reach": 0
+          },
+          {
+            "item": "scripted-crime-1795510869028-66",
+            "units": 1,
+            "victim": "Echo Flint",
+            "days": 7,
+            "reach": 0
+          }
+        ],
+        "wanted": [
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 3
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 3
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 3
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 3
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 3
+          },
+          {
+            "victim": "Echo Flint",
+            "places": ["Pylon Market"],
+            "fine": 10,
+            "days": 3
+          }
+        ],
+        "stopped": {
+          "settlement": 0,
+          "name": "Pylon Market",
+          "fine": 60,
+          "canPay": true
+        }
+      },
+      "facts": []
+    }
   }
 }
