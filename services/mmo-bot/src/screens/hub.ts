@@ -139,6 +139,9 @@ function longLabel(l: api.Long, lex: Lexicon): string {
   }
 }
 
+/** People given a Talk button of their own; the rest are in a select. */
+const TALK_BUTTONS = 4;
+
 /** Where I am: banner, gauges, what is happening here, who is here (GDD 17.3). */
 export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
   const v = o.version;
@@ -148,9 +151,9 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
       .map((f) => `• ${factLine(f, lex)}`)
       .join("\n") || "Nothing heavy has happened here lately.";
   // Those who came to meet the character on its road are spoken to first.
-  const people = [...here.people]
-    .sort((a, b) => Number(!!b.called) - Number(!!a.called))
-    .slice(0, 4);
+  const everyone = [...here.people].sort((a, b) => Number(!!b.called) - Number(!!a.called));
+  const people = everyone.slice(0, TALK_BUTTONS);
+  const others = everyone.slice(TALK_BUTTONS, TALK_BUTTONS + SELECT_MOST);
   const buttons: Button[] = people.map((p) =>
     btn(
       buttonLabel(
@@ -269,6 +272,17 @@ export function whereCard(o: api.Options, here: api.Here, lex: Lexicon): Card {
     footer: "Every heavy fact on this tile is kept in its record.",
     rows: [
       ...(buttons.length ? [{ buttons }] : []),
+      ...(others.length
+        ? [
+            {
+              select: {
+                customId: encodeId("talk", "", v),
+                placeholder: "Talk to someone else here",
+                options: others.map((p) => option(p.name, p.id, p.role)),
+              },
+            },
+          ]
+        : []),
       ...pointRows(point, v, lex),
       ...buttonRows(more),
     ],

@@ -1166,6 +1166,22 @@ const cards: [string, () => Card][] = [
         lex,
       ),
   ],
+  [
+    "where, more people than Talk buttons",
+    () =>
+      whereCard(
+        o,
+        {
+          ...here,
+          people: ["Ada", "Bram", "Cole", "Dara", "Esk", "Fenn", "Gale"].map((name) => ({
+            ...here.people[0]!,
+            id: `r-0,0-settlement-${name.toLowerCase()}-0`,
+            name,
+          })),
+        },
+        lex,
+      ),
+  ],
   ["party, none yet, an invitation held", () => partyCard(mm8.alone, here, lex)],
   ["party, in one, on a beat", () => partyCard(mm8.party, here, lex)],
   [

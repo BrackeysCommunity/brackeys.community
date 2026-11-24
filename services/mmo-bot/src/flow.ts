@@ -1287,10 +1287,13 @@ class Session {
         return this.write(api.ActForage, v, { ticks: Number(id.target) }, (_, why) =>
           this.longAnswer("You forage", why),
         );
-      case "talk":
-        return this.write(api.ActTalk, v, { npc: id.target }, async (_, why) =>
-          why ? this.where(why) : this.talk(id.target),
+      case "talk": {
+        // The where card's people select carries the NPC as its pick.
+        const npc = value || id.target;
+        return this.write(api.ActTalk, v, { npc }, async (_, why) =>
+          why ? this.where(why) : this.talk(npc),
         );
+      }
       case "choose": {
         const choice = fields(id.target, "/", 3);
         if (!choice) return backCards.unknown(this.character);
