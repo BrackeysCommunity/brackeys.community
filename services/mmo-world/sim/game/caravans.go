@@ -142,20 +142,20 @@ func (g *Game) caravanDepart(rt *emerge.RouteRec, day, t int64) error {
 	return nil
 }
 
-// caravanArrive hands a caravan's goods to the destination's faction and
-// opens the caravan occasion there, then ends it.
+// caravanArrive hands a caravan's goods to the destination's faction, its
+// store first, and opens the caravan occasion there, then ends it.
 func (g *Game) caravanArrive(cv *emerge.Caravan, t int64) error {
 	if !g.placeIndex(cv.To) {
 		return fmt.Errorf("caravan %s bound for no settlement %d", cv.ID, cv.To)
 	}
 	pool := ledger.CaravanPool(cv.ID)
+	h := g.SettlementHex(cv.To)
 	var legs []ledger.Leg
 	units := int64(0)
 	for _, b := range g.caravanGoods(cv) {
-		legs = append(legs, ledger.Pair(pool, ledger.ToFaction, b.Asset, b.Units)...)
+		legs = append(legs, g.storeLegs(pool, g.holderAt(h), b.Asset, b.Units)...)
 		units += b.Units
 	}
-	h := g.SettlementHex(cv.To)
 	data := append(g.caravanData(cv, units), fact.N("from", int64(cv.From)), fact.N("to", int64(cv.To)))
 	fid, err := g.worldFact(h, factCaravanArrived, []fact.Ref{promotionRef(cv.Route)}, g.routeCause(cv.Route), data...)
 	if err != nil {

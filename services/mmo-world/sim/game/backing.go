@@ -98,11 +98,18 @@ func (g *Game) backSide(c *Char, cmd Command) error {
 	if have := g.balance(c, asset); have < units {
 		return refuse(Short, "%s carries %d %s of the %d", c.C.ID, have, material, units)
 	}
+	// Hot goods never fill a side their victim's faction sponsors (GDD 6.5).
+	day := g.Tick() / sheets.TicksPerDay
+	barred := g.barredBy(standingKey(s.sr.Sponsor, g.sideHex(s)), nil)
+	if err := g.hotGuard(c, material, units, day, barred); err != nil {
+		return err
+	}
 	f, err := g.factWith(c, []fact.Ref{goalRef(x.ID)}, "side.backed", g.Tick(), append(g.backData(s),
 		fact.S("material", material), fact.N("units", units))...)
 	if err != nil {
 		return err
 	}
+	g.consumeHotBut(c, material, units, day, barred)
 	t := ledger.Move(ledger.SubKey(cmd.Key, "back"), "side-goods", g.Tick(), ledger.Char(c.C.ID), ledger.ToFaction, asset, units)
 	t.Fact = f.ID
 	if err := g.postAll(t); err != nil {
@@ -273,8 +280,12 @@ func (g *Game) sideRunning(s backed) bool {
 }
 
 // shunned reports whether a character's standing with a side's sponsor is
-// too low for it to back the side (GDD 5.4).
+// too low for it to back the side (GDD 5.4), or a syndicate thread's
+// character stands under the syndicate's gate (GDD 4.5).
 func (g *Game) shunned(c *Char, s backed) bool {
+	if tpl, ok := g.template(s.a.Template); ok && tpl.Row.Syndicate && c.C.Standing.Get(syndicateKey) < g.r.Story.Gate {
+		return true
+	}
 	return c.C.Standing.Get(standingKey(s.sr.Sponsor, g.sideHex(s))) <= g.r.Story.ShunnedBelow
 }
 
@@ -351,7 +362,7 @@ func (g *Game) backEvents(f fact.Fact) []goal.Event {
 		return nil
 	}
 	switch f.Kind {
-	case "side.backed", "beat.won", "hunt.pressed", "travel.entered", "order.filled":
+	case "side.backed", "beat.won", "hunt.pressed", "travel.entered", "order.filled", factNPCChose, factTheft:
 	default:
 		return nil
 	}
@@ -362,8 +373,11 @@ func (g *Game) backEvents(f fact.Fact) []goal.Event {
 	if c == nil {
 		return nil
 	}
-	if f.Kind == "side.backed" {
+	switch f.Kind {
+	case "side.backed":
 		return g.backedGoods(c, f)
+	case factTheft:
+		return g.preyGoods(c, f)
 	}
 	var out []goal.Event
 	for _, s := range g.runningSides(c.C.ID) {
@@ -392,6 +406,35 @@ func (g *Game) backedGoods(c *Char, f fact.Fact) []goal.Event {
 		return nil
 	}
 	e, ok := g.contribute(c, s, f, units.N, units.N*g.r.Values.Asset(material.S), false)
+	if !ok {
+		return nil
+	}
+	return []goal.Event{e}
+}
+
+// preyGoods is a waylay for a prey side read as its Back event: the units
+// taken, times prey-share, for a backer of the side (GDD 12.9).
+func (g *Game) preyGoods(c *Char, f fact.Fact) []goal.Event {
+	side, _ := f.Get("side")
+	outcome, _ := f.Get("outcome")
+	x := g.GoalOf(side.S)
+	if x == nil || outcome.S != theftWon {
+		return nil
+	}
+	s, ok := g.sideOf(x)
+	if !ok || s.wants != arc.WantGoods {
+		return nil
+	}
+	if b, ok := g.backingIn(c.C.ID, s.a.ID, s.stage); !ok || b.Side != s.sr.Side {
+		return nil
+	}
+	units, _ := f.Get("units")
+	material, _ := f.Get("material")
+	n := fixed.PercentFloor(units.N, g.hotCell("prey-share"))
+	if n <= 0 {
+		return nil
+	}
+	e, ok := g.contribute(c, s, f, n, n*g.r.Values.Asset(material.S), false)
 	if !ok {
 		return nil
 	}
@@ -455,6 +498,11 @@ func (g *Game) counts(c *Char, s backed, f fact.Fact) (units, worth int64, impli
 			return 0, 0, false
 		}
 		return 1, beat, true
+	case f.Kind == factNPCChose && s.wants == arc.WantWord:
+		if choice, _ := f.Get("choice"); choice.S != s.sr.Side || !g.saidTo(s, f) {
+			return 0, 0, false
+		}
+		return 1, beat, true
 	case f.Kind == "order.filled" && s.wants == arc.WantSold:
 		fi, ok := f.Get("faction")
 		n, ok2 := goal.SettlementOf(s.a.Place)
@@ -467,6 +515,28 @@ func (g *Game) counts(c *Char, s backed, f fact.Fact) (units, worth int64, impli
 	}
 	return 0, 0, false
 }
+
+// saidTo reports whether a choice fact was made to the NPC cast at a word
+// side's role.
+func (g *Game) saidTo(s backed, f fact.Fact) bool {
+	row, ok := g.stageRow(s.a, s.stage)
+	if !ok {
+		return false
+	}
+	sd, ok := sideRow(row, s.sr.Side)
+	if !ok {
+		return false
+	}
+	ref, ok := g.roleRef(s.a, sd.At)
+	return ok && ref.Kind == kindNPC && slices.Contains(f.Subjects, ref)
+}
+
+// structural: the fact a choice at a meeting writes, and a won theft's
+// outcome.
+const (
+	factNPCChose = "npc.chose"
+	theftWon     = "won"
+)
 
 // defence is a beat's count toward a raid's defence: doubled for a
 // wall-captain.

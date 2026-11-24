@@ -28,6 +28,9 @@ type DossierView struct {
 	Folded      tally.Tally
 	FoldedTotal int64
 	Names       map[string]string
+	// Leaning is how it leans, and Mood how it holds the viewer (GDD 4.18).
+	Leaning string
+	Mood    string
 }
 
 // MemoryView is one remembered entry as the viewer may be told it: Who
@@ -60,6 +63,11 @@ func (g *Game) Dossier(c *Char, id string) (DossierView, error) {
 	}
 	for _, tr := range n.Stub.Traits {
 		out.Traits = append(out.Traits, cmp.Or(g.r.Name("npcs.traits:"+tr), tr))
+	}
+	out.Leaning, out.Mood = g.LeaningOf(n.Stub), g.moodOf(g.disposition(c, n.Stub, n, t))
+	// A leaning shows as the trait of its name.
+	if out.Leaning != npc.LeaningNone {
+		out.Traits = append(out.Traits, cmp.Or(g.r.Name("npcs.traits:"+out.Leaning), out.Leaning))
 	}
 	out.Names[refKey(npc.Ref(n.Stub.ID))] = n.Stub.Name
 	if s, ok := g.SettlementAt(n.Stub.Home); ok {

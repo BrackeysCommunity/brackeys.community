@@ -71,29 +71,64 @@ type Person struct {
 	Visit bool `json:"visit"` // it has queued a visit to this character
 	// Called is an NPC that came to this tile to find the character.
 	Called bool `json:"called,omitempty"`
+	// Leaning is how it leans; Mood how it holds the character; Fence: a
+	// den's fence, who buys hot goods (GDD 4.18, 4.5).
+	Leaning string `json:"leaning,omitempty"`
+	Mood    string `json:"mood,omitempty"`
+	Fence   bool   `json:"fence,omitempty"`
 }
 
 // PeopleHere are the NPCs on a tile at this hour: a settlement's
 // residents at home or on their routes, saved NPCs whose routes pass now,
-// those calling on the character, and the day's wanderer. Nothing is
-// walked: the route index answers.
+// those calling on the character, and the day's wanderer. A den's fence
+// is there only for a character who can find it, and the syndicate's
+// notables only for the made (GDD 4.5). Nothing is walked: the route
+// index answers.
 func (g *Game) PeopleHere(c *Char, h hex.Hex) []Person {
 	t := g.Tick()
+	fenceSeen, made := g.FenceVisible(c), char.IsMade(c.C)
 	var out []Person
 	seen := func(id string) bool { return slices.ContainsFunc(out, func(p Person) bool { return p.ID == id }) }
+	hidden := func(s npc.Stub) bool {
+		fence, notable := g.syndicateRole(s.Role)
+		return (fence && !fenceSeen) || (notable && !made)
+	}
+	person := func(s npc.Stub, n *npc.NPC) Person {
+		fence, _ := g.syndicateRole(s.Role)
+		p := Person{Stub: s, Saved: n != nil, Leaning: g.LeaningOf(s), Mood: g.moodOf(g.disposition(c, s, n, t)), Fence: fence}
+		if n != nil {
+			p.Visit, p.Called = slices.Contains(n.Visits, c.C.ID), c.calling(s.ID, h)
+		}
+		return p
+	}
 	add := func(n *npc.NPC) {
-		if !seen(n.Stub.ID) {
-			out = append(out, Person{Stub: n.Stub, Saved: true, Visit: slices.Contains(n.Visits, c.C.ID), Called: c.calling(n.Stub.ID, h)})
+		if !seen(n.Stub.ID) && !hidden(n.Stub) {
+			out = append(out, person(n.Stub, n))
+		}
+	}
+	stub := func(s npc.Stub) {
+		if n := g.NPCs.Get(s.ID); n != nil {
+			if g.r.NPC.At(n, t) == h {
+				add(n)
+			}
+		} else if !seen(s.ID) && !hidden(s) {
+			out = append(out, person(s, nil))
 		}
 	}
 	if g.IsSettlement(h) {
 		for _, s := range g.r.NPC.Residents(gen.PlaceSettlement, h.Ref(), h, g.npcDraw(h)) {
-			if n := g.NPCs.Get(s.ID); n != nil {
-				if g.r.NPC.At(n, t) == h {
-					add(n)
+			stub(s)
+		}
+		if d, ok := g.DenAt(h); ok && fenceSeen {
+			if s, ok := g.fenceStub(d.Origin); ok {
+				stub(s)
+			}
+		}
+		if made {
+			for _, s := range g.SyndicateNotables() {
+				if g.NPCs.Get(s.ID) != nil || s.Home == h {
+					stub(s)
 				}
-			} else {
-				out = append(out, Person{Stub: s})
 			}
 		}
 	}
@@ -108,7 +143,7 @@ func (g *Game) PeopleHere(c *Char, h hex.Hex) []Person {
 		}
 	}
 	if s, ok := g.wanderer(h, t); ok && !seen(s.ID) && g.NPCs.Get(s.ID) == nil {
-		out = append(out, Person{Stub: s})
+		out = append(out, person(s, nil))
 	}
 	return out
 }
@@ -196,6 +231,12 @@ func (g *Game) talk(c *Char, cmd Command) error {
 			return err
 		}
 	}
+	g.drawLeaning(n)
+	for _, hook := range meetHooks {
+		if err := hook(g, c, n, t); err != nil {
+			return err
+		}
+	}
 	return g.NPCs.Touched(n)
 }
 
@@ -226,20 +267,17 @@ func (g *Game) recognised(c *Char, n *npc.NPC) bool {
 	})
 }
 
-// standingKey is whose standing an NPC's choices move: the faction
-// holding its home region, else its settlement.
-func (g *Game) standingKey(n *npc.NPC) string {
-	fi := econ.Keepers
-	if r := g.World.RegionAt(n.Stub.Home); r >= 0 && g.World.Regions[r].Holder >= 0 {
-		fi = g.World.Regions[r].Holder
-	}
-	return standingKey(fi, n.Stub.Home)
-}
+// standingKey is whose standing an NPC's choices move: the syndicate's
+// for its own, else the faction holding its home region, else its
+// settlement.
+func (g *Game) standingKey(n *npc.NPC) string { return g.factionKeyOf(n.Stub) }
 
 // StandingName resolves persisted standings for display.
 func (g *Game) StandingName(key string) string {
 	fi, place, ok := parseStandingKey(key)
 	switch {
+	case key == syndicateKey:
+		return g.r.Name("factions.archetypes:" + syndicateKey)
 	case !ok:
 	case fi == econ.Keepers:
 		return g.PlaceName(place)

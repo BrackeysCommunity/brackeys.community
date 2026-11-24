@@ -502,6 +502,12 @@ func (g *Game) deposit(c *Char, cmd Command) error {
 	if err := g.afford(c, asset, cmd.Asset, cmd.Units); err != nil {
 		return err
 	}
+	// Hot goods never go into a bank (GDD 6.5).
+	if m, ok := ledger.MaterialOf(asset); ok {
+		if err := g.hotGuard(c, m, cmd.Units, g.Tick()/sheets.TicksPerDay, anyMark); err != nil {
+			return err
+		}
+	}
 	if err := g.postAll(ledger.Move(cmd.Key, "deposit", g.Tick(), ledger.Char(c.C.ID), gd.Pool(), asset, cmd.Units)); err != nil {
 		return err
 	}

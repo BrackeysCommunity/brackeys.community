@@ -53,6 +53,9 @@ func (g *Game) list(c *Char, cmd Command) error {
 	if cmd.Price <= 0 {
 		return refuse(BadArgs, "a listing needs a price")
 	}
+	if err := g.hotItemGuard(in, "", g.SettlementHex(n)); err != nil {
+		return err
+	}
 	if err := g.roomForOrder(c); err != nil {
 		return err
 	}
@@ -267,6 +270,10 @@ func (g *Game) sellItem(c *Char, cmd Command) error {
 	stub, ok := g.traderStub(c.C.At)
 	if !ok {
 		return refuse(NotHere, "no trader here")
+	}
+	// The trader buys for its faction and lists what it buys right here.
+	if err := g.hotItemGuard(in, g.standingKey(&npc.NPC{Stub: stub}), c.C.At); err != nil {
+		return err
 	}
 	value := g.ItemValue(in)
 	pay := g.TraderPays(in)

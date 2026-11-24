@@ -26,10 +26,6 @@ import (
 // made straight after loading.
 const preMM11aDir = "testdata/pre-mm11a/"
 
-// drawsLeaning requires the meeting to draw the saved NPC's leaning; off
-// until meetings draw one.
-const drawsLeaning = false
-
 type preMM11aMeeting struct {
 	Char  string          `json:"char"`
 	NPC   string          `json:"npc"`
@@ -101,10 +97,8 @@ func TestPreMM11aWorldLoads(t *testing.T) {
 	switch {
 	case drew && !slices.Contains([]any{"upright", "crooked", "none"}, leaning):
 		t.Fatalf("the met NPC leans %v", leaning)
-	case !drew && drawsLeaning:
-		t.Fatalf("meeting %s drew no leaning", n.Stub.ID)
 	case !drew:
-		t.Log("the leaning check is off: meetings draw no leaning yet")
+		t.Fatalf("meeting %s drew no leaning", n.Stub.ID)
 	}
 
 	x := slices.IndexFunc(g.Goals, func(x *game.Goal) bool { return x.State == goal.Live && x.Mode == goal.Pooled && x.Poster != "" })

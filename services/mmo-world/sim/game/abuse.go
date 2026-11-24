@@ -121,9 +121,15 @@ func (g *Game) give(c *Char, cmd Command) error {
 		if err := g.canGive(c, value); err != nil {
 			return err
 		}
+		// Hot goods stay hot in a friend's hands (GDD 6.5).
+		after := func() {}
+		if isGoods {
+			after = g.passHot(c, to, material, cmd.Units, g.Tick()/sheets.TicksPerDay)
+		}
 		if err := g.postAll(ledger.Move(cmd.Key, "give", g.Tick(), from, dest, cmd.Asset, cmd.Units)); err != nil {
 			return err
 		}
+		after()
 	}
 	if g.Market != nil && cmd.Asset == ledger.Coin {
 		g.Market.Week.between(cmd.Units)

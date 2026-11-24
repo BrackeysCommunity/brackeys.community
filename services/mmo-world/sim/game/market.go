@@ -376,9 +376,21 @@ func (g *Game) order(c *Char, cmd Command, side market.Side, keep bool) error {
 	if err := g.afford(c, asset, cmd.Material, units); err != nil {
 		return err
 	}
+	var barred func(item.Hot) bool
+	day := g.Tick() / sheets.TicksPerDay
+	if side == market.Ask {
+		barred = g.marketBarred(n, cmd.Material)
+		if err := g.hotGuard(c, cmd.Material, units, day, barred); err != nil {
+			return err
+		}
+	}
 	b := g.Book(n, cmd.Material)
 	id, seq := g.nextID("o-")
 	o := market.Order{ID: id, Owner: acc, Side: side, Price: price, Qty: cmd.Units, Placed: g.Tick(), Expires: g.expiry(), Seq: seq}
+	// Hot units listed beyond the theft's reach lose the mark (GDD 6.5).
+	if side == market.Ask {
+		g.consumeHotBut(c, cmd.Material, units, day, barred)
+	}
 	if err := g.escrow(c, cmd.Key, id, asset, units); err != nil {
 		return err
 	}
@@ -460,9 +472,11 @@ func (g *Game) unescrow(id, owner, key string, moved ...*item.Instance) error {
 // postAll posts a transaction and syncs each character it touches,
 // bumping its version; moved items follow their legs between packs.
 func (g *Game) postAll(t ledger.Txn, moved ...*item.Instance) error {
+	before := g.heldBefore(t)
 	if err := g.post(t); err != nil {
 		return err
 	}
+	g.hotSettled(before)
 	seen := map[string]bool{}
 	for _, l := range t.Legs {
 		if c := g.charOf(l.Account); c != nil {
@@ -562,7 +576,7 @@ func (g *Game) settle(b *market.Book, f market.Fill, key string) error {
 	standing := coin
 	if faction {
 		coin, _ = g.factionPays(seller, *f.Bid.Faction, b.Settlement, coin)
-		s.goods = ledger.Pair(ledger.EscrowPool(f.Ask.ID), ledger.ToFaction, asset, f.Qty)
+		s.goods = g.storeLegs(ledger.EscrowPool(f.Ask.ID), *f.Bid.Faction, asset, f.Qty)
 		s.payer, s.kind = ledger.FromFaction, "order.filled"
 	} else {
 		s.goods = ledger.Pair(ledger.EscrowPool(f.Ask.ID), buyer, asset, f.Qty)
