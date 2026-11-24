@@ -159,7 +159,7 @@ func TestOptionsHidePicks(t *testing.T) {
 }
 
 // TestOperatorHunts opens a hunt with op hunt-start, which names no
-// character, reads it on the hunts board, refuses a second of its row and
+// character, reads it on the hunts board with its portrait, refuses a second of its row and
 // a row that is not one, and replays; then hides a dungeon's given name.
 func TestOperatorHunts(t *testing.T) {
 	ctx := context.Background()
@@ -200,9 +200,10 @@ func TestOperatorHunts(t *testing.T) {
 	}
 	card := hunts.Hunts[0]
 	if card.Row != row || card.Name == "" || card.Name == row || card.At != at || card.Health != card.Max || len(card.Spoils) == 0 || card.Closed ||
-		card.Pressers == nil || card.Banner == "" {
+		card.Pressers == nil || card.Banner == "" || card.Portrait == "" {
 		t.Fatalf("the hunt's card: %+v", card)
 	}
+	picture(t, r, card.Portrait, 256, 256)
 	if st, _ := r.cli.Party(ctx, rep.Character.ID); st.Party != nil {
 		t.Fatalf("a hunter's party read: %+v", st)
 	}

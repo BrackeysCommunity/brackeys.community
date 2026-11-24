@@ -215,23 +215,36 @@ func apiFight(g *game.Game, c *game.Char, f *game.FightView) *api.Fight {
 // from what its fight already shows: false outside a fight, or without
 // the kit.
 func fightPortrait(g *game.Game, c *game.Char) (render.PortraitInput, bool) {
-	kit, err := render.DefaultKit()
-	if c.Fight == nil || c.Fight.E == nil || err != nil {
+	if c.Fight == nil || c.Fight.E == nil {
 		return render.PortraitInput{}, false
 	}
 	e := c.Fight.E
 	_, variant := variantSeen(g, c.C.At, e)
-	ts := make([]string, len(e.Creature.Tags))
-	for i, t := range e.Creature.Tags {
-		ts[i] = string(t)
-	}
 	var resists []string
 	for _, r := range e.Resist {
 		if r.Bands > 0 {
 			resists = append(resists, string(r.Tag))
 		}
 	}
-	return kit.PortraitInput(e.Creature.Archetype, e.Creature.Tier, ts, variant, resists), true
+	return creaturePortrait(e.Creature, variant, resists)
+}
+
+// huntPortrait is the portrait input of a hunted creature: it has no
+// variant, and its resistances are the beat's, not the creature's.
+func huntPortrait(x *game.Hunt) (render.PortraitInput, bool) {
+	return creaturePortrait(x.H.Creature, "", nil)
+}
+
+func creaturePortrait(cr fight.Creature, variant string, resists []string) (render.PortraitInput, bool) {
+	kit, err := render.DefaultKit()
+	if err != nil {
+		return render.PortraitInput{}, false
+	}
+	ts := make([]string, len(cr.Tags))
+	for i, t := range cr.Tags {
+		ts[i] = string(t)
+	}
+	return kit.PortraitInput(cr.Archetype, cr.Tier, ts, variant, resists), true
 }
 
 // portraitKey is a portrait's media key; it is drawn on its first fetch,

@@ -199,6 +199,9 @@ func huntCard(g *game.Game, x *game.Hunt) api.HuntCard {
 	h := x.H
 	out := api.HuntCard{ID: h.ID, Row: h.Row, Name: huntName(g, h.Row), Creature: h.Creature.Archetype, At: apiHex(x.Hex), Region: x.Region,
 		Health: h.Health, Max: h.Max, Ends: h.Ends, Pressers: pressers(g, "", x), Spoils: huntSpoils(g, h.Row), Closed: h.Over, Slain: h.Slain}
+	if in, ok := huntPortrait(x); ok {
+		out.Portrait = portraitKey(in)
+	}
 	if !h.Slain {
 		return out
 	}

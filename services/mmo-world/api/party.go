@@ -336,7 +336,8 @@ type HuntCard struct {
 	Creature string        `json:"creature"`
 	At       Hex           `json:"at"`
 	Region   string        `json:"region"`
-	Banner   string        `json:"banner,omitempty"` // the hunt tile's, a media key
+	Banner   string        `json:"banner,omitempty"`   // the hunt tile's, a media key
+	Portrait string        `json:"portrait,omitempty"` // the hunted creature's, a media key
 	Health   int64         `json:"health"`
 	Max      int64         `json:"max"`
 	Ends     int64         `json:"ends"` // tick

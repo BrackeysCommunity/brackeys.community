@@ -2341,6 +2341,7 @@ export interface HuntCard {
   at: Hex;
   region: string;
   banner?: string; // the hunt tile's, a media key
+  portrait?: string; // the hunted creature's, a media key
   health: number /* int64 */;
   max: number /* int64 */;
   ends: number /* int64 */; // tick

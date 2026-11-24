@@ -118,8 +118,8 @@ func (s *Server) mediaHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // drawLate draws a picture whose key a read served without drawing it: an
-// art slot, or the portrait of a creature someone is fighting now, found
-// under the lock and drawn after it.
+// art slot, or the portrait of a creature someone is fighting or hunting
+// now, found under the lock and drawn after it.
 func (s *Server) drawLate(ctx context.Context, key string) ([]byte, bool) {
 	kit, err := render.DefaultKit()
 	if err != nil {
@@ -146,6 +146,11 @@ func (s *Server) drawLate(ctx context.Context, key string) ([]byte, bool) {
 			if p, ok := fightPortrait(s.g, c); ok && portraitKey(p) == key {
 				in, found = p, true
 				break
+			}
+		}
+		for i := 0; !found && i < len(s.g.Hunts); i++ {
+			if p, ok := huntPortrait(s.g.Hunts[i]); ok && portraitKey(p) == key {
+				in, found = p, true
 			}
 		}
 		unlock()
