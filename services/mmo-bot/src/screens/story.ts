@@ -256,6 +256,29 @@ export function giveModal(goal: string, material: string, version: number): Moda
   };
 }
 
+/**
+ * The refs a card's lines are told with: the names the world sent with
+ * them, over those an arc's cast gives.
+ */
+export function refsOf(
+  names?: Readonly<Record<string, string>>,
+  arcs: readonly api.Arc[] = [],
+): Map<string, string> {
+  const refs = castNames([...arcs]);
+  for (const [k, v] of Object.entries(names ?? {})) if (v) refs.set(k, v);
+  return refs;
+}
+
+/** A chronicle's lines as its card tells them, in order, without their marks. */
+export function chronicleLines(
+  ch: api.Chronicle,
+  lex: Lexicon,
+  arcs: readonly api.Arc[] = [],
+): { line: api.ChronicleLine; text: string }[] {
+  const refs = refsOf(ch.names, arcs);
+  return ch.lines.map((line) => ({ line, text: storyLine(line.fact, lex, refs) }));
+}
+
 /** The arcs running, for the chronicle's select; a picked one opens its stage card. */
 function arcSelect(arcs: readonly api.Arc[], v: number, lex: Lexicon): Row[] {
   if (!arcs.length) return [];
@@ -288,19 +311,18 @@ export function chronicleCard(
 ): Card {
   const v = version;
   const closed = ch.day >= 0;
-  const refs = castNames([...arcs]);
-  const line = (f: api.Fact) => storyLine(f, lex, refs);
-  const lines = ch.lines.map((l) => `${l.here ? "▸" : "•"} ${line(l.fact)}`);
+  const told = chronicleLines(ch, lex, arcs);
+  const lines = told.map(({ line, text }) => `${line.here ? "▸" : "•"} ${text}`);
   if (ch.more) lines.push(`…and ${amount(ch.more, "more")} of less weight`);
   const rows: Row[] = [];
-  const opened = ch.lines.filter((l) => (l.causes ?? 0) > 0).slice(0, SELECT_MOST);
+  const opened = told.filter(({ line }) => (line.causes ?? 0) > 0).slice(0, SELECT_MOST);
   if (opened.length)
     rows.push({
       select: {
         customId: encodeId("c-fact", "", v),
         placeholder: "A line and what caused it",
-        options: opened.map((l) =>
-          option(line(l.fact), String(l.fact.id), `${plural(l.causes ?? 0, "fact")} behind it`),
+        options: opened.map(({ line, text }) =>
+          option(text, String(line.fact.id), `${plural(line.causes ?? 0, "fact")} behind it`),
         ),
       },
     });
@@ -336,22 +358,24 @@ export function chronicleCard(
 export function factCard(fc: api.FactCauses, lex: Lexicon, version: number): Card {
   const v = version;
   const causes = fc.causes.slice(0, SELECT_MOST);
+  const refs = refsOf(fc.names);
+  const line = (f: api.Fact) => storyLine(f, lex, refs);
   const rows: Row[] = [];
   if (causes.length)
     rows.push({
       select: {
         customId: encodeId("c-fact", "", v),
         placeholder: "A cause, and what caused it",
-        options: causes.map((f) => option(storyLine(f, lex), String(f.id))),
+        options: causes.map((f) => option(line(f), String(f.id))),
       },
     });
   rows.push({ buttons: [btn("The chronicle", "chronicle", "", v), back(v)] });
   return {
     context: PRIVATE,
     author: authorLine("Chronicle", "a fact and its causes"),
-    title: storyLine(fc.fact, lex).slice(0, 256),
+    title: line(fc.fact).slice(0, 256),
     description: causes.length
-      ? ["It came of:", ...causes.map((f) => `• ${storyLine(f, lex)}`)].join("\n")
+      ? ["It came of:", ...causes.map((f) => `• ${line(f)}`)].join("\n")
       : "Nothing the world kept led to it: it began here.",
     picture: "form",
     fields: [{ name: "Written at", value: `tick ${fc.fact.tick}`, inline: true }],
@@ -359,6 +383,8 @@ export function factCard(fc: api.FactCauses, lex: Lexicon, version: number): Car
     rows,
   };
 }
+
+type Refs = ReadonlyMap<string, string>;
 
 /** An event's picture: none, since an arc has no tile of its own to show. */
 const NO_PICTURE: Picture | "form" = "form";
@@ -378,7 +404,7 @@ function isRaid(ev: api.StoryEvent): boolean {
 }
 
 /** A trouble starting: the raid alarm, or another trouble at a place. */
-function troubleStartCard(ev: api.StoryEvent, lex: Lexicon): Card {
+function troubleStartCard(ev: api.StoryEvent, lex: Lexicon, refs: Refs): Card {
   const t = ev.trouble;
   const raid = isRaid(ev);
   const arc = factStr(ev.fact, "arc");
@@ -393,7 +419,7 @@ function troubleStartCard(ev: api.StoryEvent, lex: Lexicon): Card {
           value: troubleBanner(t, { place: ev.place, now: ev.fact.tick, names: lex }),
         },
       ]
-    : [{ name: "Told", value: storyLine(ev.fact, lex) }];
+    : [{ name: "Told", value: storyLine(ev.fact, lex, refs) }];
   return {
     context: EVENTS_CHANNEL,
     author: authorLine(raid ? "Raid alarm" : "Trouble", placeOf(ev)),
@@ -521,7 +547,7 @@ function stageEndCard(ev: api.StoryEvent, lex: Lexicon): Card {
 }
 
 /** A whole arc over. */
-function arcEndCard(ev: api.StoryEvent, lex: Lexicon): Card {
+function arcEndCard(ev: api.StoryEvent, lex: Lexicon, refs: Refs): Card {
   const f = ev.fact;
   const outcome = factStr(f, "outcome");
   const lapsed = isLapsed(f);
@@ -532,7 +558,7 @@ function arcEndCard(ev: api.StoryEvent, lex: Lexicon): Card {
     title: lapsed ? `${title} lapsed` : `${title} ended: ${sideTitle(ev, outcome, lex)} won`,
     description: `It ran ${plural(factNum(f, "stages"), "stage")}.`,
     picture: NO_PICTURE,
-    fields: [{ name: "Told", value: storyLine(f, lex) }],
+    fields: [{ name: "Told", value: storyLine(f, lex, refs) }],
     footer: "The chronicle keeps how it went.",
     rows: [],
     colour: lapsed ? COLOUR.rust : COLOUR.signal,
@@ -552,7 +578,7 @@ const SEASON_KEEPS: EmbedField[] = [
 ];
 
 /** A season's turn: its finale, its close or the next one's start. */
-function seasonCard(ev: api.StoryEvent, lex: Lexicon): Card {
+function seasonCard(ev: api.StoryEvent, lex: Lexicon, refs: Refs): Card {
   const f = ev.fact;
   const n = factNum(f, "season");
   const title =
@@ -574,7 +600,7 @@ function seasonCard(ev: api.StoryEvent, lex: Lexicon): Card {
     description,
     picture: NO_PICTURE,
     fields: [
-      { name: "Told", value: storyLine(f, lex) },
+      { name: "Told", value: storyLine(f, lex, refs) },
       ...(f.kind === "season.closed" ? SEASON_KEEPS : []),
     ],
     footer: "The chronicle keeps the season's story.",
@@ -584,7 +610,7 @@ function seasonCard(ev: api.StoryEvent, lex: Lexicon): Card {
 }
 
 /** A place changed: raised to a city, fallen back, ruined, or a faction's city founded. */
-function placeEventCard(ev: api.StoryEvent, lex: Lexicon): Card {
+function placeEventCard(ev: api.StoryEvent, lex: Lexicon, refs: Refs): Card {
   const f = ev.fact;
   const where = placeOf(ev);
   const titles: Record<string, string> = {
@@ -599,8 +625,8 @@ function placeEventCard(ev: api.StoryEvent, lex: Lexicon): Card {
   return {
     context: EVENTS_CHANNEL,
     author: authorLine(f.kind.startsWith("city.") ? "City" : "World", where),
-    title: titles[f.kind] ?? capitalise(storyLine(f, lex)),
-    description: storyLine(f, lex),
+    title: titles[f.kind] ?? capitalise(storyLine(f, lex, refs)),
+    description: storyLine(f, lex, refs),
     picture: NO_PICTURE,
     fields:
       f.kind === "city.raised" && factNum(f, "coin")
@@ -666,9 +692,10 @@ function caravanRobbedCard(ev: api.StoryEvent): Card {
 /** The events channel's card for one story event, or null for a kind it does not post. */
 export function eventCard(ev: api.StoryEvent, lex: Lexicon): Card | null {
   const named = ev.arc ? { ...ev, arc: namedArc(ev.arc, lex) } : ev;
+  const refs = refsOf(ev.names);
   switch (ev.fact.kind) {
     case "trouble.started":
-      return troubleStartCard(ev, lex);
+      return troubleStartCard(ev, lex, refs);
     case "trouble.held":
     case "trouble.lost":
       return troubleEndCard(ev, lex);
@@ -678,18 +705,18 @@ export function eventCard(ev: api.StoryEvent, lex: Lexicon): Card | null {
     case "arc.stage-ended":
       return stageEndCard(named, lex);
     case "arc.ended":
-      return arcEndCard(named, lex);
+      return arcEndCard(named, lex, refs);
     case "season.began":
     case "season.finale":
     case "season.closed":
-      return seasonCard(ev, lex);
+      return seasonCard(ev, lex, refs);
     case "city.raised":
     case "city.fell-back":
     case "settlement.ruined":
     case "faction.city":
     case "core.opened":
     case "pattern.solved":
-      return placeEventCard(ev, lex);
+      return placeEventCard(ev, lex, refs);
     case "road.cut":
     case "road.tolled":
       return roadEventCard(ev);

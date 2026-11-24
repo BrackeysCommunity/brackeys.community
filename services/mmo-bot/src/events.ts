@@ -6,6 +6,7 @@ import type { Lexicon } from "./lexicon.ts";
 import { editDue, LiveCards, postOnce } from "./live.ts";
 import { factNum, factStr } from "./screens/common.ts";
 import { eventCard } from "./screens/story.ts";
+import type { WorldReply } from "./world.ts";
 
 /**
  * The events channel (GDD 17.2): each story event posted once, in the order
@@ -27,7 +28,22 @@ export interface EventsWorld {
   arcs(): Promise<api.Arcs>;
   /** The world tick, and the least ticks between two edits of one card. */
   hunts(): Promise<Pick<api.HuntBoard, "tick" | "every">>;
+  /** A fact and its causes, as everyone may see them; without it no event is told with its causes. */
+  chronicleFact?(characterId: string | undefined, id: number): Promise<WorldReply<api.FactCauses>>;
 }
+
+/** The kinds told with what led to them: an ending is narrated with its causes (GDD 15.2). */
+export const TOLD_WITH_CAUSES: ReadonlySet<string> = new Set([
+  "arc.stage-ended",
+  "trouble.held",
+  "trouble.lost",
+  "arc.ended",
+  "season.finale",
+  "season.closed",
+]);
+
+/** An event with its fact's causes, where the poster read them. */
+export type CausedEvent = api.StoryEvent & { causes?: api.FactCauses };
 
 /**
  * An event's card, or null when the channel does not show it. mode is
@@ -35,7 +51,7 @@ export interface EventsWorld {
  * wait on a model.
  */
 export type EventCard = (
-  ev: api.StoryEvent,
+  ev: CausedEvent,
   mode: "post" | "cached",
 ) => Card | null | Promise<Card | null>;
 
@@ -141,7 +157,7 @@ export class EventsPoster {
         if (ev.fact.id <= last) continue;
         let card: Card | null;
         try {
-          card = await this.card(ev, "post");
+          card = await this.card(await this.withCauses(ev), "post");
         } catch (e) {
           this.log(`[events] ${ev.fact.kind} ${ev.fact.id}: ${String(e)}`);
           card = null;
@@ -169,6 +185,18 @@ export class EventsPoster {
       if (last === from) break;
     }
     return posted;
+  }
+
+  /** The event with its causes, for a kind told with them; the event alone when they cannot be read. */
+  private async withCauses(ev: api.StoryEvent): Promise<CausedEvent> {
+    if (!this.world.chronicleFact || !TOLD_WITH_CAUSES.has(ev.fact.kind)) return ev;
+    try {
+      const r = await this.world.chronicleFact(undefined, ev.fact.id);
+      return r.ok ? { ...ev, causes: r.reply } : ev;
+    } catch (e) {
+      this.log(`[events] causes of ${ev.fact.id}: ${String(e)}`);
+      return ev;
+    }
   }
 
   private async show(ev: api.StoryEvent, card: Card): Promise<void> {

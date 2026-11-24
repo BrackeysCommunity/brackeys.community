@@ -29,6 +29,7 @@ import {
 } from "./common.ts";
 import { dungeonName, floorOf } from "./dungeon.ts";
 import { roadLine } from "./emergence.ts";
+import { refsOf } from "./story.ts";
 
 /** What testers are told before they start. */
 export const TESTER_NOTE =
@@ -372,6 +373,18 @@ function pointRows(pt: api.PatternPoint | undefined, v: number, lex: Lexicon): R
   ];
 }
 
+/** A recap line as its card tells it, without its bullet; refs are the recap's names. */
+export function recapLine(
+  l: api.RecapLine,
+  lex: Lexicon,
+  people: ReadonlyMap<string, string>,
+  refs: ReadonlyMap<string, string>,
+): string {
+  if (l.npc) return `${people.get(l.npc) ?? "Someone"} wants a word with you.`;
+  if (l.kind === api.RecapArc || l.kind === api.RecapTrouble) return storyLine(l.fact!, lex, refs);
+  return factLine(l.fact!, lex);
+}
+
 /** Since you left: the recap, a short list and then how many more (GDD 3.3). */
 export function recapCard(
   o: api.Options,
@@ -380,12 +393,8 @@ export function recapCard(
   lex: Lexicon,
   people: Map<string, string>,
 ): Card {
-  const lines = recap.lines.map((l) => {
-    if (l.npc) return `• ${people.get(l.npc) ?? "Someone"} wants a word with you.`;
-    if (l.kind === api.RecapArc || l.kind === api.RecapTrouble)
-      return `• ${storyLine(l.fact!, lex)}`;
-    return `• ${factLine(l.fact!, lex)}`;
-  });
+  const refs = refsOf(recap.names);
+  const lines = recap.lines.map((l) => `• ${recapLine(l, lex, people, refs)}`);
   if (recap.more) lines.push(`…and ${amount(recap.more, "more lines")}`);
   const away = Math.max(0, recap.tick - recap.since);
   // The first of a promotion names it from the line that tells them so (GDD 4.17).
