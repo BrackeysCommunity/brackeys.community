@@ -24,7 +24,7 @@ import {
   relative,
 } from "./common.ts";
 import { dungeonName, floorOf, tagWords, wayLabel } from "./dungeon.ts";
-import { adaptedTail, creatureName } from "./fight.ts";
+import { adaptedTail, creatureName, poolLine, withPoolLine } from "./fight.ts";
 
 /**
  * A party's cards (GDD 7.5): forming it, the beat each member picks on
@@ -206,7 +206,10 @@ export function partyBeatCard(
     context: PRIVATE,
     author: authorLine("Party beat", `beat ${f.beat + 1} of ${amount(f.beats, "beats")}`, kind),
     title: notice ?? `${kind}: ${creature}`,
-    description: `${opening}${lines.join("\n")}`,
+    description: withPoolLine(
+      poolLine(f, f.floor && here.floor ? dungeonName(here.floor, lex) : here.name, lex),
+      `${opening}${lines.join("\n")}`,
+    ),
     picture: banner(here, `; ${creature} in a ${kind.toLowerCase()}`),
     fields,
     footer:

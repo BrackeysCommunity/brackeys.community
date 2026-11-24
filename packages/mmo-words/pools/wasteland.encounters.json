@@ -1,0 +1,78 @@
+{
+  "pack": "wasteland",
+  "version": 1,
+  "lines": {
+    "clash": [
+      "The {creature} comes in low and fast, and there is no more room to talk about it.",
+      "Scrap rattles underfoot as the {creature} closes the last of the distance.",
+      "The {creature} lunges, and the air smells of hot metal and old oil.",
+      "Dust kicks up across {place} as the {creature} turns to fight.",
+      "The {creature} squares up, sparking at the joints, ready to trade blows.",
+      "Behind the racket of the {creature}, {place} goes very quiet."
+    ],
+    "standoff": [
+      "The {creature} stops at the edge of reach and does not move.",
+      "Neither side gives ground; the {creature} watches, and waits.",
+      "The {creature} holds still among the wreckage, its sensors ticking over.",
+      "A long silence settles over {place}, broken only by the hum of the {creature}.",
+      "The {creature} shifts its weight and stays put, daring the first move.",
+      "Wind drags ash across the gap between the {creature} and the nearest cover."
+    ],
+    "chase": [
+      "The {creature} bolts for the broken ground, and the chase is on.",
+      "Loose wire whips past as the {creature} tears off through the scrap.",
+      "The {creature} breaks away, quick and low, making for the dark.",
+      "Tracks scatter across {place}; the {creature} is running and not looking back.",
+      "The {creature} doubles back through the rubble, trying to shake pursuit.",
+      "Every stride kicks up grit as the {creature} pulls ahead."
+    ],
+    "hazard": [
+      "A live cable thrashes loose between here and the {creature}, spitting sparks.",
+      "Static crawls over every surface as a storm rolls in, and the {creature} goes to ground.",
+      "The floor of rusted plate sags and creaks, and the {creature} is on the far side of it.",
+      "Ash comes down thick over {place}, and the way ahead vanishes into it.",
+      "Something overhead shears loose, and the {creature} scatters from the falling scrap.",
+      "Signal fog rolls in low, and the {creature} becomes a shape and a sound."
+    ],
+    "lock": [
+      "A sealed hatch stands in the way, its old lock still drawing power from somewhere.",
+      "The {creature} has gone to ground behind a blast door that opens for nobody.",
+      "A vending vault blinks a tired red light and refuses to give up what it holds.",
+      "The lock is old, paranoid and patient, and it has outlasted better tools.",
+      "Behind the bolted shutter, the {creature} can be heard shifting about.",
+      "A keypad glows under the grime at {place}, waiting for a code nobody remembers."
+    ],
+    "parley": [
+      "The {creature} lowers itself and waits, as if it expects terms.",
+      "The {creature} blocks the way but holds off, watching for an offer.",
+      "A crackle of old signal comes from the {creature}, almost like a question.",
+      "The {creature} circles and settles, in no hurry to fight.",
+      "Whatever runs the {creature} seems willing to bargain for passage through {place}.",
+      "The {creature} keeps its distance, and the toll it wants is plain enough."
+    ],
+    "harvest": [
+      "The {creature} guards a heap of good salvage, and it is not watching closely.",
+      "Copper glints in the wreck beside the {creature}, close enough to reach.",
+      "The {creature} has torn open a cache, and the spoils lie spread across the dirt.",
+      "Charge salt crusts the ground around the {creature}, ripe for the taking.",
+      "There is scrap worth carrying at {place}, if the {creature} allows it.",
+      "The {creature} picks through the rubble, and what it leaves behind is worth having."
+    ],
+    "guardian": [
+      "The {creature} rises from its post, and everything it was built to guard stands behind it.",
+      "Old warning lights wake along the walls as the {creature} turns to face the intruders.",
+      "The {creature} has held this place for longer than anyone has lived near it.",
+      "Every machine at {place} falls silent as the {creature} steps forward.",
+      "The {creature} plants itself across the only way in, and it will not be moved lightly.",
+      "Power surges through the {creature} with a sound like a storm about to break."
+    ],
+    "puzzle": [
+      "A machine sits in the way, humming, its panels waiting for a steady hand.",
+      "The old works grind and click, and nothing passes until they are set right.",
+      "A relay cabinet stands open, its wiring a tangle that someone once understood.",
+      "The {creature} lurks near a machine that still answers to anyone who can talk to it.",
+      "Dials twitch on a console buried in drift at {place}, still running a job from before the grid died.",
+      "The machine wants something done in the right order, and it is in no mood to guess."
+    ]
+  }
+}

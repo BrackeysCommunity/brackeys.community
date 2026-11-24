@@ -3,6 +3,10 @@ import {
   buttonRows,
   type EmbedField,
 } from "../../../../packages/discord-kit/src/index.ts";
+import {
+  encounterLine,
+  WASTELAND_ENCOUNTERS,
+} from "../../../../packages/mmo-words/src/encounters.ts";
 import { riskLine } from "../../../../packages/mmo-words/src/index.ts";
 import * as api from "../api.ts";
 import { type Card, COLOUR } from "../card.ts";
@@ -19,6 +23,16 @@ export function creatureName(
   lex: Lexicon,
 ): string {
   return f.creatureName || lex.name("creatures.archetypes", f.creature);
+}
+
+/** The beat's opening line from the setting's encounter pool, stable for the fight and the beat; "" when none. */
+export function poolLine(f: api.Fight, place: string, lex: Lexicon): string {
+  return encounterLine(WASTELAND_ENCOUNTERS, f, { creature: creatureName(f, lex), place });
+}
+
+/** The description with the pool line first. */
+export function withPoolLine(line: string, rest: string): string {
+  return line ? `${line}\n\n${rest}` : rest;
 }
 
 /** What adaptation took off an option, after its risk; "" when nothing. */
@@ -94,7 +108,7 @@ export function beatCard(
         ? `Down in the den · ${floorOf(f.floor || 1, here.floor?.up)}`
         : `Encounter · ${beat}`,
     title: `${beat}: ${creature}`,
-    description: `${opening}${lines.join("\n")}`,
+    description: withPoolLine(poolLine(f, here.name, lex), `${opening}${lines.join("\n")}`),
     picture: banner(here, `; ${creature} in a ${beat.toLowerCase()}`),
     fields,
     footer: "The last beat is the hardest and must be won. Two failures and you go down.",
