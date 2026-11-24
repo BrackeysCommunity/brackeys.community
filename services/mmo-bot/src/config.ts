@@ -27,10 +27,7 @@ export interface Config {
   eventsAlarmRole?: string;
   /** How often the lexicon is read again, so found names reach the cards; unset is LEXICON_REFRESH_MS. */
   lexiconRefreshMs?: number;
-  /**
-   * The model's key (ANTHROPIC_API_KEY). It is read through a getter, so no
-   * JSON, spread or inspection of the config carries it.
-   */
+  /** The model's key (ANTHROPIC_API_KEY), held by withKey so the config never shows it. */
   anthropicKey?: string;
   /** Narration's master switch: MMO_NARRATION=on. */
   narration: boolean;
@@ -60,7 +57,6 @@ function dollars(name: string, fallback: number): number {
 
 const keys = new WeakMap<object, string>();
 
-/** Where a config's key is read from: a getter over a private map, not a property of the config. */
 const KEYED: object = Object.defineProperty({}, "anthropicKey", {
   get(this: object) {
     return keys.get(this);

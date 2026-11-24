@@ -1,7 +1,7 @@
 import { expect, test } from "vite-plus/test";
 
 import { bareNumbers, type Names } from "../src/index.ts";
-import { type DossierLike, memoryLines } from "../src/memory.ts";
+import { type DossierLike, memoryLines, toldWho } from "../src/memory.ts";
 
 const LEX: Record<string, string> = {
   "items.materials:copper-ore": "Copper wire",
@@ -67,4 +67,14 @@ test("a character id or an unnamed guild is never shown", () => {
 test("no line holds a bare number, and an empty dossier gives no lines", () => {
   for (const l of memoryLines(dossier, names)) expect(bareNumbers(l), l).toEqual([]);
   expect(memoryLines({ oldest: [], names: {} }, names)).toEqual([]);
+});
+
+test("toldWho never shows an id or a guild the names do not hold", () => {
+  const known = { "guild:g1": "Iron Kin" };
+  expect(toldWho("c-41", known)).toBe("a traveller");
+  expect(toldWho("a traveller from Rust Hands", known)).toBe("a traveller");
+  expect(toldWho("a traveller from Iron Kin", known)).toBe("a traveller from Iron Kin");
+  expect(toldWho("you", known)).toBe("you");
+  expect(toldWho(undefined, known)).toBe("");
+  expect(toldWho("", known)).toBe("");
 });

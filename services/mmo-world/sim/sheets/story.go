@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"slices"
 	"strconv"
+	"strings"
 )
 
 // Rows for the director: pacing, the season's day table, arc templates,
@@ -77,6 +78,13 @@ type StoryEffect struct {
 	Gauge  string `json:"gauge,omitempty" unit:"ref" ref:"world.gauges"`
 	Amount int64  `json:"amount,omitempty" unit:"count" doc:"Points of defence, gauge, loyalty, standing, condition or disposition; days for grudge, spread, marked, fees, orders-stop, prices, sick; seasons for keep-open. holding-falls: defence lost instead when it is its faction's last; split: loyalty both claimants lose instead when the faction holds too few regions to split; damage: condition lost, 0 for settlements.params trouble-damage. toll, cut, patrol-road: days, 0 for emergence.params toll-days, cut-days, patrol-days."`
 	Ref    string `json:"ref,omitempty" unit:"text" doc:"trouble: the story.troubles id; cache: the story.caches id."`
+}
+
+// StoryEffectKinds are the effect kinds a story.arcs row may name, as the
+// Kind field's enum tag gives them.
+func StoryEffectKinds() []string {
+	f, _ := reflect.TypeFor[StoryEffect]().FieldByName("Kind")
+	return strings.Split(f.Tag.Get("enum"), "|")
 }
 
 // TroubleRow is a settlement trouble (GDD 12.5, 12.10).

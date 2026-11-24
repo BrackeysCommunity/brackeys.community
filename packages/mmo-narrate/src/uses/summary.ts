@@ -1,15 +1,30 @@
+import type * as api from "../../../mmo-api/src/index.ts";
 import { proseProblem } from "../check.ts";
 import { namesBlock, properNames, systemPrompt, untrusted } from "../prompt.ts";
 import type { CheckResult, JsonSchema, UseSpec } from "../types.ts";
-import { memoryData, toldWho, type VoiceMemory } from "./voice.ts";
+import { memoryData, toldWho } from "./voice.ts";
 
 export interface SummaryIn {
   /** The NPC's name. */
   npc: string;
   /** What the NPC folded away past its memory cap, by entry kind. */
-  folded: { type: string; count: number }[];
-  oldest: VoiceMemory[];
+  folded: api.TypeCount[];
+  oldest: api.Memory[];
   names: Record<string, string>;
+}
+
+const GUILD_KEY = "guild:";
+
+/** A summary is stored per NPC and shown to every viewer, so it is made only from what any viewer may read. */
+function shared(i: SummaryIn): SummaryIn {
+  const names = Object.fromEntries(
+    Object.entries(i.names).filter(([k]) => !k.startsWith(GUILD_KEY)),
+  );
+  const oldest = i.oldest.map((m) => {
+    const who = toldWho(m.who, names);
+    return { ...m, who: who === "you" ? "a traveller" : who };
+  });
+  return { ...i, names, oldest };
 }
 
 export const SUMMARY_MAX_CHARS = 400;
@@ -53,43 +68,47 @@ const schema: JsonSchema = {
   additionalProperties: false,
 };
 
-/**
- * An NPC's memory past its cap, summed up (GDD 15.2, "when its memory
- * passes 40 entries"). The summary is context for the voice and shown on
- * the talk card; it never reaches the world.
- */
+/** An NPC's memory past its memory cap, summed up (GDD 15.2). The summary is context for the voice and shown on the talk card; it never reaches the world. */
 export const summaryUse: UseSpec<SummaryIn, string> = {
   use: "summary",
-  version: 1,
-  input: (i) => ({
-    npc: i.npc,
-    folded: i.folded.map((x) => ({ type: x.type, count: x.count })),
-    oldest: i.oldest.map((m) => ({
-      kind: m.kind,
-      tick: m.tick,
-      thing: m.thing ?? "",
-      who: toldWho(m.who, i.names),
-      n: m.n ?? 0,
-      unit: m.unit ?? "",
-    })),
-    names: i.names,
-  }),
-  prompt: (i) => ({
-    system: systemPrompt("summary", RULES),
-    user: [
-      untrusted("person", i.npc),
-      untrusted(
-        "oldest",
-        i.oldest.map((m) => `- ${memoryData(m, i.names)}`).join("\n") || "(none)",
-      ),
-      untrusted(
-        "folded",
-        i.folded.map((x) => `- ${kindWords(x.type)}: ${x.count}`).join("\n") || "(none)",
-      ),
-      namesBlock(i.names),
-    ].join("\n\n"),
-  }),
+  version: 2,
+  input: (raw) => {
+    const i = shared(raw);
+    return {
+      npc: i.npc,
+      folded: i.folded.map((x) => ({ type: x.type, count: x.count })),
+      oldest: i.oldest.map((m) => ({
+        kind: m.kind,
+        tick: m.tick,
+        thing: m.thing ?? "",
+        who: toldWho(m.who, i.names),
+        n: m.n ?? 0,
+        unit: m.unit ?? "",
+      })),
+      names: i.names,
+    };
+  },
+  prompt: (raw) => {
+    const i = shared(raw);
+    return {
+      system: systemPrompt("summary", RULES),
+      user: [
+        untrusted("person", i.npc),
+        untrusted(
+          "oldest",
+          i.oldest.map((m) => `- ${memoryData(m, i.names)}`).join("\n") || "(none)",
+        ),
+        untrusted(
+          "folded",
+          i.folded.map((x) => `- ${kindWords(x.type)}: ${x.count}`).join("\n") || "(none)",
+        ),
+        namesBlock(i.names),
+      ].join("\n\n"),
+    };
+  },
   schema,
-  check,
-  stub: (i) => ({ summary: `${i.npc} remembers more than they can tell, the oldest of it best.` }),
+  check: (i, reply) => check(shared(i), reply),
+  stub: (raw) => ({
+    summary: `${shared(raw).npc} remembers more than they can tell, the oldest of it best.`,
+  }),
 };

@@ -41,6 +41,34 @@ func picture(t *testing.T, r *running, key string, w, h int) []byte {
 	return body
 }
 
+// mediaWhileHeld GETs a media key while the world's lock is held, so a
+// request that scans the world blocks and fails the test.
+func mediaWhileHeld(t *testing.T, r *running, key string) int {
+	t.Helper()
+	release := r.srv.Hold()
+	done := make(chan int, 1)
+	go func() {
+		resp, err := r.http.Client().Get(r.http.URL + api.PathMedia + key + ".png")
+		if err != nil {
+			done <- 0
+			return
+		}
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+		done <- resp.StatusCode
+	}()
+	select {
+	case status := <-done:
+		release()
+		return status
+	case <-time.After(10 * time.Second):
+		release()
+		<-done
+		t.Fatalf("media %q waited on the world's lock", key)
+		return 0
+	}
+}
+
 // TestMediaKeys: a fight's portrait, a settlement's banner with its wall,
 // a price chart with a marked cause, a chronicle's cover and an event's art
 // are each served by their key as a PNG, and each key holds while the
@@ -75,6 +103,9 @@ func TestMediaKeys(t *testing.T) {
 		party.Fight == nil || party.Fight.Portrait != first.Fight.Portrait {
 		t.Fatalf("one fight, several portraits: %q %q %+v %+v", first.Fight.Portrait, again.Fight.Portrait, seen.Fight, party.Fight)
 	}
+	if status := mediaWhileHeld(t, r, first.Fight.Portrait); status != http.StatusOK {
+		t.Fatalf("a served portrait answered %d", status)
+	}
 	drawn := picture(t, r, first.Fight.Portrait, 256, 256)
 	release = r.srv.Hold()
 	c.Fight = nil
@@ -82,8 +113,12 @@ func TestMediaKeys(t *testing.T) {
 	if !bytes.Equal(drawn, picture(t, r, first.Fight.Portrait, 256, 256)) {
 		t.Fatal("a portrait drew differently once its fight was over")
 	}
-	if refusal := readSolo[api.Refusal](t, r, api.PathMedia+"portrait-000000000000000000000000.png", 404); refusal.Code != api.CodeNotFound {
+	madeUp := "portrait-000000000000000000000000"
+	if refusal := readSolo[api.Refusal](t, r, api.PathMedia+madeUp+".png", 404); refusal.Code != api.CodeNotFound {
 		t.Fatal(refusal)
+	}
+	if status := mediaWhileHeld(t, r, madeUp); status != http.StatusNotFound {
+		t.Fatalf("a made-up portrait answered %d the second time", status)
 	}
 
 	here := readSolo[api.Here](t, r, api.PathHere+query, 200)

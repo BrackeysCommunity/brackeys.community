@@ -2,7 +2,6 @@ package service
 
 import (
 	"cmp"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -526,8 +525,7 @@ var artTable = sync.OnceValues(func() (keys, slots map[string]string) {
 	}
 	keys, slots = map[string]string{}, map[string]string{}
 	for _, slot := range render.Slots {
-		body, _ := json.Marshal(render.ArtInput{Slot: slot, Kit: kit.Digest}) // two strings always marshal
-		k := render.Key(artKind, body)
+		k, _ := pictureKey(artKind, render.ArtInput{Slot: slot, Kit: kit.Digest}) // two strings always marshal
 		keys[slot], slots[k] = k, slot
 	}
 	return keys, slots

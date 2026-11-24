@@ -53,7 +53,7 @@ import { loadBook, poolRequests } from "./encounter-pool.ts";
 import { dollars } from "./narration-ledger.ts";
 
 /**
- * What narration costs a world day (MM11's figure):
+ * What narration costs a world day:
  *
  *   bun run scripts/narration-cost.ts [--stub] --out <dir>
  *   bun run scripts/narration-cost.ts --real --calls N --usd X --out <dir>
@@ -64,7 +64,7 @@ import { dollars } from "./narration-ledger.ts";
  * volume.ts at both scales, they are written to cost.md and cost.json.
  *
  * --stub (the default) never leaves the process. --real reads
- * ANTHROPIC_API_KEY, makes at most 30 calls, and stops before any call
+ * ANTHROPIC_API_KEY, makes at most REAL_MOST_CALLS calls, and stops before any call
  * whose upper estimate would carry the run past --usd; its figures are
  * written beside the stub's as real.md and real.json.
  */

@@ -80,18 +80,16 @@ const readable = (id: string) => {
 };
 const capitalise = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/**
- * Who an entry is about, as the viewer may read it. The world sends
- * "you", a traveller, a traveller from a guild the dossier names, or a
- * character id for a player who agreed to be named; an id is never shown.
- */
-function whoOf(who: string | undefined, d: DossierLike): string {
-  if (!who) return SOMEONE;
+/** Who an entry is about, as anyone outside the world may read it: "you", a traveller, or a traveller from a guild in names; a character id is never shown. */
+export function toldWho(who: string | undefined, names: Readonly<Record<string, string>>): string {
+  if (!who) return "";
   if (who === YOU || who === TRAVELLER) return who;
   const from = `${TRAVELLER} from `;
-  if (who.startsWith(from) && Object.values(d.names).includes(who.slice(from.length))) return who;
+  if (who.startsWith(from) && Object.values(names).includes(who.slice(from.length))) return who;
   return TRAVELLER;
 }
+
+const whoOf = (who: string | undefined, d: DossierLike) => toldWho(who, d.names) || SOMEONE;
 
 function thingOf(m: MemoryLike, names: Names): string {
   const thing = m.thing ?? "";

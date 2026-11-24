@@ -87,13 +87,22 @@ func (m *media) get(key string) ([]byte, bool) {
 	return b, ok
 }
 
-// picture caches an image under a key derived from its input.
-func (s *Server) picture(kind string, input any, draw func() (*render.Canvas, error)) (string, error) {
+// pictureKey is the media key of a picture's input.
+func pictureKey(kind string, input any) (string, error) {
 	body, err := json.Marshal(input)
 	if err != nil {
 		return "", err
 	}
-	return s.media.put(render.Key(kind, body), func() ([]byte, error) {
+	return render.Key(kind, body), nil
+}
+
+// picture caches an image under a key derived from its input.
+func (s *Server) picture(kind string, input any, draw func() (*render.Canvas, error)) (string, error) {
+	key, err := pictureKey(kind, input)
+	if err != nil {
+		return "", err
+	}
+	return s.media.put(key, func() ([]byte, error) {
 		c, err := draw()
 		if err != nil {
 			return nil, err
@@ -118,60 +127,76 @@ func (s *Server) mediaHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // drawLate draws a picture whose key a read served without drawing it: an
-// art slot, or the portrait of a creature someone is fighting or hunting
-// now, found under the lock and drawn after it.
+// art slot, or the portrait of a creature someone fights or hunts.
 func (s *Server) drawLate(ctx context.Context, key string) ([]byte, bool) {
 	kit, err := render.DefaultKit()
 	if err != nil {
 		return nil, false
 	}
 	palette := s.rules.Load().Book.Palette
-	var draw func() (*render.Canvas, error)
-	switch {
-	case strings.HasPrefix(key, artKind+"-"):
+	var got string
+	switch render.KindOf(key) {
+	case artKind:
 		_, slots := artTable()
 		slot, ok := slots[key]
 		if !ok {
 			return nil, false
 		}
-		draw = func() (*render.Canvas, error) { return render.Art(slot, kit, palette) }
-	case strings.HasPrefix(key, portraitKind+"-"):
-		unlock, err := s.take(ctx, true)
-		if err != nil {
+		got, err = s.picture(artKind, render.ArtInput{Slot: slot, Kit: kit.Digest}, func() (*render.Canvas, error) {
+			return render.Art(slot, kit, palette)
+		})
+	case portraitKind:
+		in, ok := s.portraitFor(ctx, key)
+		if !ok {
 			return nil, false
 		}
-		var in render.PortraitInput
-		found := false
-		for _, c := range s.g.Chars {
-			if p, ok := fightPortrait(s.g, c); ok && portraitKey(p) == key {
-				in, found = p, true
-				break
-			}
-		}
-		for i := 0; !found && i < len(s.g.Hunts); i++ {
-			if p, ok := huntPortrait(s.g.Hunts[i]); ok && portraitKey(p) == key {
-				in, found = p, true
-			}
-		}
-		unlock()
-		if !found {
-			return nil, false
-		}
-		draw = func() (*render.Canvas, error) { return render.Portrait(in, kit, palette) }
+		got, err = s.picture(portraitKind, in, func() (*render.Canvas, error) { return render.Portrait(in, kit, palette) })
 	default:
 		return nil, false
 	}
-	if _, err := s.media.put(key, func() ([]byte, error) {
-		c, err := draw()
-		if err != nil {
-			return nil, err
-		}
-		return c.PNG()
-	}); err != nil {
+	if err != nil {
 		s.cfg.Log.Error("picture failed", "key", key, "err", err.Error())
 		return nil, false
 	}
+	if got != key {
+		s.cfg.Log.Error("picture drew under another key", "key", key, "got", got)
+		return nil, false
+	}
 	return s.media.get(key)
+}
+
+// portraitFor is the input of a portrait key: from the keys reads served,
+// else from one scan of the world for keys served before a restart. A key
+// no scan found is not scanned for again.
+func (s *Server) portraitFor(ctx context.Context, key string) (render.PortraitInput, bool) {
+	if in, ok := portraits.input(key); ok {
+		return in, true
+	}
+	if portraits.missed(key) {
+		return render.PortraitInput{}, false
+	}
+	unlock, err := s.take(ctx, true)
+	if err != nil {
+		return render.PortraitInput{}, false
+	}
+	var in render.PortraitInput
+	found := false
+	for _, c := range s.g.Chars {
+		if p, ok := fightPortrait(s.g, c); ok && portraitKey(p) == key {
+			in, found = p, true
+			break
+		}
+	}
+	for i := 0; !found && i < len(s.g.Hunts); i++ {
+		if p, ok := huntPortrait(s.g.Hunts[i]); ok && portraitKey(p) == key {
+			in, found = p, true
+		}
+	}
+	unlock()
+	if !found {
+		portraits.miss(key)
+	}
+	return in, found
 }
 
 // withCharErr is withChar for a read that may refuse; it writes the

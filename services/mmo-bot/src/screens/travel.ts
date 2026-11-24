@@ -3,6 +3,7 @@ import {
   type EmbedField,
   SELECT_LABEL_MAX,
 } from "../../../../packages/discord-kit/src/index.ts";
+import { mapAlt } from "../../../../packages/mmo-words/src/alt.ts";
 import { sideName } from "../../../../packages/mmo-words/src/index.ts";
 import type * as api from "../api.ts";
 import { WhyRoad } from "../api.ts";
@@ -116,7 +117,11 @@ export function travelCard(
     description: `A step takes ${lex.numbers.stepMin} to ${plural(lex.numbers.stepMax, "tick")} a tile by the ground. A journey of more than ${ticks(lex.numbers.freeTicks)} eats provisions; it runs on while you are away, and stops before a region at ${amount(threatLine, "threat")} or more. Running out of provisions makes you hungry, not stuck.`,
     picture: {
       media: map.image,
-      alt: `Map of ${amount(map.radius, "tiles")} round ${here.name}: fog over what nobody has entered, weather and threat shaded`,
+      alt: mapAlt({
+        of: here.name,
+        radius: map.radius,
+        shaded: ["fog over what nobody has entered", "weather", "threat"],
+      }),
     },
     fields,
     footer: "Each tile entered is a fact: the recap tells where the journey went.",

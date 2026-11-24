@@ -21,7 +21,6 @@ export const USE_CONFIG: Record<UseId, UseConfig> = {
     capBy: null,
     interactive: false,
     maxInputChars: BOT_INPUT,
-    stream: false,
     stubThinking: 75,
   },
   stage: {
@@ -35,7 +34,6 @@ export const USE_CONFIG: Record<UseId, UseConfig> = {
     capBy: null,
     interactive: false,
     maxInputChars: BOT_INPUT,
-    stream: false,
     stubThinking: 70,
   },
   recap: {
@@ -49,7 +47,6 @@ export const USE_CONFIG: Record<UseId, UseConfig> = {
     capBy: "player",
     interactive: true,
     maxInputChars: BOT_INPUT,
-    stream: false,
     stubThinking: 75,
   },
   names: {
@@ -63,7 +60,6 @@ export const USE_CONFIG: Record<UseId, UseConfig> = {
     capBy: null,
     interactive: true,
     maxInputChars: BOT_INPUT,
-    stream: false,
     stubThinking: 200,
   },
   screen: {
@@ -73,11 +69,10 @@ export const USE_CONFIG: Record<UseId, UseConfig> = {
     timeoutMs: 5_000,
     waitMs: 5_000,
     ttlSeconds: 30 * DAY,
-    perDayCap: null,
-    capBy: null,
+    perDayCap: 20,
+    capBy: "player",
     interactive: true,
     maxInputChars: BOT_INPUT,
-    stream: false,
     stubThinking: 15,
   },
   voice: {
@@ -91,7 +86,6 @@ export const USE_CONFIG: Record<UseId, UseConfig> = {
     capBy: "player",
     interactive: true,
     maxInputChars: BOT_INPUT,
-    stream: false,
     stubThinking: 100,
   },
   summary: {
@@ -105,7 +99,6 @@ export const USE_CONFIG: Record<UseId, UseConfig> = {
     capBy: "npc",
     interactive: false,
     maxInputChars: BOT_INPUT,
-    stream: false,
     stubThinking: 150,
   },
   pool: {
@@ -119,7 +112,6 @@ export const USE_CONFIG: Record<UseId, UseConfig> = {
     capBy: null,
     interactive: false,
     maxInputChars: OFFLINE_INPUT,
-    stream: true,
     stubThinking: 9_000,
   },
   proposals: {
@@ -133,7 +125,6 @@ export const USE_CONFIG: Record<UseId, UseConfig> = {
     capBy: null,
     interactive: false,
     maxInputChars: OFFLINE_INPUT,
-    stream: true,
     stubThinking: 7_000,
   },
   digest: {
@@ -147,7 +138,6 @@ export const USE_CONFIG: Record<UseId, UseConfig> = {
     capBy: null,
     interactive: false,
     maxInputChars: OFFLINE_INPUT,
-    stream: false,
     stubThinking: 1_000,
   },
 };

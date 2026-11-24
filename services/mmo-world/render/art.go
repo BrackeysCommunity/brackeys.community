@@ -77,7 +77,7 @@ func SlotFor(kind, template string) string {
 	return SlotDay
 }
 
-// Art draws a slot's authored layers in order on a 640 by 200 canvas.
+// Art draws a slot's authored layers in order on an art-sized canvas.
 func Art(slot string, kit *Kit, palette []sheets.Palette) (*Canvas, error) {
 	layers, ok := kit.Art[slot]
 	if !ok {

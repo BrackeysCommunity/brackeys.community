@@ -8,7 +8,6 @@ const call = (stub: unknown, use: ModelCall["use"] = "chronicle"): ModelCall => 
   effort: USE_CONFIG[use].effort,
   maxTokens: USE_CONFIG[use].maxTokens,
   timeoutMs: USE_CONFIG[use].timeoutMs,
-  stream: false,
   system: "s".repeat(10),
   user: "u".repeat(7),
   schema: {},

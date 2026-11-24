@@ -3,6 +3,7 @@ import {
   type NarrationStore,
   type Narrator,
   type Switch,
+  USE_CONFIG,
 } from "../../../../packages/mmo-narrate/src/index.ts";
 import { summaryUse } from "../../../../packages/mmo-narrate/src/uses/summary.ts";
 import { type Voiced, voiceUse } from "../../../../packages/mmo-narrate/src/uses/voice.ts";
@@ -15,7 +16,7 @@ import { redisSwitch } from "./switch.ts";
 const DAY = 86_400;
 /** A voiced last line is kept while the world may still say the line it replaced. */
 export const LAST_TTL_SECONDS = 90 * DAY;
-export const SUMMARY_TTL_SECONDS = 30 * DAY;
+export const SUMMARY_TTL_SECONDS = USE_CONFIG.summary.ttlSeconds ?? 30 * DAY;
 
 /** How an NPC voiced the line it said to a player last time: `{template, voiced}`. */
 export const lastKey = (npc: string, user: string) => `${KEY_PREFIX}last:${npc}:${user}`;
@@ -63,14 +64,7 @@ export type VoiceNarration = Pick<Narration, "talk" | "wantsDossier"> & {
 };
 
 /**
- * The voice of notables and saved NPCs (GDD 4.18, 15.2). A conversation
- * read with its dossier is voiced through the narrator: cached per NPC,
- * player and world day, at most the voice's cap of model calls a player
- * a day, and the world's own conversation whenever the narrator falls
- * back. An NPC whose memory passed its cap gets a summary made in the
- * background at most once a world day, shown as what it remembers, with
- * the oldest entries listed until one exists. Nothing here reaches the
- * world: a choice press is the same press with the same ids.
+ * The voice of notables and saved NPCs (GDD 4.18, 15.2): the world's conversation voiced through the narrator, or unchanged when it falls back. An NPC past its memory cap gets a background summary at most once a world day, with its oldest entries shown until one exists. A choice press keeps the world's ids.
  */
 export function voiceNarration(
   narrator: Narrator,
@@ -123,11 +117,12 @@ export function voiceNarration(
       if (!d) return { conv };
       const npc = conv.npc.id;
       const remembering = d.foldedTotal > 0;
+      const summaryOn = remembering && (await sw.on("summary", server).catch(() => false));
       const [stored, summary] = await Promise.all([
         read(lastKey(npc, user)).then(parseLast),
-        remembering ? read(summaryKey(npc)) : null,
+        summaryOn ? read(summaryKey(npc)) : null,
       ]);
-      if (remembering) await summarise(conv, d, server);
+      if (summaryOn) await summarise(conv, d, server);
 
       const last = stored && conv.last && stored.template === conv.last ? stored.voiced : undefined;
       let out = conv;

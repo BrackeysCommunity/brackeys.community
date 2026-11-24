@@ -1,33 +1,15 @@
+import type * as api from "../../../mmo-api/src/index.ts";
+import { toldWho } from "../../../mmo-words/src/memory.ts";
 import { type ProseRules, proseProblem } from "../check.ts";
 import { digestOf } from "../digest.ts";
 import { namesBlock, properNames, systemPrompt, untrusted } from "../prompt.ts";
 import type { CheckReason, CheckResult, JsonSchema, UseSpec } from "../types.ts";
 
 /** One remembered entry, as the world's dossier carries it. */
-export interface VoiceMemory {
-  kind: string;
-  tick: number;
-  fact?: number;
-  thing?: string;
-  who?: string;
-  n?: number;
-  unit?: string;
-}
+export type VoiceMemory = api.Memory;
 
-/** What an NPC brings to a conversation beyond its topics (GDD 4.18): api.Dossier's shape. */
-export interface VoiceDossier {
-  day: number;
-  role: string;
-  traits: string[];
-  faction?: string;
-  place: string;
-  about: VoiceMemory[];
-  world: VoiceMemory[];
-  oldest: VoiceMemory[];
-  folded?: { type: string; count: number }[];
-  foldedTotal: number;
-  names: Record<string, string>;
-}
+/** What an NPC brings to a conversation beyond its topics (GDD 4.18). */
+export type VoiceDossier = api.Dossier;
 
 export interface VoiceChoice {
   id: string;
@@ -72,17 +54,7 @@ export const VOICE_CHOICE_MAX = 60;
 export const VOICE_PICK_MIN = 2;
 export const VOICE_PICK_MAX = 3;
 
-const YOU = "you";
-const TRAVELLER = "a traveller";
-
-/** Who an entry is about, as the model may be told it: a character id never goes out. */
-export function toldWho(who: string | undefined, names: Readonly<Record<string, string>>): string {
-  if (!who) return "";
-  if (who === YOU || who === TRAVELLER) return who;
-  const from = `${TRAVELLER} from `;
-  if (who.startsWith(from) && Object.values(names).includes(who.slice(from.length))) return who;
-  return TRAVELLER;
-}
+export { toldWho };
 
 /** A memory as one line of data. */
 export function memoryData(m: VoiceMemory, names: Readonly<Record<string, string>>): string {

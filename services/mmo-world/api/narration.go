@@ -38,7 +38,7 @@ type Memory struct {
 	Tick  int64  `json:"tick"`
 	Fact  int64  `json:"fact,omitempty"`
 	Thing string `json:"thing,omitempty"` // a name
-	Who   string `json:"who,omitempty"`   // "you", a consented name, or "a traveller from <guild>"
+	Who   string `json:"who,omitempty"`   // "you", the character id of a player who allows naming, "a traveller", or "a traveller from <guild>"
 	N     int64  `json:"n,omitempty"`
 	Unit  string `json:"unit,omitempty"`
 }

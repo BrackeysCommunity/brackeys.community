@@ -35,7 +35,7 @@ import * as mm11 from "./fixtures/mm11-story.ts";
 import samples from "./fixtures/world.json";
 
 /**
- * MM11's proofs that narration never changes what the game shows: the
+ * Proofs that narration never changes what the game shows: the
  * chronicle posted from the same facts with the model off and on carries
  * the same lines and the same ids, and any narrated post that does not
  * come back checked is the template, to the byte.

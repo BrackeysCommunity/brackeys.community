@@ -21,8 +21,12 @@ export interface ChronicleWorld {
   chronicle(server: string): Promise<api.Chronicle | null>;
 }
 
+/** A closed day's card; template is the poster's own. */
+export type ChronicleCard = (ch: api.Chronicle, template: () => Card) => Card | Promise<Card>;
+
 export class ChroniclePoster {
-  private readonly card: (ch: api.Chronicle) => Card | Promise<Card>;
+  private readonly card: ChronicleCard;
+  private readonly template: (ch: api.Chronicle) => Card;
 
   constructor(
     private readonly world: ChronicleWorld,
@@ -32,19 +36,23 @@ export class ChroniclePoster {
     private readonly server: string,
     private readonly prefix = "mmo-bot:chronicle:",
     private readonly log: (line: string) => void = console.log,
-    card?: (ch: api.Chronicle) => Card | Promise<Card>,
+    card?: ChronicleCard,
+    /** Told the day after the last closed one on every poll that reads one. */
+    private readonly onDay?: (day: number) => void,
   ) {
-    this.card = card ?? ((ch) => chronicleCard(ch, lex, 0, true));
+    this.template = (ch) => chronicleCard(ch, lex, 0, true);
+    this.card = card ?? this.template;
   }
 
   /** Posts the last closed day if this server has not had it; returns how many it posted. */
   async poll(): Promise<number> {
     const ch = await this.world.chronicle(this.server);
     if (!ch) return 0;
+    this.onDay?.(ch.day + 1);
     const key = `${this.prefix}${this.server}:day`;
     const was = await this.store.get(key);
     if (was !== null && ch.day <= Number(was)) return 0;
-    const card = await this.card(ch);
+    const card = await this.card(ch, () => this.template(ch));
     await postOnce(
       this.store,
       key,

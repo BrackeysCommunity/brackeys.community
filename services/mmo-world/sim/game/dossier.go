@@ -31,7 +31,8 @@ type DossierView struct {
 }
 
 // MemoryView is one remembered entry as the viewer may be told it: Who
-// is "you", a consented name, or a traveller from their guild.
+// is "you", the character id of a player who allows naming, "a traveller",
+// or "a traveller from <guild>".
 type MemoryView struct {
 	Kind  string
 	Tick  int64
@@ -45,8 +46,7 @@ type MemoryView struct {
 // entryUnits are what an entry's quantity counts, by entry kind.
 var entryUnits = map[string]string{entryResold: "coin"}
 
-// Dossier is a saved NPC's dossier for a character. It only reads: the
-// game is as it was.
+// Dossier is a saved NPC's dossier for a character; it is read-only.
 func (g *Game) Dossier(c *Char, id string) (DossierView, error) {
 	n := g.NPCs.Get(id)
 	if n == nil {
@@ -129,8 +129,5 @@ func (g *Game) memoryView(c *Char, e npc.Entry, names map[string]string) MemoryV
 	}
 	return v
 }
-
-// travellerName is another player whose guild is unknown, unnamed.
-const travellerName = "a traveller"
 
 func refKey(r fact.Ref) string { return r.Kind + ":" + r.ID }

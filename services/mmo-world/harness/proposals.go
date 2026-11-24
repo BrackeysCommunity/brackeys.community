@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -97,13 +96,6 @@ func proposedRows(b []byte) ([]json.RawMessage, error) {
 	return file.Rows, nil
 }
 
-// storyEffects are the effect kinds a row may name, as the sheet's enum
-// gives them.
-func storyEffects() []string {
-	f, _ := reflect.TypeFor[sheets.StoryEffect]().FieldByName("Kind")
-	return strings.Split(f.Tag.Get("enum"), "|")
-}
-
 // CheckProposals checks each row alone against the book: it decodes as a
 // story.arcs row, its id is new against the arcs, troubles and occasions
 // and the rows before it, its when is a registered predicate and its
@@ -120,7 +112,7 @@ func CheckProposals(b *sheets.Book, rows []ProposedRow) []ProposalResult {
 	for _, o := range b.Occasions {
 		taken[o.ID] = "a story.occasions row"
 	}
-	effects := storyEffects()
+	effects := sheets.StoryEffectKinds()
 	out := make([]ProposalResult, 0, len(rows))
 	for _, pr := range rows {
 		res := ProposalResult{ProposedRow: pr}

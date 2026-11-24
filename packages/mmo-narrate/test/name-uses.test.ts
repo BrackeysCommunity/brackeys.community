@@ -184,7 +184,11 @@ describe("screenUse", () => {
       dayUsd: 1,
       log: () => {},
     });
-    const res = await n.narrate(screenUse, { name: "Rust Tooth" }, { day: 1, server: "g" });
+    const res = await n.narrate(
+      screenUse,
+      { name: "Rust Tooth" },
+      { day: 1, server: "g", player: "p1" },
+    );
     expect(res).toMatchObject({ ok: false, reason: "check", check: "schema" });
     expect(model.calls[0]?.model).toBe("claude-haiku-5-5");
   });

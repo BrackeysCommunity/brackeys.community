@@ -70,10 +70,7 @@ export function encounterLines(
 const SLOT = /(\b[Tt]he )?\{(creature|place)\}/g;
 const THE = /^the /i;
 
-/**
- * Fills the slots. A name that brings its own "The" drops the line's
- * article, and loses its capital where the slot does not open a sentence.
- */
+/** Fills the slots. A name's own "The" gives way to the line's article, or is lowered where the slot does not open a sentence. */
 export function fillSlots(line: string, names: EncounterNames): string {
   return line.replace(SLOT, (_m, article: string | undefined, slot: string, at: number) => {
     const value = slot === "creature" ? names.creature : names.place;
@@ -87,7 +84,7 @@ export function fillSlots(line: string, names: EncounterNames): string {
 
 /**
  * The encounter line for a fight beat, stable for the fight and the beat:
- * FNV-1a of version|id|beat picks among the pool's lines for the kind,
+ * FNV-1a of version|id|beat picks among the pool's lines (the creature's own, else the kind's),
  * then the authored line, then "" when the kind is unknown. A line with a
  * slot that has no name is passed over.
  */

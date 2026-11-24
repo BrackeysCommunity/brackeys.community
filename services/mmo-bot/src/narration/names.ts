@@ -10,7 +10,7 @@ import { screenUse } from "../../../../packages/mmo-narrate/src/uses/screen.ts";
 
 export type { NameSubject } from "../../../../packages/mmo-narrate/src/uses/names.ts";
 
-/** Held names, newest first, until a person reads them (MM12 adds the queue). */
+/** Held names, newest first, until a person reads them. */
 export const HELD_KEY = `${KEY_PREFIX}held`;
 /** structural: the held list keeps the last this many. */
 export const HELD_KEEP = 500;

@@ -245,14 +245,38 @@ describe("summaryUse", () => {
     expect(say(`Ada Mercer ${"remembers ".repeat(45)}.`)).toMatchObject({ reason: "too-long" });
     expect(say("Ada Mercer remembers Zarnok.")).toMatchObject({ reason: "name" });
     expect(
-      say("Ada Mercer remembers Glass fibre from Iron Kin. They keep it close. It still matters."),
+      say("Ada Mercer remembers Glass fibre. They keep it close. It still matters."),
     ).toMatchObject({ ok: true });
+    expect(say("Ada Mercer remembers Iron Kin.")).toMatchObject({ reason: "name" });
     expect(summaryUse.check(summaryIn, { text: "x" })).toMatchObject({ reason: "schema" });
   });
 
   test("the prompt and the key never carry a character id", () => {
     expect(summaryUse.prompt(summaryIn).user).not.toContain("c-41");
     expect(JSON.stringify(summaryUse.input(summaryIn))).not.toContain("c-41");
+  });
+
+  test("is the same for every viewer: no viewer's you and no guild their consent named", () => {
+    const one: SummaryIn = {
+      npc: "Ada Mercer",
+      folded: [],
+      oldest: [{ kind: "traded", tick: 20, who: "you", thing: "Glass fibre" }],
+      names: { "npc:n1": "Ada Mercer" },
+    };
+    const other: SummaryIn = {
+      ...one,
+      oldest: [
+        { kind: "traded", tick: 20, who: "a traveller from Iron Kin", thing: "Glass fibre" },
+      ],
+      names: { ...one.names, "guild:g1": "Iron Kin" },
+    };
+    expect(cacheKey(summaryUse, other)).toBe(cacheKey(summaryUse, one));
+    for (const i of [one, other]) {
+      const user = summaryUse.prompt(i).user;
+      expect(user).not.toContain("by you");
+      expect(user).not.toContain("Iron Kin");
+      expect(user).toContain("by a traveller");
+    }
   });
 });
 

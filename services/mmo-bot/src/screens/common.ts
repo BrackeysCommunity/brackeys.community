@@ -7,6 +7,7 @@ import {
   type Select,
   SELECT_LABEL_MAX,
 } from "../../../../packages/discord-kit/src/index.ts";
+import { bannerAlt } from "../../../../packages/mmo-words/src/alt.ts";
 import {
   chronicleKinds,
   chronicleLine,
@@ -131,8 +132,23 @@ export function buttonLabel(label: string): string {
 }
 
 /** The default picture: the banner of a place; extra goes on the alt text. */
-export function banner(place: { banner: string; name: string }, extra = ""): Picture {
-  return { media: place.banner, alt: `Banner of ${place.name}${extra}` };
+export function banner(
+  here: { banner: string; name: string; place?: api.Here["place"] },
+  extra = "",
+): Picture {
+  const p = here.place;
+  return {
+    media: here.banner,
+    alt: bannerAlt({
+      name: here.name,
+      city: p?.city?.city,
+      ruined: p?.ruined,
+      overrun: p?.overrun,
+      trouble: p?.trouble?.kind,
+      troubleTitle: p?.trouble?.title,
+      extra,
+    }),
+  };
 }
 
 /** Distinct prices at given percentages of ref (each at least 1 coin). */

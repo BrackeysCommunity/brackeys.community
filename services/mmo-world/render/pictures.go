@@ -7,6 +7,7 @@ import (
 	"math"
 	"slices"
 	"strconv"
+	"strings"
 
 	"jams.team/mmo-world/sim/gen"
 	simhex "jams.team/mmo-world/sim/hex"
@@ -521,3 +522,20 @@ func Key(kind string, body []byte) string {
 	h := sha256.Sum256(append([]byte(Version+":"+kind+":"), body...))
 	return kind + "-" + hex.EncodeToString(h[:12])
 }
+
+// KindOf is the kind a Key was made for; "" for a string Key did not make.
+func KindOf(key string) string {
+	i := strings.LastIndexByte(key, '-')
+	if i < 0 || len(key)-i-1 != keyHex {
+		return ""
+	}
+	for _, r := range key[i+1:] {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return ""
+		}
+	}
+	return key[:i]
+}
+
+// structural: the hex digits of a Key's 12-byte digest.
+const keyHex = 24

@@ -12,18 +12,16 @@ import { BoardPoster, ForumPoster, type ForumStore, memoryStore } from "./forum.
 import { HuntPoster } from "./hunts.ts";
 import { Lexicon } from "./lexicon.ts";
 import { MediaCache } from "./media.ts";
-import { createNarration, dayClock, narratorFor } from "./narration/index.ts";
-import { nameOffers } from "./narration/names.ts";
+import { narrationParts, narratorFor } from "./narration/index.ts";
 import { redisNarrationStore } from "./narration/redis.ts";
-import { storyNarration } from "./narration/story.ts";
-import { voiceNarration } from "./narration/voice.ts";
+import { redisSwitch } from "./narration/switch.ts";
 import { Notifier } from "./notify.ts";
 import { PartyPoster } from "./party.ts";
 import { PromotionsPoster } from "./promotions.ts";
 import { ThreadBudget } from "./publish.ts";
 import { LexiconRefresher } from "./refresh.ts";
 import { registerCommands } from "./register.ts";
-import { chronicleCard, EVENTS_CHANNEL, eventCard } from "./screens/story.ts";
+import { EVENTS_CHANNEL } from "./screens/story.ts";
 import { httpWorld } from "./world.ts";
 
 /**
@@ -42,22 +40,22 @@ const redis = config.redisUrl
   ? new IORedis(config.redisUrl, { maxRetriesPerRequest: 1, enableOfflineQueue: false })
   : null;
 redis?.on("error", (e) => console.warn(`[redis] ${e.message}`));
-const narrator = narratorFor(config, redis);
+const sw = redis ? redisSwitch(redis, true) : undefined;
+const narrator = narratorFor(config, redis, console.log, undefined, sw);
 console.log(
   narrator
     ? "[narration] the model is on where the switch allows it"
     : "[narration] off: it needs MMO_NARRATION=on, ANTHROPIC_API_KEY and REDIS_URL",
 );
-const day = dayClock();
-const narrationStore = redis ? redisNarrationStore(redis) : null;
-const narration = createNarration(
-  narrator && narrationStore
-    ? {
-        ...storyNarration(narrator, lex, day),
-        ...voiceNarration(narrator, narrationStore, lex),
-      }
-    : {},
-);
+const parts = narrationParts(narrator, redis ? redisNarrationStore(redis) : null, lex, { sw });
+const { narration, day } = parts;
+// Seeded once so stage endings and screens are costed under the right day before a chronicle post.
+try {
+  const r = await world.chronicle("", undefined, config.guildId);
+  if (r.ok) day.saw(r.reply.day + 1);
+} catch (e) {
+  console.warn(`[narration] the world day is not known yet: ${describe(e)}`);
+}
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const notifier = new Notifier(world, async (user, text) => {
   const u = await client.users.fetch(user);
@@ -85,10 +83,7 @@ const handle = createHandler({
     world,
     lex,
     threatLine: config.threatLine ?? lex.numbers.ambushLine,
-    narration,
-    narrator,
-    names: nameOffers(narrator, narrationStore),
-    day,
+    ...parts,
   },
   budget: redis ? redisBudget(redis) : localBudget(),
   media: (key) => media.get(key),
@@ -139,8 +134,8 @@ client.once(Events.ClientReady, async (c) => {
       config.eventsAlarmRole,
       undefined,
       undefined,
-      (ev, mode) => {
-        const card = eventCard(ev, lex);
+      (ev, mode, template) => {
+        const card = template();
         return card && narration.event(ev, config.guildId, mode, () => card);
       },
     ).start();
@@ -161,12 +156,8 @@ client.once(Events.ClientReady, async (c) => {
       config.guildId,
       undefined,
       undefined,
-      (ch) => {
-        day.saw(ch.day + 1);
-        return narration.chronicle(ch, config.guildId, "post", () =>
-          chronicleCard(ch, lex, 0, true),
-        );
-      },
+      (ch, template) => narration.chronicle(ch, config.guildId, "post", template),
+      (d) => day.saw(d),
     ).start();
   if (chronicleChannel)
     new PromotionsPoster(

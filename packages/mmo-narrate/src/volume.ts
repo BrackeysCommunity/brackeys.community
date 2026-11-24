@@ -1,12 +1,5 @@
 import type { UseId } from "./types.ts";
 
-/**
- * How many model calls each use makes a world day, as a stated assumption
- * until a real world runs: then `scripts/narration-ledger.ts` reads the
- * true counts from the ledger and they replace this table. A call here is
- * a model call; cache hits cost nothing and are not counted.
- */
-
 /** A world's size: servers with the bot, and characters active a world day. */
 export interface Scale {
   servers: number;
@@ -36,6 +29,7 @@ const DAYS_A_WEEK = 7;
 /** Season zero's length in world days, which proposals run once after. */
 const SEASON_DAYS = 14;
 
+/** Model calls each use makes a world day: an assumption until a real world's ledger (scripts/narration-ledger.ts) gives counts to replace it with. Cache hits are not counted. */
 export const VOLUME: Record<UseId, Volume> = {
   chronicle: {
     fixed: 0,
@@ -51,7 +45,7 @@ export const VOLUME: Record<UseId, Volume> = {
     perPlayer: 0,
     formula: "0.5",
     source:
-      "Season zero decided 1 to 4 stages and lapsed 1 to 3 in a 14-day season (MM9 handover), plus the close and the finale. Each is told once and shared across servers.",
+      "Season zero decided 1 to 4 stages and lapsed 1 to 3 in a 14-day season, plus the close and the finale. Each is told once and shared across servers.",
   },
   recap: {
     fixed: 0,
@@ -75,7 +69,7 @@ export const VOLUME: Record<UseId, Volume> = {
     perPlayer: 0.01,
     formula: "0.01 P + 2",
     source:
-      "Kinds a first maker discovers, about one player in a hundred a day, plus MM10's renamable promotions at emergence's need of about two a world day. Each is cached forever.",
+      "Kinds a first maker discovers, about one player in a hundred a day, plus renamable promotions at emergence's need of about two a world day. Each is cached forever.",
   },
   screen: {
     fixed: 0,

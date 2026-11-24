@@ -4,7 +4,6 @@ import {
   type EmbedField,
   type Row,
 } from "../../../../packages/discord-kit/src/index.ts";
-import { bannerAlt } from "../../../../packages/mmo-words/src/alt.ts";
 import { riskLine } from "../../../../packages/mmo-words/src/index.ts";
 import * as api from "../api.ts";
 import { authorLine, type Card, COLOUR, type Picture } from "../card.ts";
@@ -25,14 +24,7 @@ import {
   relative,
 } from "./common.ts";
 import { dungeonName, floorOf, tagWords, wayLabel } from "./dungeon.ts";
-import {
-  adaptedTail,
-  creatureName,
-  poolLine,
-  portraitThumb,
-  sceneBanner,
-  withPoolLine,
-} from "./fight.ts";
+import { adaptedTail, creatureName, poolLine, portraitThumb, withPoolLine } from "./fight.ts";
 
 /**
  * A party's cards (GDD 7.5): forming it, the beat each member picks on
@@ -218,7 +210,7 @@ export function partyBeatCard(
       poolLine(f, f.floor && here.floor ? dungeonName(here.floor, lex) : here.name, lex),
       `${opening}${lines.join("\n")}`,
     ),
-    picture: sceneBanner(here, `${creature} in a ${kind.toLowerCase()}`),
+    picture: banner(here, `${creature} in a ${kind.toLowerCase()}`),
     thumb: portraitThumb(f, lex),
     fields,
     footer:
@@ -410,7 +402,7 @@ export interface ThreadPicture {
 }
 
 function threadPicture(p?: ThreadPicture): Picture | "form" {
-  return p ? { media: p.media, alt: bannerAlt({ name: p.place }) } : "form";
+  return p ? banner({ banner: p.media, name: p.place }) : "form";
 }
 
 /** The one card a party's thread keeps: the beat or the fork, who has picked or chosen, never what, and the time left. */

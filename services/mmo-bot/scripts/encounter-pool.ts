@@ -2,12 +2,15 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import IORedis, { type Redis } from "ioredis";
+
 import {
   fixedSwitch,
   memoryStore as narrationMemory,
   type NarrationModel,
   Narrator,
   stubModel,
+  type Switch,
 } from "../../../packages/mmo-narrate/src/index.ts";
 import {
   type PoolIn,
@@ -19,6 +22,7 @@ import {
   type EncounterPool,
   WASTELAND_ENCOUNTERS,
 } from "../../../packages/mmo-words/src/encounters.ts";
+import { redisSwitch } from "../src/narration/switch.ts";
 
 /**
  * Regenerates the wasteland encounter pool offline (GDD 15.2):
@@ -31,7 +35,9 @@ import {
  * never over the committed pool unless --write is given; --write is only
  * taken with --real, so stub text never replaces the authored lines. The
  * stub is the default and never touches the network; --real reads
- * ANTHROPIC_API_KEY and stops at the --usd cap.
+ * ANTHROPIC_API_KEY, honours the world's narration switch when REDIS_URL
+ * is set, and stops at the --usd cap. The pool belongs to no world day,
+ * so its spend is printed, never added to a day ledger.
  */
 
 export const COMMITTED = new URL(
@@ -186,12 +192,17 @@ export async function regenerate(
 
 export const poolJson = (p: EncounterPool) => `${JSON.stringify(p, null, 2)}\n`;
 
-/** The offline narrator: a memory store, every switch on, and the run's cap as its day's budget. */
-export function poolNarrator(model: NarrationModel, usd: number, log = console.log): Narrator {
+/** The offline narrator: a memory store, the switch it is given, and the run's cap as its day's budget. */
+export function poolNarrator(
+  model: NarrationModel,
+  usd: number,
+  log = console.log,
+  sw: Switch = fixedSwitch(true),
+): Narrator {
   return new Narrator({
     model,
     store: narrationMemory(),
-    switch: fixedSwitch(true),
+    switch: sw,
     dayUsd: usd,
     log,
   });
@@ -220,9 +231,26 @@ if (import.meta.main) {
   } else {
     model = stubModel();
   }
-  // The stub spends nothing; its ledger is an estimate, so its cap only has to clear one call.
-  const narrator = poolNarrator(model, args.mode === "real" ? args.usd : 1_000);
-  const r = await regenerate(narrator, WASTELAND_ENCOUNTERS, requests);
+  let redis: Redis | null = null;
+  const redisUrl = process.env.REDIS_URL?.trim();
+  if (args.mode === "real" && redisUrl) {
+    redis = new IORedis(redisUrl, { maxRetriesPerRequest: 1, lazyConnect: true });
+    await redis.connect();
+  }
+  let r: Regenerated;
+  let narrator: Narrator;
+  try {
+    // The stub spends nothing; its ledger is an estimate, so its cap only has to clear one call.
+    narrator = poolNarrator(
+      model,
+      args.mode === "real" ? args.usd : 1_000,
+      console.log,
+      redis ? redisSwitch(redis, true) : fixedSwitch(true),
+    );
+    r = await regenerate(narrator, WASTELAND_ENCOUNTERS, requests);
+  } finally {
+    redis?.disconnect();
+  }
   for (const key of r.done) console.log(`${key}: ${r.pool.lines[key]!.length} new lines`);
   for (const f of r.failed) console.log(`${f.key}: kept, ${f.reason}`);
   const spent = (await narrator.ledger(0)).usdMicros / 1_000_000;

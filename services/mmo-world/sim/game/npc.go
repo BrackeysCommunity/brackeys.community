@@ -648,6 +648,9 @@ func (g *Game) consent(c *Char, cmd Command) error {
 	return nil
 }
 
+// travellerName is another player whose guild is unknown, unnamed.
+const travellerName = "a traveller"
+
 // NameFor is how an NPC names subject to viewer: by name where subject
 // allows it, else as a traveller from their guild.
 func NameFor(viewer, subject *Char, name, guild string) string {
@@ -655,7 +658,7 @@ func NameFor(viewer, subject *Char, name, guild string) string {
 	if (same && !subject.HideSame) || (!same && subject.NameOther) || viewer == subject {
 		return name
 	}
-	return "a traveller from " + guild
+	return travellerName + " from " + guild
 }
 
 // fought records, for the saved NPCs on a tile at this hour, that a

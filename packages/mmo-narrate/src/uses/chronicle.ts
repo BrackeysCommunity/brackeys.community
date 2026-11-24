@@ -1,4 +1,4 @@
-import { checkCited, NUMBER_WORDS, type CitedSentence } from "../check.ts";
+import { checkCited, isNumberWord, type CitedSentence } from "../check.ts";
 import { factsBlock, namesBlock, type PromptFact, properNames, systemPrompt } from "../prompt.ts";
 import type { CheckResult, JsonSchema, UseId, UseSpec } from "../types.ts";
 
@@ -72,11 +72,6 @@ const DIGIT_ASIDE = /\s*\([^)]*\d[^)]*\)/g;
 const DIGITS = /[+−-]?\d[\d,.]*\s*(%|×)?/g;
 const MARKUP = /[@<>[\]*_`#|~\\]/g;
 const WORDS = /[\p{L}][\p{L}'’-]*/gu;
-
-const isNumberWord = (w: string) => {
-  const l = w.toLowerCase().replace(/['’]s?$/u, "");
-  return NUMBER_WORDS.has(l) || (l.endsWith("s") && NUMBER_WORDS.has(l.slice(0, -1)));
-};
 
 /** A template line with its numbers and markup taken out, so the stub's prose passes the check. */
 export function numberless(line: string): string {

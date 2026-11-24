@@ -1819,7 +1819,7 @@ export interface Memory {
   tick: number /* int64 */;
   fact?: number /* int64 */;
   thing?: string; // a name
-  who?: string; // "you", a consented name, or "a traveller from <guild>"
+  who?: string; // "you", the character id of a player who allows naming, "a traveller", or "a traveller from <guild>"
   n?: number /* int64 */;
   unit?: string;
 }

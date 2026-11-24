@@ -47,8 +47,8 @@ export const NUMBER_WORDS: ReadonlySet<string> = new Set([
   "thrice",
 ]);
 
-const WORD = /[\p{L}\p{N}][\p{L}\p{N}\p{M}'’-]*/gu;
-const CAPITAL = /^\p{Lu}/u;
+export const WORD = /[\p{L}\p{N}][\p{L}\p{N}\p{M}'’-]*/gu;
+export const CAPITAL = /^\p{Lu}/u;
 const MENTION = /@|discord\.gg/i;
 const MARKUP = /[<>[\]*_`#|~\\]|http|www\./i;
 const DIGITS = /\d+/g;
@@ -80,8 +80,9 @@ export function proseWords(text: string): ProseWord[] {
   return out;
 }
 
-const isNumberWord = (w: string) => {
-  const l = w.toLowerCase();
+/** A word that states a count, possessive or plural included. */
+export const isNumberWord = (w: string) => {
+  const l = w.toLowerCase().replace(/['’]s?$/u, "");
   return NUMBER_WORDS.has(l) || (l.endsWith("s") && NUMBER_WORDS.has(l.slice(0, -1)));
 };
 

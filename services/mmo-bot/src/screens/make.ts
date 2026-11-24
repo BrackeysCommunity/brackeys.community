@@ -1,4 +1,5 @@
 import { type Button, buttonRows, type Row } from "../../../../packages/discord-kit/src/index.ts";
+import { sigilAlt } from "../../../../packages/mmo-words/src/alt.ts";
 import type * as api from "../api.ts";
 import { type Card, COLOUR } from "../card.ts";
 import { encodeId, target } from "../ids.ts";
@@ -17,6 +18,9 @@ import {
   stationLine,
 } from "./common.ts";
 import { nameItButton } from "./naming.ts";
+
+/** A sigil colours its two strongest axes. */
+const SIGIL_AXES = 2;
 
 /** A recipe as the craft card carries it between selects: process.method.slot.material.qty. */
 export interface Draft {
@@ -347,12 +351,17 @@ export function characterCard(
         .map((f) => `${f.rarity} (${f.chance}% of finds), ${lex.name("tiles.triggers", f.trigger)}`)
         .join("\n"),
     });
-  const sigil = sheet.kit.find((i) => i.sigil)?.sigil;
+  const sigiled = sheet.kit.find((i) => i.sigil);
   return {
     context: PRIVATE,
     author: "Character · kit, practice, standing",
     title: `${sheet.start ? `Carrying a ${sheet.start} from the gate` : "Your character"}`,
-    picture: sigil ? { media: sigil, alt: "The sigil of what you carry in hand" } : banner(here),
+    picture: sigiled
+      ? {
+          media: sigiled.sigil,
+          alt: sigilAlt({ name: sigiled.name || sigiled.id, level: sigiled.level }),
+        }
+      : banner(here),
     fields,
     footer: all.length ? "Open an item for its card: level, picks, repair." : "You carry no items.",
     rows: [
@@ -442,7 +451,17 @@ export function itemCard(
     picture: it.sigil
       ? {
           media: it.sigil,
-          alt: `Sigil of ${it.name}: its outline, slot, strongest axes, ${amount(1 + Math.floor(it.level / 5), "notches")} for its level and a dot per pick`,
+          alt: sigilAlt({
+            name: it.name || it.id,
+            slot: it.slot,
+            axes: [...it.axes]
+              .filter((a) => a.value > 0)
+              .sort((a, b) => b.value - a.value)
+              .slice(0, SIGIL_AXES)
+              .map((a) => a.label),
+            level: it.level,
+            picks: it.picks.length,
+          }),
         }
       : banner(here),
     fields: [

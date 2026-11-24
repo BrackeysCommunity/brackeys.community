@@ -449,7 +449,6 @@ const call: ModelCall = {
   effort: "low",
   maxTokens: 2000,
   timeoutMs: 30_000,
-  stream: false,
   system: "You retell the record.",
   user: "#1 raid.held The raid was held.",
   schema: { type: "object", properties: { sentences: { type: "array" } } },

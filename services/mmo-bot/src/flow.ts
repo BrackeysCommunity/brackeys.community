@@ -933,12 +933,23 @@ class Session {
    * finds them ready, and its description shows if it came in time.
    */
   private async discoveryDescription(facts: api.Fact[]): Promise<string | undefined> {
-    const kind = discoveredKind(facts);
-    if (!kind || facts.some((f) => f.kind === "craft.failed") || !this.ctx.narrator) return;
-    const k = (await this.world.recipes(this.character)).known.find((x) => x.kind === kind);
-    if (!k) return;
-    const offer = await this.names.suggest("kind", kind, k.name, this.kindFacts(k), this.nameCtx());
-    return offer?.description;
+    try {
+      const kind = discoveredKind(facts);
+      if (!kind || facts.some((f) => f.kind === "craft.failed") || !this.ctx.narrator) return;
+      const k = (await this.world.recipes(this.character)).known.find((x) => x.kind === kind);
+      if (!k) return;
+      const offer = await this.names.suggest(
+        "kind",
+        kind,
+        k.name,
+        this.kindFacts(k),
+        this.nameCtx(),
+      );
+      return offer?.description;
+    } catch {
+      // The craft is already committed; its card shows without the description.
+      return;
+    }
   }
 
   /** A write, then the card it leads to; a refusal shows its reason on that card. */
@@ -1171,15 +1182,13 @@ class Session {
         const name = (this.press.fields?.[NAME_INPUT] ?? "").trim();
         if (!id.target) return backCards.unknown(this.character);
         if (!name) return this.recap(NO_NAME);
+        const t: NameTarget = { subject: "promotion", row: id.target };
         return this.screened(
           name,
-          "promotion",
-          id.target,
-          (held) => this.recap(held),
-          () =>
-            this.write(api.ActPromoteName, v, { option: id.target, note: name }, (_, why) =>
-              this.recap(why ?? `Named: ${name}`),
-            ),
+          t.subject,
+          t.row,
+          (held) => this.nameHome(t, held),
+          () => this.sendName(t, name, v),
         );
       }
       case "kn-name":
@@ -1556,18 +1565,15 @@ class Session {
       case "d-name":
         return this.dungeon();
       case "d-named": {
-        const to = hexOf(id.target);
         const name = (this.press.fields?.name ?? "").trim();
-        if (!to) return backCards.unknown(this.character);
+        if (!hexOf(id.target)) return backCards.unknown(this.character);
+        const t: NameTarget = { subject: "dungeon", row: id.target };
         return this.screened(
           name,
-          "dungeon",
-          id.target,
-          (held) => this.dungeon(held),
-          () =>
-            this.write(api.ActDungeonName, v, { note: name, to }, (_, why) =>
-              this.dungeon(why ?? `Named: ${name}`),
-            ),
+          t.subject,
+          t.row,
+          (held) => this.nameHome(t, held),
+          () => this.sendName(t, name, v),
         );
       }
       case "hunt":

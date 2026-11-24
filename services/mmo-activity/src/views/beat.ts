@@ -71,8 +71,7 @@ function sharedLines(st: ActivityState, f: Fight, act: BeatActions): HTMLElement
 const PIP = 7;
 const PIP_GAP = 22;
 
-// The beat track: a pip a beat, those behind filled, this one ringed. Its
-// words are the creature's and the beat's; the rule under it only decorates.
+// The beat track: a pip a beat, those behind filled, this one ringed.
 function beatTrack(f: Fight): SVGSVGElement {
   const n = Math.max(1, f.beats);
   const width = PIP_GAP * n;

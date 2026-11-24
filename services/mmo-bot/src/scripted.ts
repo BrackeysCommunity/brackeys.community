@@ -14,10 +14,7 @@ import { memoryStore } from "./forum.ts";
 import { HuntPoster } from "./hunts.ts";
 import { decodeId, type Id } from "./ids.ts";
 import { Lexicon } from "./lexicon.ts";
-import { createNarration, dayClock } from "./narration/index.ts";
-import { nameOffers } from "./narration/names.ts";
-import { storyNarration } from "./narration/story.ts";
-import { voiceNarration } from "./narration/voice.ts";
+import { narrationParts } from "./narration/index.ts";
 import { PartyPoster } from "./party.ts";
 import { ThreadBudget } from "./publish.ts";
 import { recording } from "./record.ts";
@@ -780,20 +777,7 @@ export function scriptedCtx(
     dayUsd: NARRATION_DAY_USD,
     log,
   });
-  const day = dayClock();
-  const ctx: Ctx = {
-    ...base,
-    narration: createNarration(
-      {
-        ...storyNarration(narrator, base.lex, day),
-        ...voiceNarration(narrator, store, base.lex, sw),
-      },
-      log,
-    ),
-    narrator,
-    names: nameOffers(narrator, store, log),
-    day,
-  };
+  const ctx: Ctx = { ...base, ...narrationParts(narrator, store, base.lex, { sw, log }) };
   return {
     ctx,
     narration: {

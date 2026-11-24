@@ -33,7 +33,6 @@ export interface UseConfig {
   interactive: boolean;
   /** Larger prompts fall back as too-large. */
   maxInputChars: number;
-  stream: boolean;
   /** Output tokens the stub adds for thinking. */
   stubThinking: number;
 }
@@ -51,7 +50,6 @@ export interface ModelCall {
   effort: Effort;
   maxTokens: number;
   timeoutMs: number;
-  stream: boolean;
   system: string;
   user: string;
   schema: JsonSchema;
@@ -76,20 +74,22 @@ export class ModelTimeoutError extends Error {
   }
 }
 
-export type CheckReason =
-  | "schema"
-  | "empty"
-  | "too-long"
-  | "number"
-  | "name"
-  | "mention"
-  | "markup"
-  | "uncited"
-  | "unknown-fact"
-  | "missing-fact"
-  | "bad-id"
-  | "bad-count"
-  | "word";
+export const CHECK_REASONS = [
+  "schema",
+  "empty",
+  "too-long",
+  "number",
+  "name",
+  "mention",
+  "markup",
+  "uncited",
+  "unknown-fact",
+  "missing-fact",
+  "bad-id",
+  "bad-count",
+  "word",
+] as const;
+export type CheckReason = (typeof CHECK_REASONS)[number];
 
 export type CheckResult<O> =
   | { ok: true; value: O }
@@ -109,6 +109,7 @@ export interface UseSpec<I, O> {
 
 export type FallbackReason =
   | "off"
+  | "uncached"
   | "no-model"
   | "budget"
   | "cap"

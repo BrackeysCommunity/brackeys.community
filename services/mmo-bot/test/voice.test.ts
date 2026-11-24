@@ -365,6 +365,20 @@ test("with the summary switched off, the oldest entries are listed", async () =>
   expect(problems(cardOf(r), names)).toEqual([]);
 });
 
+test("a summary stored before the switch went off is neither shown nor sent to the voice", async () => {
+  const sw: Switch = { on: async (use) => use !== "summary" };
+  const { voice, m, store } = setup({ sw });
+  const c = conversation();
+  const stale = `${c.npc.name} remembers a stale summary.`;
+  await store.set(summaryKey(c.npc.id), stale, 60);
+  const r = await voice.talk(c, USER, SERVER);
+  await voice.idle();
+  expect(r.remembers).toBe(memoryLines(dossier, lex).join("\n"));
+  expect(m.calls.some((x) => x.use === "summary")).toBe(false);
+  expect(m.calls.filter((x) => x.use === "voice").at(-1)!.user).not.toContain(stale);
+  expect(await store.get(summaryDayKey(c.npc.id))).toBeNull();
+});
+
 test("a long memory is cut at whole lines to fit its field", () => {
   const long = Array.from({ length: 40 }, (_, i) => `Day ${i}: You greeted them at length.`).join(
     "\n",

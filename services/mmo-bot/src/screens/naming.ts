@@ -23,7 +23,7 @@ export interface NameTarget {
 
 const LETTER: Record<NameSubject, string> = { kind: "k", promotion: "p", dungeon: "d" };
 const SUBJECT: Record<string, NameSubject> = { k: "kind", p: "promotion", d: "dungeon" };
-/** A pick's name follows its target after this; no name holds it. */
+/** Splits a pick's target from its name; a target row may not contain it. */
 const PICK_SEP = "/";
 
 /** A target as ids carry it: k:<kind>, p:<promotion>, d:<hex>. */

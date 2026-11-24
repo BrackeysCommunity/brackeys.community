@@ -3,7 +3,7 @@ import {
   buttonRows,
   type EmbedField,
 } from "../../../../packages/discord-kit/src/index.ts";
-import { bannerAlt, portraitAlt } from "../../../../packages/mmo-words/src/alt.ts";
+import { type PortraitLike, portraitAlt } from "../../../../packages/mmo-words/src/alt.ts";
 import {
   encounterLine,
   WASTELAND_ENCOUNTERS,
@@ -28,27 +28,10 @@ export function creatureName(
 
 /** The creature's portrait beside a beat's text, when the world drew one; the banner stays the picture. */
 export function portraitThumb(
-  f: Pick<api.Fight, "creature" | "creatureName" | "variant" | "kind" | "portrait">,
+  f: PortraitLike & { portrait?: string },
   lex: Lexicon,
 ): Picture | undefined {
   return f.portrait ? { media: f.portrait, alt: portraitAlt(f, lex) } : undefined;
-}
-
-/** The banner of where a beat is fought, in the state the world drew it. */
-export function sceneBanner(here: api.Here, extra: string): Picture {
-  const p = here.place;
-  return {
-    media: here.banner,
-    alt: bannerAlt({
-      name: here.name,
-      city: p?.city?.city,
-      ruined: p?.ruined,
-      overrun: p?.overrun,
-      trouble: p?.trouble?.kind,
-      troubleTitle: p?.trouble?.title,
-      extra,
-    }),
-  };
 }
 
 /** The beat's opening line from the setting's encounter pool, stable for the fight and the beat; "" when none. */
@@ -135,7 +118,7 @@ export function beatCard(
         : `Encounter · ${beat}`,
     title: `${beat}: ${creature}`,
     description: withPoolLine(poolLine(f, here.name, lex), `${opening}${lines.join("\n")}`),
-    picture: sceneBanner(here, `${creature} in a ${beat.toLowerCase()}`),
+    picture: banner(here, `${creature} in a ${beat.toLowerCase()}`),
     thumb: portraitThumb(f, lex),
     fields,
     footer: "The last beat is the hardest and must be won. Two failures and you go down.",

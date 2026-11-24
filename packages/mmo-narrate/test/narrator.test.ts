@@ -149,7 +149,7 @@ describe("Narrator.narrate", () => {
       [null, "off"],
       ["switchOff", "cache"],
       ["hit", "failed-before"],
-      ["failed", "off"],
+      ["failed", "uncached"],
       ["cached", "no-model"],
       ["noModel", "too-large"],
       ["tooLarge", "cap"],
@@ -414,12 +414,52 @@ describe("Narrator.narrate", () => {
     });
   });
 
+  test("calls in flight count against a cap", async () => {
+    const { narrator, model } = setup({
+      mode: "slow",
+      delayMs: 20,
+      config: { chronicle: { perDayCap: 2, capBy: "player" } },
+    });
+    const ctx = { day: DAY, player: "p1" };
+    const outs = await Promise.all(
+      TAGS.slice(0, 5).map((t) => narrator.narrate(toyUse(), toyInput(t), ctx)),
+    );
+    expect(model.calls).toHaveLength(2);
+    expect(outs.filter((o) => o.ok)).toHaveLength(2);
+    expect(outs.filter((o) => !o.ok && o.reason === "cap")).toHaveLength(3);
+    expect(await narrator.narrate(toyUse(), toyInput(TAGS[5]), ctx)).toEqual({
+      ok: false,
+      reason: "cap",
+    });
+  });
+
+  test("a press that joins a call in flight is not refused by the cap", async () => {
+    const { narrator, model, store } = setup({
+      mode: "slow",
+      delayMs: 20,
+      config: { chronicle: { perDayCap: 2, capBy: "player" } },
+    });
+    await store.incr(capKey("chronicle", "p1", DAY), CAP_TTL_SECONDS);
+    const ctx = { day: DAY, player: "p1" };
+    const [a, b] = await Promise.all([
+      narrator.narrate(toyUse(), toyInput(), ctx),
+      narrator.narrate(toyUse(), toyInput(), ctx),
+    ]);
+    expect(a).toMatchObject({ ok: true });
+    expect(b).toMatchObject({ ok: true });
+    expect(model.calls).toHaveLength(1);
+    expect(await narrator.narrate(toyUse(), toyInput("again"), ctx)).toEqual({
+      ok: false,
+      reason: "cap",
+    });
+  });
+
   test("cached mode reads the cache and never calls", async () => {
     const { narrator, model } = setup();
     const spec = toyUse();
     expect(await narrator.narrate(spec, toyInput(), { day: DAY, mode: "cached" })).toEqual({
       ok: false,
-      reason: "off",
+      reason: "uncached",
     });
     expect(model.calls).toHaveLength(0);
     await narrator.narrate(spec, toyInput(), { day: DAY });

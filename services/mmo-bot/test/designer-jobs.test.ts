@@ -243,12 +243,7 @@ describe("arc proposals", () => {
     expect(said.join("\n")).toContain(`go run ./cmd/harness proposals -in ${out}`);
     expect(model.calls.length).toBe(1);
     const call = model.calls[0]!;
-    expect([call.use, call.model, call.effort, call.stream]).toEqual([
-      "proposals",
-      "claude-opus-5-5",
-      "high",
-      true,
-    ]);
+    expect([call.use, call.model, call.effort]).toEqual(["proposals", "claude-opus-5-5", "high"]);
     expect(call.user).toContain("Season 0: world days 0 to 13");
     expect(call.user).toContain("Templates cast: the-grudge 1");
     expect(call.user).toContain("Templates not cast: the-dry-seam, proposed-season-0");

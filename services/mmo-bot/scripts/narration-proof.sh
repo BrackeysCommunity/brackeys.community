@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# MM11's own proof, the command cycle a closer re-runs:
+# The narration proof: every narration check in one run.
 #
 #   scripts/narration-proof.sh <out>
 #
@@ -44,7 +44,7 @@ step 4 "mmo-narrate tests" "$bot/../../packages/mmo-narrate" \
   vp test run
 
 if [ "$failed" -ne 0 ]; then
-  echo "MM11 proof: FAILED"
+  echo "narration proof: FAILED"
   exit 1
 fi
-echo "MM11 proof: ok"
+echo "narration proof: ok"

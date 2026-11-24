@@ -2,7 +2,7 @@
   "name": "@jams/mmo-narrate",
   "version": "0.0.0",
   "private": true,
-  "description": "The MMO's narration pipeline: use table, prompts, checks, digest-keyed cache, prices, the narrator, a stub model and a memory store. No dependencies; services import it by path.",
+  "description": "The MMO's narration pipeline: use table, prompts, checks, digest-keyed cache, prices, the narrator, a stub model and a memory store. No package dependencies; it imports mmo-words and mmo-api types by path, and services import it by path.",
   "type": "module",
   "types": "./src/index.ts",
   "exports": {

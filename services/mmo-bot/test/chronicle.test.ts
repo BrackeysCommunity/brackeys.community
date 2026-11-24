@@ -144,3 +144,24 @@ test("the chronicle channel's card keeps the card standard", async () => {
   expect(posts).toHaveLength(1);
   expect(problems(posts[0]!, names)).toEqual([]);
 });
+
+test("every poll that reads a closed day tells the day after it, posted already or not", async () => {
+  const { world } = stubWorld({ day: 4 });
+  const { sink, posts } = memoryChannel();
+  const days: number[] = [];
+  const poster = new ChroniclePoster(
+    world,
+    lex,
+    memoryStore(),
+    sink,
+    "guild-a",
+    undefined,
+    quiet,
+    titled,
+    (d) => days.push(d),
+  );
+  expect(await poster.poll()).toBe(1);
+  expect(await poster.poll()).toBe(0);
+  expect(posts).toHaveLength(1);
+  expect(days).toEqual([5, 5]);
+});

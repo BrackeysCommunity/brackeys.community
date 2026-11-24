@@ -1,8 +1,8 @@
 package service
 
 import (
-	"encoding/json"
 	"slices"
+	"sync"
 
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/render"
@@ -250,8 +250,68 @@ func creaturePortrait(cr fight.Creature, variant string, resists []string) (rend
 // portraitKey is a portrait's media key; it is drawn on its first fetch,
 // never under the lock a read holds.
 func portraitKey(in render.PortraitInput) string {
-	body, _ := json.Marshal(in) // a struct of strings and an int always marshals
-	return render.Key(portraitKind, body)
+	key, _ := pictureKey(portraitKind, in) // a struct of strings and an int always marshals
+	portraits.record(key, in)
+	return key
+}
+
+// portraits is every portrait key a read served with its input, and the
+// keys a world scan did not find, each oldest dropped first.
+var portraits portraitRecord
+
+type portraitRecord struct {
+	mu        sync.Mutex
+	in        map[string]render.PortraitInput
+	order     []string
+	gone      map[string]bool
+	goneOrder []string
+}
+
+func (p *portraitRecord) record(key string, in render.PortraitInput) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.in == nil {
+		p.in = map[string]render.PortraitInput{}
+	}
+	if _, ok := p.in[key]; ok {
+		return
+	}
+	p.in[key] = in
+	p.order = append(p.order, key)
+	if len(p.order) > mediaKept {
+		delete(p.in, p.order[0])
+		p.order = p.order[1:]
+	}
+}
+
+func (p *portraitRecord) input(key string) (render.PortraitInput, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	in, ok := p.in[key]
+	return in, ok
+}
+
+func (p *portraitRecord) missed(key string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.gone[key]
+}
+
+func (p *portraitRecord) miss(key string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.gone == nil {
+		p.gone = map[string]bool{}
+	}
+	if p.gone[key] {
+		return
+	}
+	p.gone[key] = true
+	p.goneOrder = append(p.goneOrder, key)
+	if len(p.goneOrder) > mediaKept {
+		delete(p.gone, p.goneOrder[0])
+		p.goneOrder = p.goneOrder[1:]
+	}
 }
 
 // structural: the media kinds drawn from the kit.

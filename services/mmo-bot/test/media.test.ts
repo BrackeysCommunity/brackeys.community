@@ -104,7 +104,7 @@ const arted = [...mm9.events, ...mm10.events, ["a season's close", mm10.seasonCl
   .filter(([, ev]) => ART_KINDS.has(ev.fact.kind))
   .map(([name, ev]): [string, api.StoryEvent] => [name, { ...ev, art: art("stage-held") }]);
 
-/** Every card MM11 puts a new picture or thumb on. */
+/** Every card that carries a portrait, art or chart picture or thumb. */
 const CARDS: [string, () => Card][] = [
   ["a beat with its portrait", () => beatCard(portrayed(fighting), here, lex)],
   [

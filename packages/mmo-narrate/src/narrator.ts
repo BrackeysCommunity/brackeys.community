@@ -1,6 +1,7 @@
 import { cacheKey, capKey, costKey, failKey } from "./digest.ts";
 import { costMicros, upperMicros } from "./prices.ts";
 import {
+  CHECK_REASONS,
   ModelTimeoutError,
   USES,
   type CheckReason,
@@ -42,21 +43,7 @@ type Outcome =
   | { ok: true; value: unknown }
   | { ok: false; reason: FallbackReason; check?: CheckReason };
 
-const CHECK_REASONS: ReadonlySet<string> = new Set<CheckReason>([
-  "schema",
-  "empty",
-  "too-long",
-  "number",
-  "name",
-  "mention",
-  "markup",
-  "uncited",
-  "unknown-fact",
-  "missing-fact",
-  "bad-id",
-  "bad-count",
-  "word",
-]);
+const KNOWN_CHECKS: ReadonlySet<string> = new Set(CHECK_REASONS);
 
 /** Fallbacks a repeat of the same input would most likely hit again, so they are remembered. */
 const REMEMBERED: ReadonlySet<FallbackReason> = new Set(["check", "refused", "truncated"]);
@@ -94,6 +81,10 @@ export class Narrator {
   private readonly inFlight = new Map<string, Promise<Outcome>>();
   /** Upper estimates of calls still running, by world day, so concurrent calls share the budget. */
   private readonly reserved = new Map<number, number>();
+  /** Cap slots held by calls still running, so concurrent presses cannot pass a cap. */
+  private readonly capsInFlight = new Map<string, number>();
+  /** Inputs whose first caller is checking or holding a cap slot and has not started its call. */
+  private readonly capPending = new Set<string>();
 
   constructor(private readonly deps: NarratorDeps) {}
 
@@ -132,10 +123,10 @@ export class Narrator {
       return { ok: true, value: res.value as O, from: "cache" };
     }
     if (failed !== null) {
-      const check = CHECK_REASONS.has(failed) ? (failed as CheckReason) : undefined;
+      const check = KNOWN_CHECKS.has(failed) ? (failed as CheckReason) : undefined;
       return this.fallback(use, day, "failed-before", check);
     }
-    if (ctx.mode === "cached") return this.fallback(use, day, "off");
+    if (ctx.mode === "cached") return this.fallback(use, day, "uncached");
     const model = this.deps.model;
     if (!model) return this.fallback(use, day, "no-model");
 
@@ -151,14 +142,29 @@ export class Narrator {
     if (chars > cfg.maxInputChars) return this.fallback(use, day, "too-large");
 
     let cap: string | null = null;
+    let held = false;
     const upper = upperMicros(cfg.model, chars, cfg.maxTokens);
     try {
       if (cfg.perDayCap !== null) {
         const who = cfg.capBy === "npc" ? ctx.npc : cfg.capBy === "player" ? ctx.player : undefined;
         if (!who) return this.fallback(use, day, "cap");
         cap = capKey(use, who, day);
-        if (Number((await store.get(cap)) ?? 0) >= cfg.perDayCap) {
-          return this.fallback(use, day, "cap");
+        // A call that will join the same input costs nothing, so it is not counted.
+        if (!this.inFlight.has(key) && !this.capPending.has(key)) {
+          this.capPending.add(key);
+          let stored: number;
+          try {
+            stored = Number((await store.get(cap)) ?? 0);
+          } catch (e) {
+            this.capPending.delete(key);
+            throw e;
+          }
+          if (stored + (this.capsInFlight.get(cap) ?? 0) >= cfg.perDayCap) {
+            this.capPending.delete(key);
+            return this.fallback(use, day, "cap");
+          }
+          this.holdCap(cap);
+          held = true;
         }
       }
       if (!this.inFlight.has(key)) {
@@ -168,23 +174,29 @@ export class Narrator {
           ? Math.floor((dayMicros * INTERACTIVE_SHARE_PERCENT) / 100)
           : dayMicros;
         if (spent + (this.reserved.get(day) ?? 0) + upper > limit) {
+          if (held) this.releaseCap(cap!, key);
           return this.fallback(use, day, "budget");
         }
       }
     } catch {
+      if (held) this.releaseCap(cap!, key);
       return this.fallback(use, day, "store");
     }
 
     let task = this.inFlight.get(key);
     const joining = task !== undefined;
+    if (held) this.releaseCap(cap!, key);
     if (!task) {
+      // A caller that skipped the check starts only in place of a holder, which will join it.
+      if (cap && !held && !this.capPending.has(key)) return this.fallback(use, day, "cap");
+      const slot = cap;
+      if (slot) this.holdCap(slot);
       const call: ModelCall = {
         use,
         model: cfg.model,
         effort: cfg.effort,
         maxTokens: cfg.maxTokens,
         timeoutMs: cfg.timeoutMs,
-        stream: cfg.stream,
         system: prompt.system,
         user: prompt.user,
         schema: spec.schema,
@@ -194,6 +206,7 @@ export class Narrator {
       task = this.run(spec, input, ctx, cfg, model, call, key, cap).finally(() => {
         this.inFlight.delete(key);
         this.reserve(day, -upper);
+        if (slot) this.releaseCap(slot);
       });
       this.inFlight.set(key, task);
     }
@@ -343,13 +356,23 @@ export class Narrator {
     else this.reserved.delete(day);
   }
 
-  /** Ledger counts are best effort: a store that fails here already failed the narration. */
+  private holdCap(cap: string) {
+    this.capsInFlight.set(cap, (this.capsInFlight.get(cap) ?? 0) + 1);
+  }
+
+  /** With `key`, also ends that input's pending claim. */
+  private releaseCap(cap: string, key?: string) {
+    const left = (this.capsInFlight.get(cap) ?? 0) - 1;
+    if (left > 0) this.capsInFlight.set(cap, left);
+    else this.capsInFlight.delete(cap);
+    if (key) this.capPending.delete(key);
+  }
+
+  /** Best-effort ledger counts: a missed count never changes what is shown. */
   private async count(day: number, fields: Record<string, number>) {
     try {
       await this.deps.store.hincr(costKey(day), fields, LEDGER_TTL_SECONDS);
-    } catch {
-      // The ledger misses a count; the reply shown is unaffected.
-    }
+    } catch {}
   }
 
   private async fallback<O>(
@@ -360,7 +383,7 @@ export class Narrator {
     logged = false,
   ): Promise<Narrated<O>> {
     await this.count(day, { [`${use}.fb.${reason}`]: 1 });
-    if (reason !== "off" && !logged) {
+    if (reason !== "off" && reason !== "uncached" && !logged) {
       this.deps.log(
         `mmo-narr use=${use} day=${day} fallback=${reason}${check ? ` check=${check}` : ""}`,
       );
