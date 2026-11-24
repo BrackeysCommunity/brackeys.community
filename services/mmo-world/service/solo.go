@@ -19,6 +19,7 @@ import (
 	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
+	"jams.team/mmo-world/sim/npc"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/world"
 	"jams.team/mmo-world/store"
@@ -242,7 +243,7 @@ func (s *Server) apiSheet(c *game.Char, pictures *[]func() error) (api.Sheet, er
 	g := s.g
 	out := api.Sheet{Character: apiCharacter(g, c), Start: c.Start, Kit: []api.Item{}, Pack: []api.Item{}, Standing: []api.Standing{},
 		Record: []api.Count{}, Finds: []api.Find{}, Owed: c.Owed, Load: api.Load{Carried: c.Carried(), Capacity: g.Capacity(c)},
-		Consent: api.Consent{SameServer: !c.HideSame, OtherServers: c.NameOther}, Vows: []api.Vow{}}
+		Consent: api.Consent{SameServer: !c.HideSame, OtherServers: c.NameOther}, Vows: []api.Vow{}, Grudges: apiGrudges(g, c)}
 	// A raise or a muster it posted is its guild's word, not its own.
 	for _, x := range g.PostedBy(c) {
 		if x.State == goal.Live && x.Vow() && !x.Hidden && x.Issuer.Kind == goal.ByCharacter {
@@ -253,10 +254,15 @@ func (s *Server) apiSheet(c *game.Char, pictures *[]func() error) (api.Sheet, er
 	for _, e := range c.C.Equipped {
 		worn[e.Item] = e.Slot
 	}
+	v := newVictims(g, c)
 	for _, in := range c.C.Pack {
 		it, err := s.apiItem(in, worn[in.ID], pictures)
 		if err != nil {
 			return out, err
+		}
+		it.Hot = hotAt(g, c, v, in)
+		if _, ok := g.Kinds.Kind(in.Kind); ok {
+			it.TraderPays = g.TraderPaysHere(c, in)
 		}
 		if it.Worn != "" {
 			out.Kit = append(out.Kit, it)
@@ -368,27 +374,35 @@ func (s *Server) here(w http.ResponseWriter, r *http.Request) {
 	var banner render.BannerInput
 	viewer := ""
 	if !s.withChar(w, r, func(c *game.Char) {
-		out = s.apiHere(c)
+		out = apiHere(s.g, c)
 		banner = s.bannerInput(c.C.At)
 		viewer = c.C.ID
 	}) {
 		return
 	}
 	var err error
+	var recent []fact.Fact
 	if out.Banner, err = s.banner(banner); err == nil && out.Place.Tile.Region != "" {
-		var recent []fact.Fact
 		recent, err = s.st.RecentIn(r.Context(), out.Place.Tile.Region, recentFacts)
-		out.Recent = scrubFirsts(viewer, apiFacts(recent))
 	}
 	if err != nil {
 		s.internal(w, err)
 		return
 	}
+	if len(recent) > 0 {
+		unlock, ok := s.hold(r.Context(), w, true)
+		if !ok {
+			return
+		}
+		out.Recent = recentSeen(s.g, viewer, recent)
+		unlock()
+	}
 	reply(w, http.StatusOK, out)
 }
 
-func (s *Server) apiHere(c *game.Char) api.Here {
-	g := s.g
+// apiHere is a character's place as /here shows it, without the banner
+// and the recent facts the store holds.
+func apiHere(g *game.Game, c *game.Char) api.Here {
 	h := c.C.At
 	place := placeView(g, h)
 	out := api.Here{Place: place, Name: g.PlaceName(h), Stations: []api.Station{}, Orders: []api.Order{}, Offers: []api.Offer{},
@@ -434,7 +448,14 @@ func apiPerson(g *game.Game, p game.Person) api.Person {
 	if row := g.Rules().NPC.Role(p.Role); row != nil {
 		role = row.Role
 	}
-	return api.Person{ID: p.ID, Name: p.Name, Role: role, Kind: p.Kind, Traits: slices.Clone(p.Traits), Saved: p.Saved, Visit: p.Visit, Called: p.Called}
+	return api.Person{ID: p.ID, Name: p.Name, Role: role, Kind: p.Kind, Traits: slices.Clone(p.Traits), Saved: p.Saved, Visit: p.Visit, Called: p.Called,
+		Leaning: p.Leaning, Mood: p.Mood, Fence: p.Fence}
+}
+
+// conversing is the NPC a character talks to, with its leaning and how it
+// holds the character.
+func conversing(g *game.Game, c *game.Char, s npc.Stub) game.Person {
+	return game.Person{Stub: s, Saved: true, Leaning: g.LeaningOf(s), Mood: g.Mood(c, s.ID), Fence: isFence(g, s.ID)}
 }
 
 func (s *Server) bannerInput(h hex.Hex) render.BannerInput {
@@ -667,20 +688,13 @@ func (s *Server) npcHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return
 		}
-		out = api.Conversation{NPC: apiPerson(s.g, game.Person{Stub: conv.NPC, Saved: true}), Topics: []api.Topic{}, Last: conv.Last, Met: conv.Met, Digest: conv.Digest}
+		out = apiConversation(s.g, c, conv)
 		if r.URL.Query().Get("dossier") == "1" {
 			var d game.DossierView
 			if d, err = s.g.Dossier(c, id); err != nil {
 				return
 			}
 			out.Dossier = apiDossier(d)
-		}
-		for _, t := range conv.Topics {
-			x := api.Topic{ID: t.ID, Line: t.Line, Own: t.Own, Choices: []api.Choice{}}
-			for _, ch := range t.Choices {
-				x.Choices = append(x.Choices, api.Choice{ID: ch.ID, Line: ch.Line, Effect: ch.Effect, Standing: ch.Standing, Coin: ch.Coin})
-			}
-			out.Topics = append(out.Topics, x)
 		}
 		banner = s.bannerInput(c.C.At)
 	}) {
@@ -698,9 +712,23 @@ func (s *Server) npcHandler(w http.ResponseWriter, r *http.Request) {
 	reply(w, http.StatusOK, out)
 }
 
+// apiConversation is a conversation as the wire carries it, without its
+// banner or dossier.
+func apiConversation(g *game.Game, c *game.Char, conv game.Conversation) api.Conversation {
+	out := api.Conversation{NPC: apiPerson(g, conversing(g, c, conv.NPC)), Topics: []api.Topic{}, Last: conv.Last, Met: conv.Met, Digest: conv.Digest}
+	for _, t := range conv.Topics {
+		x := api.Topic{ID: t.ID, Line: t.Line, Own: t.Own, Choices: []api.Choice{}}
+		for _, ch := range t.Choices {
+			x.Choices = append(x.Choices, api.Choice{ID: ch.ID, Line: ch.Line, Effect: ch.Effect, Standing: ch.Standing, Coin: ch.Coin})
+		}
+		out.Topics = append(out.Topics, x)
+	}
+	return out
+}
+
 // apiDossier is a dossier as the wire carries it.
 func apiDossier(d game.DossierView) *api.Dossier {
-	out := &api.Dossier{Day: d.Day, Role: d.Role, Traits: slices.Clone(d.Traits), Faction: d.Faction, Place: d.Place,
+	out := &api.Dossier{Day: d.Day, Role: d.Role, Traits: slices.Clone(d.Traits), Faction: d.Faction, Leaning: d.Leaning, Mood: d.Mood, Place: d.Place,
 		About: apiMemories(d.About), World: apiMemories(d.World), Oldest: apiMemories(d.Oldest), FoldedTotal: d.FoldedTotal, Names: d.Names}
 	if out.Traits == nil {
 		out.Traits = []string{}
@@ -776,6 +804,7 @@ func (s *Server) lexicon(w http.ResponseWriter, r *http.Request) {
 		BeatsMin: n.FirstBeatsMin, BeatsMax: n.FirstBeatsMax, RuinTroubles: rules.Story.RuinTroubles,
 		CityStationCap: sheets.IntParam(b.SettlementParams, "city-station-cap"), RoadEnterTicks: n.RoadEnterTicks,
 		CampTier: n.CampTier, MastersEase: n.MastersEase, CustomSeasons: n.CustomSeasons}}
+	crimeNumbers(b, &out.Numbers)
 	for _, n := range b.Names {
 		out.Names[n.Ref] = n.Name
 	}

@@ -109,6 +109,8 @@ func apiCharacter(g *game.Game, c *game.Char) api.Character {
 		out.Mount = &api.Mount{ID: m.ID, Kind: m.Mount, Level: m.Level}
 	}
 	out.Titles, out.Pouches, out.Armed, out.Floor = g.Titles(c), int64(len(c.Pouches)), c.Armed != nil, ch.Floor
+	v := newVictims(g, c)
+	out.Alignment, out.Hot, out.Wanted, out.Stopped = apiAlignment(g, c), hotGoods(g, c, v), apiWanted(g, c, v), apiStopped(g, c)
 	return out
 }
 
@@ -170,6 +172,7 @@ func apiOptions(g *game.Game, c *game.Char) api.Options {
 	}
 	out.Fight = apiFight(g, c, ch.Fight)
 	out.Purse = apiPurse(g, c)
+	out.Steals = apiSteals(g, c, ch)
 	for _, s := range g.SidesFor(c) {
 		out.Sides = append(out.Sides, api.SideOption{Goal: s.Goal, Arc: s.Arc, Side: s.Side, Wants: s.Wants, Tag: s.Tag, Left: s.Left,
 			At: apiHex(s.At), Region: s.Region, Backed: s.Backed})
@@ -193,7 +196,7 @@ func apiFight(g *game.Game, c *game.Char, f *game.FightView) *api.Fight {
 		return v
 	}
 	e := c.Fight.E
-	v.Floor, v.Hidden = e.Floor, int64(e.At) < e.Hidden
+	v.Floor, v.Hidden, v.Theft = e.Floor, int64(e.At) < e.Hidden, apiTheft(g, c, c.Fight.Theft)
 	v.CreatureName, v.Variant = variantSeen(g, c.C.At, e)
 	if in, ok := fightPortrait(g, c); ok {
 		v.Portrait = portraitKey(in)
@@ -211,10 +214,10 @@ func apiFight(g *game.Game, c *game.Char, f *game.FightView) *api.Fight {
 }
 
 // fightPortrait is the portrait input of the creature a character fights,
-// from what its fight already shows: false outside a fight, or without
-// the kit.
+// from what its fight already shows: false outside a fight, in a theft,
+// whose creature is a stand-in, or without the kit.
 func fightPortrait(g *game.Game, c *game.Char) (render.PortraitInput, bool) {
-	if c.Fight == nil || c.Fight.E == nil {
+	if c.Fight == nil || c.Fight.E == nil || c.Fight.Theft != nil {
 		return render.PortraitInput{}, false
 	}
 	e := c.Fight.E

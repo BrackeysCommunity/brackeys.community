@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -19,6 +20,7 @@ import (
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/keys"
+	"jams.team/mmo-world/sim/npc"
 	"jams.team/mmo-world/sim/puzzle"
 	simworld "jams.team/mmo-world/sim/world"
 )
@@ -185,6 +187,15 @@ func TestAPIMatchesRules(t *testing.T) {
 		{api.CodePinGround, simworld.CodePinGround}, {api.CodePinPath, simworld.CodePinPath}, {api.CodePinFix, simworld.CodePinFix},
 		{api.CodePinBudget, simworld.CodePinBudget}, {api.CodePinAnchor, simworld.CodePinAnchor}, {api.CodePinTaken, simworld.CodePinTaken},
 		{api.CodePinEntered, simworld.CodePinEntered}, {api.CodePinGone, simworld.CodePinGone}, {api.CodeAlreadyFrozen, simworld.CodeAlreadyFrozen},
+		{api.ActSteal, game.Steal}, {api.ActFence, game.Fence}, {api.ActPayFine, game.PayFine}, {api.ActFlee, game.Flee},
+		{api.TheftLift, game.KindLift}, {api.TheftBurgle, game.KindBurgle}, {api.TheftWaylay, game.KindWaylay}, {api.TheftFlee, game.KindFlee},
+		{api.CodeNoTarget, game.NoTarget}, {api.CodeNothingToSteal, game.NothingToSteal}, {api.CodeStoppedByWatch, game.StoppedCode},
+		{api.CodeNotStopped, game.NotStopped}, {api.CodeShort, game.ShortCode}, {api.CodeNotHot, game.NotHot}, {api.CodeHotGoods, game.HotGoods},
+		{api.CodeFenceHidden, game.FenceHidden}, {api.CodeFenceSpent, game.FenceSpent}, {api.CodeNotMade, game.NotMade}, {api.CodeNoDen, game.NoDen},
+		{api.CodeHostile, game.HostileCode}, {api.CodeNotABacker, game.NotABacker}, {api.CodeShunned, game.Shunned},
+		{api.CondWanted, char.WantedCondition},
+		{api.LeaningUpright, npc.LeaningUpright}, {api.LeaningCrooked, npc.LeaningCrooked}, {api.LeaningNone, npc.LeaningNone},
+		{api.MoodWarm, game.MoodWarm}, {api.MoodCold, game.MoodCold}, {api.MoodHostile, game.MoodHostile},
 	} {
 		if pair[0] != pair[1] {
 			t.Errorf("the API says %q where the rules say %q", pair[0], pair[1])
@@ -192,6 +203,23 @@ func TestAPIMatchesRules(t *testing.T) {
 	}
 	if api.Unseen != puzzle.Unseen {
 		t.Errorf("the API's unseen element is %d where the rules' is %d", api.Unseen, puzzle.Unseen)
+	}
+	b := testkit.Book(t)
+	var bands, kinds []string
+	for _, r := range b.AlignBands {
+		bands = append(bands, r.ID)
+	}
+	for _, r := range b.TheftKinds {
+		kinds = append(kinds, r.ID)
+	}
+	if want := []string{api.BandNotorious, api.BandCrooked, api.BandUnremarked, api.BandDecent, api.BandUpright}; !slices.Equal(bands, want) {
+		t.Errorf("the API's bands are %v where alignment.bands has %v", want, bands)
+	}
+	if want := []string{api.TheftLift, api.TheftBurgle, api.TheftWaylay, api.TheftFlee}; !slices.Equal(kinds, want) {
+		t.Errorf("the API's theft kinds are %v where theft.kinds has %v", want, kinds)
+	}
+	if !slices.Contains(api.EventKinds, "theft.made") {
+		t.Error("the events channel does not carry theft.made")
 	}
 }
 

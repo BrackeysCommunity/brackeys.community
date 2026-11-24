@@ -9,6 +9,7 @@ import (
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/puzzle"
+	"jams.team/mmo-world/sim/sheets"
 )
 
 // Sees reports whether a viewer may be shown a tile at all: the one it
@@ -95,11 +96,7 @@ func SeenFacts(g *game.Game, viewer string, facts []api.Fact) []api.Fact {
 // viewer may not read it at all, else without the other characters it
 // names, in its subjects or its data. Viewer "" is the public.
 func seen(g *game.Game, viewer string, f api.Fact) (api.Fact, bool) {
-	refs := make([]fact.Ref, len(f.Subjects))
-	for i, s := range f.Subjects {
-		refs[i] = fact.Ref{Kind: s.Kind, ID: s.ID}
-	}
-	if !game.Visible(viewer, f.Kind, refs) {
+	if !visibleTo(g, viewer, f) {
 		return api.Fact{}, false
 	}
 	out := f
@@ -135,17 +132,30 @@ func scrubFirsts(viewer string, fs []api.Fact) []api.Fact {
 	return fs
 }
 
-// playerFacts drops the kinds no public read returns: pins, which no
-// player read names (GDD 14.5), and personal threads, which their
-// character reads in its recap (GDD 12.8).
-func playerFacts(fs []api.Fact) []api.Fact {
+// playerFacts are a command's facts as its character reads them: never a
+// pin (GDD 14.5) or a personal thread's, which it reads in its recap
+// (GDD 12.8), and its own alignment moves and the syndicate's facts only
+// as it may read them.
+func playerFacts(g *game.Game, viewer string, fs []api.Fact) []api.Fact {
 	out := make([]api.Fact, 0, len(fs))
 	for _, f := range fs {
-		if game.Visible("", f.Kind, nil) {
+		if !sheets.PinFact(f.Kind) && !game.ThreadFact(f.Kind) && visibleTo(g, viewer, f) {
 			out = append(out, f)
 		}
 	}
 	return out
+}
+
+// recentSeen are a place's recent facts as a viewer may read them, with
+// other characters named as a place card names them.
+func recentSeen(g *game.Game, viewer string, fs []fact.Fact) []api.Fact {
+	out := []api.Fact{}
+	for _, f := range apiFacts(fs) {
+		if visibleTo(g, viewer, f) {
+			out = append(out, f)
+		}
+	}
+	return scrubFirsts(viewer, out)
 }
 
 func familyName(g *game.Game, family string) string {

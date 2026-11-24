@@ -59,14 +59,15 @@ func (s *Server) goals(w http.ResponseWriter, r *http.Request) {
 		}
 		out.Settlement = n
 		out.Officer = g.OfficerHere(c)
-		// A personal or party goal hangs on the board for its own alone.
+		// A personal or party goal hangs on the board for its own alone, and
+		// a syndicate job for the made.
 		for _, x := range g.Board(n) {
-			if x.May(c.C.ID) || x.Poster == c.C.ID {
+			if (x.May(c.C.ID) || x.Poster == c.C.ID) && seesGoal(c, x) {
 				out.Board = append(out.Board, apiGoal(g, x, c))
 			}
 		}
 		for i := len(g.Goals) - 1; i >= 0 && len(out.Met) < metShown; i-- {
-			if x := g.Goals[i]; x.Board == n && x.State == goal.Done && !x.Hidden && x.May(c.C.ID) {
+			if x := g.Goals[i]; x.Board == n && x.State == goal.Done && !x.Hidden && x.May(c.C.ID) && seesGoal(c, x) {
 				out.Met = append(out.Met, apiGoal(g, x, c))
 			}
 		}
@@ -126,7 +127,7 @@ func (s *Server) board(w http.ResponseWriter, r *http.Request) {
 	var banners []render.BannerInput
 	for n, h := range g.Settlements() {
 		for _, x := range g.Board(n) {
-			if x.Scope == goal.Personal || x.Scope == goal.Party {
+			if x.Scope == goal.Personal || x.Scope == goal.Party || !seesGoal(nil, x) {
 				continue
 			}
 			out.Posts = append(out.Posts, api.BoardPost{Settlement: n, Name: g.PlaceName(h), Goal: apiGoal(g, x, nil)})
@@ -134,7 +135,7 @@ func (s *Server) board(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	for _, x := range g.Goals {
-		if x.Hidden && x.Scope != goal.Personal && x.Scope != goal.Party {
+		if x.Hidden && x.Scope != goal.Personal && x.Scope != goal.Party && seesGoal(nil, x) {
 			out.Hidden = append(out.Hidden, x.ID)
 		}
 	}
@@ -242,6 +243,8 @@ func issuerName(g *game.Game, x *game.Goal) string {
 		return g.FactionName(fi)
 	case goal.BySettlement:
 		return g.PlaceName(g.SettlementHex(x.Board))
+	case goal.BySyndicate:
+		return g.StandingName(goal.BySyndicate)
 	}
 	if gd := g.MusterGuild(x); gd != nil {
 		return gd.G.Name
@@ -278,6 +281,8 @@ func condText(g *game.Game, c goal.Condition) string {
 		return fmt.Sprintf("hold %s %s %d pts for %d days", c.Gauge, side, c.Line, c.Count)
 	case goal.Carry:
 		return "carry " + charName(g, c.Who) + " home"
+	case goal.Steal:
+		return stealText(g, c)
 	case goal.Reach:
 		return "reach " + placeRef(g, c.At)
 	case goal.Deliver, goal.Haul:

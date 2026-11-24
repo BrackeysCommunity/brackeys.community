@@ -227,7 +227,7 @@ func castName(g *game.Game, ref fact.Ref, viewer string) string {
 // settlementData are the data keys, besides "settlement", that name a settlement in a fact, by fact kind.
 var settlementData = map[string][]string{
 	"caravan.departed": {"from", "to"}, "caravan.arrived": {"from", "to"}, "caravan.robbed": {"from", "to"}, "caravan.lost": {"from", "to"},
-	game.FactPromotion: {"a", "b"},
+	game.FactPromotion: {"a", "b"}, "den.moved": {"from", "to"},
 }
 
 // nameFacts adds to names what the facts' refs are called to viewer, keyed
@@ -251,7 +251,7 @@ func nameFacts(g *game.Game, viewer string, names map[string]string, fs ...api.F
 			switch {
 			case d.Key == kindRegion && d.S != "":
 				add(kindRegion, d.S)
-			case d.Key == kindSettlement || slices.Contains(settlementData[f.Kind], d.Key):
+			case (d.Key == kindSettlement || slices.Contains(settlementData[f.Kind], d.Key)) && d.N >= 0:
 				add(kindSettlement, strconv.FormatInt(d.N, 10))
 			}
 		}
@@ -284,11 +284,14 @@ func (s *Server) arcs(w http.ResponseWriter, r *http.Request) {
 	if c != nil {
 		viewer = c.C.ID
 	}
-	g := s.g
+	reply(w, http.StatusOK, apiArcs(s.g, viewer))
+}
+
+// apiArcs are the arcs a viewer may see, and the side goals it backs.
+func apiArcs(g *game.Game, viewer string) api.Arcs {
 	out := api.Arcs{Season: apiSeason(g), Open: []api.Arc{}, Ended: []api.Arc{}, Backing: []string{}}
 	if g.Story == nil {
-		reply(w, http.StatusOK, out)
-		return
+		return out
 	}
 	for _, a := range g.Story.Arcs {
 		if !game.ArcVisible(a, viewer) {
@@ -305,7 +308,7 @@ func (s *Server) arcs(w http.ResponseWriter, r *http.Request) {
 			out.Backing = append(out.Backing, bk.Goal)
 		}
 	}
-	reply(w, http.StatusOK, out)
+	return out
 }
 
 // operatorStory is the whole story as an operator reads it: every arc,
@@ -450,8 +453,7 @@ func (s *Server) chronicle(w http.ResponseWriter, r *http.Request) {
 		}
 		return 0
 	})
-	out := api.Chronicle{Season: season, Day: day, Lines: []api.ChronicleLine{}, More: max(0, int64(len(facts))-most), Earlier: []int64{}}
-	facts = facts[:min(int64(len(facts)), most)]
+	out := api.Chronicle{Season: season, Day: day, Lines: []api.ChronicleLine{}, Earlier: []int64{}}
 	for d := day - 1; d >= max(0, day-chronicleEarlier); d-- {
 		out.Earlier = append(out.Earlier, d)
 	}
@@ -459,10 +461,19 @@ func (s *Server) chronicle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer unlock()
+	shown := facts[:0]
 	for _, f := range facts {
-		v, _ := seen(s.g, "", apiFact(f))
-		out.Lines = append(out.Lines, api.ChronicleLine{Fact: v, Here: here[f.ID], Causes: int64(len(f.Causes))})
+		v, ok := seen(s.g, "", apiFact(f))
+		if !ok {
+			continue
+		}
+		shown = append(shown, f)
+		if int64(len(out.Lines)) < most {
+			out.Lines = append(out.Lines, api.ChronicleLine{Fact: v, Here: here[f.ID], Causes: int64(len(f.Causes))})
+		}
 	}
+	out.More = max(0, int64(len(shown))-most)
+	facts = shown[:min(int64(len(shown)), most)]
 	lines := make([]api.Fact, len(out.Lines))
 	for i, l := range out.Lines {
 		lines[i] = l.Fact
@@ -538,22 +549,25 @@ func (s *Server) chronicleFact(w http.ResponseWriter, r *http.Request) {
 		refuse(w, http.StatusBadRequest, api.Refusal{Code: api.CodeBadJSON, Message: "id is a fact id"})
 		return
 	}
-	viewer := ""
+	viewer, made := "", false
 	unlock, ok := s.hold(r.Context(), w, true)
 	if !ok {
 		return
 	}
 	c, ok := s.viewerOf(w, r)
 	if c != nil {
-		viewer = c.C.ID
+		viewer, made = c.C.ID, char.IsMade(c.C)
 	}
 	unlock()
 	if !ok {
 		return
 	}
-	f, causes, err := s.st.FactCauses(r.Context(), fact.ID(id))
-	if errors.Is(err, store.ErrNoFact) || err == nil && !game.Visible(viewer, f.Kind, f.Subjects) {
+	missing := func() {
 		refuse(w, http.StatusNotFound, api.Refusal{Code: api.CodeNotFound, Message: fmt.Sprintf("no fact %d", id)})
+	}
+	f, causes, err := s.st.FactCauses(r.Context(), fact.ID(id))
+	if errors.Is(err, store.ErrNoFact) || err == nil && !game.VisibleTo(viewer, made, f.Kind, f.Subjects) {
+		missing()
 		return
 	}
 	if err != nil {
@@ -564,7 +578,11 @@ func (s *Server) chronicleFact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer unlock()
-	top, _ := seen(s.g, viewer, apiFact(f))
+	top, ok := seen(s.g, viewer, apiFact(f))
+	if !ok {
+		missing()
+		return
+	}
 	out := api.FactCauses{Fact: top, Causes: []api.Fact{}}
 	for _, x := range causes {
 		if v, ok := seen(s.g, viewer, apiFact(x)); ok {

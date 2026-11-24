@@ -57,7 +57,7 @@ func playerCommand(req api.ActionRequest) (game.Command, *api.Refusal, int) {
 	}
 	cmd := game.Command{Key: req.InteractionID, Char: req.CharacterID, Kind: req.Kind, Dir: req.Dir, Material: req.Material,
 		Ticks: req.Ticks, Option: req.Option, Units: req.Units, Asset: req.Asset, Item: req.Item, Slot: req.Slot, NPC: req.NPC, Server: req.Server,
-		Price: req.Price, Target: req.Target, Note: req.Note, Admin: req.Admin, Along: req.Along}
+		Price: req.Price, Target: req.Target, Note: req.Note, Admin: req.Admin, Along: req.Along, BackRoom: req.BackRoom, ForSide: req.ForSide}
 	if req.Goal != nil {
 		s := simGoal(*req.Goal)
 		cmd.Goal = &s
@@ -187,7 +187,7 @@ func applyCommand(ctx context.Context, g *game.Game, rec records, subs *listener
 	}
 	rep := actionReply(g, res)
 	if !game.Operator(cmd.Kind) {
-		rep.Facts = scrubFirsts(cmd.Char, playerFacts(rep.Facts))
+		rep.Facts = scrubFirsts(cmd.Char, playerFacts(g, cmd.Char, rep.Facts))
 	}
 	body, err := json.Marshal(rep)
 	if err != nil {

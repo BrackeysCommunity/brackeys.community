@@ -12,7 +12,8 @@ func (s *Server) Hold() func() {
 	return s.mu.Unlock
 }
 
-// PlayerFacts is the reply filter that drops pin facts.
+// PlayerFacts is the reply filter that drops pin and thread facts and
+// what the actor may not read.
 var PlayerFacts = playerFacts
 
 // VariantSeen is the name and row a fight shows for a region's variant.

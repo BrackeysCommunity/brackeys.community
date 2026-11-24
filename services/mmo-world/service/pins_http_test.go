@@ -19,6 +19,7 @@ import (
 	"jams.team/mmo-world/service"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/hex"
+	"jams.team/mmo-world/sim/keys"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tile"
 	simworld "jams.team/mmo-world/sim/world"
@@ -826,11 +827,15 @@ func TestPlayerFacts(t *testing.T) {
 	own := []api.Ref{{Kind: "character", ID: "c-1"}}
 	in := []api.Fact{{Kind: "a"}, {Kind: "pin.landed"}, {Kind: "b"}, {Kind: "thread.cast", Subjects: own}, {Kind: "thread.ended", Subjects: own},
 		{Kind: "arc.ended"}, {Kind: "threads.c"}}
-	out := service.PlayerFacts(in)
+	g, err := game.New(testkit.Rules(t, testkit.Book(t), keys.Throwaway("player-facts")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := service.PlayerFacts(g, "c-1", in)
 	if len(out) != 4 || out[0].Kind != "a" || out[1].Kind != "b" || out[2].Kind != "arc.ended" || out[3].Kind != "threads.c" {
 		t.Errorf("got %+v", out)
 	}
-	if out := service.PlayerFacts(nil); out == nil || len(out) != 0 {
+	if out := service.PlayerFacts(g, "c-1", nil); out == nil || len(out) != 0 {
 		t.Errorf("nil input gave %#v", out)
 	}
 	first, mine := api.Ref{Kind: "character", ID: "c-2"}, api.Ref{Kind: "character", ID: "c-1"}

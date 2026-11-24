@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"jams.team/mmo-world/api"
@@ -53,9 +54,59 @@ func (l *Local) Goals(_ context.Context, id string) (api.Goals, error) {
 	}
 	out.Settlement, out.Officer = n, g.OfficerHere(c)
 	for _, x := range g.Board(n) {
-		if x.May(c.C.ID) || x.Poster == c.C.ID {
+		if (x.May(c.C.ID) || x.Poster == c.C.ID) && seesGoal(c, x) {
 			out.Board = append(out.Board, apiGoal(g, x, c))
 		}
 	}
 	return out, nil
+}
+
+// Character is a character as its own reads show it: its alignment, the
+// stolen goods it carries, and the watch wanting or holding it.
+func (l *Local) Character(_ context.Context, id string) (api.Character, error) {
+	c, err := l.char(id)
+	if err != nil {
+		return api.Character{}, err
+	}
+	return apiCharacter(l.G, c), nil
+}
+
+// Here is a character's /here page without its banner or recent facts:
+// the people on its tile, a den's fence among them for one who may find
+// it, and how each holds the character.
+func (l *Local) Here(_ context.Context, id string) (api.Here, error) {
+	c, err := l.char(id)
+	if err != nil {
+		return api.Here{}, err
+	}
+	return apiHere(l.G, c), nil
+}
+
+// Conversation is what a saved NPC says to a character now, without the
+// banner: its topics and their choices. A refusal comes back as /npc
+// gives it.
+func (l *Local) Conversation(_ context.Context, id, npc string) (api.Conversation, *api.Refusal, error) {
+	c, err := l.char(id)
+	if err != nil {
+		return api.Conversation{}, nil, err
+	}
+	conv, err := l.G.Converse(c, npc)
+	var ref *game.Refused
+	if errors.As(err, &ref) {
+		return api.Conversation{}, apiRefusal(ref), nil
+	}
+	if err != nil {
+		return api.Conversation{}, nil, err
+	}
+	return apiConversation(l.G, c, conv), nil, nil
+}
+
+// Arcs are the arcs a character may see: the open and lately ended ones,
+// its own personal threads among them, and the side goals it backs.
+func (l *Local) Arcs(_ context.Context, id string) (api.Arcs, error) {
+	c, err := l.char(id)
+	if err != nil {
+		return api.Arcs{}, err
+	}
+	return apiArcs(l.G, c.C.ID), nil
 }
