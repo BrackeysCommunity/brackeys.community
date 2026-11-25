@@ -354,7 +354,10 @@ func (g *Game) reachPattern(c *Char, h hex.Hex, t int64) error {
 	bs, at := g.cluesAt(h)
 	for k, b := range bs {
 		g.storeBoard(b)
-		if err := g.clueFound(c, b, at[k], t); err != nil {
+		restore := g.onBoard(b)
+		err := g.clueFound(c, b, at[k], t)
+		restore()
+		if err != nil {
 			return err
 		}
 	}
@@ -407,6 +410,7 @@ func (g *Game) patternSet(c *Char, cmd Command) error {
 	if b.P.Done {
 		return refuse(PatternSolved, "%s is solved", b.ID)
 	}
+	defer g.onBoard(b)()
 	t := g.Tick()
 	pb := b.rules(row)
 	m := pattern.Mark{Point: point, Value: cmd.Units, Day: t / sheets.TicksPerDay, By: c.C.ID, Server: c.Server}
@@ -458,6 +462,9 @@ func (g *Game) patternWorked(c *Char, a *Armed, res puzzle.Result, tick int64) e
 	board := ""
 	if a.Pattern != nil {
 		board = a.Pattern.Board
+		if b := g.boardByID(board); b != nil {
+			defer g.onBoard(b)()
+		}
 	}
 	if !res.Solved {
 		return g.failed(c, a.Spec.Family, a.Spec.Place, res, tick, retryTicks, fact.S("board", board))
@@ -509,11 +516,16 @@ func (g *Game) patternCommit(c *Char, b *Board, point int, value, t int64) error
 // and most.
 func (g *Game) patternHaywire(c *Char, b *Board, cause fact.ID, t int64) error {
 	p := g.r.Story
-	threat := g.r.draw.Between(p.HaywireLeast, p.HaywireMost, haywireDraw, draw.Str(b.ID), draw.Int(b.P.Attempts))
+	// A staged board raises no region's threat.
+	var threat int64
+	staged := g.boardStage(b) != nil
+	if !staged {
+		threat = g.r.draw.Between(p.HaywireLeast, p.HaywireMost, haywireDraw, draw.Str(b.ID), draw.Int(b.P.Attempts))
+	}
 	id, err := g.worldFact(b.Centre, "pattern.haywire", []fact.Ref{boardRef(b.ID), char.Ref(c.C.ID)}, []fact.ID{cause},
 		append([]fact.Datum{fact.S("board", b.ID), fact.N("threat", threat), fact.N("attempts", b.P.Attempts), fact.N("wrong", b.P.Wrong)},
 			fact.At(b.Centre)...)...)
-	if err != nil {
+	if err != nil || staged {
 		return err
 	}
 	g.Pending = append(g.Pending, world.Action{Kind: world.ActSurge, Hex: b.Centre, Units: threat, Cause: id})
@@ -531,15 +543,21 @@ func (b *Board) solvers() tally.Tally {
 
 // patternSolved writes the solve and fires its opens in row order. A
 // board that opens a fact is solved in the world's hearing, not only its
-// region's. An open with Waits set opens nothing.
+// region's. An open with Waits set opens nothing. A staged board opens
+// nothing of its row's: it pays its stage's cache.
 func (g *Game) patternSolved(b *Board, row *sheets.PatternPuzzle, cause fact.ID, t int64) error {
 	by := b.solvers()
 	subjects := []fact.Ref{boardRef(b.ID)}
 	for _, s := range by {
 		subjects = append(subjects, char.Ref(s.Key))
 	}
+	st := g.boardStage(b)
+	opens := row.Opens
+	if st != nil {
+		opens = nil
+	}
 	region := ""
-	if r := g.World.RegionAt(b.Centre); r >= 0 && !slices.ContainsFunc(row.Opens, func(o sheets.PatternOpen) bool { return o.Kind == openFact }) {
+	if r := g.World.RegionAt(b.Centre); r >= 0 && !slices.ContainsFunc(opens, func(o sheets.PatternOpen) bool { return o.Kind == openFact }) {
 		region = world.RegionRef(r)
 	}
 	solved, err := g.regionFact(region, "pattern.solved", subjects, []fact.ID{cause},
@@ -547,7 +565,10 @@ func (g *Game) patternSolved(b *Board, row *sheets.PatternPuzzle, cause fact.ID,
 	if err != nil {
 		return err
 	}
-	for _, o := range row.Opens {
+	if st != nil {
+		return g.stagedCache(st, b, solved, t)
+	}
+	for _, o := range opens {
 		if o.Waits != "" {
 			continue
 		}

@@ -394,6 +394,13 @@ func (g *Game) machineArm(c *Char, cmd Command) error {
 	if m == nil {
 		return refuse(BadArgs, "arming names a machine: a beat's or a pouch's")
 	}
+	st, err := g.vaultFor(c, cmd)
+	switch {
+	case err != nil:
+		return err
+	case st != nil:
+		return g.vaultArm(c, cmd, st)
+	}
 	if partySource(m.Source) {
 		return g.partyArm(c, cmd)
 	}
@@ -437,7 +444,7 @@ func (g *Game) machineArm(c *Char, cmd Command) error {
 	c.Worked++
 	c.LastMachine = nil
 	c.Lockdowns = slices.DeleteFunc(c.Lockdowns, func(l Lockdown) bool { return l.Until <= tick })
-	_, err := g.fact(c, "machine.armed", tick, fact.S("family", spec.Family), fact.N("level", spec.Level), fact.S("source", m.Source))
+	_, err = g.fact(c, "machine.armed", tick, fact.S("family", spec.Family), fact.N("level", spec.Level), fact.S("source", m.Source))
 	return err
 }
 
@@ -445,7 +452,14 @@ func (g *Game) machineArm(c *Char, cmd Command) error {
 // is read on the service's clock: the arming's against this command's.
 func (g *Game) machineSolve(c *Char, cmd Command) ([]fight.Pressed, *puzzle.Result, error) {
 	a := c.Armed
-	if a == nil && (cmd.Machine != nil && partySource(cmd.Machine.Source) || g.sharedOf(c) != nil) {
+	sh := g.sharedOf(c)
+	if st := g.vaultOfChar(a, sh); st != nil || cmd.Target != "" {
+		if st == nil || st.ID != cmd.Target && cmd.Target != "" {
+			return nil, nil, refuse(BadArgs, "a machine solve names a stage only for its vault")
+		}
+		return g.vaultSolve(c, cmd, sh, st)
+	}
+	if a == nil && (cmd.Machine != nil && partySource(cmd.Machine.Source) || sh != nil) {
 		return g.partySolve(c, cmd)
 	}
 	if a == nil {
@@ -544,7 +558,10 @@ func (g *Game) haywired(c *Char, place, haywire string, at hex.Hex, tick, least 
 	if row := g.Puzzles().HaywireRow(haywire); row != nil {
 		switch row.Effect {
 		case puzzle.EffectAlarm:
-			g.alarm(c, at, row.Magnitude)
+			// A staged thing raises no region's threat.
+			if g.staging == nil {
+				g.alarm(c, at, row.Magnitude)
+			}
 		case puzzle.EffectLockdown:
 			shut = max(shut, row.Magnitude*sheets.TicksPerDay)
 		}
