@@ -296,6 +296,9 @@ func TestStagedHardship(t *testing.T) {
 				if a == nil || a.By != ByServer || a.Staging != st.ID || a.Place != goal.SettlementRef(home) || g.placeTaken(home) {
 					t.Fatalf("hardship arc: %+v", a)
 				}
+				if v := g.storyView(); v.Busy(arc.Settlement, arc.SettlementRef(home)) || slices.ContainsFunc(a.Cast, func(b arc.Binding) bool { return v.Busy(arc.Settlement, b.Ref) }) {
+					t.Fatalf("a staged hardship binds its place or cast for the director: %+v", a.Cast)
+				}
 				if err := g.castHardship(st, g.Tick()); !refusedAs(err, SlotBusy) {
 					t.Fatalf("a second staged hardship at the place: %v", err)
 				}

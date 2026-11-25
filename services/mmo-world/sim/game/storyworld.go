@@ -241,7 +241,9 @@ func (v *storyView) Pending(kind string) []arc.Pending {
 }
 
 // Busy reports whether ref is resting at scope or bound by an open arc of
-// that scope: in its cast, its regions, its place or its character.
+// that scope: in its cast, its regions, its place or its character. A
+// server's staged hardship binds nothing the director casts, so staging
+// never moves the world's own troubles (GDD 14.5).
 func (v *storyView) Busy(scope string, ref fact.Ref) bool {
 	s := v.g.Story
 	if s == nil {
@@ -254,7 +256,7 @@ func (v *storyView) Busy(scope string, ref fact.Ref) bool {
 		}
 	}
 	for _, a := range s.Arcs {
-		if !a.over() && a.Scope == scope && a.binds(ref) {
+		if !a.over() && a.By != ByServer && a.Scope == scope && a.binds(ref) {
 			return true
 		}
 	}
