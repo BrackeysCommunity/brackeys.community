@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/goal"
 )
 
 // Staged facts (GDD 14.5 rule 6): a fact an operator's command, a staged
@@ -36,9 +37,20 @@ func (g *Game) stagingFor(cmd Command) func() {
 	return func() { g.stagedBy, g.ownCmd = was, wasOwn }
 }
 
-// stampOf is a command's stamp: an operator kind's own, or a press on a
-// staged hunt's; nil for any other.
+// stampOf is a command's stamp: a server's for its staging and pins, the
+// stage's server's for work on a stage, an operator kind's own, or a press
+// on an operator's hunt; nil for any other.
 func (g *Game) stampOf(cmd Command) *fact.Ref {
+	switch cmd.Kind {
+	case Staging, HousePin, HouseUnpin:
+		if cmd.Server != "" {
+			return serverStamp(cmd.Server)
+		}
+	case StagingEnd, CrateOpen, MachineArm, MachineSolve, HuntPress:
+		if st := g.cmdStage(cmd); st != nil {
+			return serverStamp(st.Server)
+		}
+	}
 	switch {
 	case Operator(cmd.Kind) && !slices.Contains(unstagedKinds, cmd.Kind):
 		return &fact.Ref{Kind: stampOperator, ID: cmd.Kind}
@@ -94,6 +106,13 @@ func (g *Game) stampFor(f *fact.Fact) *fact.Ref {
 		s := *g.stagedBy
 		return &s
 	}
+	if g.Live != nil {
+		for _, ref := range f.Subjects {
+			if s := g.serverStaged(ref); s != nil {
+				return s
+			}
+		}
+	}
 	for _, ref := range f.Subjects {
 		switch ref.Kind {
 		case kindHunt:
@@ -132,10 +151,43 @@ func (g *Game) stampFor(f *fact.Fact) *fact.Ref {
 	return nil
 }
 
-// structural: the ref kinds a staged hunt and arc are named by.
+// serverStaged is the stamp of the server whose stage a subject is or
+// belongs to: the stage, its hunt, its arc or its contest; nil for any
+// other.
+func (g *Game) serverStaged(ref fact.Ref) *fact.Ref {
+	id := ""
+	switch ref.Kind {
+	case kindStage:
+		id = ref.ID
+	case kindHunt:
+		if x := g.HuntByID(ref.ID); x != nil {
+			id = x.Stage
+		}
+	case kindArc:
+		if g.Story != nil {
+			if a := g.arcByID(ref.ID); a != nil {
+				id = a.Staging
+			}
+		}
+	case kindGoal:
+		if x := g.GoalOf(ref.ID); x != nil && x.Issuer.Kind == goal.ByStaged {
+			id = x.Issuer.ID
+		}
+	}
+	if st := g.StageByID(id); st != nil {
+		return serverStamp(st.Server)
+	}
+	return nil
+}
+
+func serverStamp(server string) *fact.Ref { return &fact.Ref{Kind: stampServer, ID: server} }
+
+// structural: the ref kinds a staged hunt, arc, stage and goal are named by.
 const (
-	kindHunt = "hunt"
-	kindArc  = "arc"
+	kindHunt  = "hunt"
+	kindArc   = "arc"
+	kindStage = "stage"
+	kindGoal  = "goal"
 )
 
 // namesCharacter reports whether a fact names a character among its

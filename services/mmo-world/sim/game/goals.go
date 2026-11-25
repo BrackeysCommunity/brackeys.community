@@ -67,7 +67,7 @@ func (g *Game) GoalOf(id string) *Goal {
 // cmpID orders ids by length then text, so q-9 sorts before q-10.
 func cmpID(a, b string) int { return cmp.Or(cmp.Compare(len(a), len(b)), cmp.Compare(a, b)) }
 
-func goalRef(id string) fact.Ref { return fact.Ref{Kind: "goal", ID: id} }
+func goalRef(id string) fact.Ref { return fact.Ref{Kind: kindGoal, ID: id} }
 
 // goalPool is a goal's escrow.
 func goalPool(id string) string { return ledger.EscrowPool(id) }
@@ -1176,8 +1176,15 @@ func (g *Game) creditGoals(from fact.ID, key string) error {
 }
 
 // mayClaim refuses work toward a syndicate job by anyone not made (GDD
-// 4.5): it counts nothing of theirs and takes none of their coin.
+// 4.5): it counts nothing of theirs and takes none of their coin. A staged
+// contest counts nothing of its stager's.
 func (g *Game) mayClaim(x *Goal, who string) error {
+	if x.Issuer.Kind == goal.ByStaged {
+		if st := g.StageByID(x.Issuer.ID); st != nil && st.By == who {
+			return refuse(StagedOwn, "%s staged %s: it takes nothing from it", who, st.ID)
+		}
+		return nil
+	}
 	if x.Issuer.Kind != goal.BySyndicate {
 		return nil
 	}
@@ -1204,6 +1211,11 @@ func (g *Game) payClaims(x *Goal, claims []goal.Claim, key string) error {
 		}
 		if err := g.release(x, cl.Who, key); err != nil {
 			return err
+		}
+		if x.Issuer.Kind == goal.ByStaged {
+			if err := g.stagedPrize(x, cl, key); err != nil {
+				return err
+			}
 		}
 		if c := g.Char(cl.Who); c != nil {
 			c.C.Goals.Bump("met", 1)

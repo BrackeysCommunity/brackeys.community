@@ -703,10 +703,10 @@ func signature(x *Goal) string {
 // lined reports whether a goal keeps a line: a Defeat, which could stand
 // unmet into a legend, or a settlement's own goal, which could renew into
 // a custom. Hidden goals, arc sides, calls for help, vows and a party's
-// or a character's own scope keep none.
+// or a character's own scope keep none, nor does a server's staged contest.
 func lined(x *Goal) bool {
 	switch {
-	case x.Hidden, x.Cond.Verb == goal.Back, x.Cond.Verb == goal.Carry, x.Cond.Abstains():
+	case x.Hidden, x.Cond.Verb == goal.Back, x.Cond.Verb == goal.Carry, x.Cond.Abstains(), x.Issuer.Kind == goal.ByStaged:
 		return false
 	case x.Scope == goal.Personal, x.Scope == goal.Party:
 		return false

@@ -6,6 +6,7 @@ import (
 
 	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
+	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tile"
 	"jams.team/mmo-world/sim/world"
 )
@@ -39,8 +40,7 @@ func (g *Game) pinReserve(cmd Command) error {
 	if err != nil {
 		return err
 	}
-	_, err = g.World.Reserve(g.Log, p.At, p.Reach, p.Fix, by)
-	return refusedFrom(err)
+	return g.placePin(p.At, p.Reach, p.Fix, by, false)
 }
 
 func (g *Game) pinEdit(cmd Command) error {
@@ -48,15 +48,103 @@ func (g *Game) pinEdit(cmd Command) error {
 	if err != nil {
 		return err
 	}
-	if p.Fix.Replans() && g.delvedAt(p.At) {
-		return refuse(world.CodePinEntered, "the dungeon on %s has been entered", p.At.Ref())
+	return g.placePin(p.At, p.Reach, p.Fix, by, true)
+}
+
+// placePin reserves an unreached tile or edits a reached one, once the
+// world's checks pass. An edit sent with no reach reaches as little as
+// any pin may.
+func (g *Game) placePin(at hex.Hex, reach int64, fix tile.Fix, by world.PinBy, edit bool) error {
+	if !edit {
+		_, err := g.World.Reserve(g.Log, at, reach, fix, by)
+		return refusedFrom(err)
 	}
-	if p.Fix.Replans() && g.reachGoalAt(p.At) {
-		return refuse(world.CodePinEntered, "an open goal reaches into the dungeon on %s", p.At.Ref())
+	if fix.Replans() && g.delvedAt(at) {
+		return refuse(world.CodePinEntered, "the dungeon on %s has been entered", at.Ref())
 	}
-	// An edit sent with no reach reaches as little as any pin may.
-	_, err = g.World.EditPin(g.Log, p.At, max(p.Reach, 1), p.Fix, by)
+	if fix.Replans() && g.reachGoalAt(at) {
+		return refuse(world.CodePinEntered, "an open goal reaches into the dungeon on %s", at.Ref())
+	}
+	_, err := g.World.EditPin(g.Log, at, max(reach, 1), fix, by)
 	return refusedFrom(err)
+}
+
+func init() {
+	registerHouse(HousePin, housePin)
+	registerHouse(HouseUnpin, houseUnpin)
+}
+
+// housePin is a pin from a server's console (GDD 14.5): its admins and
+// staff pin inside the region of a settlement its guild runs, under the
+// guild's name, reserving an unreached tile or editing a reached one.
+// Staff pay the staff row's event points from that settlement's pool at
+// the order; nothing comes back on withdrawal.
+func housePin(g *Game, c *Char, cmd Command) error {
+	p := cmd.Pin
+	if p == nil {
+		return refuse(BadArgs, "%s carries a pin", cmd.Kind)
+	}
+	role, gd, err := g.houseRole(cmd, houseWide)
+	if err != nil {
+		return err
+	}
+	region := g.r.Gen.RegionOf(p.At)
+	n := slices.IndexFunc(g.Places, func(pl *Place) bool { return pl.Guild == gd.G.ID && g.r.Gen.RegionOf(pl.Hex) == region })
+	if n < 0 {
+		return refuse(HouseScope, "%s runs no settlement in the region of %s", gd.G.Name, p.At.Ref())
+	}
+	if pl := g.PlaceAt(p.At); pl != nil && pl.Lattice < 0 {
+		return refuse(world.CodePinGround, "%s holds a settlement", p.At.Ref())
+	}
+	var points int64
+	if role == RoleStaff {
+		if l := g.pinLimit(world.PinStaff); l != nil {
+			points = l.Points
+		}
+		if have := g.PoolOf(cmd.Server, n); have < points {
+			return refuse(PoolShort, "a staff pin costs %d event points and the pool holds %d", points, have)
+		}
+	}
+	by := world.PinBy{Role: role, Server: cmd.Server, Char: c.C.ID, Label: gd.G.Name, Region: &region}
+	if err := g.placePin(p.At, max(p.Reach, 1), p.Fix, by, g.World.Content(p.At) != nil); err != nil {
+		return err
+	}
+	g.payPool(cmd.Server, n, points)
+	return nil
+}
+
+// houseUnpin withdraws one of the server's own pins from its console:
+// its admins any of them, its staff only a staff pin.
+func houseUnpin(g *Game, _ *Char, cmd Command) error {
+	p := cmd.Pin
+	if p == nil || p.Pin == "" {
+		return refuse(BadArgs, "%s names a pin", cmd.Kind)
+	}
+	role, _, err := g.houseRole(cmd, houseWide)
+	if err != nil {
+		return err
+	}
+	if i := slices.IndexFunc(g.World.Pins, func(x world.Pin) bool { return x.ID == p.Pin }); i >= 0 {
+		by := g.World.Pins[i].By
+		switch {
+		case by.Server != cmd.Server || !slices.Contains([]string{world.PinAdmin, world.PinStaff}, by.Role):
+			return refuse(HouseScope, "%s was not placed from this server", p.Pin)
+		case role == RoleStaff && by.Role != world.PinStaff:
+			return refuse(HouseRoleCode, "%s was placed by the server's admins", p.Pin)
+		}
+	}
+	_, err = g.World.Withdraw(g.Log, p.Pin)
+	return refusedFrom(err)
+}
+
+// pinLimit is a role's map.pin-limits row, or nil.
+func (g *Game) pinLimit(role string) *sheets.PinLimit {
+	for i := range g.r.Book.PinLimits {
+		if g.r.Book.PinLimits[i].Role == role {
+			return &g.r.Book.PinLimits[i]
+		}
+	}
+	return nil
 }
 
 func (g *Game) pinWithdraw(cmd Command) error {
