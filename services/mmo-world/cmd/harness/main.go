@@ -19,6 +19,12 @@
 //	harness season -out DIR  season zero headless: 20 scripted players over 15 world days (-n seeds)
 //	harness season -live URL -out DIR
 //	                         season zero over HTTP on a live disposable world at URL (MMO_OPERATOR_TOKEN; -n ignored)
+//	harness search -out DIR  the Search run aimed at staging: a climb over staging policies against an unstaged twin,
+//	                         the best confirmed at -n; staging-stays-local, staged-goods-local and staged-xp-cap
+//	harness terrain -out DIR the terrain sweep: random terrain pins on -n seeds, refusals by code, and what
+//	                         every accepted pin keeps (terrain-pins-hold)
+//	harness seen -out DIR    the per-server seen record over the content run's histories, and its four verdict
+//	                         lines (-n seeds per history; measures no target)
 //	harness spike-a|b|e -out DIR
 //
 // -cpuprofile FILE writes a CPU profile of any of them.

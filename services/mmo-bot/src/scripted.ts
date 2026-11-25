@@ -12,6 +12,7 @@ import { type Card, problems } from "./card.ts";
 import { NARRATION_DAY_USD } from "./config.ts";
 import { answer, type Answer, type Ctx, launchFor, modalFor, type Press } from "./flow.ts";
 import { memoryStore } from "./forum.ts";
+import { Houses, memoryHeldNames } from "./house.ts";
 import { HuntPoster } from "./hunts.ts";
 import { decodeId, type Id } from "./ids.ts";
 import { Lexicon } from "./lexicon.ts";
@@ -20,7 +21,9 @@ import { PartyPoster } from "./party.ts";
 import { ThreadBudget } from "./publish.ts";
 import { recording } from "./record.ts";
 import { isFlight, SYNDICATE, syndicateName } from "./screens/crime.ts";
+import { hexDistance } from "./screens/hunt.ts";
 import { LISTS } from "./screens/market.ts";
+import { dropCard } from "./screens/staged.ts";
 import { httpWorld, type World } from "./world.ts";
 
 /** Whether a select is for action and, given a target, offers it. */
@@ -516,6 +519,9 @@ interface Counted {
   problems: string[];
 }
 
+/** The server a scripted member presses from, and the flags Discord gives it there. */
+type Member = Pick<Press, "guild" | "guildName" | "admin" | "staff">;
+
 /** One scripted player pressing only what the bot's cards offer. */
 class Player {
   card!: Card;
@@ -528,14 +534,17 @@ class Player {
     private readonly run: Counted,
     private readonly names: Set<string>,
     private readonly onAnswer: (a: Answer) => Promise<void>,
+    private readonly as: Member = { guild: "scripted" },
   ) {}
 
-  async send(p: Omit<Press, "user" | "interaction" | "guild" | "channel">): Promise<Card> {
+  async send(
+    p: Omit<Press, "user" | "interaction" | "guild" | "channel" | keyof Member>,
+  ): Promise<Card> {
     this.run.presses++;
     const a = await answer(this.ctx, {
       ...p,
+      ...this.as,
       user: this.user,
-      guild: "scripted",
       channel: "scripted-channel",
       interaction: `scripted-${this.user}-${++this.seq}`,
     });
@@ -577,6 +586,14 @@ class Player {
 
   has(action: string, target?: string) {
     return this.ids(action, target).length > 0;
+  }
+
+  /** The first option of the card's select for action. */
+  first(action: string): string | undefined {
+    for (const r of this.card.rows)
+      if ("select" in r && decodeId(r.select.customId)?.action === action)
+        return r.select.options[0]?.value;
+    return undefined;
   }
 
   async press(action: string, target?: string, value?: string): Promise<Card> {
@@ -1190,6 +1207,365 @@ export async function crimeRun(
   }
 }
 
+/** A staging as the house walk read it back from its server's house. */
+export interface StagedRead {
+  id: string;
+  template: string;
+  by: string;
+  points: number;
+  open: boolean;
+}
+
+/** A row of a server's public log, as the walk read it. */
+export interface LoggedRow {
+  role: string;
+  kind: string;
+  what: string;
+  points: number;
+}
+
+/** What the house walk did (GDD 14.1 to 14.5): members of two servers on one world. */
+export interface HouseRun extends Counted {
+  servers: [string, string];
+  characters: { admin: string; staff: string; player: string; other: string };
+  /** What a member of A with neither flag was shown for /admin and /staff. */
+  noConsole: string[];
+  /** Whether either of those cards offered staging. */
+  unflaggedStaged: boolean;
+  /** The console's answer to the admin's staging, then the staff member's. */
+  staged: string[];
+  /** A's stages as its house lists them after both stagings. */
+  stages: StagedRead[];
+  /** The pool of A's settlement at each step, and what the staff template costs from it. */
+  pool: {
+    before: number;
+    afterAdmin: number;
+    afterStaff: number;
+    afterRefused: number;
+    points: number;
+  };
+  /** B's staff pressing A's staging: the bot's answer, whether it wrote, and the world's refusal of the same order. */
+  refused: { card: string; wrote: boolean; code: string };
+  /** The crate A's player opened: the card once opened, and the staged goods its sheet then carries. */
+  crate: { title: string; text: string; staged: string[] };
+  houseLog: LoggedRow[];
+  otherLog: number;
+  audit: string[];
+  log: string[];
+}
+
+// structural: the templates the walk stages, how many times it presses on
+// towards the drop before giving up, and how long it waits on a long action.
+const HOUSE_DROP = "drop-large";
+const HOUSE_HUNT = "hunt-2";
+const HOUSE_HUNT_TIER = 2;
+const WALK_TRIES = 40;
+const IDLE_POLLS = 1_200;
+const IDLE_POLL_MS = 500;
+
+/** A World that also keeps each write's kind, server, character and refusal code. */
+function keepingWrites(
+  world: World,
+  kept: { kind: string; server?: string; character: string; code: string }[],
+): World {
+  return {
+    ...world,
+    act: async (req) => {
+      const r = await world.act(req);
+      kept.push({
+        kind: req.kind,
+        server: req.server,
+        character: req.characterId ?? "",
+        code: r.ok ? "" : r.refusal.code,
+      });
+      return r;
+    },
+  };
+}
+
+/** Why a house walk does not hold, one line each; empty when it holds. */
+export function houseMisses(r: HouseRun): string[] {
+  const out: string[] = [];
+  const miss = (bad: boolean, why: string) => bad && out.push(why);
+  miss(r.problems.length > 0, `${r.problems.length} card problems`);
+  miss(r.unflaggedStaged, "a member with neither flag was offered staging");
+  const drop = r.stages.find((s) => s.template === HOUSE_DROP);
+  const hunt = r.stages.find((s) => s.template !== HOUSE_DROP);
+  miss(!drop || drop.by !== "admins" || drop.points !== 0, "no free drop staged by the admins");
+  miss(
+    !hunt || hunt.by !== "staff" || hunt.points !== r.pool.points,
+    "no tier 2 hunt staged by staff at its price",
+  );
+  miss(r.pool.afterAdmin !== r.pool.before, "the admin's staging moved the pool");
+  miss(
+    r.pool.afterStaff !== r.pool.afterAdmin - r.pool.points,
+    `the staff staging took ${r.pool.afterAdmin - r.pool.afterStaff} event points, not ${r.pool.points}`,
+  );
+  miss(r.pool.afterRefused !== r.pool.afterStaff, "the refused staging moved the pool");
+  miss(r.refused.wrote, "the bot sent server B's staging of server A's settlement");
+  miss(r.refused.code !== api.CodeHouseScope, `the world answered B's staging "${r.refused.code}"`);
+  miss(!r.crate.text.includes("staged · local to"), "the opened crate shows no staged tag");
+  miss(r.crate.staged.length === 0, "the player carries no staged goods after the crate");
+  const roles = r.houseLog.map((x) => x.role).sort();
+  miss(
+    r.houseLog.length !== 2 || roles.join() !== "admin,staff",
+    `server A's log has ${r.houseLog.length} rows (${roles.join(", ")}), not an admin's and a staff member's`,
+  );
+  const paid = r.houseLog.find((x) => x.role === "staff");
+  miss(
+    !!paid && paid.points !== r.pool.points,
+    "the staff row of the log carries the wrong points",
+  );
+  miss(r.otherLog !== 0, `server B's log has ${r.otherLog} rows after a refused staging`);
+  miss(r.audit.length > 0, `the audit found ${r.audit.length} discrepancies`);
+  return out;
+}
+
+/**
+ * The house walk: on one world, an admin and a staff member of server A
+ * stage a drop and a tier 2 hunt through the consoles, staff of server B
+ * pressing the same staging is refused by the bot and by the world, a
+ * player of A walks to the drop and opens a crate, and A's log holds one
+ * row for each staging. Every press goes through the bot's pure flow.
+ */
+export async function houseRun(
+  ctx: Ctx,
+  opts: {
+    operator?: { url: string; token: string };
+    servers?: [string, string];
+    /** Waits a tick of the world's; by default the operator's clock, else a short sleep. */
+    pass?: () => Promise<void>;
+  } = {},
+): Promise<HouseRun> {
+  const writes: { kind: string; server?: string; character: string; code: string }[] = [];
+  const world = keepingWrites(ctx.world, writes);
+  const c: Ctx = { ...ctx, world };
+  const names = ctx.lex.goodsNames();
+  const stamp = Date.now();
+  const [A, B] = opts.servers ?? [`house-a-${stamp}`, `house-b-${stamp}`];
+  const run: HouseRun = {
+    presses: 0,
+    cards: 0,
+    problems: [],
+    servers: [A, B],
+    characters: { admin: "", staff: "", player: "", other: "" },
+    noConsole: [],
+    unflaggedStaged: false,
+    staged: [],
+    stages: [],
+    pool: { before: 0, afterAdmin: 0, afterStaff: 0, afterRefused: 0, points: 0 },
+    refused: { card: "", wrote: false, code: "" },
+    crate: { title: "", text: "", staged: [] },
+    houseLog: [],
+    otherLog: 0,
+    audit: [],
+    log: [],
+  };
+  const note = (s: string) => run.log.push(s);
+  let pass = opts.pass;
+  const member = (user: string, as: Member) =>
+    new Player(c, `${user}-${stamp}`, run, names, async () => {}, as);
+  const admin = member("house-admin", { guild: A, guildName: "Scripted Crew", admin: true });
+  const staff = member("house-staff", { guild: A, staff: true });
+  const player = member("house-player", { guild: A });
+  const other = member("house-other", { guild: B, guildName: "Far Crew", staff: true });
+  for (const p of [admin, staff, player, other]) {
+    await p.command("play");
+    await p.press("start", "knife");
+    p.id = await world.player(p.user);
+    if (!p.id) throw new Error(`${p.user} made no character: ${p.card.title}`);
+  }
+  run.characters = { admin: admin.id, staff: staff.id, player: player.id, other: other.id };
+
+  const readHouse = async (
+    server: string,
+    who: Player,
+    flags: { admin?: boolean; staff?: boolean },
+  ) => {
+    if (!world.house) throw new Error("the world serves no house");
+    const r = await world.house(server, who.id, flags);
+    if (!r.ok) throw new Error(`the house of ${server}: ${r.refusal.message}`);
+    return r.reply;
+  };
+  const first = await readHouse(A, admin, { admin: true });
+  const home = first.settlements[0];
+  if (!home) throw new Error(`server ${A} runs no settlement yet: run the walk on a fresh world`);
+  const pool = async () =>
+    (await readHouse(A, staff, { staff: true })).settlements.find((s) => s.n === home.n)?.pool ??
+    -1;
+  const huntTemplate =
+    first.templates.find((t) => t.id === HOUSE_HUNT) ??
+    first.templates.find((t) => t.kind === "hunt" && t.tier === HOUSE_HUNT_TIER && t.staff);
+  if (!huntTemplate) throw new Error("no tier 2 hunt template a staff member may stage");
+  run.pool.before = await pool();
+  run.pool.points = huntTemplate.points;
+  note(
+    `server ${A} runs ${home.name} (settlement ${home.n}), pool ${run.pool.before} of ${home.poolCap}`,
+  );
+
+  // A member with neither flag gets no console.
+  for (const name of ["admin", "staff"]) {
+    await player.command(name);
+    run.noConsole.push(player.card.title);
+    run.unflaggedStaged ||= player.has("hs-stage") || player.has("hs-go");
+  }
+
+  /** Stages a template from a console: the template, its creature, the first site, then Stage it. */
+  const stage = async (p: Player, role: "admin" | "staff", template: string): Promise<Id> => {
+    await p.command(role);
+    await p.press("hs-stage");
+    await p.press("hs-tpl", undefined, template);
+    if (p.has("hs-set")) await p.press("hs-set", undefined, String(home.n));
+    if (p.has("hs-what")) await p.press("hs-what", undefined, p.first("hs-what"));
+    if (p.has("hs-site")) await p.press("hs-site", undefined, p.first("hs-site"));
+    const go = p.ids("hs-go")[0];
+    if (!go) throw new Error(`${role}: the staging form will not send: ${p.card.description}`);
+    await p.send({ id: go });
+    run.staged.push(p.card.title);
+    return go;
+  };
+  await stage(admin, "admin", HOUSE_DROP);
+  run.pool.afterAdmin = await pool();
+  const staffGo = await stage(staff, "staff", huntTemplate.id);
+  run.pool.afterStaff = await pool();
+
+  // Staff of B press A's staging: the bot sends nothing, and the world refuses the order itself.
+  await other.command("staff");
+  const before = writes.length;
+  await other.send({ id: staffGo });
+  run.refused.card = other.card.description ?? other.card.title;
+  run.refused.wrote = writes.slice(before).some((w) => w.kind === api.ActStage);
+  const lived = await readHouse(A, staff, { staff: true });
+  const site = lived.stages.find((s) => s.template === huntTemplate.id)?.at ?? home.sites[0]?.at;
+  if (!site) throw new Error(`${home.name} has no site to stage at`);
+  const refusal = await world.act({
+    interactionId: `house-other-${stamp}`,
+    characterId: other.id,
+    version: (await world.options(other.id)).version,
+    kind: api.ActStage,
+    server: B,
+    staff: true,
+    discordId: other.user,
+    stage: { template: huntTemplate.id, settlement: home.n, at: site, hunt: lived.hunts[0] },
+  });
+  run.refused.code = refusal.ok ? "accepted" : refusal.refusal.code;
+  run.pool.afterRefused = await pool();
+  run.stages = lived.stages.map((s) => ({
+    id: s.id,
+    template: s.template,
+    by: s.placed.by,
+    points: s.placed.points ?? 0,
+    open: !!s.open,
+  }));
+
+  // A player of A walks to the drop and opens a crate.
+  const drop = lived.stages.find((s) => s.template === HOUSE_DROP);
+  if (drop) {
+    const post = dropCard(drop);
+    run.cards++;
+    for (const x of problems(post, names)) run.problems.push(`events post ${post.author}: ${x}`);
+    await openCrate(drop);
+  } else note("server A's house lists no drop");
+
+  await admin.command("admin");
+  if (admin.has("hs-log")) await admin.press("hs-log");
+  run.houseLog = (await logOf(A)).map((x) => ({
+    role: x.role,
+    kind: x.kind,
+    what: x.what,
+    points: x.points ?? 0,
+  }));
+  run.otherLog = (await logOf(B)).length;
+  if (opts.operator) {
+    const res = await fetch(`${opts.operator.url}${api.PathOperatorAudit}`, {
+      headers: { authorization: `Bearer ${opts.operator.token}` },
+    });
+    run.audit = ((await res.json()) as api.Audit).discrepancies ?? [];
+  }
+  return run;
+
+  async function logOf(server: string): Promise<api.LogRow[]> {
+    if (!world.houseLog) return [];
+    const rows: api.LogRow[] = [];
+    let after = 0;
+    for (;;) {
+      const page = await world.houseLog(server, after);
+      const fresh = page.rows.filter((x) => x.id > after);
+      rows.push(...fresh);
+      if (!fresh.length || page.next <= after) return rows;
+      after = page.next;
+    }
+  }
+
+  async function idle() {
+    if (!pass) {
+      const clock = opts.operator ? await worldClock(opts.operator, world, player.id) : undefined;
+      pass = clock ? () => clock.pass(1) : () => Bun.sleep(IDLE_POLL_MS);
+    }
+    for (let i = 0; i < IDLE_POLLS && (await world.options(player.id)).long; i++) await pass();
+  }
+
+  /** Presses the best win to the end, or backs out when no plain win is offered. */
+  async function fightOut() {
+    await player.hub();
+    if (player.has("fight")) await player.press("fight");
+    for (let i = 0; i < 12 && player.has("press"); i++) {
+      const o = await world.options(player.id);
+      const wins = (o.fight?.options ?? []).filter((x) => x.kind === "win" && !x.puzzle);
+      const best = wins.sort((a, b) => ctx.lex.bandRank(a.band) - ctx.lex.bandRank(b.band))[0];
+      await player.press("press", best ? best.id : "back-out");
+    }
+  }
+
+  /**
+   * Presses the crate from the events post wherever the player stands,
+   * takes the card's Go there once, and steps the rest of the way where
+   * no known way leads there.
+   */
+  async function openCrate(st: api.StageView) {
+    const crate: Id = { action: "crate", target: st.id, version: 0 };
+    const on = (at: api.Hex) => at.q === st.at.q && at.r === st.at.r;
+    await player.send({ id: crate });
+    note(`off the drop's tile: ${player.card.title}`);
+    if (player.has("goto")) {
+      await player.press("goto");
+      await idle();
+    }
+    for (let i = 0; i < WALK_TRIES; i++) {
+      const o = await world.options(player.id);
+      if (on(o.at)) break;
+      if (o.long) await idle();
+      else if (o.fight) await fightOut();
+      else if (o.conditions.includes(api.CondDown)) {
+        await player.hub();
+        if (player.has("crawl")) await player.press("crawl");
+        await idle();
+      } else {
+        const next = o.moves
+          .filter((m) => m.open)
+          .sort((a, b) => hexDistance(a.to, st.at) - hexDistance(b.to, st.at))[0];
+        if (!next || hexDistance(next.to, st.at) >= hexDistance(o.at, st.at)) {
+          note(`no open step brings the player nearer the drop from ${o.at.q},${o.at.r}`);
+          break;
+        }
+        await player.command("map");
+        await player.press("step", String(next.dir));
+        await idle();
+      }
+    }
+    await player.send({ id: crate });
+    run.crate.title = player.card.title;
+    run.crate.text = player.card.description ?? "";
+    const sheet = await world.sheet(player.id);
+    run.crate.staged = sheet.character.goods
+      .filter((g) => g.staged)
+      .map(
+        (g) =>
+          `${g.units} ${g.material} (${ctx.lex.material(g.material)}, from settlement ${g.staged!.settlement})`,
+      );
+  }
+}
+
 export type NarrationMode = "off" | "stub";
 
 /** --narration off|stub, off when absent; a message when the value is neither. */
@@ -1348,7 +1724,32 @@ if (import.meta.main && process.env.SCRIPTED === "crime") {
   );
 }
 
-if (import.meta.main && !["party", "crime"].includes(process.env.SCRIPTED ?? "")) {
+// Every model use stays off: the house walk proves the consoles, not the narration.
+if (import.meta.main && process.env.SCRIPTED === "house") {
+  const url = process.env.MMO_WORLD_URL ?? "http://localhost:8080";
+  const world = httpWorld(url, process.env.MMO_API_TOKEN ?? "");
+  const lex = new Lexicon(await world.lexicon());
+  const ctx: Ctx = {
+    world,
+    lex,
+    threatLine: lex.numbers.ambushLine,
+    house: new Houses(world, { held: memoryHeldNames() }),
+  };
+  const started = Date.now();
+  const r = await houseRun(ctx, {
+    operator: { url, token: process.env.MMO_OPERATOR_TOKEN ?? "local-operator" },
+  }).catch((e: unknown) => {
+    console.error(e);
+    process.exit(2);
+  });
+  const misses = houseMisses(r);
+  console.log(
+    JSON.stringify({ ...r, misses, seconds: Math.round((Date.now() - started) / 1000) }, null, 2),
+  );
+  process.exit(misses.length ? 1 : 0);
+}
+
+if (import.meta.main && !["party", "crime", "house"].includes(process.env.SCRIPTED ?? "")) {
   const url = process.env.MMO_WORLD_URL ?? "http://localhost:8080";
   const samples: Record<string, unknown> = {};
   const base: World = httpWorld(url, process.env.MMO_API_TOKEN ?? "");
