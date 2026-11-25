@@ -114,11 +114,17 @@ func (g *Game) give(c *Char, cmd Command) error {
 	} else {
 		material, isGoods := ledger.GoodsOf(cmd.Asset)
 		isGoods = isGoods && g.tradable(material)
-		if cmd.Units <= 0 || g.Ledger.Of(from, cmd.Asset) < cmd.Units || (cmd.Asset != ledger.Coin && !isGoods) {
+		// Staged goods pass hand to hand as they are: never hot, and still
+		// staged (GDD 14.5).
+		_, stagedM, isStaged := ledger.StagedOf(cmd.Asset)
+		if isStaged = isStaged && g.isMaterial(ledger.Material(stagedM)); isStaged {
+			material = stagedM
+		}
+		if cmd.Units <= 0 || g.Ledger.Of(from, cmd.Asset) < cmd.Units || (cmd.Asset != ledger.Coin && !isGoods && !isStaged) {
 			return refuse(BadArgs, "%s does not carry %d %s", c.C.ID, cmd.Units, cmd.Asset)
 		}
 		value := cmd.Units
-		if isGoods {
+		if isGoods || isStaged {
 			value *= g.r.Values.Asset(material)
 		}
 		if err := g.canGive(c, value); err != nil {

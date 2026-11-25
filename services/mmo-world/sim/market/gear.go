@@ -18,6 +18,9 @@ type Listing struct {
 	Placed     int64          `json:"placed"`
 	Expires    int64          `json:"expires"`
 	Seq        int64          `json:"seq"`
+	// Staged marks a staged item's listing: only at its origin, only to
+	// players, and with no fee (GDD 10.8).
+	Staged bool `json:"staged,omitempty"`
 }
 
 // Floor is what a buy order for gear requires of an item.

@@ -5,6 +5,7 @@ import (
 	"iter"
 	"slices"
 	"strconv"
+	"strings"
 
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fixed"
@@ -23,6 +24,8 @@ type Week struct {
 	Fees    int64       `json:"fees"`
 	Between int64       `json:"between"` // coin that changed hands between characters
 	Traded  tally.Tally `json:"traded"`  // units by material
+	// Staged is coin traded on staged books and listings, by server.
+	Staged tally.Tally `json:"staged,omitempty"`
 }
 
 func newWeek(day int64) Week { return Week{From: day, Traded: tally.Tally{}} }
@@ -56,6 +59,55 @@ type Report struct {
 	Fees      int64    `json:"fees"`
 	Top       []Traded `json:"top"`
 	Audit     int      `json:"audit"` // discrepancies the conservation check found
+	// Staged are each server's staged goods, apart from every line above.
+	Staged []StagedLine `json:"staged,omitempty"`
+}
+
+// StagedLine is one server's staged goods (GDD 14.5): units minted from
+// any source, held anywhere, and spent into a sink by crafts, salvage,
+// expiry or forgetting, so Minted is Held plus Spent; and the week's coin
+// traded on its staged books and listings.
+type StagedLine struct {
+	Server string `json:"server"`
+	Minted int64  `json:"minted"`
+	Held   int64  `json:"held"`
+	Spent  int64  `json:"spent"`
+	Traded int64  `json:"traded"`
+}
+
+// StagedLines are each server's staged line as the ledger stands, with
+// the week's staged trading, by server; none in a world nothing was
+// staged in.
+func (g *Game) StagedLines() []StagedLine {
+	var out []StagedLine
+	line := func(server string) *StagedLine {
+		i, ok := slices.BinarySearchFunc(out, server, func(l StagedLine, s string) int { return cmp.Compare(l.Server, s) })
+		if !ok {
+			out = slices.Insert(out, i, StagedLine{Server: server})
+		}
+		return &out[i]
+	}
+	for _, b := range g.Ledger.Balances {
+		n, _, ok := ledger.StagedOf(b.Asset)
+		if !ok || b.Units == 0 {
+			continue
+		}
+		l := line(g.stagedServer(n))
+		switch {
+		case strings.HasPrefix(b.Account, ledger.Source):
+			l.Minted -= b.Units
+		case strings.HasPrefix(b.Account, ledger.Sink):
+			l.Spent += b.Units
+		default:
+			l.Held += b.Units
+		}
+	}
+	if g.Market != nil {
+		for _, x := range g.Market.Week.Staged {
+			line(x.Key).Traded += x.N
+		}
+	}
+	return out
 }
 
 // Traded is units of one material traded in a week.
@@ -191,6 +243,10 @@ func (g *Game) dayTurn(t int64) error {
 	for _, b := range m.Books {
 		b.CloseDay(day-1, t, g.mp("history-days"), int64(g.cause(b.Settlement, t)))
 	}
+	// A staged book keeps its own history for its card and names no cause.
+	for _, b := range m.Staged {
+		b.CloseDay(day-1, t, g.mp("history-days"), 0)
+	}
 	m.Yesterday, m.Notable = m.Notable, []Trade{}
 	g.tradeDay(day - 1)
 	supply, held, active := g.coinHeld()
@@ -270,6 +326,7 @@ func (g *Game) report(day, supply, active, mean int64) error {
 	slices.SortStableFunc(r.Top, func(a, b Traded) int { return cmp.Compare(b.Units, a.Units) })
 	r.Top = r.Top[:min(len(r.Top), topTraded)]
 	r.Audit = len(ledger.Audit(g.Ledger.Balances, g.Holdings()))
+	r.Staged = g.StagedLines()
 	data := []fact.Datum{fact.N("supply", supply), fact.N("active", active), fact.N("perActive", mean), fact.N("faucet", w.Faucet),
 		fact.N("between", w.Between), fact.N("fees", w.Fees)}
 	for i, x := range r.Top {

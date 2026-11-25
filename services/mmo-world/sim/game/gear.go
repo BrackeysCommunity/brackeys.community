@@ -53,6 +53,9 @@ func (g *Game) list(c *Char, cmd Command) error {
 	if cmd.Price <= 0 {
 		return refuse(BadArgs, "a listing needs a price")
 	}
+	if in.Staged != nil && in.Staged.At != n {
+		return refuse(StagedLocal, "%s is made of goods staged at %s: it is listed only there", in.ID, g.stagedPlace(in.Staged.At))
+	}
 	if err := g.hotItemGuard(in, "", g.SettlementHex(n)); err != nil {
 		return err
 	}
@@ -70,10 +73,17 @@ func (g *Game) list(c *Char, cmd Command) error {
 	return g.offer(l, cmd.Key)
 }
 
-// newListing is a listing placed now.
+// newListing is a listing placed now; a character's staged item is a
+// staged listing, whose escrow may hold it.
 func (g *Game) newListing(n int, seller string, in *item.Instance, price int64) market.Listing {
-	id, seq := g.nextID("l-")
-	return market.Listing{ID: id, Settlement: n, Seller: seller, Item: in, Price: price, Placed: g.Tick(), Expires: g.expiry(), Seq: seq}
+	_, isChar := ledger.CharOf(seller)
+	staged := in.Staged != nil && isChar
+	prefix := "l-"
+	if staged {
+		prefix = stagedListingPrefix
+	}
+	id, seq := g.nextID(prefix)
+	return market.Listing{ID: id, Settlement: n, Seller: seller, Item: in, Price: price, Placed: g.Tick(), Expires: g.expiry(), Seq: seq, Staged: staged}
 }
 
 // offer lists an item and sells it to the gear order that takes it, if
@@ -199,8 +209,15 @@ func (g *Game) sellListing(l market.Listing, buyer, payer string, paid int64, ke
 	if payer != buyer {
 		s.back = paid - l.Price
 	}
+	if l.Staged {
+		s.staged, s.server = true, l.Item.Staged.Server
+	}
 	s.data = func(fee int64) []fact.Datum {
-		return []fact.Datum{fact.S("item", l.Item.ID), fact.S("kind", l.Item.Kind), fact.N("price", l.Price), fact.N("fee", fee)}
+		data := []fact.Datum{fact.S("item", l.Item.ID), fact.S("kind", l.Item.Kind), fact.N("price", l.Price), fact.N("fee", fee)}
+		if l.Staged {
+			data = append(data, fact.B("staged", true))
+		}
+		return data
 	}
 	fid, fee, err := g.settleSale(s, key)
 	if err != nil {
@@ -315,6 +332,9 @@ func (g *Game) sellItem(c *Char, cmd Command) error {
 	in, err := unworn(c, cmd.Item)
 	if err != nil {
 		return err
+	}
+	if in.Staged != nil {
+		return refuse(StagedLocal, "%s is made of staged goods: no trader buys it, only players where it was staged", in.ID)
 	}
 	stub, ok := g.traderStub(c.C.At)
 	if !ok {

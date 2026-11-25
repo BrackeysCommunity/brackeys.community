@@ -162,6 +162,9 @@ func (g *Game) PriceFor(c *Char, h hex.Hex, o FactionOrder) (int64, bool) {
 // sell sells carried goods now to the best bids here, at no less than
 // the price named (any, for none); what finds no buyer stays carried.
 func (g *Game) sell(c *Char, cmd Command) error {
+	if cmd.Staged {
+		return g.stagedOrder(c, cmd, market.Ask, false)
+	}
 	if err := g.wanted(c, cmd.Material, market.Bid); err != nil {
 		return err
 	}
@@ -171,6 +174,9 @@ func (g *Game) sell(c *Char, cmd Command) error {
 // take buys goods now from the best asks here, at no more than the price
 // named (any, for none).
 func (g *Game) take(c *Char, cmd Command) error {
+	if cmd.Staged {
+		return g.stagedOrder(c, cmd, market.Bid, false)
+	}
 	if err := g.wanted(c, cmd.Material, market.Ask); err != nil {
 		return err
 	}
@@ -533,10 +539,13 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 		return err
 	}
 	acc := ledger.Char(c.C.ID)
+	var need []item.Spoil
 	for _, in := range r.Inputs {
-		if g.Ledger.Of(acc, ledger.Material(in.Kind)) < in.Qty {
-			return refuse(BadArgs, "the recipe takes %d %s", in.Qty, in.Kind)
-		}
+		need = item.AddSpoil(need, in.Kind, in.Qty)
+	}
+	origin, err := g.stagedOrigin(c, need)
+	if err != nil {
+		return err
 	}
 	if g.balance(c, ledger.Coin) < ap.Fee {
 		return refuse(BadArgs, "the %s's fee is %d coin", ap.Station.Kind, ap.Fee)
@@ -545,6 +554,24 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 	res, facts, err := g.r.Crafter.Craft(craft.Order{Recipe: r, Station: ap.Station, By: c.C.ID, Tick: t, Press: cmd.Key})
 	if err != nil {
 		return refuse(BadArgs, "%s", err.Error())
+	}
+	if r.Process == item.Compose {
+		g.spare(c, &res, int64(len(r.Inputs)))
+	}
+	// Clean units go first; what staged ones the craft takes keep their
+	// origin in what it makes, its facts are the staging server's, and it
+	// discovers nothing (GDD 14.5 rule 6).
+	clean, staged := g.drawClean(c, res.Consumed)
+	var mark *item.Stage
+	if len(staged) > 0 {
+		mark = &item.Stage{At: origin, Server: g.stagedServer(origin)}
+		defer g.stampedBy(mark.Server)()
+		if res.Discovered {
+			facts = slices.DeleteFunc(facts, func(f fact.Fact) bool { return f.Kind == factKindDiscovered })
+			res.Kind.FirstMaker = ""
+			res.Discovered = false
+			g.nameKind(res.Kind, "")
+		}
 	}
 	if cmd.BackRoom {
 		g.used(c.C.At)
@@ -577,9 +604,6 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 		c.C.Discovered = append(c.C.Discovered, res.Kind.ID)
 		c.C.Discoveries++
 	}
-	if r.Process == item.Compose {
-		g.spare(c, &res, int64(len(r.Inputs)))
-	}
 	// Hot inputs carry their mark into what they make (GDD 6.5); the back
 	// room takes them first and makes them clean.
 	day := t / sheets.TicksPerDay
@@ -587,9 +611,9 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 	var laundered int64
 	restore := holdMarks(c, nil)
 	if cmd.BackRoom {
-		laundered = g.launder(c, res.Consumed, day)
+		laundered = g.launder(c, clean, day)
 	} else {
-		for _, s := range res.Consumed {
+		for _, s := range clean {
 			hot = append(hot, g.consumeHot(c, s.Material, s.Qty, day)...)
 		}
 	}
@@ -597,24 +621,30 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 	if ap.Fee > 0 {
 		legs = append(legs, ledger.Pair(acc, ledger.ToFees, ledger.Coin, ap.Fee)...)
 	}
-	for _, s := range res.Consumed {
+	for _, s := range clean {
 		legs = append(legs, ledger.Pair(acc, ledger.ToCraft, ledger.Material(s.Material), s.Qty)...)
 	}
+	for _, s := range staged {
+		legs = append(legs, ledger.Pair(acc, ledger.ToCraft, ledger.Staged(origin, s.Material), s.Qty)...)
+	}
 	if res.Instance != nil {
+		res.Instance.Staged = mark
 		legs = append(legs, ledger.Pair(ledger.FromCraft, acc, ledger.Item(res.Instance.ID), 1)...)
 	}
 	for _, s := range res.Salvage {
-		legs = append(legs, ledger.Pair(ledger.FromSalvage, acc, ledger.Material(s.Material), s.Qty)...)
+		legs = append(legs, ledger.Pair(ledger.FromSalvage, acc, g.salvageAsset(mark, s.Material), s.Qty)...)
 	}
 	if err := g.receive(c, ledger.Txn{Key: cmd.Key, Kind: "craft", Tick: t, Legs: ledger.Merge(legs)}); err != nil {
 		restore()
 		return err
 	}
-	if mark, ok := latestMark(hot); ok {
+	if hotMark, ok := latestMark(hot); ok {
 		if res.Instance != nil {
-			res.Instance.Hot = &mark
+			res.Instance.Hot = &hotMark
 		}
-		g.markHot(c, res.Salvage, mark)
+		if mark == nil {
+			g.markHot(c, res.Salvage, hotMark)
+		}
 	}
 	if res.Instance != nil {
 		c.C.Pack = append(c.C.Pack, res.Instance)
@@ -630,6 +660,61 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 		return g.levelled(c, tool, res.ToolXP, t)
 	}
 	return nil
+}
+
+// stagedOrigin is the one settlement whose staged units a craft that
+// needs goods would draw on, once the clean units carried run out; -1
+// when clean units cover it. A craft that would need two origins' staged
+// units is refused with staged-local, nothing changed.
+func (g *Game) stagedOrigin(c *Char, need []item.Spoil) (int, error) {
+	var short []item.Spoil
+	for _, s := range need {
+		clean, staged := g.Usable(c, s.Material)
+		if s.Qty <= clean {
+			continue
+		}
+		all := clean
+		for _, x := range staged {
+			all += x.Units
+		}
+		if all < s.Qty {
+			return 0, refuse(BadArgs, "the recipe takes %d %s", s.Qty, s.Material)
+		}
+		short = append(short, item.Spoil{Material: s.Material, Qty: s.Qty - clean})
+	}
+	if len(short) == 0 {
+		return -1, nil
+	}
+	for _, x := range c.C.Staged {
+		if !slices.ContainsFunc(short, func(s item.Spoil) bool { return g.StagedHeld(c, x.At, s.Material) < s.Qty }) {
+			return x.At, nil
+		}
+	}
+	return 0, refuse(StagedLocal, "the recipe would take staged goods of two settlements: a craft keeps to one")
+}
+
+// drawClean splits what a craft consumes into the clean units carried,
+// taken first, and the staged rest.
+func (g *Game) drawClean(c *Char, consumed []item.Spoil) (clean, staged []item.Spoil) {
+	for _, s := range consumed {
+		have, _ := g.Usable(c, s.Material)
+		if n := min(s.Qty, have); n > 0 {
+			clean = item.AddSpoil(clean, s.Material, n)
+		}
+		if n := s.Qty - min(s.Qty, have); n > 0 {
+			staged = item.AddSpoil(staged, s.Material, n)
+		}
+	}
+	return clean, staged
+}
+
+// salvageAsset is what salvage of a material comes out as: staged at the
+// origin of the staged thing it came from, else clean.
+func (g *Game) salvageAsset(from *item.Stage, material string) string {
+	if from != nil {
+		return ledger.Staged(from.At, material)
+	}
+	return ledger.Material(material)
 }
 
 // spare keeps back the components a Kindler's Tinder saves of a Compose,

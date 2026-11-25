@@ -52,7 +52,10 @@ type Market struct {
 	Notable   []Trade `json:"notable"`
 	Yesterday []Trade `json:"yesterday"`
 	Held      []Held  `json:"held"`
-	open      openIndex
+	// Staged are the staged books, by settlement then material, kept
+	// apart from Books so that no price, budget or report reads them.
+	Staged []*market.Book `json:"staged,omitempty"`
+	open   openIndex
 }
 
 // openIndex is how many open orders, listings and gear orders each account
@@ -68,8 +71,10 @@ type openIndex struct {
 // size is how many orders, listings and gear orders are open.
 func (m *Market) size() int64 {
 	n := len(m.Listings) + len(m.Wants)
-	for _, b := range m.Books {
-		n += len(b.Bids) + len(b.Asks)
+	for _, books := range [][]*market.Book{m.Books, m.Staged} {
+		for _, b := range books {
+			n += len(b.Bids) + len(b.Asks)
+		}
 	}
 	return int64(n)
 }
@@ -79,9 +84,11 @@ func (m *Market) openOf(acc string) int64 {
 	x := &m.open
 	if size := m.size(); x.by == nil || x.seq != m.Seq || x.size != size {
 		x.by, x.seq, x.size = map[string]int64{}, m.Seq, size
-		for _, b := range m.Books {
-			for o := range b.Orders() {
-				x.by[o.Owner]++
+		for _, books := range [][]*market.Book{m.Books, m.Staged} {
+			for _, b := range books {
+				for o := range b.Orders() {
+					x.by[o.Owner]++
+				}
 			}
 		}
 		for _, l := range m.Listings {
@@ -268,6 +275,7 @@ type Open struct {
 	Units      int64
 	Expires    int64
 	Escrow     int64 // coin held in escrow
+	Staged     bool  // on a staged book, or a staged item's listing
 }
 
 // Open are an account's open orders, listings and gear orders, in that
@@ -287,17 +295,19 @@ func (g *Game) opens(acc string, escrow bool) iter.Seq[Open] {
 		if m == nil {
 			return
 		}
-		for _, b := range m.Books {
-			for o := range b.Orders() {
-				if (acc == "" || o.Owner == acc) && !yield(Open{ID: o.ID, Owner: o.Owner, Kind: string(o.Side), Settlement: b.Settlement, Material: b.Material, Price: o.Price, Units: o.Qty,
-					Expires: o.Expires, Escrow: coin(o.ID)}) {
-					return
+		for i, books := range [][]*market.Book{m.Books, m.Staged} {
+			for _, b := range books {
+				for o := range b.Orders() {
+					if (acc == "" || o.Owner == acc) && !yield(Open{ID: o.ID, Owner: o.Owner, Kind: string(o.Side), Settlement: b.Settlement, Material: b.Material, Price: o.Price, Units: o.Qty,
+						Expires: o.Expires, Escrow: coin(o.ID), Staged: i > 0}) {
+						return
+					}
 				}
 			}
 		}
 		for _, l := range m.Listings {
 			if (acc == "" || l.Seller == acc) && !yield(Open{ID: l.ID, Owner: l.Seller, Kind: OpenListing, Settlement: l.Settlement, ItemKind: l.Item.Kind, Price: l.Price, Units: 1,
-				Expires: l.Expires, Escrow: coin(l.ID)}) {
+				Expires: l.Expires, Escrow: coin(l.ID), Staged: l.Staged}) {
 				return
 			}
 		}
@@ -342,6 +352,9 @@ func (g *Game) roomForOrder(c *Char) error {
 // order posts a limit order for a character and matches it; an order that
 // must fill now (keep false) gives back what did not.
 func (g *Game) order(c *Char, cmd Command, side market.Side, keep bool) error {
+	if cmd.Staged {
+		return g.stagedOrder(c, cmd, side, keep)
+	}
 	n, err := g.marketHere(c)
 	if err != nil {
 		return err
@@ -451,6 +464,8 @@ func (g *Game) afford(c *Char, asset, what string, units int64) error {
 		return nil
 	case asset == ledger.Coin:
 		return refuse(BadArgs, "that takes %d coin in escrow; %s has %d coin", units, c.C.ID, have)
+	case len(g.stagedFrom(c, what, -1)) > 0:
+		return refuse(StagedLocal, "%s's staged %s from %s trade only on the staged book there", c.C.ID, what, strings.Join(g.stagedFrom(c, what, -1), ", "))
 	default:
 		return refuse(BadArgs, "%s does not carry %d %s", c.C.ID, units, what)
 	}
@@ -665,11 +680,16 @@ type sale struct {
 	row                  Trade
 	faction              bool
 	item                 *item.Instance // an item the goods' legs move
+	staged               bool           // staged goods or a staged item: no fee
+	server               string         // the server whose staging it moves
 }
 
 // settleSale posts a sale less the seller's fee, writes its fact and
 // books it.
 func (g *Game) settleSale(s sale, key string) (fact.ID, int64, error) {
+	if s.staged {
+		return g.settleStaged(s, key)
+	}
 	fee := g.marketFee(s.settlement, s.coin)
 	if c := g.charOf(s.seller); c != nil && s.settlement >= 0 && s.settlement < len(g.Places) {
 		if row, w := g.workAt(s.settlement, guild.GivesMarketFee, c); w != nil {
@@ -698,6 +718,30 @@ func (g *Game) settleSale(s sale, key string) (fact.ID, int64, error) {
 	row.Settlement, row.Tick, row.Buyer, row.Seller, row.Fact = s.settlement, g.Tick(), s.buyer, s.seller, int64(fid)
 	g.booked(row, s.coin, fee, s.faction)
 	return fid, fee, nil
+}
+
+// settleStaged posts a staged sale with no fee, under its server's stamp,
+// and counts it only into that server's staged line: no notable trade,
+// week's trading or velocity reads it.
+func (g *Game) settleStaged(s sale, key string) (fact.ID, int64, error) {
+	defer g.stampedBy(s.server)()
+	legs := append(slices.Clone(s.goods), ledger.Pair(s.payer, s.seller, ledger.Coin, s.coin)...)
+	if s.back > 0 {
+		legs = append(legs, ledger.Pair(s.payer, s.buyer, ledger.Coin, s.back)...)
+	}
+	fid, err := g.worldFact(g.SettlementHex(s.settlement), s.kind, g.traders(s.seller, s.buyer), nil, s.data(0)...)
+	if err != nil {
+		return 0, 0, err
+	}
+	var moved []*item.Instance
+	if s.item != nil {
+		moved = append(moved, s.item)
+	}
+	if err := g.postAll(ledger.Txn{Key: key, Kind: s.txn, Tick: g.Tick(), Fact: fid, Legs: ledger.Merge(legs)}, moved...); err != nil {
+		return 0, 0, err
+	}
+	g.Market.Week.stagedTraded(s.server, s.coin)
+	return fid, 0, nil
 }
 
 // traders are the characters among accounts, as fact subjects.
@@ -773,7 +817,11 @@ func (g *Game) closeOrder(o Open, key string) error {
 	case OpenWant:
 		m.takeWant(o.ID)
 	default:
-		if b := g.BookOf(o.Settlement, o.Material); b != nil {
+		bookOf := g.BookOf
+		if o.Staged {
+			bookOf = g.StagedBookOf
+		}
+		if b := bookOf(o.Settlement, o.Material); b != nil {
 			if _, ok := b.Remove(o.ID); ok {
 				m.opened(o.Owner, -1)
 			}
