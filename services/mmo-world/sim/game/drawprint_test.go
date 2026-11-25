@@ -223,12 +223,14 @@ type factLine struct {
 	Data     []fact.Datum `json:"data"`
 }
 
-// mm11aKinds are the fact kinds theft and alignment write; a world without
-// thieves may still move alignment.
-var mm11aKinds = []string{"alignment.moved", "theft.", "watch.", "fence.", "craft.laundered", "syndicate.", "character.betrayed", "den.moved"}
+// laterKinds are the fact kinds the base never wrote: theft and
+// alignment's (a world without thieves may still move alignment), then
+// live operations' and moderation's.
+var laterKinds = []string{"alignment.moved", "theft.", "watch.", "fence.", "craft.laundered", "syndicate.", "character.betrayed", "den.moved",
+	"staged.", "crate.opened", "vault.taken", "name.renamed"}
 
-func mm11aKind(kind string) bool {
-	return slices.ContainsFunc(mm11aKinds, func(p string) bool {
+func laterKind(kind string) bool {
+	return slices.ContainsFunc(laterKinds, func(p string) bool {
 		if strings.HasSuffix(p, ".") {
 			return strings.HasPrefix(kind, p)
 		}
@@ -239,12 +241,12 @@ func mm11aKind(kind string) bool {
 // factIDData are the data that hold a fact id.
 var factIDData = map[string][]string{"goal.claimed": {"fact"}}
 
-// baseKinds are the facts of kinds a world before theft and alignment
-// wrote, with no fact ids in their data.
+// baseKinds are the facts of kinds the base wrote, with no fact ids in
+// their data.
 func baseKinds(lines []factLine) []factLine {
 	var out []factLine
 	for _, l := range lines {
-		if mm11aKind(l.Kind) {
+		if laterKind(l.Kind) {
 			continue
 		}
 		if drop := factIDData[l.Kind]; len(drop) > 0 {
@@ -256,7 +258,7 @@ func baseKinds(lines []factLine) []factLine {
 }
 
 // Every replay fixture's scene, replayed at HEAD, writes the facts the
-// base wrote, apart from theft and alignment's kinds: no draw an earlier
+// base wrote, apart from the kinds it never wrote: no draw an earlier
 // world made has moved.
 func TestNoDrawMoved(t *testing.T) {
 	for _, dir := range []string{"replay-mm8", "replay-mm8a", "replay-mm9", "replay-mm10"} {
@@ -281,7 +283,7 @@ func TestNoDrawMoved(t *testing.T) {
 					t.Fatalf("%s: fact %d of %d differs from the base's %d:\n head %s\n base %s", bf.Fixture, i, len(got), len(want), lineAt(got, i), lineAt(want, i))
 				}
 			}
-			t.Logf("%s: %d facts as at the base, %d of MM11a's kinds", bf.Fixture, len(want), len(lines)-len(got))
+			t.Logf("%s: %d facts as at the base, %d of later kinds", bf.Fixture, len(want), len(lines)-len(got))
 		})
 	}
 }
