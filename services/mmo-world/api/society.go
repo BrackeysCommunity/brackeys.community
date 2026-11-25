@@ -3,7 +3,7 @@ package api
 // Paths of goals, guilds and classes (GDD 4.8, 5.8, 11).
 const (
 	PathGoals   = "/v1/goals"
-	PathBoard   = "/v1/goals/forum"
+	PathBoard   = "/v1/goals/forum" // ?server=: the board as that server reads it
 	PathGuild   = "/v1/guild"
 	PathClasses = "/v1/classes"
 )

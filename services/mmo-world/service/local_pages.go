@@ -108,5 +108,5 @@ func (l *Local) Arcs(_ context.Context, id string) (api.Arcs, error) {
 	if err != nil {
 		return api.Arcs{}, err
 	}
-	return apiArcs(l.G, c.C.ID), nil
+	return apiArcs(l.G, c.C.ID, c.Server), nil
 }

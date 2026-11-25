@@ -70,7 +70,7 @@ func TestEmergenceNilIsMM9(t *testing.T) {
 	if d := digestOf(t, g); d.String() != saved {
 		t.Fatalf("the pre-MM9 snapshot digests %s, saved as %s", d, saved)
 	}
-	if g.Emergence != nil || g.Log.Stage != nil || g.r.Fight.D.Found != nil || g.r.Values.Found != nil {
+	if g.Emergence != nil || g.r.Fight.D.Found != nil || g.r.Values.Found != nil {
 		t.Fatal("attaching a world from before emergence gave it emergence")
 	}
 	if _, err := g.Act(Command{Key: SeasonStart, Kind: SeasonStart}); err != nil {

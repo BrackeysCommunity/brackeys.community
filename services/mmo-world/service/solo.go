@@ -606,6 +606,7 @@ func (s *Server) recap(w http.ResponseWriter, r *http.Request) {
 	s.withChar(w, r, func(c *game.Char) {
 		view := *c
 		view.Seen = since
+		heavy = slices.DeleteFunc(heavy, func(f fact.Fact) bool { return !game.OnServer(f, c.Server) })
 		rc := s.g.Recap(&view, own, heavy)
 		t := s.g.Tick()
 		out := api.Recap{Since: rc.Since, Tick: t, Lines: []api.RecapLine{}, More: rc.More,

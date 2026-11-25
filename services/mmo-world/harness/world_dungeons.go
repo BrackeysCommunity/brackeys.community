@@ -1,7 +1,6 @@
 package harness
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"maps"
@@ -314,7 +313,7 @@ func scanSeed(b *sheets.Book, seed int) (seedDungeons, error) {
 		for _, h := range hex.DiscAt(home, dungeonScan) {
 			chunks[g.ChunkOf(h)] = true
 		}
-		for _, cc := range slices.SortedFunc(maps.Keys(chunks), func(a, b gen.ChunkCoord) int { return cmp.Or(cmp.Compare(a.A, b.A), cmp.Compare(a.B, b.B)) }) {
+		for _, cc := range slices.SortedFunc(maps.Keys(chunks), gen.CompareChunks) {
 			for _, pt := range g.Patterns(cc) {
 				if seen[pt.Hex] || hex.Distance(pt.Hex, home) > dungeonScan {
 					continue

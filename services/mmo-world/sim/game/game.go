@@ -292,8 +292,12 @@ type Game struct {
 	stagedFacts []factSpan
 }
 
-// factSpan is the fact ids after From up to and including To.
-type factSpan struct{ From, To fact.ID }
+// factSpan is the fact ids after From up to and including To, written in
+// Server's staging.
+type factSpan struct {
+	From, To fact.ID
+	Server   string
+}
 
 type markedBy struct {
 	c   *Char

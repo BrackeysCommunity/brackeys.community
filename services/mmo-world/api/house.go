@@ -58,7 +58,7 @@ const ConsoleOnly = "a server's staff and admins act from their console in chat"
 // Paths of the house. The bot reads a server's; operators read every
 // server's log and the escalated cases.
 const (
-	PathHouse            = "/v1/house"     // ?server=&character=
+	PathHouse            = "/v1/house"     // ?server=&character=&admin=&staff=
 	PathHouseLog         = "/v1/house/log" // ?server=&after=
 	PathOperatorHouseLog = "/v1/operator/house/log"
 	PathOperatorCases    = "/v1/operator/cases"
@@ -120,9 +120,9 @@ type Channel struct {
 	ID   string `json:"id"`
 }
 
-// House is one server's house as its staff and admins read it. Arrival is
-// the settlement new players arrive at, -1 while there is none; Role is
-// what the reading character's flags make it here.
+// House is one server's house as a member reads it at Role: the queue,
+// holds, masks and pins only for staff and admins. Arrival is the
+// settlement new players arrive at, -1 while there is none.
 type House struct {
 	Server      string            `json:"server"`
 	Label       string            `json:"label"` // the server guild's name
@@ -152,7 +152,7 @@ type HouseSettlement struct {
 	Pool    int64       `json:"pool"`
 	PoolCap int64       `json:"poolCap"`
 	Refill  int64       `json:"refill"` // added at the next world day
-	Sites   []HouseSite `json:"sites"`  // known sites in its region, nearest first
+	Sites   []HouseSite `json:"sites"`  // known sites in its region: named ones first, each group nearest first
 }
 
 // HouseSite is a tile a staging may name.

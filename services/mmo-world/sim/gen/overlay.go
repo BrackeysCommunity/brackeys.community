@@ -55,26 +55,14 @@ func (g *Gen) Twin(over map[Hex]Ground) (*Gen, error) {
 	t := &Gen{
 		b: g.b, d: g.d, p: g.p, ch: g.ch, noise: g.noise, terrain: g.terrain, shapes: g.shapes, rules: g.rules,
 		discIndex: g.discIndex, purposes: g.purposes, lattices: g.lattices,
-		raws: newTileCache[raw](), paths: map[pathKey][]Hex{}, rivers: map[ChunkCoord][]Hex{}, ground: map[ChunkCoord]*ground{},
-		chunks: map[ChunkCoord]*ChunkBaseline{}, points: map[ChunkCoord][]PatternPoint{},
-		instances: map[string]*instance{}, regionOf: newTileCache[LatticeID](),
-		regionInfo: map[LatticeID]*RegionBaseline{}, centreTerrain: map[LatticeID]string{}, weights: map[LatticeID]int64{}, isles: map[LatticeID]*island{}, links: map[LatticeID][]Hex{}, sizes: map[sizeKey]int64{}, regionSites: map[LatticeID]map[Hex]string{}, marks: map[LatticeID]landmark{}, tilesOf: map[LatticeID][]Hex{}, nextTo: map[LatticeID][]LatticeID{},
-		shore: map[Hex]Hex{}, landings: map[Hex]map[Hex]Hex{},
-		far: map[string]*FarMaterial{}, homeValid: map[LatticeID]bool{}, homeRank: map[LatticeID]int{},
 	}
-	for k := range t.picks {
-		t.picks[k] = newTileCache[LatticeID]()
-	}
+	t.freshCaches()
 	// The raws cache is never evicted, so a tile put here before anything
 	// reads it is the only raw any reader of the package sees.
 	for _, h := range patch {
 		t.raws.put(h, t.overRaw(t.raw(h), over[h]))
 	}
-	t.regions = t.newLattice("region", t.p.regionSpacing, t.p.regionJitter, true)
-	t.spine = t.newLattice("spine", t.p.spineSpacing, t.p.spineJitter, true)
-	t.spine.prefer = func(h Hex) bool { return t.passable(t.raw(h).terrain) }
-	t.homes = t.newLattice("home", t.p.homeSpacing, t.p.homeJitter, false)
-	t.homes.prefer = func(h Hex) bool { return t.passable(t.raw(h).terrain) }
+	t.newLattices()
 	t.originAreas = t.areasAtOrigin()
 	return t, nil
 }
@@ -119,6 +107,9 @@ func (g *Gen) GroundTile(h Hex, gr Ground) TileBaseline {
 	return b
 }
 
+// CompareChunks orders chunk coordinates by A, then B.
+func CompareChunks(a, b ChunkCoord) int { return cmp.Or(cmp.Compare(a.A, b.A), cmp.Compare(a.B, b.B)) }
+
 // Routes lists what g has laid: paths by their ends, rivers by their
 // source chunk, leaving out sources that run no river.
 func (g *Gen) Routes() Routes {
@@ -127,8 +118,7 @@ func (g *Gen) Routes() Routes {
 	for _, k := range slices.SortedFunc(maps.Keys(g.paths), byEnds) {
 		out.Paths = append(out.Paths, slices.Clone(g.paths[k]))
 	}
-	byChunk := func(a, b ChunkCoord) int { return cmp.Or(cmp.Compare(a.A, b.A), cmp.Compare(a.B, b.B)) }
-	for _, cc := range slices.SortedFunc(maps.Keys(g.rivers), byChunk) {
+	for _, cc := range slices.SortedFunc(maps.Keys(g.rivers), CompareChunks) {
 		if r := g.rivers[cc]; len(r) > 0 {
 			out.Rivers = append(out.Rivers, slices.Clone(r))
 		}

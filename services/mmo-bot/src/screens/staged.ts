@@ -44,7 +44,7 @@ export const STAGED_TITLES: Record<string, (where: string) => string> = {
   "fair.over": (w) => `The fair at ${w} is over`,
 };
 
-/** A staging's title by its kind, for a kind the table does not name too. */
+/** A staging's title by its kind, with a plain fallback for a kind STAGED_TITLES does not name. */
 export function stagedTitle(kind: string, where: string): string {
   return (STAGED_TITLES[kind] ?? ((w: string) => `Staged at ${w}`))(where);
 }

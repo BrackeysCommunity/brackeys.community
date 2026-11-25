@@ -81,6 +81,9 @@ func (g *Game) huntStaged(id string) bool {
 func (g *Game) stage(f *fact.Fact) {
 	e := g.Emergence
 	if e == nil {
+		if f.StagedBy == nil {
+			f.StagedBy = g.serverStampOf(f)
+		}
 		return
 	}
 	if f.StagedBy == nil {
@@ -179,6 +182,24 @@ func (g *Game) serverStaged(ref fact.Ref) *fact.Ref {
 	return nil
 }
 
+// serverStampOf is the only stamp a world without emergence gives: a
+// server's, from the command or a subject's stage. It reads no operator
+// stamp and notes no player fact, so an older replay stamps nothing new.
+func (g *Game) serverStampOf(f *fact.Fact) *fact.Ref {
+	if g.stagedBy != nil && g.stagedBy.Kind == stampServer {
+		s := *g.stagedBy
+		return &s
+	}
+	if g.Live != nil {
+		for _, ref := range f.Subjects {
+			if s := g.serverStaged(ref); s != nil {
+				return s
+			}
+		}
+	}
+	return nil
+}
+
 func serverStamp(server string) *fact.Ref { return &fact.Ref{Kind: stampServer, ID: server} }
 
 // StampedServer is the server whose staging a fact is stamped by, "" for
@@ -197,6 +218,9 @@ const (
 	kindStage = "stage"
 	kindGoal  = "goal"
 )
+
+// KindStage is the ref kind a fact names a stage by.
+const KindStage = kindStage
 
 // namesCharacter reports whether a fact names a character among its
 // subjects.

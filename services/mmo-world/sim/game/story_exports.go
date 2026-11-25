@@ -98,3 +98,20 @@ const (
 func ArcVisible(a *Arc, viewer string) bool {
 	return a.Scope != arc.Personal || viewer != "" && a.Char == viewer
 }
+
+// OnServer reports whether server may read f: a fact no server staged, or one
+// its own staging stamped (GDD 14.5).
+func OnServer(f fact.Fact, server string) bool {
+	by := StampedServer(f)
+	return by == "" || by == server
+}
+
+// ArcOn reports whether server may read a: an arc no server's staging cast, or
+// one its own did.
+func (g *Game) ArcOn(a *Arc, server string) bool {
+	if a.By != ByServer {
+		return true
+	}
+	st := g.StageByID(a.Staging)
+	return st != nil && server != "" && st.Server == server
+}

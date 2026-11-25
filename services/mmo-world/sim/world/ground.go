@@ -1,7 +1,6 @@
 package world
 
 import (
-	"cmp"
 	"slices"
 
 	"jams.team/mmo-world/sim/canon"
@@ -114,7 +113,7 @@ func (s *State) landRing(c *tile.Content, p *Pin) {
 
 // checkTerrain holds a terrain pin to ground the sheets hold and to free,
 // unreached scaffold; an admin's patch stays in its region. CheckPin re-lays
-// the scaffold under it last (checkRelay), since that is the dear part.
+// the scaffold under it last (checkRelay), since that is the costly check.
 func (s *State) checkTerrain(at hex.Hex, fix tile.Fix, by PinBy, edit bool) error {
 	gf := fix.Ground
 	if err := s.g.CheckGround(groundOf(gf)); err != nil {
@@ -202,7 +201,7 @@ func (s *State) checkRelay(at hex.Hex, f *tile.GroundFix) error {
 			ccs = append(ccs, cc)
 		}
 	}
-	slices.SortFunc(ccs, func(a, b gen.ChunkCoord) int { return cmp.Or(cmp.Compare(a.A, b.A), cmp.Compare(a.B, b.B)) })
+	slices.SortFunc(ccs, gen.CompareChunks)
 	live, err := chunkDigests(s.g, ccs)
 	if err != nil {
 		return err

@@ -26,7 +26,7 @@ var stagedEscrows []func(g *Game, acc string) bool
 func (g *Game) withStage(st *Stage) (restore func()) {
 	was := g.staging
 	g.staging = st
-	unstamp, end := g.stampedBy(st.Server), g.stagedSpan()
+	unstamp, end := g.stampedBy(st.Server), g.stagedSpan(st.Server)
 	return func() {
 		g.staging = was
 		unstamp()
@@ -34,13 +34,12 @@ func (g *Game) withStage(st *Stage) (restore func()) {
 	}
 }
 
-// stagedSpan marks every fact written until end is called as staged.
-// Len is the id of the last fact already written.
-func (g *Game) stagedSpan() (end func()) {
+// stagedSpan marks the facts written until end is called as server's staging: Log.Len is the last id already written, so the span is (Len at start, Len at end].
+func (g *Game) stagedSpan(server string) (end func()) {
 	from := fact.ID(g.Log.Len())
 	return func() {
 		if to := fact.ID(g.Log.Len()); to > from {
-			g.stagedFacts = append(g.stagedFacts, factSpan{from, to})
+			g.stagedFacts = append(g.stagedFacts, factSpan{from, to, server})
 		}
 	}
 }
@@ -49,21 +48,30 @@ func (g *Game) stagedSpan() (end func()) {
 // equips a staged item, or names a staged hunt, arc, stage or contest.
 // Such a fact counts only toward staged contests and staged arcs' sides,
 // so staging pays no coin or standing through the world's goals.
-func (g *Game) stagedFact(f fact.Fact) bool {
+func (g *Game) stagedFact(f fact.Fact) bool { staged, _ := g.stagedOf(f); return staged }
+
+// stagedOf is stagedFact with the server whose staging the fact is, so a
+// staged fact counts only toward that server's staged contests and arcs.
+func (g *Game) stagedOf(f fact.Fact) (staged bool, server string) {
 	if g.Live == nil {
-		return false
+		return false, ""
 	}
 	for _, s := range g.stagedFacts {
 		if f.ID > s.From && f.ID <= s.To {
-			return true
+			return true, s.Server
 		}
 	}
 	if f.Kind == "item.equipped" {
 		if in := g.equippedItem(f); in != nil && in.Staged != nil {
-			return true
+			return true, in.Staged.Server
 		}
 	}
-	return slices.ContainsFunc(f.Subjects, func(r fact.Ref) bool { return g.serverStaged(r) != nil })
+	for _, r := range f.Subjects {
+		if st := g.serverStaged(r); st != nil {
+			return true, st.ID
+		}
+	}
+	return false, ""
 }
 
 // goodsAsset is the asset a material is minted as: staged at the stage's

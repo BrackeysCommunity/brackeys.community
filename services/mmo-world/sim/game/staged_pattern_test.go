@@ -56,9 +56,6 @@ func TestStagedPatternRefused(t *testing.T) {
 	}
 	at := StageCmd{Template: sheets.StagePattern, Settlement: home, At: good, Pattern: stagedTriangle}
 	patRefused(t, g, "a staff pattern", StageTemplate, order(Command{Staff: true}, at))
-	st := probeStage(g, c, home, good)
-	st.Role = RoleStaff
-	refusedWith(t, g.checkPattern(c, st, g.stageTemplate(sheets.StagePattern)), StageTemplate)
 	other := at
 	other.Pattern = "triangle"
 	patRefused(t, g, "an unlisted pattern", BadArgs, order(Command{Admin: true}, other))

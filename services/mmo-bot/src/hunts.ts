@@ -50,9 +50,9 @@ export interface Poller {
 }
 
 /**
- * A poster's store prefix in one guild's channel: the base itself for the
- * primary guild's own channel, so marks kept before guilds were told apart
- * keep, and base<guild>:<channel>: for every other.
+ * A poster's store prefix in one guild's channel: the bare base for the
+ * primary guild's own channel, whose stored marks use it, and
+ * base<guild>:<channel>: for every other.
  */
 export function posterPrefix(
   base: string,

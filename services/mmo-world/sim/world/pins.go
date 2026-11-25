@@ -475,6 +475,10 @@ func (s *State) entered(h hex.Hex) bool {
 // pin-path-tiles, meets a discovered tile or a starting settlement.
 func (s *State) pathFrom(h hex.Hex, most int64) bool { return s.pathOver(h, most, nil) }
 
+// KnownWithin reports whether a walk over passable ground from h, within
+// most tiles, meets a discovered tile or a starting settlement.
+func (s *State) KnownWithin(h hex.Hex, most int64) bool { return s.pathFrom(h, most) }
+
 // pathOver is pathFrom with a terrain pin's patch round h laid, at its
 // worst: a patch tile passes only where the ground and the tile both do.
 func (s *State) pathOver(h hex.Hex, most int64, f *tile.GroundFix) bool {

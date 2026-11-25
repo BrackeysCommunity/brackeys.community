@@ -220,8 +220,7 @@ func hostAct(ctx context.Context, d doer, w held, req api.ActionRequest, check b
 	return rep, ref, err
 }
 
-// consoleOnly refuses a house kind from the Activity: a server's staff and
-// admins act from their consoles in chat.
+// consoleOnly is the Activity's refusal of a house kind.
 var consoleOnly = &api.Refusal{Code: api.CodeForbidden, Message: api.ConsoleOnly}
 
 // Act applies a player's request as POST /v1/actions does, the countdown

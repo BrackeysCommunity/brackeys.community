@@ -13,9 +13,14 @@ export interface StagedWhere {
   name: string;
 }
 
+/** Who staged or placed a thing: a server's staff or its admins, by its guild's name. */
+export function stagerWords(role: string, label: string): string {
+  return role === "staff" ? `staff of ${label}` : `the admins of ${label}`;
+}
+
 function byLine(verb: string, p: PlacedBy): string {
-  if (p.by !== "staff") return `${verb} by the admins of ${p.label}`;
-  return `${verb} by staff of ${p.label}${p.points ? ` · ${amount(p.points, "event points")}` : ""}`;
+  const points = p.by === "staff" && p.points ? ` · ${amount(p.points, "event points")}` : "";
+  return `${verb} by ${stagerWords(p.by, p.label)}${points}`;
 }
 
 /** How a staged place names who placed it (GDD 14.5). */

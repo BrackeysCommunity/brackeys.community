@@ -28,8 +28,7 @@ const (
 	houseRings = 2
 )
 
-// houseRoleOf is the role a read's admin and staff flags make its reader;
-// admin implies every staff right.
+// houseRoleOf is the role a read's admin and staff query flags give its reader (game.RoleOf).
 func houseRoleOf(r *http.Request) string {
 	q := r.URL.Query()
 	admin, _ := strconv.ParseBool(q.Get("admin"))

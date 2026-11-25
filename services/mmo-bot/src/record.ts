@@ -52,10 +52,10 @@ export function recording(world: World, samples: Record<string, unknown>): World
     market: keepOk("market", world.market),
     history: keepOk("history", world.history),
     routeRisk: keepOk("routeRisk", world.routeRisk),
-    forum: async () => keep("forum", await world.forum()),
+    forum: async (server) => keep("forum", await world.forum(server)),
     goals: keepOk("goals", world.goals),
-    board: async () => {
-      const b = await world.board();
+    board: async (server) => {
+      const b = await world.board(server);
       if (b.posts.length) samples.board = b;
       return b;
     },
@@ -89,8 +89,8 @@ export function recording(world: World, samples: Record<string, unknown>): World
     },
     chronicle: keepOk("chronicle", world.chronicle),
     chronicleFact: keepOk("chronicleFact", world.chronicleFact),
-    arcs: async (id) => {
-      const a = await world.arcs(id);
+    arcs: async (id, server) => {
+      const a = await world.arcs(id, server);
       if (a.open.length) samples.arcs = a;
       return a;
     },
@@ -99,8 +99,8 @@ export function recording(world: World, samples: Record<string, unknown>): World
       if (e.events.length) samples.storyEvents = e;
       return e;
     },
-    storyPromotions: async (after) => {
-      const e = await world.storyPromotions(after);
+    storyPromotions: async (after, server) => {
+      const e = await world.storyPromotions(after, server);
       if (e.events.length) samples.storyPromotions = e;
       return e;
     },

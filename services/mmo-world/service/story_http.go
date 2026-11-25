@@ -270,13 +270,6 @@ func factNames(g *game.Game, viewer, server string, fs ...api.Fact) map[string]s
 	return names
 }
 
-// otherServers reports whether a fact is staging by a server other than
-// server (GDD 14.5).
-func otherServers(f fact.Fact, server string) bool {
-	by := game.StampedServer(f)
-	return by != "" && by != server
-}
-
 // arcs are the open and lately ended arcs, the season, and the side goals
 // the viewer backs. A personal thread is shown only to its character.
 func (s *Server) arcs(w http.ResponseWriter, r *http.Request) {
@@ -289,21 +282,21 @@ func (s *Server) arcs(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	viewer := ""
+	viewer, server := "", r.URL.Query().Get("server")
 	if c != nil {
-		viewer = c.C.ID
+		viewer, server = c.C.ID, c.Server
 	}
-	reply(w, http.StatusOK, apiArcs(s.g, viewer))
+	reply(w, http.StatusOK, apiArcs(s.g, viewer, server))
 }
 
-// apiArcs are the arcs a viewer may see, and the side goals it backs.
-func apiArcs(g *game.Game, viewer string) api.Arcs {
+// apiArcs are the arcs a viewer on server may see, and the side goals it backs.
+func apiArcs(g *game.Game, viewer, server string) api.Arcs {
 	out := api.Arcs{Season: apiSeason(g), Open: []api.Arc{}, Ended: []api.Arc{}, Backing: []string{}}
 	if g.Story == nil {
 		return out
 	}
 	for _, a := range g.Story.Arcs {
-		if !game.ArcVisible(a, viewer) {
+		if !game.ArcVisible(a, viewer) || !g.ArcOn(a, server) {
 			continue
 		}
 		if a.Outcome == "" {
@@ -448,7 +441,7 @@ func (s *Server) chronicle(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, err)
 		return
 	}
-	facts = slices.DeleteFunc(facts, func(f fact.Fact) bool { return !game.Visible("", f.Kind, f.Subjects) || otherServers(f, server) })
+	facts = slices.DeleteFunc(facts, func(f fact.Fact) bool { return !game.Visible("", f.Kind, f.Subjects) || !game.OnServer(f, server) })
 	here := make(map[fact.ID]bool, len(facts))
 	for _, f := range facts {
 		here[f.ID] = ps.touches(f)
@@ -575,7 +568,7 @@ func (s *Server) chronicleFact(w http.ResponseWriter, r *http.Request) {
 		refuse(w, http.StatusNotFound, api.Refusal{Code: api.CodeNotFound, Message: fmt.Sprintf("no fact %d", id)})
 	}
 	f, causes, err := s.st.FactCauses(r.Context(), fact.ID(id))
-	if errors.Is(err, store.ErrNoFact) || err == nil && (!game.VisibleTo(viewer, made, f.Kind, f.Subjects) || otherServers(f, server)) {
+	if errors.Is(err, store.ErrNoFact) || err == nil && (!game.VisibleTo(viewer, made, f.Kind, f.Subjects) || !game.OnServer(f, server)) {
 		missing()
 		return
 	}
@@ -594,7 +587,7 @@ func (s *Server) chronicleFact(w http.ResponseWriter, r *http.Request) {
 	}
 	out := api.FactCauses{Fact: maskFact(s.g, server, top), Causes: []api.Fact{}}
 	for _, x := range causes {
-		if v, ok := seen(s.g, viewer, apiFact(x)); ok && !otherServers(x, server) {
+		if v, ok := seen(s.g, viewer, apiFact(x)); ok && game.OnServer(x, server) {
 			out.Causes = append(out.Causes, maskFact(s.g, server, v))
 		}
 	}
@@ -631,7 +624,7 @@ func (s *Server) storyEvents(w http.ResponseWriter, r *http.Request) {
 	out := api.StoryEvents{Events: []api.StoryEvent{}, Last: after}
 	for _, f := range facts {
 		out.Last = max(out.Last, int64(f.ID))
-		if server != "" && otherServers(f, server) {
+		if server != "" && !game.OnServer(f, server) {
 			continue
 		}
 		if ev, ok := storyEvent(g, f, server); ok {
@@ -652,6 +645,9 @@ func storyEvent(g *game.Game, f fact.Fact, server string) (api.StoryEvent, bool)
 	v = maskFact(g, server, v)
 	ev := api.StoryEvent{Fact: v, Promotion: promotionOf(g, f), Names: factNames(g, "", server, v), Art: artOf(factSlot(f)),
 		Server: game.StampedServer(f)}
+	if ev.Promotion != nil {
+		ev.Promotion.Name = shownPromotion(g, server, ev.Promotion.ID, ev.Promotion.Name)
+	}
 	if d, ok := f.Get("arc"); ok {
 		if a := g.ArcByID(d.S); a != nil && a.Scope == arc.Settlement {
 			ev.Trouble = troubleView(g, a)

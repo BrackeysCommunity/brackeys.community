@@ -2,9 +2,9 @@
 # Proves live operations and moderation (GDD 14, 10.8, 4.17): staging by
 # a server's admins and staff, the staged carrier and its guard, the staged
 # xp allowance, moderation that never touches the ledger, terrain pins and
-# their validator, and a world saved before MM12 reopening unremarked with
-# no earlier draw moved (in the sim and through the store); the house over
-# HTTP; the Search run aimed at staging at 20, which must hold
+# their validator, and a world saved before live operations reopening
+# unremarked with no earlier draw moved (in the sim and through the store);
+# the house over HTTP; the Search run aimed at staging at 20, which must hold
 # staging-stays-local, staged-goods-local and staged-xp-cap with a clean
 # audit; the terrain sweep at 20, which must hold terrain-pins-hold and
 # refuse at least one pin for a route or a cut; and the seen record's four

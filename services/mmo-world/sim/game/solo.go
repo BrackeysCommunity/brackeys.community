@@ -565,7 +565,7 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 	if len(staged) > 0 {
 		mark = &item.Stage{At: origin, Server: g.stagedServer(origin)}
 		defer g.stampedBy(mark.Server)()
-		defer g.stagedSpan()()
+		defer g.stagedSpan(mark.Server)()
 		if res.Discovered {
 			facts = slices.DeleteFunc(facts, func(f fact.Fact) bool { return f.Kind == factKindDiscovered })
 			res.Kind.FirstMaker = ""

@@ -19,7 +19,7 @@ import (
 
 // A server's staging (GDD 14.3, 14.4): its staff and admins order a
 // template at a settlement its guild runs; the stage opens at its tick,
-// builds its parts in the stage's context, and closes past its end.
+// builds its parts in the stage's context, and closes on its end tick.
 // Staff pay event points from the settlement's pool at the order; admins
 // pay nothing. Whatever a stage pays out is staged goods.
 
@@ -87,8 +87,8 @@ func (g *Game) contestRow(id string) *sheets.ContestRow {
 	return nil
 }
 
-// LiveStages are a settlement's stages not yet closed, opened or due, in
-// order of staging.
+// LiveStages are a settlement's stages not yet closed, open or still due,
+// in order of staging.
 func (g *Game) LiveStages(settlement int) []*Stage {
 	if g.Live == nil {
 		return nil
@@ -544,11 +544,22 @@ func (g *Game) reachTile(settlement int, tiles int64, toward hex.Hex) (hex.Hex, 
 	return hex.Hex{}, false
 }
 
+// Stager reports whether id staged st: a stager takes nothing from its own stage.
+func (st *Stage) Stager(id string) bool { return id == st.By }
+
+// Running reports whether st is open at tick: opened, not closed, and before its end.
+func (st *Stage) Running(tick int64) bool { return st.Open && !st.Closed && tick < st.Ends }
+
+// stagerTakes is the refusal of a stager working its own stage.
+func stagerTakes(who string, st *Stage) error {
+	return refuse(StagedOwn, "%s staged %s: it takes nothing from it", who, st.ID)
+}
+
 // crateOpen opens one crate of a drop on its tile: one roll of the drop's
 // table, minted to the opener as staged goods. The stager opens none.
 func crateOpen(g *Game, c *Char, cmd Command) error {
 	st := g.StageByID(cmd.Target)
-	if st == nil || st.Kind != sheets.StageDrop && st.Kind != sheets.StageFair || !st.Open || st.Closed || st.Crates <= 0 || g.Tick() >= st.Ends {
+	if st == nil || st.Kind != sheets.StageDrop && st.Kind != sheets.StageFair || !st.Running(g.Tick()) || st.Crates <= 0 {
 		return refuse(NoStage, "no crates left at %q", cmd.Target)
 	}
 	if c.C.At != st.At || c.C.Floor > 0 {
@@ -557,8 +568,8 @@ func crateOpen(g *Game, c *Char, cmd Command) error {
 	if err := free(c); err != nil {
 		return err
 	}
-	if c.C.ID == st.By {
-		return refuse(StagedOwn, "%s staged %s: it takes nothing from it", c.C.ID, st.ID)
+	if st.Stager(c.C.ID) {
+		return stagerTakes(c.C.ID, st)
 	}
 	if most := g.lp("crate-cap"); st.Opened.Get(c.C.ID) >= most {
 		return refuse(CrateCap, "%s has opened %d crates of %s, all one may", c.C.ID, most, st.ID)

@@ -4,7 +4,7 @@ package api
 const (
 	PathMarket  = "/v1/market"
 	PathHistory = "/v1/market/history"
-	PathForum   = "/v1/market/forum"
+	PathForum   = "/v1/market/forum" // ?server=: the forum as that server reads it
 	PathRisk    = "/v1/route-risk"
 	// PathOperatorEconomy lists characters flagged for review and the
 	// faucet.

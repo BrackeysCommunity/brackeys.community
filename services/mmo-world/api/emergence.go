@@ -3,8 +3,9 @@ package api
 // Paths of emergence (GDD 13): promotions as they happen and the
 // operator's dashboard of the four measures.
 const (
-	// PathStoryPromotions takes ?after=<fact id>; it is the bot's alone and
-	// answers StoryEvents carrying their Promotion.
+	// PathStoryPromotions takes ?after=<fact id>&server=, masked for the
+	// server named; it is the bot's alone and answers StoryEvents carrying
+	// their Promotion.
 	PathStoryPromotions   = "/v1/story/promotions"
 	PathOperatorEmergence = "/v1/operator/emergence"
 )

@@ -129,7 +129,7 @@ func (s *Server) board(w http.ResponseWriter, r *http.Request) {
 	var banners []render.BannerInput
 	for n, h := range g.Settlements() {
 		for _, x := range g.Board(n) {
-			if x.Scope == goal.Personal || x.Scope == goal.Party || !seesGoal(nil, x) {
+			if x.Scope == goal.Personal || x.Scope == goal.Party || !seesGoal(nil, x) || (server != "" && stagedElsewhere(g, x, server)) {
 				continue
 			}
 			out.Posts = append(out.Posts, api.BoardPost{Settlement: n, Name: shownPlace(g, server, h), Goal: apiGoal(g, x, nil, server)})
@@ -150,6 +150,33 @@ func (s *Server) board(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	reply(w, http.StatusOK, out)
+}
+
+// stagedElsewhere reports whether a goal is another server's staging: its
+// staged contest, or a side of an arc its staging cast.
+func stagedElsewhere(g *game.Game, x *game.Goal, server string) bool {
+	var id string
+	if x.Issuer.Kind == goal.ByStaged {
+		id = x.Issuer.ID
+	} else if g.Story != nil {
+	arcs:
+		for _, a := range g.Story.Arcs {
+			if a.By != game.ByServer {
+				continue
+			}
+			for _, st := range a.Stages {
+				if slices.ContainsFunc(st.Sides, func(sd game.SideRun) bool { return sd.Goal == x.ID }) {
+					id = a.Staging
+					break arcs
+				}
+			}
+		}
+	}
+	if id == "" {
+		return false
+	}
+	st := g.StageByID(id)
+	return st == nil || st.Server != server
 }
 
 // apiGoal is a goal as the board shows it, to a character if one looks;

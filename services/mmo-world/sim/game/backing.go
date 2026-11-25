@@ -385,10 +385,15 @@ func (g *Game) backEvents(f fact.Fact) []goal.Event {
 		return g.preyGoods(c, f)
 	}
 	var out []goal.Event
-	staged := g.stagedFact(f)
+	staged, by := g.stagedOf(f)
 	for _, s := range g.runningSides(c.C.ID) {
 		if staged && s.a.Staging == "" {
 			continue
+		}
+		if staged {
+			if st := g.StageByID(s.a.Staging); st == nil || st.Server != by {
+				continue
+			}
 		}
 		units, worth, implicit := g.counts(c, s, f)
 		if units <= 0 {

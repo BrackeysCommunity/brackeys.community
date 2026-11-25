@@ -269,13 +269,14 @@ func (s *Server) history(w http.ResponseWriter, r *http.Request) {
 }
 
 // forum is each open settlement's notable trades and movers of the world
-// day just closed, for the market forum.
+// day just closed, for the market forum, as the server named reads it.
 func (s *Server) forum(w http.ResponseWriter, r *http.Request) {
+	server := r.URL.Query().Get("server")
 	unlock, ok := s.hold(r.Context(), w, true)
 	if !ok {
 		return
 	}
-	out, banners := s.forumPosts()
+	out, banners := s.forumPosts(server)
 	unlock()
 	for i := range out.Posts {
 		var err error
@@ -287,8 +288,9 @@ func (s *Server) forum(w http.ResponseWriter, r *http.Request) {
 	reply(w, http.StatusOK, out)
 }
 
-// forumPosts are the posts and their banners' inputs, under the lock.
-func (s *Server) forumPosts() (api.Forum, []render.BannerInput) {
+// forumPosts are the posts and their banners' inputs as the server named
+// reads them, under the lock.
+func (s *Server) forumPosts(server string) (api.Forum, []render.BannerInput) {
 	g := s.g
 	var banners []render.BannerInput
 	out := api.Forum{Day: g.World.Day - 1, Posts: []api.ForumPost{}}
@@ -300,7 +302,7 @@ func (s *Server) forumPosts() (api.Forum, []render.BannerInput) {
 		if _, ok := g.MarketAt(h); !ok {
 			continue
 		}
-		p := api.ForumPost{Settlement: n, Name: g.PlaceName(h), Trades: []api.Trade{}, Movers: []api.Mover{}}
+		p := api.ForumPost{Settlement: n, Name: shownPlace(g, server, h), Trades: []api.Trade{}, Movers: []api.Mover{}}
 		banners = append(banners, s.bannerInput(h))
 		for _, t := range trades {
 			if t.Settlement != n {

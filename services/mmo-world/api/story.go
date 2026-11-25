@@ -8,7 +8,7 @@ const (
 	PathChronicleFact = "/v1/chronicle/fact"
 	// PathStoryEvents takes ?after=<fact id>; it is the bot's alone.
 	PathStoryEvents   = "/v1/story/events"
-	PathArcs          = "/v1/arcs" // ?character=
+	PathArcs          = "/v1/arcs" // ?character=&server=
 	PathOperatorStory = "/v1/operator/story"
 )
 

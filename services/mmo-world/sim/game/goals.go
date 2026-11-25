@@ -1159,7 +1159,7 @@ func (g *Game) creditGoals(from fact.ID, key string) error {
 	g.marked = nil
 	defer func() { g.stagedFacts = g.stagedFacts[:0] }()
 	for _, f := range g.Log.Since(from) {
-		staged := g.stagedFact(f)
+		staged, by := g.stagedOf(f)
 		for _, e := range g.see(f) {
 			for _, x := range g.Goals {
 				if x.Hidden || x.State != goal.Live || g.mayClaim(x, e.Who) != nil {
@@ -1169,6 +1169,13 @@ func (g *Game) creditGoals(from fact.ID, key string) error {
 				// events reach only staged arcs' sides (backEvents).
 				if staged && e.Verb != goal.Back && x.Issuer.Kind != goal.ByStaged {
 					continue
+				}
+				// Another server's staging counts toward none of this
+				// server's staged contests.
+				if staged && x.Issuer.Kind == goal.ByStaged {
+					if st := g.StageByID(x.Issuer.ID); st == nil || st.Server != by {
+						continue
+					}
 				}
 				contributors, cites := len(x.Progress), len(x.Facts)
 				claims := x.Credit(e)

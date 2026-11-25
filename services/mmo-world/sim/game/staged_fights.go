@@ -109,7 +109,7 @@ func (g *Game) hardshipEnded(a *Arc, won string, held []string, cause fact.ID, k
 	}
 	for _, id := range held {
 		c := g.Char(id)
-		if c == nil || id == st.By {
+		if c == nil || st.Stager(id) {
 			continue
 		}
 		s, ok := g.stagedRoll(tpl.Table, prizeDraw, draw.Str(st.ID), draw.Str(id))
@@ -136,7 +136,7 @@ func (g *Game) huntShares(x *Hunt) tally.Tally {
 	if st == nil {
 		return x.H.Removed
 	}
-	return slices.DeleteFunc(slices.Clone(x.H.Removed), func(c tally.Count) bool { return c.Key == st.By })
+	return slices.DeleteFunc(slices.Clone(x.H.Removed), func(c tally.Count) bool { return st.Stager(c.Key) })
 }
 
 // stagedHunt is the open staged hunt of a row in a region, or nil.
@@ -186,7 +186,7 @@ func (g *Game) xpLeft(c *Char) (*int64, func()) {
 		used = 0
 	}
 	left := max(0, g.lp("staged-xp")-used)
-	if st.By == c.C.ID {
+	if st.Stager(c.C.ID) {
 		left = 0
 	}
 	from := left

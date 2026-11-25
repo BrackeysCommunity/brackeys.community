@@ -1708,8 +1708,9 @@ export interface BandEdges {
 // source: emergence.go
 
 /**
- * PathStoryPromotions takes ?after=<fact id>; it is the bot's alone and
- * answers StoryEvents carrying their Promotion.
+ * PathStoryPromotions takes ?after=<fact id>&server=, masked for the
+ * server named; it is the bot's alone and answers StoryEvents carrying
+ * their Promotion.
  */
 export const PathStoryPromotions = "/v1/story/promotions";
 /**
@@ -1951,7 +1952,7 @@ export const ConsoleOnly = "a server's staff and admins act from their console i
  * Paths of the house. The bot reads a server's; operators read every
  * server's log and the escalated cases.
  */
-export const PathHouse = "/v1/house"; // ?server=&character=
+export const PathHouse = "/v1/house"; // ?server=&character=&admin=&staff=
 /**
  * Paths of the house. The bot reads a server's; operators read every
  * server's log and the escalated cases.
@@ -2030,9 +2031,9 @@ export interface Channel {
   id: string;
 }
 /**
- * House is one server's house as its staff and admins read it. Arrival is
- * the settlement new players arrive at, -1 while there is none; Role is
- * what the reading character's flags make it here.
+ * House is one server's house as a member reads it at Role: the queue,
+ * holds, masks and pins only for staff and admins. Arrival is the
+ * settlement new players arrive at, -1 while there is none.
  */
 export interface House {
   server: string;
@@ -2064,7 +2065,7 @@ export interface HouseSettlement {
   pool: number /* int64 */;
   poolCap: number /* int64 */;
   refill: number /* int64 */; // added at the next world day
-  sites: HouseSite[]; // known sites in its region, nearest first
+  sites: HouseSite[]; // known sites in its region: named ones first, each group nearest first
 }
 /**
  * HouseSite is a tile a staging may name.
@@ -2198,7 +2199,7 @@ export const PathHistory = "/v1/market/history";
 /**
  * Paths of the market's reads (GDD 10.6).
  */
-export const PathForum = "/v1/market/forum";
+export const PathForum = "/v1/market/forum"; // ?server=: the forum as that server reads it
 /**
  * Paths of the market's reads (GDD 10.6).
  */
@@ -3102,7 +3103,7 @@ export const PathGoals = "/v1/goals";
 /**
  * Paths of goals, guilds and classes (GDD 4.8, 5.8, 11).
  */
-export const PathBoard = "/v1/goals/forum";
+export const PathBoard = "/v1/goals/forum"; // ?server=: the board as that server reads it
 /**
  * Paths of goals, guilds and classes (GDD 4.8, 5.8, 11).
  */
@@ -4401,7 +4402,7 @@ export const PathStoryEvents = "/v1/story/events";
 /**
  * Paths of the story: arcs, the season and the chronicle (GDD 12).
  */
-export const PathArcs = "/v1/arcs"; // ?character=
+export const PathArcs = "/v1/arcs"; // ?character=&server=
 /**
  * Paths of the story: arcs, the season and the chronicle (GDD 12).
  */

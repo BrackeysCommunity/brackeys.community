@@ -57,8 +57,8 @@ const (
 	CaseLimit     = "case-limit"
 )
 
-// House is one server's own: what it sees, its staff pools, its
-// moderation. Changed only by recorded commands.
+// House is one server's own: what it sees, its staff pools, its moderation.
+// Changed by its server's commands and the world day's pool refill.
 type House struct {
 	Server   string        `json:"server"`
 	Settings HouseSettings `json:"settings"`
@@ -68,6 +68,9 @@ type House struct {
 	Masks    []string      `json:"masks,omitempty"`  // name refs read as generated here
 	Hidden   []string      `json:"hidden,omitempty"` // goal ids whose title and note read as generated here
 	Holds    []Hold        `json:"holds,omitempty"`
+	// ReportDay is the world day Reported tallies: each character's reports.
+	ReportDay int64            `json:"reportDay,omitempty"`
+	Reported  map[string]int64 `json:"reported,omitempty"`
 }
 
 // HouseSettings change only what one server sees (GDD 14.7).
@@ -184,11 +187,10 @@ func RoleOf(cmd Command) string {
 // structural: the settlement a house command that names none passes.
 const houseWide = -1
 
-// houseRole is the role a house command speaks with for a settlement:
-// admin or staff of cmd.Server, whose server guild runs it. Refused with
-// house-role or house-scope, nothing changed. A settlement of houseWide
-// asks only for the server's guild; house-settings, which installs that
-// guild, asks for an admin and no guild.
+// houseRole is the sender's role for a house command at a settlement
+// cmd.Server's guild runs. Refused with house-role or house-scope, nothing
+// changed. houseWide asks only that the server have a guild; house-settings,
+// which installs it, asks for an admin and no guild.
 func (g *Game) houseRole(cmd Command, settlement int) (role string, gd *Guild, err error) {
 	role = RoleOf(cmd)
 	if cmd.Server == "" || role == RolePlayer {

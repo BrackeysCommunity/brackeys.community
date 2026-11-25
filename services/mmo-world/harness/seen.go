@@ -261,7 +261,7 @@ func pinTouched(c *tile.Content, pins []world.Pin, h hex.Hex, tick int64) bool {
 	return false
 }
 
-// pinCovers is a pin's reach, its ground's ring included.
+// pinCovers reports whether h lies in a pin's reach, its ground's ring included.
 func pinCovers(p world.Pin, h hex.Hex) bool {
 	reach := p.Reach
 	if p.Fix.Ground != nil && p.Fix.Ground.Ring {

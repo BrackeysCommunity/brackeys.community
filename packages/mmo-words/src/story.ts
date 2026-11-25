@@ -1,4 +1,5 @@
 import { claimSideName, promotionNoun, seasonAddedWhat, SIDE_NAMES } from "./emergence.ts";
+import { stagerWords } from "./placed.ts";
 import { amount, capital, list, num, outOf, plural, readable, signed, ticks } from "./units.ts";
 
 /**
@@ -316,9 +317,7 @@ const STAGED_KINDS: Record<string, string> = {
 
 /** Who staged an event: a server's admins or its staff, by the server guild's name. */
 function stager(r: Reading): string {
-  const label = r.s("label");
-  const of = label ? ` of ${label}` : " of a server";
-  return r.s("role") === "staff" ? `staff${of}` : `the admins${of}`;
+  return stagerWords(r.s("role"), r.s("label") || "a server");
 }
 
 /** A staged event's kind in words: "a drop". */
@@ -333,20 +332,23 @@ function stagedCost(r: Reading): string {
     : "";
 }
 
+/** Who staged what where, for how long and at what cost: the head both staging lines share. */
+function stagedHead(r: Reading): string {
+  const days = r.n("days");
+  const span = days > 0 ? ` for ${plural(days, "day")}` : "";
+  return `${capital(stager(r))} staged ${stagedWhat(r)} at ${r.place()}${span}${stagedCost(r)}`;
+}
+
 /** A staging opened (GDD 14.4): who staged what where, for how long, and its crates. */
 function stagedOpenedLine(r: Reading): string {
-  const days = r.n("days");
   const crates = r.n("crates");
-  const span = days > 0 ? ` for ${plural(days, "day")}` : "";
   const open = crates > 0 ? `: ${plural(crates, "crate")} to open` : "";
-  return `${capital(stager(r))} staged ${stagedWhat(r)} at ${r.place()}${span}${stagedCost(r)}${open}.`;
+  return `${stagedHead(r)}${open}.`;
 }
 
 /** A staging ordered to open later: the fact carries no open time, so the line names none. */
 function stagedOrderedLine(r: Reading): string {
-  const days = r.n("days");
-  const span = days > 0 ? ` for ${plural(days, "day")}` : "";
-  return `${capital(stager(r))} staged ${stagedWhat(r)} at ${r.place()}${span}${stagedCost(r)}, to open later.`;
+  return `${stagedHead(r)}, to open later.`;
 }
 
 /** How a staging came to its close, by the reason the world gives. */

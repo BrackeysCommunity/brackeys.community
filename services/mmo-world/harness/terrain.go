@@ -472,7 +472,7 @@ func (w *terrainWorld) chunkOrder(out *terrainResult, bad breaks) error {
 		for _, k := range order[:min(spikeEOrderPick, len(order))] {
 			near[all[k]] = true
 		}
-		cs = slices.SortedFunc(maps.Keys(near), compareChunks)
+		cs = slices.SortedFunc(maps.Keys(near), gen.CompareChunks)
 	}
 	fresh, err := gen.New(w.b, w.keys.Generation)
 	if err != nil {
@@ -505,10 +505,6 @@ func (w *terrainWorld) chunkOrder(out *terrainResult, bad breaks) error {
 	}
 	out.chunks = len(cs)
 	return nil
-}
-
-func compareChunks(a, b gen.ChunkCoord) int {
-	return cmp.Or(cmp.Compare(a.A, b.A), cmp.Compare(a.B, b.B))
 }
 
 // areaLabels labels each passable tile of the area by what joins it there,

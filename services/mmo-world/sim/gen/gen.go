@@ -179,17 +179,9 @@ func New(b *sheets.Book, key draw.Key) (*Gen, error) {
 	g := &Gen{
 		b: b, d: draw.NewDrawer(key),
 		terrain: sheets.Lookup(b.Terrain), shapes: sheets.Lookup(b.Shapes), rules: map[string]int{},
-		discIndex: map[Hex]int{}, raws: newTileCache[raw](), lattices: noiseCache{blocks: map[noiseKey]*[blockArea]int64{}},
-		paths: map[pathKey][]Hex{}, rivers: map[ChunkCoord][]Hex{}, ground: map[ChunkCoord]*ground{},
-		chunks: map[ChunkCoord]*ChunkBaseline{}, points: map[ChunkCoord][]PatternPoint{},
-		instances: map[string]*instance{}, regionOf: newTileCache[LatticeID](),
-		regionInfo: map[LatticeID]*RegionBaseline{}, centreTerrain: map[LatticeID]string{}, weights: map[LatticeID]int64{}, isles: map[LatticeID]*island{}, links: map[LatticeID][]Hex{}, sizes: map[sizeKey]int64{}, regionSites: map[LatticeID]map[Hex]string{}, marks: map[LatticeID]landmark{}, tilesOf: map[LatticeID][]Hex{}, nextTo: map[LatticeID][]LatticeID{},
-		shore: map[Hex]Hex{}, landings: map[Hex]map[Hex]Hex{},
-		far: map[string]*FarMaterial{}, homeValid: map[LatticeID]bool{}, homeRank: map[LatticeID]int{},
+		discIndex: map[Hex]int{}, lattices: noiseCache{blocks: map[noiseKey]*[blockArea]int64{}},
 	}
-	for k := range g.picks {
-		g.picks[k] = newTileCache[LatticeID]()
-	}
+	g.freshCaches()
 	g.purposes = append([]string(nil), fieldPurposes[:]...)
 	for _, v := range b.BiomeVariants {
 		g.purposes = append(g.purposes, "variant."+v.ID)
@@ -233,16 +225,39 @@ func New(b *sheets.Book, key draw.Key) (*Gen, error) {
 	for i, h := range hex.Disc(g.p.chunk) {
 		g.discIndex[h] = i
 	}
-	g.regions = g.newLattice("region", g.p.regionSpacing, g.p.regionJitter, true)
-	g.spine = g.newLattice("spine", g.p.spineSpacing, g.p.spineJitter, true)
-	g.spine.prefer = func(h Hex) bool { return g.passable(g.raw(h).terrain) }
-	g.homes = g.newLattice("home", g.p.homeSpacing, g.p.homeJitter, false)
-	g.homes.prefer = func(h Hex) bool { return g.passable(g.raw(h).terrain) }
+	g.newLattices()
 	if err := g.checkPatterns(); err != nil {
 		return nil, err
 	}
 	g.originAreas = g.areasAtOrigin()
 	return g, nil
+}
+
+// freshCaches empties everything a Gen fills as it lays the world.
+func (g *Gen) freshCaches() {
+	g.raws, g.regionOf = newTileCache[raw](), newTileCache[LatticeID]()
+	g.paths, g.rivers, g.ground = map[pathKey][]Hex{}, map[ChunkCoord][]Hex{}, map[ChunkCoord]*ground{}
+	g.chunks, g.points = map[ChunkCoord]*ChunkBaseline{}, map[ChunkCoord][]PatternPoint{}
+	g.instances = map[string]*instance{}
+	g.regionInfo, g.centreTerrain, g.weights = map[LatticeID]*RegionBaseline{}, map[LatticeID]string{}, map[LatticeID]int64{}
+	g.isles, g.links, g.sizes = map[LatticeID]*island{}, map[LatticeID][]Hex{}, map[sizeKey]int64{}
+	g.regionSites, g.marks = map[LatticeID]map[Hex]string{}, map[LatticeID]landmark{}
+	g.tilesOf, g.nextTo = map[LatticeID][]Hex{}, map[LatticeID][]LatticeID{}
+	g.shore, g.landings = map[Hex]Hex{}, map[Hex]map[Hex]Hex{}
+	g.far, g.homeValid, g.homeRank = map[string]*FarMaterial{}, map[LatticeID]bool{}, map[LatticeID]int{}
+	for k := range g.picks {
+		g.picks[k] = newTileCache[LatticeID]()
+	}
+}
+
+// newLattices lays the region, spine and settlement lattices; the last two
+// prefer passable raw ground, so any raw override goes in first.
+func (g *Gen) newLattices() {
+	g.regions = g.newLattice("region", g.p.regionSpacing, g.p.regionJitter, true)
+	g.spine = g.newLattice("spine", g.p.spineSpacing, g.p.spineJitter, true)
+	g.spine.prefer = func(h Hex) bool { return g.passable(g.raw(h).terrain) }
+	g.homes = g.newLattice("home", g.p.homeSpacing, g.p.homeJitter, false)
+	g.homes.prefer = func(h Hex) bool { return g.passable(g.raw(h).terrain) }
 }
 
 // Baseline is one tile from a fresh Gen, so no cache state can colour it.

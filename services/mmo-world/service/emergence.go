@@ -220,7 +220,8 @@ func stateNames(g *game.Game, st *api.ActivityState) map[string]string {
 }
 
 // storyPromotions are the chronicle channel's promotions after a fact id,
-// each with its record as the game holds it now, capped like the events.
+// each with its record as the game holds it now, masked for the server named,
+// capped like the events.
 func (s *Server) storyPromotions(w http.ResponseWriter, r *http.Request) {
 	var after int64
 	if q := r.URL.Query().Get("after"); q != "" {
@@ -241,10 +242,11 @@ func (s *Server) storyPromotions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer unlock()
+	server := r.URL.Query().Get("server")
 	out := api.StoryEvents{Events: []api.StoryEvent{}, Last: after}
 	for _, f := range facts {
 		out.Last = max(out.Last, int64(f.ID))
-		if ev, ok := storyEvent(s.g, f, ""); ok {
+		if ev, ok := storyEvent(s.g, f, server); ok {
 			out.Events = append(out.Events, ev)
 		}
 	}

@@ -88,9 +88,7 @@ func (g *Game) stagedServer(n int) string {
 	return ""
 }
 
-// stampedBy stamps the facts written until the func it returns is called
-// with a server's stamp, as its staging's own; no server leaves the stamp
-// as it was.
+// stampedBy stamps facts with server's staging stamp until the returned func restores the previous stamp; an empty server changes nothing.
 func (g *Game) stampedBy(server string) (restore func()) {
 	was := g.stagedBy
 	if server != "" {

@@ -64,14 +64,12 @@ const (
 	RefPost       = "post"
 )
 
-// structural: a Discord message link fits well inside this; a settings id
-// (a channel or role snowflake) inside the second; a Discord select offers
-// at most the third; a day has this many minutes for quiet hours.
+// structural: Discord's limits, and a day's minutes for quiet hours.
 const (
-	postRefMost       = 200
-	settingsIDMost    = 32
-	settingsRolesMost = 25
-	minutesPerDay     = 1440
+	postRefMost       = 200  // a message link fits well inside
+	settingsIDMost    = 32   // a channel or role snowflake
+	settingsRolesMost = 25   // the most a Discord select offers
+	minutesPerDay     = 1440 // quiet hours are minutes of the day
 )
 
 // ChannelKinds are the kinds a server maps to its own channels.
@@ -224,6 +222,7 @@ func (g *Game) fileReport(c *Char, cmd Command) error {
 		}
 	}
 	h := g.houseFor(cmd.Server)
+	h.noteReport(c.C.ID, g.Tick()/sheets.TicksPerDay)
 	if join >= 0 {
 		h.Cases[join].By = append(h.Cases[join].By, c.C.ID)
 		return nil
@@ -235,16 +234,23 @@ func (g *Game) fileReport(c *Char, cmd Command) error {
 	return nil
 }
 
-// reportsToday counts a character's reports among the cases opened on the
-// world day of tick; a case keeps no tick per reporter.
+// reportsToday is how many reports a character has made here on the world
+// day of tick, joins of older cases included.
 func (h *House) reportsToday(char string, tick int64) int64 {
-	var n int64
-	for _, x := range h.Cases {
-		if x.Tick/sheets.TicksPerDay == tick/sheets.TicksPerDay && slices.Contains(x.By, char) {
-			n++
-		}
+	if h.ReportDay == tick/sheets.TicksPerDay {
+		return h.Reported[char]
 	}
-	return n
+	return 0
+}
+
+// noteReport counts a report a character made on day, starting the tally
+// afresh on a new day.
+func (h *House) noteReport(char string, day int64) {
+	if h.ReportDay != day || h.Reported == nil {
+		h.Reported = map[string]int64{}
+	}
+	h.ReportDay = day
+	h.Reported[char]++
 }
 
 // dropOrder is the case states a full queue gives up first.
@@ -614,15 +620,53 @@ func moderationGate(g *Game, c *Char, cmd Command) error {
 			return refuse(Suspended, "%s may not post on this board", c.C.ID)
 		}
 	}
+	if st := g.exclusionStage(c, cmd); st != nil {
+		if h := g.House(st.Server); h != nil && h.Holding(c.C.ID, HoldExclude, day) {
+			return refuse(Excluded, "%s is excluded from %s's stagings", c.C.ID, st.Server)
+		}
+	}
 	if !excludable(cmd.Kind) {
 		return nil
 	}
 	if h := g.houseHere(c); h != nil && h.Holding(c.C.ID, HoldExclude, day) {
 		return refuse(Excluded, "%s is excluded here", c.C.ID)
 	}
+	return nil
+}
+
+// exclusionStage is the stage a character's command plays in, for the
+// stager's exclusion: the one it names, else the vault or staged board it
+// works. Only board work counts a board by where it stands, so a plain arm
+// or solve on a staged point is not held. Ending a stage is its staff's.
+func (g *Game) exclusionStage(c *Char, cmd Command) *Stage {
+	if cmd.Kind == StagingEnd {
+		return nil
+	}
 	if st := g.cmdStage(cmd); st != nil {
-		if h := g.House(st.Server); h != nil && h.Holding(c.C.ID, HoldExclude, day) {
-			return refuse(Excluded, "%s is excluded from %s's stagings", c.C.ID, st.Server)
+		return st
+	}
+	switch cmd.Kind {
+	case MachineArm:
+		if cmd.Machine != nil {
+			if st, err := g.vaultFor(c, cmd); err == nil && st != nil {
+				return st
+			}
+		}
+	case MachineSolve:
+		if c.Armed != nil && c.Armed.Pattern != nil {
+			if b := g.boardByID(c.Armed.Pattern.Board); b != nil {
+				return g.boardStage(b)
+			}
+		}
+		if st := g.vaultOfChar(c.Armed, g.sharedOf(c)); st != nil {
+			return st
+		}
+	}
+	board := cmd.Kind == PatternSet ||
+		cmd.Kind == MachineArm && cmd.Machine != nil && cmd.Machine.Source == MachinePattern
+	if board {
+		if b, _, ok := g.pointAt(c.C.At); ok {
+			return g.boardStage(b)
 		}
 	}
 	return nil

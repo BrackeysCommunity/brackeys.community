@@ -8,7 +8,6 @@ import (
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fight"
-	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/party"
@@ -102,7 +101,7 @@ func (g *Game) vaultAt(h hex.Hex, skip string) *Stage {
 
 // VaultAt is the open vault on h, for readers, or nil.
 func (g *Game) VaultAt(h hex.Hex) *Stage {
-	if st := g.vaultAt(h, ""); st != nil && st.Open && st.Vault != nil {
+	if st := g.vaultAt(h, ""); st != nil && st.Running(g.Tick()) && st.Vault != nil {
 		return st
 	}
 	return nil
@@ -183,7 +182,7 @@ func (g *Game) vaultSeats(c *Char) []*Char {
 // it against the first other context armed there.
 func (g *Game) vaultArm(c *Char, cmd Command, st *Stage) error {
 	defer g.inStage(st)()
-	if st.Closed || !st.Open || st.Vault == nil {
+	if !st.Running(g.Tick()) || st.Vault == nil {
 		return refuse(NoStage, "%s is not open", st.ID)
 	}
 	if err := free(c); err != nil {
@@ -202,7 +201,7 @@ func (g *Game) vaultArm(c *Char, cmd Command, st *Stage) error {
 		return refuse(Busy, "%s is busy", c.C.ID)
 	}
 	seats := g.vaultSeats(c)
-	if p := g.partyOf(c); c.C.ID == st.By || p != nil && slices.ContainsFunc(p.Members, func(m party.Member) bool { return m.ID == st.By }) {
+	if p := g.partyOf(c); st.Stager(c.C.ID) || p != nil && slices.ContainsFunc(p.Members, func(m party.Member) bool { return st.Stager(m.ID) }) {
 		return refuse(StagedOwn, "the stager's party takes nothing from its vault")
 	}
 	tick := g.Tick()
@@ -284,7 +283,7 @@ func (g *Game) stagedRolls(st *Stage, table string, p draw.Purpose, to []*Char) 
 	var legs []ledger.Leg
 	var total int64
 	for _, c := range to {
-		if c.C.ID == st.By {
+		if st.Stager(c.C.ID) {
 			continue
 		}
 		if s, ok := g.stagedRoll(table, p, draw.Str(st.ID), draw.Str(c.C.ID)); ok {
@@ -347,7 +346,7 @@ func (g *Game) layStaged(st *Stage) (*Board, *sheets.PatternPuzzle, error) {
 		switch {
 		case !g.chainFree(h) || scaffold || g.vaultAt(h, "") != nil:
 			return nil, nil, refuse(world.CodePinPath, "a point of %s falls on %s, which is not free open ground", row.ID, h.Ref())
-		case !g.knownWithin(h, walk):
+		case !g.World.KnownWithin(h, walk):
 			return nil, nil, refuse(world.CodePinPath, "no known ground within %d tiles of %s", walk, h.Ref())
 		}
 	}
@@ -359,35 +358,10 @@ func (g *Game) layStaged(st *Stage) (*Board, *sheets.PatternPuzzle, error) {
 	return b, row, nil
 }
 
-// knownWithin reports whether a walk over passable ground from h, within
-// most tiles, meets a discovered tile or a starting settlement.
-func (g *Game) knownWithin(h hex.Hex, most int64) bool {
-	step := func(_, n hex.Hex) (int64, bool) { return 1, g.r.Gen.Passable(g.World.Baseline(n).Terrain) }
-	walked := hex.Reach([]hex.Hex{h}, step, most)
-	for _, at := range hex.DiscAt(h, most) {
-		if _, ok := walked[at]; !ok {
-			continue
-		}
-		if t := g.World.Tile(at); t != nil && t.Discovered != nil {
-			return true
-		}
-		if g.r.Gen.Baseline(at).Site == gen.PlaceSettlement {
-			return true
-		}
-	}
-	return false
-}
-
-// checkPattern holds an admin's pattern to a row its template lists, laid
-// on ground every point may take.
+// checkPattern holds a pattern to ground every point may take.
 func (g *Game) checkPattern(_ *Char, st *Stage, t *sheets.StageTemplate) error {
-	switch {
-	case st.Role != RoleAdmin:
-		return refuse(StageTemplate, "%s is an admin's to stage", t.ID)
-	case g.Story == nil:
+	if g.Story == nil {
 		return refuse(StageTemplate, "this world holds no patterns")
-	case !slices.Contains(t.Patterns, st.Pattern):
-		return refuse(StageTemplate, "%s lays %v, not %q", t.ID, t.Patterns, st.Pattern)
 	}
 	_, _, err := g.layStaged(st)
 	return err
@@ -451,7 +425,7 @@ func (g *Game) stagedCache(st *Stage, b *Board, cause fact.ID, t int64) error {
 	var to []*Char
 	subjects := []fact.Ref{boardRef(b.ID), stageRef(st.ID)}
 	for _, s := range b.solvers() {
-		if c := g.Char(s.Key); c != nil && c.C.ID != st.By {
+		if c := g.Char(s.Key); c != nil && !st.Stager(c.C.ID) {
 			to = append(to, c)
 			subjects = append(subjects, char.Ref(c.C.ID))
 		}

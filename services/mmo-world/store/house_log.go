@@ -29,8 +29,7 @@ type LogPage struct {
 	Next int64
 }
 
-// logRole is the role a logged command spoke with. Admin implies staff, so
-// a member carrying both flags logs as admin.
+// logRole is the role a logged command spoke with: operator for an operator kind, else game.RoleOf.
 func logRole(cmd game.Command) string {
 	if game.Operator(cmd.Kind) {
 		return game.RoleOperator

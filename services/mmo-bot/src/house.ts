@@ -143,7 +143,7 @@ export function heldOf(raws: readonly string[], guild: string): HeldEntry[] {
       const h = JSON.parse(raw) as HeldName;
       if (guild && h.guild === guild) out.push({ ...h, key: heldKeyOf(raw) });
     } catch {
-      // An unreadable entry is the held script's to show.
+      // Skipped here; the held-names script lists unreadable entries.
     }
   }
   return out;

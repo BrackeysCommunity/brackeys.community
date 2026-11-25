@@ -27,9 +27,11 @@ export interface World {
   market(characterId: string, material?: string): Promise<WorldReply<api.Market>>;
   history(characterId: string, material: string): Promise<WorldReply<api.History>>;
   routeRisk(characterId: string, to: api.Hex): Promise<WorldReply<api.RouteRisk>>;
-  forum(): Promise<api.Forum>;
+  /** The market forum; with a server, as that server reads it. */
+  forum(server?: string): Promise<api.Forum>;
   goals(characterId: string): Promise<WorldReply<api.Goals>>;
-  board(): Promise<api.Board>;
+  /** The goals board; with a server, as that server reads it, its staged contests only. */
+  board(server?: string): Promise<api.Board>;
   guild(characterId: string): Promise<api.Guild>;
   classes(characterId: string): Promise<api.Classes>;
   party(characterId: string): Promise<PartyRead>;
@@ -44,12 +46,12 @@ export interface World {
   ): Promise<WorldReply<api.Chronicle>>;
   /** A fact and its causes; with no character, the public view of them. */
   chronicleFact(characterId: string | undefined, id: number): Promise<WorldReply<api.FactCauses>>;
-  /** The arcs open and lately ended; with no character, only those everyone may see. */
-  arcs(characterId: string): Promise<api.Arcs>;
+  /** The arcs open and lately ended; with no character, only those everyone may see, and a server's own staged arcs when one is named. */
+  arcs(characterId: string, server?: string): Promise<api.Arcs>;
   /** The events channel's facts after a fact id: the bot's own read; with a server, as that server sees them. */
   storyEvents(after: number, server?: string): Promise<api.StoryEvents>;
-  /** The promotions after a fact id, each with its record: the bot's own read, for the chronicle channel. */
-  storyPromotions(after: number): Promise<api.StoryEvents>;
+  /** The promotions after a fact id, each with its record: the bot's own read, for the chronicle channel; with a server, masked as that server reads them. */
+  storyPromotions(after: number, server?: string): Promise<api.StoryEvents>;
   /** A server's house; with a character and its member's flags, as that server's staff or admins see it. */
   house?(
     server: string,
@@ -140,9 +142,9 @@ export function httpWorld(base: string, token: string, fetcher: typeof fetch = f
     market: (id, material) => read("GET", api.PathMarket + q({ characterId: id, material })),
     history: (id, material) => read("GET", api.PathHistory + q({ characterId: id, material })),
     routeRisk: (id, to) => read("GET", api.PathRisk + q({ characterId: id, q: to.q, r: to.r })),
-    forum: () => get(api.PathForum),
+    forum: (server) => get(api.PathForum + q({ server })),
     goals: (id) => read("GET", api.PathGoals + q({ characterId: id })),
-    board: () => get(api.PathBoard),
+    board: (server) => get(api.PathBoard + q({ server })),
     guild: (id) => get(api.PathGuild + q({ characterId: id })),
     classes: (id) => get(api.PathClasses + q({ characterId: id })),
     party: (id) => get(api.PathParty + q({ characterId: id })),
@@ -152,9 +154,9 @@ export function httpWorld(base: string, token: string, fetcher: typeof fetch = f
       read("GET", api.PathChronicle + q({ characterId: id || undefined, day, server })),
     chronicleFact: (id, fact) =>
       read("GET", api.PathChronicleFact + q({ characterId: id || undefined, id: fact })),
-    arcs: (id) => get(api.PathArcs + q({ characterId: id || undefined })),
+    arcs: (id, server) => get(api.PathArcs + q({ characterId: id || undefined, server })),
     storyEvents: (after, server) => get(api.PathStoryEvents + q({ after, server })),
-    storyPromotions: (after) => get(api.PathStoryPromotions + q({ after })),
+    storyPromotions: (after, server) => get(api.PathStoryPromotions + q({ after, server })),
     house: (server, character, flags) =>
       read(
         "GET",

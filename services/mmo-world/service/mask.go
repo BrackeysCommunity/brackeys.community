@@ -1,11 +1,11 @@
 package service
 
 import (
-	"strconv"
 	"strings"
 
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/sim/game"
+	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
 )
 
@@ -30,14 +30,12 @@ func shownGuild(g *game.Game, server, id, name string) string {
 	return shownName(g, server, game.RefGuild+":"+id, name)
 }
 
-func settlementRef(n int) string { return game.RefSettlement + ":" + strconv.Itoa(n) }
-
 // shownPlace is the name a tile goes by to a server: a settlement's as it
 // masks it, or its region's.
 func shownPlace(g *game.Game, server string, h hex.Hex) string {
 	name := g.PlaceName(h)
 	if n, ok := g.SettlementAt(h); ok {
-		return shownName(g, server, settlementRef(n), name)
+		return shownName(g, server, goal.SettlementRef(n), name)
 	}
 	return name
 }
@@ -98,7 +96,7 @@ func nameRefOf(g *game.Game, f api.Fact) string {
 	switch f.Kind {
 	case "settlement.founded":
 		if d, ok := datum("settlement"); ok {
-			return settlementRef(int(d.N))
+			return goal.SettlementRef(int(d.N))
 		}
 	case "guild.installed", "guild.founded":
 		for _, s := range f.Subjects {
@@ -128,7 +126,7 @@ func nameRefOf(g *game.Game, f api.Fact) string {
 // name of: the staging server's guild, found through the stage it names.
 func labelRefOf(g *game.Game, f api.Fact) string {
 	for _, s := range f.Subjects {
-		if s.Kind != kindStage {
+		if s.Kind != game.KindStage {
 			continue
 		}
 		if st := g.StageByID(s.ID); st != nil {
@@ -139,9 +137,6 @@ func labelRefOf(g *game.Game, f api.Fact) string {
 	}
 	return ""
 }
-
-// structural: the ref kind a fact names a stage by, as sim/game writes it.
-const kindStage = "stage"
 
 // maskFact is a fact as a server reads it: a written name it carries, a
 // thing's "name", a renamed promotion's "was" or a staging's "label",

@@ -102,6 +102,9 @@ func (g *Game) fence(c *Char, cmd Command) error {
 		if err != nil {
 			return err
 		}
+		if in.Staged != nil {
+			return refuse(StagedLocal, "%s is made of staged goods: no fence buys it, only players where it was staged", in.ID)
+		}
 		if !in.Hot.HotOn(day) {
 			return refuse(NotHot, "%s is not hot: a fence buys only hot goods", in.ID)
 		}

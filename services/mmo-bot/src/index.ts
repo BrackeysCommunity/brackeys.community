@@ -139,7 +139,7 @@ client.once(Events.ClientReady, async (c) => {
   const audience = (guild: string) => ({
     server: guild,
     houses,
-    board: () => world.board(),
+    board: () => world.board(guild),
     now: Date.now,
   });
 
@@ -176,7 +176,7 @@ client.once(Events.ClientReady, async (c) => {
       new EventsPoster(
         {
           storyEvents: (after) => world.storyEvents(after, guild),
-          arcs: () => world.arcs(""),
+          arcs: () => world.arcs("", guild),
           hunts: () => world.hunts(),
           chronicleFact: (_character, fact) => world.chronicleFact(undefined, fact),
         },
@@ -230,7 +230,7 @@ client.once(Events.ClientReady, async (c) => {
     mapped("chronicle", chronicleChannel),
     (guild, id) =>
       new PromotionsPoster(
-        { storyPromotions: (after) => world.storyPromotions(after) },
+        { storyPromotions: (after) => world.storyPromotions(after, guild) },
         lex,
         store,
         channel(id),
@@ -245,7 +245,14 @@ client.once(Events.ClientReady, async (c) => {
   new GuildPosters(
     guildIds,
     mapped("market", marketForum),
-    (guild, id) => new ForumPoster(world, lex, store, sink(id), marketPrefix(guild, id)),
+    (guild, id) =>
+      new ForumPoster(
+        { forum: () => world.forum(guild) },
+        lex,
+        store,
+        sink(id),
+        marketPrefix(guild, id),
+      ),
     console.log,
     "forum",
   ).start(FORUM_POLL_MS);
@@ -254,7 +261,14 @@ client.once(Events.ClientReady, async (c) => {
   new GuildPosters(
     guildIds,
     mapped("board", goalsForum),
-    (guild, id) => new BoardPoster(world, lex, store, sink(id), boardPrefix(guild, id)),
+    (guild, id) =>
+      new BoardPoster(
+        { board: () => world.board(guild) },
+        lex,
+        store,
+        sink(id),
+        boardPrefix(guild, id),
+      ),
     console.log,
     "board",
   ).start(FORUM_POLL_MS);

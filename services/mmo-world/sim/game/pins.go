@@ -110,12 +110,12 @@ func housePin(g *Game, c *Char, cmd Command) error {
 		return err
 	}
 	region := g.r.Gen.RegionOf(p.At)
-	n := slices.IndexFunc(g.Places, func(pl *Place) bool { return pl.Guild == gd.G.ID && g.r.Gen.RegionOf(pl.Hex) == region })
-	if n < 0 {
+	n, ok := g.regionSettlement(gd, p.At)
+	if !ok {
 		return refuse(HouseScope, "%s runs no settlement in the region of %s", gd.G.Name, p.At.Ref())
 	}
-	if pl := g.PlaceAt(p.At); pl != nil && pl.Lattice < 0 {
-		return refuse(world.CodePinGround, "%s holds a settlement", p.At.Ref())
+	if err := g.notSettlement(p.At); err != nil {
+		return err
 	}
 	var points int64
 	if l := g.pinLimit(world.PinStaff); l != nil {
@@ -192,11 +192,26 @@ func (g *Game) pinTarget(cmd Command) (*PinCmd, world.PinBy, error) {
 	if err != nil {
 		return nil, by, err
 	}
-	// A guild-founded settlement; the world's placeTile refuses a starting one.
-	if pl := g.PlaceAt(p.At); pl != nil && pl.Lattice < 0 {
-		return nil, by, refuse(world.CodePinGround, "%s holds a settlement", p.At.Ref())
+	if err := g.notSettlement(p.At); err != nil {
+		return nil, by, err
 	}
 	return p, by, nil
+}
+
+// regionSettlement is the index of a settlement gd runs in the region of at.
+func (g *Game) regionSettlement(gd *Guild, at hex.Hex) (int, bool) {
+	region := g.r.Gen.RegionOf(at)
+	n := slices.IndexFunc(g.Places, func(pl *Place) bool { return pl.Guild == gd.G.ID && g.r.Gen.RegionOf(pl.Hex) == region })
+	return n, n >= 0
+}
+
+// notSettlement refuses ground a guild-founded settlement holds; the world's
+// placeTile refuses a starting one.
+func (g *Game) notSettlement(at hex.Hex) error {
+	if pl := g.PlaceAt(at); pl != nil && pl.Lattice < 0 {
+		return refuse(world.CodePinGround, "%s holds a settlement", at.Ref())
+	}
+	return nil
 }
 
 // delvedAt reports whether anyone is on a floor of the dungeon at h or has
@@ -256,10 +271,10 @@ func (g *Game) pinBy(p *PinCmd, withdraw bool) (world.PinBy, error) {
 	if withdraw {
 		return by, nil
 	}
-	region := g.r.Gen.RegionOf(p.At)
-	if !slices.ContainsFunc(g.Places, func(pl *Place) bool { return pl.Guild == gd.G.ID && g.r.Gen.RegionOf(pl.Hex) == region }) {
+	if _, ok := g.regionSettlement(gd, p.At); !ok {
 		return world.PinBy{}, refuse(world.CodePinAnchor, "%s runs no settlement in the region of %s", gd.G.Name, p.At.Ref())
 	}
+	region := g.r.Gen.RegionOf(p.At)
 	by.Region = &region
 	return by, nil
 }
