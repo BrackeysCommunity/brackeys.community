@@ -389,6 +389,38 @@ test("the live hunt shows its pool, the presses as they land and the viewer's sh
   expect(root.textContent).toContain("You have pressed this tick.");
 });
 
+test("a staged hunt says who staged it, and its spoils stay where they were staged", async () => {
+  const { root } = await page("staged-hunt");
+  const panel = root.querySelector(".panel")!;
+  expect(panel.querySelector("h2")?.textContent).toBe("Rad-hound cull: Rad-hound");
+  expect(panel.querySelector("p")?.textContent).toBe(
+    "Staged by staff of Lantern Hall · 80 event points.",
+  );
+  expect(root.textContent).toContain("(staged · local to Old Rail)");
+});
+
+const splitGrid = versionOf("split-grid");
+
+test.skipIf(!splitGrid)(
+  "a competing vault is labelled with who staged it, at rest and armed",
+  async () => {
+    const { root, session } = await page("vault", { seats: 2, teammates: true });
+    const head = () => root.querySelector(".machine-head")!.textContent!;
+    expect(head()).toContain("In a competing vault: the first crew to solve it takes it.");
+    expect(head()).toContain("Staged by staff of Lantern Hall · 60 event points.");
+    expect(head()).not.toContain("Behind a way down");
+    click(root, "Start it for everyone");
+    await settle();
+    expect(session.state!.machine).toMatchObject({ armed: true, party: "split-grid" });
+    expect(head()).toContain("Staged by staff of Lantern Hall · 60 event points.");
+    for (const node of root.querySelectorAll(".machine svg, .machine canvas")) {
+      if (node.getAttribute("aria-hidden") === "true") continue;
+      expect(node.getAttribute("aria-label")?.trim()).toBeTruthy();
+    }
+    expect(root.querySelectorAll(".machine svg, .machine canvas").length).toBeGreaterThan(0);
+  },
+);
+
 const realLock = versionOf("two-hand-lock");
 
 test.skipIf(!realLock)(

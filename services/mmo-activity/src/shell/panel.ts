@@ -23,6 +23,7 @@ import {
   practiceLine,
   refusalLine,
   resultLine,
+  stagedLine,
   type MachineState,
 } from "../words.ts";
 import { labelBoards } from "./board.ts";
@@ -43,6 +44,20 @@ export interface RivalView {
 /** A machine's rival, when the state names one. */
 export function rivalOf(m: MachineView): RivalView | undefined {
   return (m as MachineView & { rival?: RivalView }).rival;
+}
+
+// structural: the place a competing vault's machine stands at, before its stage id.
+const VAULT = "vault:";
+
+/** Where a machine stands and who staged it, on a competing vault. */
+export type VaultMark = Pick<MachineView, "place" | "placed">;
+
+/**
+ * A competing vault a server staged (GDD 14.4), when the machine is one:
+ * its fork machine's place names the stage, and the state says who staged it.
+ */
+export function vaultOf(m: MachineView): VaultMark | undefined {
+  return m.place?.startsWith(VAULT) ? { place: m.place, placed: m.placed } : undefined;
 }
 
 /** Who sits at a party machine, by name, and who of them has it open here. */
@@ -189,8 +204,10 @@ export class MachinePanel {
     const s = this.shell;
     const m = s.machine;
     const p = m.practice;
-    const where =
-      m.source === MachineBeat
+    const vault = vaultOf(m);
+    const where = vault
+      ? "In a competing vault: the first crew to solve it takes it"
+      : m.source === MachineBeat
         ? "On this beat"
         : m.source === MachineParty
           ? "On this beat, with your party"
@@ -210,6 +227,7 @@ export class MachinePanel {
         class: "sub",
         text: `${where}. Your practice: ${practiceLine(p)}.`,
       }),
+      ...(vault?.placed ? [el("p", { class: "sub", text: `${stagedLine(vault.placed)}.` })] : []),
     );
     this.status.replaceChildren(...lines(s.note, this.statusLine()));
     this.seats.replaceChildren(

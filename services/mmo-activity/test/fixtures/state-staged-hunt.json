@@ -1,0 +1,157 @@
+{
+  "tick": 4310,
+  "now": 1795000000000,
+  "context": {
+    "kind": "hunt",
+    "id": "hn-7"
+  },
+  "character": {
+    "id": "c-mock",
+    "version": 7,
+    "at": {
+      "q": 3,
+      "r": -2
+    },
+    "coin": 120,
+    "provisions": 6,
+    "goods": [
+      {
+        "material": "copper-ore",
+        "units": 4
+      },
+      {
+        "material": "stalker-hide",
+        "units": 5,
+        "staged": {
+          "settlement": 3,
+          "name": "Old Rail"
+        }
+      }
+    ],
+    "conditions": [],
+    "practice": [
+      {
+        "id": "rewire",
+        "level": 4
+      },
+      {
+        "id": "lock-dial",
+        "level": 2
+      }
+    ],
+    "inFight": false,
+    "walked": 14,
+    "stagedXp": 40
+  },
+  "place": {
+    "tile": {
+      "hex": {
+        "q": 3,
+        "r": -2
+      },
+      "terrain": "flats",
+      "water": "none",
+      "region": "r-3",
+      "road": 1,
+      "found": 12
+    },
+    "name": "Copperline",
+    "busy": 3
+  },
+  "hunt": {
+    "id": "hn-7",
+    "name": "Rad-hound cull",
+    "creature": "cinder-hound",
+    "health": 1240,
+    "max": 2000,
+    "ends": 4334,
+    "endsIn": 24,
+    "pressers": [
+      {
+        "name": "Ivo",
+        "removed": 420
+      },
+      {
+        "name": "Juno",
+        "removed": 210
+      },
+      {
+        "name": "Ash",
+        "removed": 130,
+        "you": true
+      }
+    ],
+    "mine": 130,
+    "share": 17,
+    "spoils": [
+      {
+        "material": "stalker-hide",
+        "units": 20,
+        "staged": {
+          "settlement": 3,
+          "name": "Old Rail"
+        }
+      },
+      {
+        "material": "bog-iron",
+        "units": 6,
+        "staged": {
+          "settlement": 3,
+          "name": "Old Rail"
+        }
+      }
+    ],
+    "canPress": true,
+    "options": [
+      {
+        "id": "strike",
+        "verb": "strike",
+        "kind": "win",
+        "band": "likely",
+        "risk": "durability",
+        "riskSize": 4,
+        "why": {
+          "parts": [
+            {
+              "label": "force pts",
+              "value": 34,
+              "unit": "pts"
+            },
+            {
+              "label": "party",
+              "value": 15,
+              "unit": "percent"
+            }
+          ],
+          "bandFrom": "even",
+          "bandTo": "likely"
+        }
+      },
+      {
+        "id": "hold",
+        "verb": "hold",
+        "kind": "hold",
+        "band": "even",
+        "risk": "none",
+        "riskSize": 0,
+        "why": {
+          "parts": [
+            {
+              "label": "guard pts",
+              "value": 20,
+              "unit": "pts"
+            }
+          ],
+          "bandFrom": "even",
+          "bandTo": "even"
+        }
+      }
+    ],
+    "placed": {
+      "by": "staff",
+      "label": "Lantern Hall",
+      "points": 80
+    },
+    "stage": "st-3"
+  }
+}

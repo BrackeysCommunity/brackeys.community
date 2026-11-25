@@ -118,8 +118,10 @@ test.each(names)("every picture is named or hidden: ?mock=%s", async (name) => {
     seen += pictures(root);
     expect(unnamed(root)).toEqual([]);
   });
-  if (fixture(name).fight || fixture(name).floor?.floor || fixture(name).machine)
-    expect(seen).toBeGreaterThan(0);
+  const st = fixture(name);
+  // A party machine at rest draws nothing: its version and size are fixed when it arms.
+  const drawn = st.machine && !(st.machine.seats?.length && !st.machine.armed);
+  if (st.fight || st.floor?.floor || drawn) expect(seen).toBeGreaterThan(0);
 });
 
 test.each(registered())(

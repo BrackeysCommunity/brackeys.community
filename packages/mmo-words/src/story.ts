@@ -303,6 +303,78 @@ function promotionLine(r: Reading): string {
   }
 }
 
+/** What each kind of staged event is called (GDD 14.4). */
+const STAGED_KINDS: Record<string, string> = {
+  contest: "a contest",
+  hardship: "a hardship",
+  drop: "a drop",
+  hunt: "a hunt",
+  fair: "a fair",
+  vault: "a competing vault",
+  pattern: "a pattern",
+};
+
+/** Who staged an event: a server's admins or its staff, by the server guild's name. */
+function stager(r: Reading): string {
+  const label = r.s("label");
+  const of = label ? ` of ${label}` : " of a server";
+  return r.s("role") === "staff" ? `staff${of}` : `the admins${of}`;
+}
+
+/** A staged event's kind in words: "a drop". */
+function stagedWhat(r: Reading): string {
+  return STAGED_KINDS[r.s("kind")] ?? "an event";
+}
+
+/** The event points a staff staging cost, as a clause; admins pay nothing. */
+function stagedCost(r: Reading): string {
+  return r.s("role") === "staff" && r.n("points") > 0
+    ? `, for ${amount(r.n("points"), "event points")}`
+    : "";
+}
+
+/** A staging opened (GDD 14.4): who staged what where, for how long, and its crates. */
+function stagedOpenedLine(r: Reading): string {
+  const days = r.n("days");
+  const crates = r.n("crates");
+  const span = days > 0 ? ` for ${plural(days, "day")}` : "";
+  const open = crates > 0 ? `: ${plural(crates, "crate")} to open` : "";
+  return `${capital(stager(r))} staged ${stagedWhat(r)} at ${r.place()}${span}${stagedCost(r)}${open}.`;
+}
+
+/** How a staging came to its close, by the reason the world gives. */
+function stagedHow(why: string): string {
+  switch (why) {
+    case "ended":
+      return "was ended early";
+    case "":
+    case LAPSED:
+      return "closed";
+    default:
+      return "could not open, and closed";
+  }
+}
+
+/** A staging closed: how, and what came of it, its crates opened and its winners. */
+function stagedClosedLine(r: Reading): string {
+  const parts: string[] = [];
+  if (r.n("crates") > 0) parts.push(`${plural(r.n("crates"), "crate")} opened`);
+  if (r.n("winners") > 0) parts.push(`won by ${plural(r.n("winners"), "character")}`);
+  const what = stagedWhat(r);
+  const tail = parts.length ? `: ${list(parts)}` : "";
+  return `${capital(what.replace(/^an? /, "the "))} ${stager(r)} staged at ${r.place()} ${stagedHow(r.s("why"))}${tail}.`;
+}
+
+/** A competing vault taken: the crew by its size and the staged haul, never who sat in it. */
+function vaultTakenLine(r: Reading): string {
+  const label = r.s("label");
+  const by = label ? ` ${label} staged` : "";
+  const family = r.row("puzzles.families", r.s("family"));
+  const machine = family ? `, its ${family} at level ${num(r.n("level"))} solved first` : "";
+  const goods = r.n("goods") > 0 ? `, for ${amount(r.n("goods"), "goods")} staged there` : "";
+  return `A crew of ${plural(r.n("seats"), "member")} took the competing vault${by} near ${r.place()}${machine}${goods}.`;
+}
+
 /** The standing key of the hidden syndicate, whose name no public line gives. */
 const SYNDICATE = "syndicate";
 /** A faction standing key's prefix; its index is the faction ref's "f-<n>". */
@@ -747,6 +819,11 @@ const LINES: Record<string, Line> = {
   "dungeon.named": (r) => `A dungeon${r.where()} was named ${r.s("name") || "at last"}.`,
   "guild.founded": (r) => `${capital(r.s("name") || r.subject("guild"))} was founded.`,
   "goal.vow-broken": () => "A vow on a guild's board was broken.",
+
+  // A server's staging, told of its admins or staff and never a character (GDD 14.5).
+  "staged.opened": stagedOpenedLine,
+  "staged.closed": stagedClosedLine,
+  "vault.taken": vaultTakenLine,
 
   // Crime, told of "a thief" and never the character (GDD 6.5).
   "theft.made": theftLine,

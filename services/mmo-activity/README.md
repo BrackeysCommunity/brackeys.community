@@ -26,6 +26,12 @@ vp dev --port 18787
   `pattern`, `pouch`, `theft`, `variant` (a region's variant by its own
   name), and the party's `party`, `party-machine`, `floor` and `hunt`. Any
   family on a beat: `?mock=beat&family=crank&level=6&practice=8`.
+- **A server's staging:** `?mock=staged-hunt` is a hunt staff staged, its
+  "Staged by" line under the title and its spoils tagged as local to the
+  settlement that staged them; `?mock=vault` is a party of two at a
+  competing vault, a fork machine labelled with who staged it. Who wins a
+  vault, and what its haul is, is the world's alone: the Activity has no
+  role and no console.
 - **A theft:** `?mock=theft` is a burgle's lock beat on a Pin lock, its
   witness odds over the machine and before the beat's options, with their
   parts behind the beat's Why. The theft is shown as served: the mock

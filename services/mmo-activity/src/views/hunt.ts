@@ -1,7 +1,7 @@
 import type { ActivityState, HuntView } from "../api.ts";
 import { button, el, lines, panel } from "../dom.ts";
 import { amount, band, outOf, percent, ticks } from "../units.ts";
-import { goodsLine, name, riskLine } from "../words.ts";
+import { goodsLine, name, riskLine, stagedLine } from "../words.ts";
 
 export interface HuntActions {
   press(hunt: string, option: string): void;
@@ -27,13 +27,15 @@ export function landed(before: HuntView | undefined, now: HuntView): Map<string,
 /**
  * A live hunt in reach (GDD 7.6): what is left of its pool, everyone's
  * part by health removed as the presses land, the viewer's share of the
- * spoils now, and the options it may press with this tick.
+ * spoils now, and the options it may press with this tick. A server's
+ * staged hunt says who staged it, and its spoils stay where it was staged.
  */
 export function huntView(st: ActivityState, act: HuntActions, before?: HuntView): HTMLElement {
   const h = st.hunt!;
   const root = panel(`${h.name}: ${name("creatures.archetypes", h.creature)}`);
   root.append(
     ...lines(
+      h.placed ? `${stagedLine(h.placed)}.` : "",
       `${outOf(h.health, h.max, "health")} left.`,
       h.endsIn > 0
         ? `It moves on in ${ticks(h.endsIn)}: what is left unfinished pays nothing more.`

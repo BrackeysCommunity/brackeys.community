@@ -83,6 +83,9 @@ const STORY_KINDS = [
   "theft.made",
   "watch.caught",
   "character.betrayed",
+  "staged.opened",
+  "staged.closed",
+  "vault.taken",
 ];
 
 const weights = JSON.parse(
@@ -189,6 +192,10 @@ function data(n: number, s: Record<string, string>): Datum[] {
     "classes",
     "worth",
     "witnessed",
+    "crates",
+    "winners",
+    "seats",
+    "level",
   ];
   return [
     ...nums.map((k) => ({ k, n: k === "settlement" ? 0 : n })),
@@ -282,6 +289,12 @@ const STRINGS: Record<string, string>[] = [
   { kind: "waylay", outcome: "won", side: "prey-it", faction: "faction:1" },
   { kind: "waylay", outcome: "lost" },
   { kind: "flee", outcome: "won", act: "vow-broken" },
+  { template: "drop-large", kind: "drop", role: "admin", label: "Lantern Hall", why: "lapsed" },
+  { template: "scare", kind: "hunt", role: "staff", label: "Lantern Hall", why: "ended" },
+  { template: "fair", kind: "fair", role: "staff", label: "", why: "slot-busy" },
+  { template: "vault", kind: "vault", role: "staff", stage: "st-4", family: "circuit" },
+  { template: "pattern", kind: "pattern", role: "admin", label: "Lantern Hall", why: "pin-path" },
+  { template: "storm", kind: "hardship", role: "player", label: "Lantern Hall" },
 ];
 
 function samples(kind: string): StoryFact[] {
@@ -608,6 +621,101 @@ describe("castNames", () => {
   });
 });
 
+describe("staged lines", () => {
+  const staged = (kind: string, o: Record<string, string | number>): StoryFact => ({
+    kind,
+    region: "r-2",
+    subjects: [
+      { kind: "stage", id: "st-4" },
+      { kind: "character", id: CHAR },
+    ],
+    data: Object.entries(o).map(([k, v]) => (typeof v === "number" ? { k, n: v } : { k, s: v })),
+  });
+  const opened = { template: "drop-large", kind: "drop", settlement: 0, label: "Lantern Hall" };
+
+  test("an opening names who staged it, never the character, with its units", () => {
+    expect(
+      chronicleLine(
+        staged("staged.opened", { ...opened, role: "admin", points: 0, days: 2, crates: 120 }),
+        NAMES,
+      ),
+    ).toBe("The admins of Lantern Hall staged a drop at Ashford for 2 days: 120 crates to open.");
+    expect(
+      chronicleLine(
+        staged("staged.opened", {
+          ...opened,
+          template: "hunt-2",
+          kind: "hunt",
+          role: "staff",
+          points: 80,
+          days: 1,
+          crates: 0,
+        }),
+        NAMES,
+      ),
+    ).toBe("Staff of Lantern Hall staged a hunt at Ashford for 1 day, for 80 event points.");
+    expect(chronicleLine(staged("staged.opened", { kind: "vault", role: "staff" }))).toBe(
+      "Staff of a server staged a competing vault at a settlement.",
+    );
+  });
+
+  test("a close says how it closed and what came of it", () => {
+    expect(
+      chronicleLine(
+        staged("staged.closed", {
+          ...opened,
+          role: "admin",
+          crates: 37,
+          winners: 0,
+          why: "lapsed",
+        }),
+        NAMES,
+      ),
+    ).toBe("The drop the admins of Lantern Hall staged at Ashford closed: 37 crates opened.");
+    expect(
+      chronicleLine(
+        staged("staged.closed", {
+          ...opened,
+          kind: "fair",
+          role: "staff",
+          crates: 1,
+          winners: 4,
+          why: "ended",
+        }),
+        NAMES,
+      ),
+    ).toBe(
+      "The fair staff of Lantern Hall staged at Ashford was ended early: 1 crate opened and won by 4 characters.",
+    );
+    expect(
+      chronicleLine(
+        staged("staged.closed", { ...opened, kind: "hunt", role: "staff", why: "slot-busy" }),
+        NAMES,
+      ),
+    ).toBe("The hunt staff of Lantern Hall staged at Ashford could not open, and closed.");
+  });
+
+  test("a taken vault tells the crew by its size and the haul, never who sat in it", () => {
+    const line = chronicleLine(
+      staged("vault.taken", {
+        stage: "st-4",
+        template: "vault",
+        label: "Lantern Hall",
+        settlement: 4,
+        family: "circuit",
+        level: 2,
+        seats: 3,
+        goods: 18,
+      }),
+      NAMES,
+    );
+    expect(line).toBe(
+      "A crew of 3 members took the competing vault Lantern Hall staged near Kell's Rest, its Circuit at level 2 solved first, for 18 goods staged there.",
+    );
+    expect(line).not.toContain(CHAR_NAME);
+  });
+});
+
 describe("bareNumbers", () => {
   test("the story's units and unit-first words", () => {
     expect(
@@ -616,6 +724,11 @@ describe("bareNumbers", () => {
       ),
     ).toEqual([]);
     expect(bareNumbers("Season one: stage 2, 7 of them")).toEqual(["7"]);
+    expect(
+      bareNumbers(
+        "1 crate, 40 crates, 1 case, 3 cases, 1 report, 5 reports, 1 pin, 2 pins, 1 action, 9 actions.",
+      ),
+    ).toEqual([]);
     expect(bareNumbers("Crooked, −15 alignment; 3 alignment today")).toEqual([]);
   });
 });

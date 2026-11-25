@@ -145,6 +145,16 @@ export const UNITS = new Set([
   "materials",
   "bench",
   "benches",
+  "crate",
+  "crates",
+  "case",
+  "cases",
+  "report",
+  "reports",
+  "pin",
+  "pins",
+  "action",
+  "actions",
   "%",
 ]);
 const CONNECTORS = new Set(["to", "of", "and", "or", "–", "-", "×", "+"]);

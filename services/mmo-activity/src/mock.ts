@@ -69,6 +69,7 @@ import {
 } from "./api.ts";
 import { streamed, type SocketLike } from "./session.ts";
 import { GOING, type Family } from "./shell/kit.ts";
+import { vaultOf } from "./shell/panel.ts";
 import { versionOf, type PartyVersion } from "./shell/party-registry.ts";
 import { judge, play, playLimited } from "./shell/play.ts";
 import { familyOf } from "./shell/registry.ts";
@@ -797,12 +798,13 @@ class PartyMock {
   }
 
   // A party machine as seat i is shown it: at rest with who sits at it, or
-  // armed with this seat's dealt part alone.
+  // armed with this seat's dealt part alone. A vault keeps its mark armed.
   private machineFor(i: number, rest: MachineView | undefined): MachineView | undefined {
     const a = this.armed;
     if (!a) return rest && { ...rest, seat: i, seats: this.seats(i) };
     const { rig } = a;
     return {
+      ...(rest && vaultOf(rest)),
       source: a.source,
       family: rig.family,
       name: name("puzzles.families", rig.family),

@@ -2,6 +2,7 @@ import { names } from "virtual:pack";
 
 import { clampAlt as clamp } from "../../../packages/mmo-words/src/alt.ts";
 import { encounterLine, WASTELAND_ENCOUNTERS } from "../../../packages/mmo-words/src/encounters.ts";
+import { stagedGoodsLine } from "../../../packages/mmo-words/src/placed.ts";
 import { clueLine as storyClue } from "../../../packages/mmo-words/src/story.ts";
 import { capital, countWords, list } from "../../../packages/mmo-words/src/units.ts";
 import {
@@ -41,7 +42,7 @@ import {
 
 export { capital as sentence };
 export { riskLine } from "../../../packages/mmo-words/src/risk.ts";
-export { placedLine } from "../../../packages/mmo-words/src/placed.ts";
+export { placedLine, stagedLine } from "../../../packages/mmo-words/src/placed.ts";
 export { heldLine, patternKind } from "../../../packages/mmo-words/src/story.ts";
 
 /**
@@ -77,10 +78,14 @@ export function goodsNames(found?: Found): Set<string> {
   return out;
 }
 
+/** Goods as one phrase; staged goods carry their tag, since they stay where they were staged. */
 export function goodsLine(goods: Goods[], found?: Found): string {
   if (goods.length === 0) return "nothing";
   return goods
-    .map((g) => amount(g.units, name("items.materials", g.material, found).toLowerCase()))
+    .map((g) => {
+      const line = amount(g.units, name("items.materials", g.material, found).toLowerCase());
+      return g.staged ? `${line} (${stagedGoodsLine(g.staged)})` : line;
+    })
     .join(", ");
 }
 
@@ -146,6 +151,8 @@ const REFUSALS: Record<string, string> = {
   stale: "The world moved on. This is how things stand now.",
   busy: "Too many presses at once. Try again in a moment.",
   down: "You are down and cannot act.",
+  "staged-local": "Staged goods stay where they were staged. They cannot go there.",
+  "staged-own": "You staged this. Nothing of it is yours to take.",
 };
 
 /** Why the world turned a press down. Its own message says the rule when the code is not one of ours. */
@@ -201,6 +208,12 @@ export function factLine(f: Fact): string {
       return "The pattern is solved.";
     case "pattern.clue":
       return `Clue found: ${clueLine(f)}`;
+    case "machine.lost-race":
+      return `${machine} went haywire: a rival crew solved it first.`;
+    case "vault.taken":
+      return n("goods") > 0
+        ? `The vault is yours: ${amount(n("goods"), "goods")} among your crew, staged here.`
+        : "The vault is yours.";
     default:
       return crimeLine(f) ?? `${capital(f.kind.replace(/[.-]/g, " "))}.`;
   }

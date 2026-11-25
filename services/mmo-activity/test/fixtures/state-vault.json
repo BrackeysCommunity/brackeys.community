@@ -1,0 +1,111 @@
+{
+  "tick": 4310,
+  "now": 1795000000000,
+  "context": {
+    "kind": "party",
+    "id": "pt-5"
+  },
+  "character": {
+    "id": "c-mock",
+    "version": 7,
+    "at": {
+      "q": 5,
+      "r": -1
+    },
+    "coin": 120,
+    "provisions": 6,
+    "goods": [
+      {
+        "material": "copper-ore",
+        "units": 4
+      }
+    ],
+    "conditions": [],
+    "practice": [
+      {
+        "id": "rewire",
+        "level": 4
+      },
+      {
+        "id": "lock-dial",
+        "level": 2
+      },
+      {
+        "id": "circuit",
+        "level": 2
+      }
+    ],
+    "inFight": false,
+    "walked": 14
+  },
+  "place": {
+    "tile": {
+      "hex": {
+        "q": 5,
+        "r": -1
+      },
+      "terrain": "flats",
+      "water": "none",
+      "region": "r-3",
+      "found": 4
+    },
+    "name": "",
+    "busy": 2
+  },
+  "machine": {
+    "source": "fork",
+    "family": "circuit",
+    "name": "Circuit",
+    "layout": {
+      "family": "circuit",
+      "size": 0,
+      "decoys": 0,
+      "start": 0,
+      "goal": 0
+    },
+    "preview": false,
+    "armed": false,
+    "practice": {
+      "level": 2,
+      "uses": 8,
+      "need": 60
+    },
+    "seat": 0,
+    "seats": [
+      {
+        "seat": 0,
+        "name": "Ash",
+        "here": true,
+        "you": true
+      },
+      {
+        "seat": 1,
+        "name": "Bryn",
+        "here": true
+      }
+    ],
+    "place": "vault:st-4",
+    "placed": {
+      "by": "staff",
+      "label": "Lantern Hall",
+      "points": 60
+    }
+  },
+  "party": {
+    "id": "pt-5",
+    "leader": true,
+    "members": [
+      {
+        "name": "Ash",
+        "here": true,
+        "seat": 0,
+        "you": true
+      },
+      {
+        "name": "Bryn",
+        "here": true,
+        "seat": 1
+      }
+    ]
+  }
+}
