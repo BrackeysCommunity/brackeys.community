@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -91,7 +92,8 @@ type economyResult struct {
 // active character against the band after the warm-up and the
 // conservation check; then what the players' guild, its works and their
 // classes did, and a founding world of the smallest guild
-// (ECONOMY_ONLY=founding runs that alone).
+// (ECONOMY_ONLY=founding runs that alone). ECONOMY_STAGING=1 adds a
+// staging twin of the fixed maximum policy at each size.
 func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	sizes, days := economyPlan(n)
 	if os.Getenv("ECONOMY_ONLY") == "founding" {
@@ -164,6 +166,12 @@ func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	}
 	threadSection(p, results)
 	society := guildSections(p, b, results, fr, days)
+	var staging []Measured
+	if os.Getenv("ECONOMY_STAGING") == "1" {
+		if staging, err = economyStaging(p, b, sizes, days); err != nil {
+			return nil, err
+		}
+	}
 	if err := doc.save(out, "economy.md"); err != nil {
 		return nil, err
 	}
@@ -174,7 +182,7 @@ func EconomyRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	if len(drifted) > 0 {
 		readings = append(readings, Measured{Target: "coin-drift", Value: fmt.Sprintf("%s players, %d days", strings.Join(drifted, ", "), days), Holds: allDrift && clean})
 	}
-	return append(readings, society...), nil
+	return slices.Concat(readings, society, staging), nil
 }
 
 // drift is a small server's coin read against the band: the least and
@@ -315,6 +323,12 @@ type soakWatch interface {
 	open(w *soakWorld) agent.Client
 	tick(g *game.Game, txns []ledger.Txn)
 	day(g *game.Game)
+}
+
+// tickWatch is a soakWatch that also reads the transactions each tick
+// posts itself, beside those of the players' commands.
+type tickWatch interface {
+	ticked(g *game.Game, txns []ledger.Txn)
 }
 
 // structural: one main player in stealEvery is a thief (GDD 18.3).
@@ -466,10 +480,13 @@ func soak(b *sheets.Book, pop population, days int64) (economyResult, error) {
 		if _, err := g.Advance(); err != nil {
 			return res, err
 		}
-		g.Flush()
+		_, ticked := g.Flush()
 		txns := local.Txns()
 		if pop.watch != nil {
 			pop.watch.tick(g, txns)
+			if tw, ok := pop.watch.(tickWatch); ok {
+				tw.ticked(g, ticked)
+			}
 		}
 		if g.Tick()%sheets.TicksPerDay == 0 {
 			local.Forget()
@@ -528,6 +545,10 @@ func earnerOf(p agent.Policy) (*agent.Earner, bool) {
 		return e, true
 	case *agent.Thief:
 		return e.Earner, true
+	case *agent.Beneficiary:
+		return earnerOf(e.Unwrap())
+	case *agent.Resting:
+		return earnerOf(e.Unwrap())
 	}
 	return nil, false
 }

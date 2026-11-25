@@ -98,9 +98,11 @@ type Player struct {
 	Discord string
 	Start   string // what a new character chooses to have carried
 	// Server is the Discord server it plays from, whose guild a new
-	// character joins; Admin marks one of that server's admins.
+	// character joins; Admin marks one of that server's admins, and Staff
+	// a member it counts as staff (GDD 14.1).
 	Server    string
 	Admin     bool
+	Staff     bool
 	Policy    Policy
 	Character string
 	Actions   int
@@ -167,7 +169,7 @@ func (s *Script) TurnFor(ctx context.Context, tick int64, players []*Player) err
 			}
 			req.CharacterID, req.Version = p.Character, o.Version
 		}
-		req.InteractionID, req.Server, req.Admin = id, p.Server, p.Admin
+		req.InteractionID, req.Server, req.Admin, req.Staff = id, p.Server, p.Admin, p.Staff
 		rep, ref, err := s.Client.Act(ctx, req)
 		if err != nil {
 			return fmt.Errorf("%s at tick %d: %w", p.Discord, tick, err)
