@@ -168,7 +168,7 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	if err := ValidKey(cmd.Key); err != nil {
 		return Result{}, err
 	}
-	g.touched, g.seen = g.touched[:0], g.seen[:0]
+	g.touched, g.seen, g.stagedFacts = g.touched[:0], g.seen[:0], g.stagedFacts[:0]
 	g.points = 0
 	if WorldLevel(cmd.Kind) {
 		return g.actWorld(cmd)
@@ -743,7 +743,8 @@ func (g *Game) close(c *Char, key string, tick int64) error {
 	g.carriedFrom(c, e.Haul)
 	for _, sv := range e.Salvage {
 		for i, s := range sv.Spoil {
-			if err := g.receive(c, ledger.Move(ledger.SubKey(key, "salvage", strconv.Itoa(i)), "salvage", tick, g.mintSource(ledger.FromSalvage), acc, g.mintAsset(s.Material), s.Qty)); err != nil {
+			src, asset := g.salvaged(sv, s.Material)
+			if err := g.receive(c, ledger.Move(ledger.SubKey(key, "salvage", strconv.Itoa(i)), "salvage", tick, src, acc, asset, s.Qty)); err != nil {
 				return err
 			}
 		}

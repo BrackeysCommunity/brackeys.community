@@ -305,7 +305,7 @@ func endJourney(c *Char) {
 // facts written.
 func (g *Game) Advance() ([]fact.Fact, error) {
 	t := g.Tick() + 1
-	g.touched, g.seen = g.touched[:0], g.seen[:0]
+	g.touched, g.seen, g.stagedFacts = g.touched[:0], g.seen[:0], g.stagedFacts[:0]
 	first := fact.ID(g.Log.Len())
 	acts := g.Pending
 	g.Pending = []world.Action{}

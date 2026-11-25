@@ -206,7 +206,8 @@ func (g *Game) theftEnded(c *Char, key string, t int64) error {
 	acc := ledger.Char(c.C.ID)
 	for j, sv := range e.Salvage {
 		for i, s := range sv.Spoil {
-			if err := g.receive(c, ledger.Move(ledger.SubKey(key, "salvage", i64(int64(j)), i64(int64(i))), "salvage", t, ledger.FromSalvage, acc, ledger.Material(s.Material), s.Qty)); err != nil {
+			src, asset := g.salvaged(sv, s.Material)
+			if err := g.receive(c, ledger.Move(ledger.SubKey(key, "salvage", i64(int64(j)), i64(int64(i))), "salvage", t, src, acc, asset, s.Qty)); err != nil {
 				return err
 			}
 		}

@@ -292,7 +292,8 @@ func itemLegs(in *item.Instance, from, to string) []ledger.Leg {
 // floor's on a dungeon's floor, and remembers it was this character's
 // (GDD 4.9, 5.6, 8.6).
 func (g *Game) drop(c *Char, key string, lost []item.Spoil, t int64) error {
-	if len(lost) == 0 {
+	// A staged fight's lost haul is gone: staged goods never lie on a tile.
+	if len(lost) == 0 || g.staging != nil {
 		return nil
 	}
 	h, n := c.C.At, c.C.Floor

@@ -385,7 +385,11 @@ func (g *Game) backEvents(f fact.Fact) []goal.Event {
 		return g.preyGoods(c, f)
 	}
 	var out []goal.Event
+	staged := g.stagedFact(f)
 	for _, s := range g.runningSides(c.C.ID) {
+		if staged && s.a.Staging == "" {
+			continue
+		}
 		units, worth, implicit := g.counts(c, s, f)
 		if units <= 0 {
 			continue
@@ -571,7 +575,10 @@ func (g *Game) contribute(c *Char, s backed, f fact.Fact, units, worth int64, im
 	if implicit && g.enlist(c, s) {
 		g.marked = append(g.marked, markedBy{c, s.a.ID})
 	}
-	g.credit(c, s.sr.Sponsor, s.sr.Opponent, g.sideHex(s), worth*counted/units)
+	// A staged side earns no standing with its faction.
+	if s.a.By != ByServer {
+		g.credit(c, s.sr.Sponsor, s.sr.Opponent, g.sideHex(s), worth*counted/units)
+	}
 	g.touchOnce(c)
 	e := goal.Event{Fact: f.ID, Verb: goal.Back, Who: who, Goal: s.x.ID, Units: counted}
 	if h, ok := fact.HexOf(f); ok {

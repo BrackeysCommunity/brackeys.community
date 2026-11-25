@@ -26,7 +26,29 @@ var stagedEscrows []func(g *Game, acc string) bool
 func (g *Game) withStage(st *Stage) (restore func()) {
 	was, wasBy := g.staging, g.stagedBy
 	g.staging, g.stagedBy = st, &fact.Ref{Kind: stampServer, ID: st.Server}
-	return func() { g.staging, g.stagedBy = was, wasBy }
+	from := fact.ID(g.Log.Len())
+	return func() {
+		g.staging, g.stagedBy = was, wasBy
+		if to := fact.ID(g.Log.Len()); to > from {
+			g.stagedFacts = append(g.stagedFacts, factSpan{from, to})
+		}
+	}
+}
+
+// stagedFact reports whether a fact was written in a stage's context or
+// names a staged hunt, arc, stage or contest. Such a fact counts only
+// toward staged contests and staged arcs' sides, so staging pays no coin
+// or standing through the world's goals.
+func (g *Game) stagedFact(f fact.Fact) bool {
+	if g.Live == nil {
+		return false
+	}
+	for _, s := range g.stagedFacts {
+		if f.ID >= s.From && f.ID < s.To {
+			return true
+		}
+	}
+	return slices.ContainsFunc(f.Subjects, func(r fact.Ref) bool { return g.serverStaged(r) != nil })
 }
 
 // goodsAsset is the asset a material is minted as: staged at the stage's

@@ -287,7 +287,13 @@ type Game struct {
 	staging *Stage
 	points  int64
 	spent   int64
+	// stagedFacts are the spans of fact ids written in a stage's context
+	// since the last goal credits.
+	stagedFacts []factSpan
 }
+
+// factSpan is the fact ids from From up to but not including To.
+type factSpan struct{ From, To fact.ID }
 
 type markedBy struct {
 	c   *Char

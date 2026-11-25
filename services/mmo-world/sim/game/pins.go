@@ -55,6 +55,9 @@ func (g *Game) pinEdit(cmd Command) error {
 // world's checks pass. An edit sent with no reach reaches as little as
 // any pin may.
 func (g *Game) placePin(at hex.Hex, reach int64, fix tile.Fix, by world.PinBy, edit bool) error {
+	if err := g.groundOverBoard(at, fix.Ground); err != nil {
+		return err
+	}
 	if !edit {
 		_, err := g.World.Reserve(g.Log, at, reach, fix, by)
 		return refusedFrom(err)
@@ -67,6 +70,26 @@ func (g *Game) placePin(at hex.Hex, reach int64, fix tile.Fix, by world.PinBy, e
 	}
 	_, err := g.World.EditPin(g.Log, at, max(reach, 1), fix, by)
 	return refusedFrom(err)
+}
+
+// groundOverBoard refuses ground laid over a pattern board's point or
+// clue, which the world cannot see.
+func (g *Game) groundOverBoard(at hex.Hex, f *tile.GroundFix) error {
+	if f == nil || g.Story == nil {
+		return nil
+	}
+	patch := []hex.Hex{at}
+	if f.Ring {
+		patch = append(patch, hex.Ring(at, 1)...)
+	}
+	for _, b := range g.Story.Patterns {
+		for _, h := range patch {
+			if slices.Contains(b.Points, h) || slices.Contains(b.Clues, h) {
+				return refuse(world.CodePinGround, "%s lies on the pattern board %s", h.Ref(), b.ID)
+			}
+		}
+	}
+	return nil
 }
 
 func init() {

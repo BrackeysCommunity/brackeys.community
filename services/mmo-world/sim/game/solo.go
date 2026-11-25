@@ -8,6 +8,7 @@ import (
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/craft"
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/fight"
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/guild"
@@ -715,6 +716,16 @@ func (g *Game) salvageAsset(from *item.Stage, material string) string {
 		return ledger.Staged(from.At, material)
 	}
 	return ledger.Material(material)
+}
+
+// salvaged is the source and asset a fight's salvage leg mints: a staged
+// item's salvage stays staged at its origin, and any other is minted as
+// the applied stage mints.
+func (g *Game) salvaged(sv fight.Salvaged, material string) (src, asset string) {
+	if sv.Staged != nil {
+		return ledger.FromSalvage, g.salvageAsset(sv.Staged, material)
+	}
+	return g.mintSource(ledger.FromSalvage), g.mintAsset(material)
 }
 
 // spare keeps back the components a Kindler's Tinder saves of a Compose,

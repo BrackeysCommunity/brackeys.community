@@ -210,7 +210,8 @@ func (g *Game) huntPress(c *Char, cmd Command) ([]fight.Pressed, error) {
 	for i, sv := range x.H.Salvage[salvaged:] {
 		for j, s := range sv.Spoil {
 			k := ledger.SubKey(cmd.Key, "salvage", strconv.Itoa(i), strconv.Itoa(j))
-			if err := g.receive(c, ledger.Move(k, "salvage", tick, g.mintSource(ledger.FromSalvage), acc, g.mintAsset(s.Material), s.Qty)); err != nil {
+			src, asset := g.salvaged(sv, s.Material)
+			if err := g.receive(c, ledger.Move(k, "salvage", tick, src, acc, asset, s.Qty)); err != nil {
 				return nil, err
 			}
 		}

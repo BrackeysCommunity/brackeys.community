@@ -109,6 +109,8 @@ type Joined struct {
 type Salvaged struct {
 	Who   string       `json:"who"`
 	Spoil []item.Spoil `json:"spoil"`
+	// Staged is the broken item's staging, so its salvage stays staged.
+	Staged *item.Stage `json:"staged,omitempty"`
 }
 
 // Site is where an encounter happens. ID is the encounter's own
@@ -892,7 +894,7 @@ func (r *Rules) wear(e *Encounter, m *Member, g *Gear, n int64, tick int64) []fa
 		m.Kit.drop(g)
 		salvage := r.D.Salvage(g.Kind.Recipe.Inputs, sheets.IntParam(r.wearParams, "salvage-break"))
 		if len(salvage) > 0 {
-			e.Salvage = append(e.Salvage, Salvaged{Who: m.Ch.ID, Spoil: salvage})
+			e.Salvage = append(e.Salvage, Salvaged{Who: m.Ch.ID, Spoil: salvage, Staged: g.Inst.Staged})
 		}
 		return []fact.Fact{r.fact(tick, "item.broke", []fact.Ref{who, it}, fact.N("salvage", item.Total(salvage)))}
 	case item.WentDormant:

@@ -284,7 +284,7 @@ func (g *Game) closeShared(sh *Shared, actor *Char, e *fight.Encounter, key stri
 	for _, c := range in {
 		acc := ledger.Char(c.C.ID)
 		for i, s := range parts[c.C.ID] {
-			if err := g.receive(c, ledger.Move(ledger.SubKey(key, "haul", c.C.ID, strconv.Itoa(i)), "haul", tick, ledger.FromHaul, acc, ledger.Material(s.Material), s.Qty)); err != nil {
+			if err := g.receive(c, ledger.Move(ledger.SubKey(key, "haul", c.C.ID, strconv.Itoa(i)), "haul", tick, g.mintSource(ledger.FromHaul), acc, g.mintAsset(s.Material), s.Qty)); err != nil {
 				return err
 			}
 		}
@@ -294,7 +294,8 @@ func (g *Game) closeShared(sh *Shared, actor *Char, e *fight.Encounter, key stri
 				continue
 			}
 			for i, s := range sv.Spoil {
-				if err := g.receive(c, ledger.Move(ledger.SubKey(key, "salvage", c.C.ID, strconv.Itoa(i)), "salvage", tick, ledger.FromSalvage, acc, ledger.Material(s.Material), s.Qty)); err != nil {
+				src, asset := g.salvaged(sv, s.Material)
+				if err := g.receive(c, ledger.Move(ledger.SubKey(key, "salvage", c.C.ID, strconv.Itoa(i)), "salvage", tick, src, acc, asset, s.Qty)); err != nil {
 					return err
 				}
 			}

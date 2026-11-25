@@ -403,6 +403,13 @@ func fixWhat(f tile.Fix) []string {
 	if f.Floors > 0 {
 		out = append(out, units(f.Floors, "floor", "floors"))
 	}
+	if gr := f.Ground; gr != nil {
+		w := "ground " + gr.Terrain
+		if gr.Ring {
+			w += " and its ring"
+		}
+		out = append(out, w)
+	}
 	return out
 }
 
