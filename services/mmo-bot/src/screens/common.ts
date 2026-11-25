@@ -13,6 +13,7 @@ import {
   chronicleLine,
   type Names,
   refKey,
+  stagedGoodsLine,
 } from "../../../../packages/mmo-words/src/index.ts";
 import type * as api from "../api.ts";
 import type { Picture } from "../card.ts";
@@ -20,7 +21,11 @@ import { type Action, encodeId, type LaunchCard, launchTarget, target } from "..
 import { capitalise, type Lexicon } from "../lexicon.ts";
 import { amount, list, num, outOf, plural, seconds, signed, ticks } from "../units.ts";
 
-export { placedLine } from "../../../../packages/mmo-words/src/index.ts";
+export {
+  placedLine,
+  stagedGoodsLine,
+  stagedLine,
+} from "../../../../packages/mmo-words/src/index.ts";
 
 /** The syndicate's standing key, and the archetype row its name comes from. */
 export const SYNDICATE = "syndicate";
@@ -47,9 +52,14 @@ export function relative(ms: number): string {
   return `<t:${Math.floor(ms / 1000)}:R>`;
 }
 
-/** Goods as a comma list of amounts, empty when there are none. */
+/** Goods as a comma list of amounts, staged ones tagged with where they stay; empty when there are none. */
 export function goodsLine(goods: readonly api.Goods[], lex: Lexicon): string {
-  return goods.map((g) => amount(g.units, lex.material(g.material))).join(", ");
+  return goods
+    .map(
+      (g) =>
+        `${amount(g.units, lex.material(g.material))}${g.staged ? ` (${stagedGoodsLine(g.staged)})` : ""}`,
+    )
+    .join(", ");
 }
 
 /** Where every hub card appears and who sees it. */
@@ -352,6 +362,8 @@ export function factLine(f: api.Fact, lex: Lexicon): string {
       return `Made a key to a dungeon from ${amount(n(f, "units"), mat("material"))}.`;
     case "key.used":
       return "Used a key: the third way opened.";
+    case "crate.opened":
+      return `Opened a staged crate: ${amount(n(f, "units"), mat("material"))}, which stay where they were staged; ${plural(n(f, "left"), "crate")} left.`;
     case "machine.lost-race":
       return `Another party solved the ${lex.name("puzzles.families", s(f, "family"))} first: this one went haywire.`;
     case "track.followed":
@@ -445,9 +457,23 @@ export function gauges(
     .join(" · ");
 }
 
-/** Units of a material among goods held, 0 for none. */
+/** Clean units of a material among goods held, 0 for none: staged units are listed apart. */
 export function held(goods: readonly api.Goods[], material: string): number {
-  return goods.find((g) => g.material === material)?.units ?? 0;
+  return goods.find((g) => g.material === material && !g.staged)?.units ?? 0;
+}
+
+/** Units of a material staged at a settlement among goods held, 0 for none. */
+export function stagedHeld(goods: readonly api.Goods[], material: string, at: number): number {
+  return goods.find((g) => g.material === material && g.staged?.settlement === at)?.units ?? 0;
+}
+
+/**
+ * Units of a material one craft can draw: the clean ones, then the staged
+ * ones of a single origin, since a craft never mixes two.
+ */
+export function usable(goods: readonly api.Goods[], material: string): number {
+  const staged = goods.filter((g) => g.material === material && g.staged);
+  return held(goods, material) + Math.max(0, ...staged.map((g) => g.units));
 }
 
 /** Units of a material or of provisions a purse holds: provisions are kept apart from goods. */

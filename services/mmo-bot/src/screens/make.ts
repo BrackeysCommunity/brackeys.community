@@ -10,12 +10,15 @@ import {
   banner,
   btn,
   factNum,
-  held,
   launch,
+  option,
   priceLadder,
   PRIVATE,
   ROW_MOST,
+  SELECT_MOST,
+  stagedGoodsLine,
   stationLine,
+  usable,
 } from "./common.ts";
 import { standingFields } from "./crime.ts";
 import { nameItButton } from "./naming.ts";
@@ -65,6 +68,32 @@ export function draftRecipe(d: Draft): api.Recipe {
   };
 }
 
+/**
+ * The materials a craft can take, one line each: clean units first, then
+ * the staged units of one origin (a craft never mixes two), saying where
+ * the staged ones are from since what is made of them stays there.
+ */
+function craftable(
+  goods: readonly api.Goods[],
+): { material: string; units: number; staged?: string }[] {
+  const out = new Map<string, { material: string; units: number; staged?: string }>();
+  for (const g of goods) {
+    if (g.units <= 0 || out.has(g.material)) continue;
+    const units = usable(goods, g.material);
+    const staged = goods
+      .filter((x) => x.material === g.material && x.staged && x.units > 0)
+      .sort((a, b) => b.units - a.units)[0];
+    out.set(g.material, {
+      material: g.material,
+      units,
+      ...(staged?.staged
+        ? { staged: `${amount(staged.units, "goods")} ${stagedGoodsLine(staged.staged)}` }
+        : {}),
+    });
+  }
+  return [...out.values()];
+}
+
 /** Craft: stations here, and a recipe built by selects, one choice at a time (GDD 9.10). */
 export function craftCard(
   o: api.Options,
@@ -112,21 +141,20 @@ export function craftCard(
       },
     });
   } else if (!d.material) {
-    const goods = sheet.character.goods.filter((g) => g.units > 0);
+    const goods = craftable(sheet.character.goods);
     if (!goods.length) unavailable = "You carry no materials.";
     else
       rows.push({
         select: {
           customId: encodeId("craft-i", key, v),
           placeholder: "Choose the material",
-          options: goods.map((g) => ({
-            label: amount(g.units, lex.material(g.material)),
-            value: g.material,
-          })),
+          options: goods
+            .slice(0, SELECT_MOST)
+            .map((g) => option(amount(g.units, lex.material(g.material)), g.material, g.staged)),
         },
       });
   } else if (!d.qty) {
-    const have = held(sheet.character.goods, d.material);
+    const have = usable(sheet.character.goods, d.material);
     rows.push({
       buttons: [1, 2, 3]
         .filter((q) => q <= have)
@@ -303,7 +331,7 @@ export function characterCard(
 ): Card {
   const v = o.version;
   const item = (i: api.Item) =>
-    `${i.name || lex.name("mounts.kinds", i.mount ?? "")}: level ${i.level}, ${outOf(i.durability, i.max, "durability")}${i.offers?.length ? " · a milestone pick waits" : ""}`;
+    `${i.name || lex.name("mounts.kinds", i.mount ?? "")}: level ${i.level}, ${outOf(i.durability, i.max, "durability")}${i.offers?.length ? " · a milestone pick waits" : ""}${i.staged ? ` · ${stagedGoodsLine(i.staged)}` : ""}`;
   const all = [...sheet.kit, ...sheet.pack];
   const c = sheet.character;
   // A machine family's practice is told apart by the name the setting gives it.
@@ -456,11 +484,13 @@ export function itemCard(
         })),
       },
     });
-    trade.push({
-      buttons: [
-        btn(`Sell to the trader · ${amount(it.traderPays, "coin")}`, "sell-item", it.id, v),
-      ],
-    });
+    // No faction or trader buys a staged item: it is sold only to players where it was staged.
+    if (!it.staged)
+      trade.push({
+        buttons: [
+          btn(`Sell to the trader · ${amount(it.traderPays, "coin")}`, "sell-item", it.id, v),
+        ],
+      });
   }
   return {
     context: PRIVATE,
@@ -506,6 +536,14 @@ export function itemCard(
         inline: true,
       },
       { name: "Worth", value: amount(it.value, "coin"), inline: true },
+      ...(it.staged
+        ? [
+            {
+              name: "Staged",
+              value: `Made from staged goods, so ${stagedGoodsLine(it.staged)}: listed only at ${it.staged.name || "its settlement"}, to players, and no trader buys it.`,
+            },
+          ]
+        : []),
     ],
     footer: atStation
       ? "Repair costs a coin a point and units of its top material."

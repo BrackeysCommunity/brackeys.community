@@ -9,7 +9,7 @@ import { target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
 import { amount, bandShort, num, plural, ticks } from "../units.ts";
 import type { HuntPost } from "../world.ts";
-import { back, banner, btn, goodsLine, launch, PRIVATE } from "./common.ts";
+import { back, banner, btn, goodsLine, launch, PRIVATE, stagedLine } from "./common.ts";
 import { portraitThumb } from "./fight.ts";
 
 /**
@@ -33,6 +33,16 @@ function huntPicture(h: HuntPost, lex: Lexicon): Picture | "form" {
   return h.banner
     ? { media: h.banner, alt: `${lex.name("creatures.archetypes", h.creature)} on its tile` }
     : "form";
+}
+
+/** A staged hunt's author word and the line saying who staged it; a world hunt's plain word and none. */
+function staging(placed: api.Placed | undefined): { word: string; line: string } {
+  return placed
+    ? {
+        word: "Staged hunt",
+        line: `${stagedLine(placed)}: its spoils are staged and stay where it was staged.\n`,
+      }
+    : { word: "Hunt", line: "" };
 }
 
 /** Tiles between two hexes. */
@@ -65,6 +75,7 @@ export function huntCard(
 ): Card {
   const v = o.version;
   const creature = lex.name("creatures.archetypes", h.creature);
+  const staged = staging(view?.placed ?? h.placed);
   const away = hexDistance(o.at, h.at);
   const reach = away <= 1 && !here.floor?.floor;
   const fields: EmbedField[] = [
@@ -98,9 +109,9 @@ export function huntCard(
   buttons.push(back(v));
   return {
     context: PRIVATE,
-    author: authorLine("Hunt", creature, h.closed ? "closed" : "live"),
+    author: authorLine(staged.word, creature, h.closed ? "closed" : "live"),
     title: notice ?? h.name,
-    description: `${healthLine(h.health, h.max)}${reach ? "" : "\nStand on its tile or the next to press it."}`,
+    description: `${staged.line}${healthLine(h.health, h.max)}${reach ? "" : "\nStand on its tile or the next to press it."}`,
     picture: h.banner ? huntPicture(h, lex) : banner(here, `; ${creature} hunted nearby`),
     thumb: portraitThumb(h, lex),
     table: h.pressers.length ? pressersTable(view?.pressers ?? h.pressers) : undefined,
@@ -119,11 +130,12 @@ export function huntCard(
 /** A live hunt's card in the game channel: the pool, the window's end, and each presser's health removed. */
 export function huntPostCard(h: HuntPost, lex: Lexicon): Card {
   const creature = lex.name("creatures.archetypes", h.creature);
+  const staged = staging(h.placed);
   return {
     context: GAME_CHANNEL,
-    author: authorLine("Hunt", creature, "live"),
+    author: authorLine(staged.word, creature, "live"),
     title: h.name,
-    description: `${healthLine(h.health, h.max)}\nIt leaves when its window ends, at tick ${h.ends}, whether or not anyone goes after it.`,
+    description: `${staged.line}${healthLine(h.health, h.max)}\nIt leaves when its window ends, at tick ${h.ends}, whether or not anyone goes after it.`,
     picture: huntPicture(h, lex),
     thumb: portraitThumb(h, lex),
     table: h.pressers.length ? pressersTable(h.pressers) : undefined,
@@ -141,13 +153,16 @@ export function huntPostCard(h: HuntPost, lex: Lexicon): Card {
 export function huntClosedCard(h: HuntPost, lex: Lexicon): Card {
   const creature = lex.name("creatures.archetypes", h.creature);
   const shares = h.shares ?? [];
+  const staged = staging(h.placed);
   return {
     context: GAME_CHANNEL,
-    author: authorLine("Hunt", creature, h.slain ? "slain" : "gone"),
+    author: authorLine(staged.word, creature, h.slain ? "slain" : "gone"),
     title: h.slain ? `${h.name}: slain` : `${h.name}: it got away`,
-    description: h.slain
-      ? "The spoils rolled once at the kill and were split by health removed: the parts sum to the roll."
-      : `It left with ${num(h.health)} of ${amount(h.max, "health")}. Nothing is paid beyond the hauls already won.`,
+    description:
+      staged.line +
+      (h.slain
+        ? "The spoils rolled once at the kill and were split by health removed: the parts sum to the roll."
+        : `It left with ${num(h.health)} of ${amount(h.max, "health")}. Nothing is paid beyond the hauls already won.`),
     picture: huntPicture(h, lex),
     thumb: portraitThumb(h, lex),
     table: h.slain

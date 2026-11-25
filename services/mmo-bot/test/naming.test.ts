@@ -255,7 +255,14 @@ test("a held name is not sent: the card says so and the held list keeps it", asy
   expect(held.card.title).toBe(HELD_NOTICE);
   expect(problems(held.card, names)).toEqual([]);
   expect(store.list(HELD_KEY).map((e) => JSON.parse(e))).toEqual([
-    { use: "kind", user: "someone", target: kind.kind, name: "Some Name", day: DAY },
+    {
+      use: "kind",
+      user: "someone",
+      target: kind.kind,
+      name: "Some Name",
+      day: DAY,
+      guild: "guild",
+    },
   ]);
 });
 
@@ -303,6 +310,7 @@ test("every own-name submit is screened: promotions, dungeons, guilds and settle
       target,
       name: Object.values(fields)[0],
       day: DAY,
+      guild: "guild",
     });
 
     const off = namingWorld({ here: at });

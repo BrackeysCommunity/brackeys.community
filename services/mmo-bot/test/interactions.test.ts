@@ -335,6 +335,8 @@ test("naming a goal opens a modal at once, and its submit posts the drafted goal
       kind: api.ActPostGoal,
       server: "guild",
       admin: true,
+      // The fake member holds every permission, Moderate Members among them.
+      staff: true,
       goal: specOf(draft, samples.goals as unknown as api.Goals, "Ore for the smelter", ""),
     },
   ]);

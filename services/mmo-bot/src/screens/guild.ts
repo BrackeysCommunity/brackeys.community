@@ -19,6 +19,7 @@ import {
   PRIVATE,
   ROW_MOST,
   SELECT_MOST,
+  stagedGoodsLine,
 } from "./common.ts";
 import { NAME_INPUT } from "./emergence.ts";
 import { REWARDS } from "./goals.ts";
@@ -313,7 +314,9 @@ export function bankCard(
     ...(g.bankHere
       ? [
           { asset: "provisions", units: o.purse.provisions },
-          ...o.purse.goods.map((x) => ({ asset: x.material, units: x.units })),
+          ...o.purse.goods
+            .filter((x) => !x.staged)
+            .map((x) => ({ asset: x.material, units: x.units })),
         ]
       : []),
   ]
@@ -396,7 +399,12 @@ export function bankCard(
         value: [
           amount(o.purse.coin, "coin"),
           amount(o.purse.provisions, "provisions"),
-          ...o.purse.goods.slice(0, 6).map((x) => amount(x.units, lex.material(x.material))),
+          ...o.purse.goods
+            .slice(0, 6)
+            .map(
+              (x) =>
+                `${amount(x.units, lex.material(x.material))}${x.staged ? ` (${stagedGoodsLine(x.staged)})` : ""}`,
+            ),
         ].join(", "),
         inline: true,
       },

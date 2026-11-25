@@ -7,6 +7,7 @@ import {
   type GuildMemberRoleManager,
   type Interaction,
   type InteractionEditReplyOptions,
+  type MessageContextMenuCommandInteraction,
   MessageFlags,
   type ModalSubmitInteraction,
   PermissionFlagsBits,
@@ -20,11 +21,23 @@ import {
 import { describe, toMessage, toModal } from "../../../packages/discord-kit/src/index.ts";
 import { type Card, render } from "./card.ts";
 import type { Budget } from "./cooldown.ts";
-import { answer, type Answer, type Ctx, launchFor, modalFor, type Press, roleFor } from "./flow.ts";
+import {
+  answer,
+  type Answer,
+  type Ctx,
+  launchFor,
+  modalFor,
+  type Press,
+  roleFor,
+  wantsGuildLists,
+} from "./flow.ts";
 import type { ForumSink } from "./forum.ts";
+import { refOf, staffOf } from "./house.ts";
 import type { ChannelSink } from "./hunts.ts";
 import { decodeId } from "./ids.ts";
+import { REPORT } from "./manifest.ts";
 import type { PartyMode, PartyNote, ThreadSink } from "./party.ts";
+import type { GuildThing } from "./screens/house.ts";
 import { withThreadSoon } from "./screens/party.ts";
 import { WorldUnavailableError } from "./world.ts";
 
@@ -70,6 +83,10 @@ export interface AdapterOptions {
   onParty?: (note: PartyNote) => Promise<PartyMode>;
   /** The role the Raid alarms button toggles (MMO_EVENTS_ALARM_ROLE). */
   alarmRole?: string;
+  /** The roles a server's settings count as staff, beside Moderate Members (GDD 14.1). */
+  staffRoles?: (guild: string) => Promise<readonly string[]>;
+  /** The alarm roles a server's settings name; the button toggles the first, else alarmRole. */
+  alarmRoles?: (guild: string) => Promise<readonly string[]>;
   log?: (line: string) => void;
   now?: () => number;
 }
@@ -82,14 +99,42 @@ export function createHandler(opts: AdapterOptions) {
     onLong,
     onParty,
     alarmRole,
+    staffRoles,
+    alarmRoles,
     log = console.log,
     now = Date.now,
   } = opts;
 
+  /** The alarm role of a server: the first its settings name, else the bot's own. */
+  async function alarmOf(guild: string | null): Promise<string | undefined> {
+    if (!guild || !alarmRoles) return alarmRole;
+    const named = await alarmRoles(guild).catch((e: unknown) => {
+      log(`[role] alarm roles of ${guild}: ${describe(e)}`);
+      return [] as readonly string[];
+    });
+    return named[0] ?? alarmRole;
+  }
+
+  /** Who an interaction is from, marked staff where its server counts them so. */
+  async function from(i: Asked): Promise<ReturnType<typeof who>> {
+    const w = who(i);
+    if (!w.guild) return w;
+    const staff = async () => {
+      if (i.memberPermissions?.has(PermissionFlagsBits.ModerateMembers)) return true;
+      if (w.admin || !staffRoles) return false;
+      const named = await staffRoles(w.guild!).catch((e: unknown) => {
+        log(`[staff] roles of ${w.guild}: ${describe(e)}`);
+        return [] as readonly string[];
+      });
+      return staffOf({ staffRoles: [...named] }, false, memberRoles(i));
+    };
+    return (await staff()) ? { ...w, staff: true } : w;
+  }
+
   const messageOf = (a: Answer) => cardMessage(a.card, media, log);
 
   /** A short ephemeral reply; a failed reply is logged, never left unhandled. */
-  async function say(i: ChatInputCommandInteraction | Pressed | Launches, content: string) {
+  async function say(i: Asked | Launches, content: string) {
     await i
       .reply({ content, flags: MessageFlags.Ephemeral })
       .catch((e: unknown) => log(`[reply] ${describe(e)}`));
@@ -143,7 +188,7 @@ export function createHandler(opts: AdapterOptions) {
       await i.deferReply({ flags: MessageFlags.Ephemeral });
       await i.editReply(
         await run({
-          ...who(i),
+          ...(await from(i)),
           command: i.commandName,
         }),
       );
@@ -164,7 +209,7 @@ export function createHandler(opts: AdapterOptions) {
     if (!id) return say(i, STALE_LINE);
     const gate = await budget.take(i.user.id);
     if (!gate.allowed) return say(i, SLOW_LINE);
-    if (i.isButton() && roleFor(id) === "alarm") return toggleRole(i, alarmRole);
+    if (i.isButton() && roleFor(id) === "alarm") return toggleRole(i, await alarmOf(i.guildId));
     if (i.isButton() && launchFor(id)) return launch(i, i.customId);
     const modal = i.isButton() ? modalFor(id) : null;
     if (modal && !i.isModalSubmit())
@@ -172,10 +217,11 @@ export function createHandler(opts: AdapterOptions) {
         .showModal(toModal(modal) as never)
         .catch((e: unknown) => log(`[modal] ${i.customId} failed: ${describe(e)}`)));
     const press: Press = {
-      ...who(i),
+      ...(await from(i)),
       id,
       values: i.isStringSelectMenu() ? i.values : [],
       fields: i.isModalSubmit() ? textOf(i) : undefined,
+      ...(wantsGuildLists(id) ? guildLists(i) : {}),
     };
     // A modal opened from a card answers by editing that card.
     if (i.isModalSubmit() && !i.isFromMessage()) return say(i, STALE_LINE);
@@ -213,20 +259,46 @@ export function createHandler(opts: AdapterOptions) {
     }
   }
 
+  /** Report on a message's menu: only the game's own cards, answered with the reasons to pick. */
+  async function onReport(i: MessageContextMenuCommandInteraction) {
+    const gate = await budget.take(i.user.id);
+    if (!gate.allowed) return say(i, SLOW_LINE);
+    const m = i.targetMessage;
+    if (m.author.id !== i.client.user.id) return say(i, REPORT_OTHERS);
+    try {
+      await i.deferReply({ flags: MessageFlags.Ephemeral });
+      await i.editReply(
+        await run({
+          ...(await from(i)),
+          command: REPORT,
+          report: reportedOf(firstCustomId(m.components), m.channelId, m.id),
+        }),
+      );
+    } catch (e) {
+      log(`[report] ${m.id} failed: ${describe(e)}`);
+      await i.editReply({ content: failureText(e), embeds: [], components: [] }).catch(() => {});
+    }
+  }
+
   return async function handle(i: Interaction): Promise<void> {
     if (i.isPrimaryEntryPointCommand()) return launch(i, `/${i.commandName}`);
     if (i.isChatInputCommand()) return onCommand(i);
     if (i.isButton() || i.isStringSelectMenu() || i.isModalSubmit()) return onComponent(i);
+    if (i.isMessageContextMenuCommand()) return onReport(i);
   };
 }
 
 type Pressed = ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
 type Launches = ButtonInteraction | PrimaryEntryPointCommandInteraction;
+type Asked = ChatInputCommandInteraction | MessageContextMenuCommandInteraction | Pressed;
+
+export const REPORT_OTHERS =
+  "Report works on the game's own cards; report anything else to the server's moderators.";
 
 /** Who an interaction is from: the player, the server, whether they administer it, and the channel a thread would open under. */
 function who(
-  i: ChatInputCommandInteraction | Pressed,
-): Pick<Press, "user" | "guild" | "guildName" | "interaction" | "admin" | "channel"> {
+  i: Asked,
+): Pick<Press, "user" | "guild" | "guildName" | "interaction" | "admin" | "staff" | "channel"> {
   const ch = i.channel;
   return {
     user: i.user.id,
@@ -236,6 +308,51 @@ function who(
     admin: i.memberPermissions?.has(PermissionFlagsBits.Administrator) ?? false,
     channel: (ch?.isThread() ? ch.parentId : i.channelId) ?? undefined,
   };
+}
+
+/** The member's role ids, whether the interaction carries the member whole or as raw JSON. */
+function memberRoles(i: Asked): string[] {
+  const m = i.member;
+  if (!m) return [];
+  return Array.isArray(m.roles) ? [...m.roles] : [...m.roles.cache.keys()];
+}
+
+/** structural: a select lists at most this many channels or roles. */
+const LISTED_MOST = 25;
+
+/** The guild's channels the game may post in, and its roles a member can hold, for the settings card. */
+function guildLists(i: Asked): Pick<Press, "channels" | "roles"> {
+  const g = i.guild;
+  if (!g) return {};
+  const postable = new Set<ChannelType>([
+    ChannelType.GuildText,
+    ChannelType.GuildAnnouncement,
+    ChannelType.GuildForum,
+  ]);
+  const channels: GuildThing[] = [...g.channels.cache.values()]
+    .filter((c) => postable.has(c.type))
+    .sort((a, b) => ("rawPosition" in a && "rawPosition" in b ? a.rawPosition - b.rawPosition : 0))
+    .slice(0, LISTED_MOST)
+    .map((c) => ({ id: c.id, name: c.name }));
+  const roles: GuildThing[] = [...g.roles.cache.values()]
+    .filter((r) => r.id !== g.id && !r.managed)
+    .sort((a, b) => b.position - a.position)
+    .slice(0, LISTED_MOST)
+    .map((r) => ({ id: r.id, name: r.name }));
+  return { channels, roles };
+}
+
+/** The first custom id on a message's components, if it has any. */
+function firstCustomId(rows: readonly unknown[]): string | undefined {
+  for (const row of rows as { components?: { customId?: string | null }[] }[])
+    for (const c of row.components ?? []) if (c.customId) return c.customId;
+  return undefined;
+}
+
+/** What a reported card names: a ref read from its first custom id, else the post itself. */
+export function reportedOf(customId: string | undefined, channel: string, message: string): string {
+  const id = customId ? decodeId(customId) : null;
+  return (id && refOf(id)) || `p/${channel}/${message}`;
 }
 
 /** The presser's roles; a member the interaction carries only as raw JSON is fetched. */
@@ -492,4 +609,23 @@ export function channelSink(
       return true;
     },
   };
+}
+
+/**
+ * The bot's own channel for a kind in one guild, where its settings map
+ * none: an id the guild holds, or a channel of that name in it.
+ */
+export async function guildChannel(
+  client: Client,
+  guild: string,
+  ref: string | undefined,
+): Promise<string | undefined> {
+  if (!ref) return undefined;
+  if (/^\d{1,20}$/.test(ref)) {
+    const ch = await client.channels.fetch(ref).catch(() => null);
+    return ch && "guildId" in ch && ch.guildId === guild ? ch.id : undefined;
+  }
+  const g = client.guilds.cache.get(guild);
+  const name = ref.replace(/^#/, "");
+  return g?.channels.cache.find((c) => c.name === name && c.isSendable())?.id;
 }

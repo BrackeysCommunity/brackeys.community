@@ -14,10 +14,16 @@ import {
 import type * as api from "../src/api.ts";
 import { type Card, COLOUR, problems } from "../src/card.ts";
 import { localBudget } from "../src/cooldown.ts";
-import { EventsPoster, type EventsWorld } from "../src/events.ts";
+import { type EventsAudience, EventsPoster, type EventsWorld } from "../src/events.ts";
 import type { Ctx } from "../src/flow.ts";
 import { memoryStore } from "../src/forum.ts";
-import type { ChannelSink } from "../src/hunts.ts";
+import {
+  type ChannelSink,
+  GuildPosters,
+  HuntPoster,
+  posterPrefix,
+  type Poller,
+} from "../src/hunts.ts";
 import { encodeId } from "../src/ids.ts";
 import { Lexicon } from "../src/lexicon.ts";
 import samples from "./fixtures/world.json";
@@ -423,6 +429,7 @@ function alarmPress(roles: Set<string>, refuse = false) {
       flags: { has: () => false },
     },
     isPrimaryEntryPointCommand: () => false,
+    isMessageContextMenuCommand: () => false,
     isChatInputCommand: () => false,
     isButton: () => true,
     isStringSelectMenu: () => false,
@@ -487,4 +494,378 @@ test("with no alarm role set, or a role the bot may not grant, the press says so
   await alarmHandler(ROLE)(refused as unknown as Interaction);
   expect(refused.editReply).toHaveBeenCalledWith({ content: ALARM_FAILED });
   expect(roles.size).toBe(0);
+});
+
+/** A server's house as the bot reads it: its settings and stages, nothing else a test needs. */
+function house(server: string, settings: api.HouseSettings = {}, stages: api.StageView[] = []) {
+  const h: api.House = {
+    server,
+    label: `Guild of ${server}`,
+    arrival: 0,
+    settings,
+    settlements: [],
+    templates: [],
+    hunts: [],
+    contests: [],
+    stages,
+    role: "player",
+    stagedXp: 150,
+  };
+  return h;
+}
+
+/** Each guild's house, by guild, as a test sets them. */
+function housesOf(by: Record<string, api.House | null>) {
+  return { houseOf: async (guild: string) => by[guild] ?? null };
+}
+
+/** A fact a server's staging wrote, about a stage. */
+function stagedEvent(
+  id: number,
+  kind: string,
+  server: string,
+  data: api.Datum[] = [],
+  stage = "st-1",
+): api.StoryEvent {
+  return {
+    fact: { ...fact(id, kind, 320, data), subjects: [{ kind: "stage", id: stage }] },
+    place: "Ashford",
+    server,
+  };
+}
+
+const dropOpened = (id: number, server: string, stage = "st-1") =>
+  stagedEvent(
+    id,
+    "staged.opened",
+    server,
+    [
+      { k: "template", s: "drop-small" },
+      { k: "kind", s: "drop" },
+      { k: "settlement", n: 2 },
+      { k: "role", s: "admin" },
+      { k: "label", s: `Guild of ${server}` },
+      { k: "days", n: 2 },
+      { k: "crates", n: 40 },
+    ],
+    stage,
+  );
+
+function dropStage(id: string, crates: number, extra: Partial<api.StageView> = {}): api.StageView {
+  return {
+    id,
+    template: "drop-small",
+    kind: "drop",
+    placed: { by: "admins", label: "Guild of guild-a" },
+    settlement: 2,
+    place: "Ashford",
+    at: { q: 3, r: 1 },
+    opens: 320,
+    ends: 896,
+    open: true,
+    crates,
+    ...extra,
+  };
+}
+
+test("an event a server staged is posted only in that server's channel; the world's own in every one", async () => {
+  const events = [
+    cast,
+    closed,
+    stagedEvent(16, "staged.closed", "guild-b"),
+    dropOpened(17, "guild-a"),
+  ];
+  const { world } = stubWorld({ events });
+  const houses = housesOf({ "guild-a": house("guild-a"), "guild-b": house("guild-b") });
+  const posted: Record<string, string[]> = {};
+  for (const server of ["guild-a", "guild-b"]) {
+    const store = memoryStore();
+    await store.set("mmo-bot:events:last", "10");
+    const { sink, posts } = memoryChannel();
+    const audience: EventsAudience = { server, houses };
+    await new EventsPoster(
+      world,
+      lex,
+      store,
+      sink,
+      ROLE,
+      undefined,
+      quiet,
+      plainCard,
+      audience,
+    ).poll();
+    posted[server] = posts.map((p) => p.title);
+    // Another server's event still moves the mark on.
+    expect(await store.get("mmo-bot:events:last")).toBe("17");
+  }
+  expect(posted["guild-a"]).toEqual(["arc.cast 0", "season.closed 0", "staged.opened 0"]);
+  expect(posted["guild-b"]).toEqual(["arc.cast 0", "season.closed 0", "staged.closed 0"]);
+});
+
+test("the alarm mentions the house's alarm role, and is held back in its quiet hours, never the post", async () => {
+  const quietHours = { alarmRoles: ["role-house"], quietFrom: 22 * 60, quietTo: 6 * 60 };
+  const at = (h: number) => Date.UTC(2026, 10, 25, h, 30);
+  const mentions: (string | undefined)[] = [];
+  for (const [settings, hour] of [
+    [quietHours, 23],
+    [quietHours, 3],
+    [quietHours, 12],
+    [{}, 23],
+    [{ quietFrom: 60, quietTo: 60 }, 1],
+  ] as [api.HouseSettings, number][]) {
+    const store = memoryStore();
+    await store.set("mmo-bot:events:last", "10");
+    const { sink, posts } = memoryChannel();
+    const audience: EventsAudience = {
+      server: "guild-a",
+      houses: housesOf({ "guild-a": house("guild-a", settings) }),
+      now: () => at(hour),
+    };
+    const { world } = stubWorld({ events: [raidStarts] });
+    await new EventsPoster(
+      world,
+      lex,
+      store,
+      sink,
+      ROLE,
+      undefined,
+      quiet,
+      plainCard,
+      audience,
+    ).poll();
+    expect(posts).toHaveLength(1);
+    mentions.push(posts[0]!.mention);
+  }
+  // Quiet from 22:00 to 06:00 UTC, past midnight; equal ends are never quiet.
+  expect(mentions).toEqual([undefined, undefined, "role-house", ROLE, ROLE]);
+});
+
+test("a drop's card is told with its stage, edited as its crates go, and let go once it closes", async () => {
+  const store = memoryStore();
+  await store.set("mmo-bot:events:last", "10");
+  const state = { events: [dropOpened(18, "guild-a")], tick: 320 };
+  const { world } = stubWorld(state);
+  const byGuild: Record<string, api.House | null> = {
+    "guild-a": house("guild-a", {}, [dropStage("st-1", 40)]),
+  };
+  const { sink, posts, edits } = memoryChannel();
+  const cards: Card[] = [];
+  const poster = new EventsPoster(
+    world,
+    lex,
+    store,
+    sink,
+    ROLE,
+    undefined,
+    quiet,
+    (_ev, _mode, template) => {
+      const c = template();
+      if (c) cards.push(c);
+      return c;
+    },
+    { server: "guild-a", houses: housesOf(byGuild) },
+  );
+  expect(await poster.poll()).toBe(1);
+  expect(posts.map((p) => p.title)).toEqual(["A drop of crates near Ashford"]);
+  expect(await store.get("mmo-bot:events:open")).toBe(JSON.stringify(["stage:st-1"]));
+  // Crates opened in the tick it was posted: not edited until the next.
+  byGuild["guild-a"] = house("guild-a", {}, [dropStage("st-1", 31)]);
+  expect(await poster.poll()).toBe(0);
+  state.tick = 321;
+  expect(await poster.poll()).toBe(1);
+  expect(edits.map((e) => e.message)).toEqual(["msg-1"]);
+  expect(JSON.stringify(cards.at(-1)!.fields)).toContain("31 crates left");
+  // Unchanged: not edited again.
+  state.tick = 322;
+  expect(await poster.poll()).toBe(0);
+  // Closed: shown at once, then let go.
+  byGuild["guild-a"] = house("guild-a", {}, [dropStage("st-1", 0, { open: false, closed: true })]);
+  expect(await poster.poll()).toBe(1);
+  expect(edits.at(-1)!.title).toBe("The drop near Ashford is over");
+  expect(await store.get("mmo-bot:events:open")).toBe("[]");
+  for (const c of cards) expect(problems(c, names)).toEqual([]);
+});
+
+test("a drop's card whose house cannot be read waits, and one whose stage is gone is let go", async () => {
+  const store = memoryStore();
+  await store.set("mmo-bot:events:last", "10");
+  const state = { events: [dropOpened(18, "guild-a")], tick: 320 };
+  const { world } = stubWorld(state);
+  const byGuild: Record<string, api.House | null> = {
+    "guild-a": house("guild-a", {}, [dropStage("st-1", 40)]),
+  };
+  const { sink, edits } = memoryChannel();
+  const poster = new EventsPoster(world, lex, store, sink, ROLE, undefined, quiet, undefined, {
+    server: "guild-a",
+    houses: housesOf(byGuild),
+  });
+  expect(await poster.poll()).toBe(1);
+  byGuild["guild-a"] = null;
+  state.tick = 330;
+  expect(await poster.poll()).toBe(0);
+  expect(await store.get("mmo-bot:events:open")).toBe(JSON.stringify(["stage:st-1"]));
+  byGuild["guild-a"] = house("guild-a");
+  expect(await poster.poll()).toBe(0);
+  expect(await store.get("mmo-bot:events:open")).toBe("[]");
+  expect(edits).toEqual([]);
+});
+
+test("a fair is told with its contests from the board", async () => {
+  const store = memoryStore();
+  await store.set("mmo-bot:events:last", "10");
+  const fairStage = dropStage("st-2", 40, { kind: "fair", template: "fair", goals: ["g-1"] });
+  const opened = dropOpened(19, "guild-a", "st-2");
+  opened.fact.data = opened.fact.data.map((d) => (d.k === "kind" ? { k: "kind", s: "fair" } : d));
+  const goal = {
+    id: "g-1",
+    title: "Rat cull",
+    issuer: "staged",
+    by: "st-2",
+    verb: "defeat",
+    what: "defeat 5 creatures, a reed rat",
+    reward: 0,
+    mode: "each",
+    cap: 10,
+    lifetime: "ephemeral",
+    turnover: "expire",
+    state: "live",
+    progress: 0,
+    count: 5,
+    claims: 1,
+    mine: false,
+    yours: 0,
+    top: [],
+  } as unknown as api.Goal;
+  const board = {
+    tick: 320,
+    every: 1,
+    posts: [{ settlement: 2, name: "Ashford", banner: "", goal }],
+  } as unknown as api.Board;
+  const cards: Card[] = [];
+  const sink: ChannelSink = { post: async (c) => (cards.push(c), "m"), edit: async () => true };
+  await new EventsPoster(
+    stubWorld({ events: [opened] }).world,
+    lex,
+    store,
+    sink,
+    ROLE,
+    undefined,
+    quiet,
+    undefined,
+    {
+      server: "guild-a",
+      houses: housesOf({ "guild-a": house("guild-a", {}, [fairStage]) }),
+      board: async () => board,
+    },
+  ).poll();
+  expect(cards.map((c) => c.title)).toEqual(["A fair at Ashford"]);
+  expect(JSON.stringify(cards[0]!.fields)).toContain(
+    "Rat cull: defeat 5 creatures, a reed rat, 1 of 10 claims",
+  );
+  expect(problems(cards[0]!, names)).toEqual([]);
+});
+
+test("a staged hunt's card is posted only in its own server's channel", async () => {
+  const hunt = (id: string, stage?: string): api.HuntCard => ({
+    id,
+    row: "cinder-hound",
+    name: `Hunt ${id}`,
+    creature: "cinder-hound",
+    at: { q: 0, r: 0 },
+    region: "region:0",
+    health: 10,
+    max: 10,
+    ends: 500,
+    pressers: [],
+    spoils: [],
+    ...(stage ? { stage, placed: { by: "staff", label: "Guild", points: 80 } } : {}),
+  });
+  const board = {
+    tick: 1,
+    every: 1,
+    hunts: [hunt("h-1"), hunt("h-2", "st-a"), hunt("h-3", "st-b")],
+  };
+  const houses = housesOf({
+    "guild-a": house("guild-a", {}, [dropStage("st-a", 0, { kind: "hunt" })]),
+    "guild-b": house("guild-b", {}, [dropStage("st-b", 0, { kind: "hunt" })]),
+  });
+  const shown: Record<string, string[]> = {};
+  for (const server of ["guild-a", "guild-b"]) {
+    const { sink, posts } = memoryChannel();
+    await new HuntPoster(
+      { hunts: async () => board },
+      lex,
+      memoryStore(),
+      sink,
+      undefined,
+      quiet,
+      undefined,
+      { server, houses },
+    ).poll();
+    shown[server] = posts.map((p) => p.title);
+  }
+  expect(shown["guild-a"]).toEqual(["Hunt h-1", "Hunt h-2"]);
+  expect(shown["guild-b"]).toEqual(["Hunt h-1", "Hunt h-3"]);
+  // A staged hunt's card already up is kept, not posted again, while the house cannot be read.
+  const store = memoryStore();
+  const { sink, posts } = memoryChannel();
+  let fail = false;
+  const flaky = {
+    houseOf: async (g: string) => {
+      if (fail) throw new Error("world down");
+      return houses.houseOf(g);
+    },
+  };
+  const poster = new HuntPoster(
+    { hunts: async () => board },
+    lex,
+    store,
+    sink,
+    undefined,
+    quiet,
+    undefined,
+    {
+      server: "guild-a",
+      houses: flaky,
+    },
+  );
+  await poster.poll();
+  fail = true;
+  await poster.poll();
+  fail = false;
+  await poster.poll();
+  expect(posts.map((p) => p.title)).toEqual(["Hunt h-1", "Hunt h-2"]);
+});
+
+test("each guild gets its own poster for its channel, and a new channel a new poster", async () => {
+  const channels: Record<string, string | undefined> = { "guild-a": "ch-1", "guild-b": undefined };
+  const made: string[] = [];
+  const polls: string[] = [];
+  const posters = new GuildPosters<Poller>(
+    ["guild-a", "guild-b"],
+    async (g) => channels[g],
+    (g, ch) => {
+      made.push(`${g}/${ch}`);
+      return { poll: async () => (polls.push(`${g}/${ch}`), 1) };
+    },
+    quiet,
+  );
+  expect(await posters.poll()).toBe(1);
+  channels["guild-b"] = "ch-2";
+  expect(await posters.poll()).toBe(2);
+  channels["guild-a"] = "ch-3";
+  await posters.poll();
+  expect(made).toEqual(["guild-a/ch-1", "guild-b/ch-2", "guild-a/ch-3"]);
+  expect(polls).toEqual([
+    "guild-a/ch-1",
+    "guild-a/ch-1",
+    "guild-b/ch-2",
+    "guild-a/ch-3",
+    "guild-b/ch-2",
+  ]);
+  const primary = { guild: "guild-a", channel: "ch-1" };
+  expect(posterPrefix("mmo-bot:events:", "guild-a", "ch-1", primary)).toBe("mmo-bot:events:");
+  expect(posterPrefix("mmo-bot:events:", "guild-b", "ch-2", primary)).toBe(
+    "mmo-bot:events:guild-b:ch-2:",
+  );
 });

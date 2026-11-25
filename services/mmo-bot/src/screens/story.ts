@@ -38,8 +38,10 @@ import {
   PRIVATE,
   ROW_MOST,
   SELECT_MOST,
+  stagedLine,
   storyLine,
 } from "./common.ts";
+import { dropCard, fairCard, stagedOf, type StagedView } from "./staged.ts";
 
 /**
  * The story's cards (GDD 12, 17.2): an arc's stage with its sides and a
@@ -183,7 +185,9 @@ export function backMaterial(s: api.Side, b: Backing, lex: Lexicon): string | un
   const takes = b.goals?.find((g) => g.id === s.goal)?.takes ?? [];
   if (takes.length) return [...takes].sort((x, y) => y.units - x.units)[0]!.material;
   if (s.tag === "provisions") return b.purse.provisions > 0 ? "provisions" : undefined;
-  const goods = [...b.purse.goods].filter((g) => g.units > 0).sort((x, y) => y.units - x.units);
+  const goods = [...b.purse.goods]
+    .filter((g) => g.units > 0 && !g.staged)
+    .sort((x, y) => y.units - x.units);
   if (!s.tag) return goods[0]?.material;
   const tagged = goods.find(
     (g) => g.material.includes(s.tag!) || lex.material(g.material).toLowerCase().includes(s.tag!),
@@ -782,8 +786,101 @@ function theftEventCard(ev: api.StoryEvent, lex: Lexicon, refs: Refs): Card {
   };
 }
 
+/**
+ * A staging's event with what the poster read beside it: the house's view
+ * of its stage, and a fair's contests from the board.
+ */
+export type StagedEvent = api.StoryEvent & { stage?: api.StageView; contests?: api.Goal[] };
+
+/** What each kind of staging is called on its card. */
+const STAGED_TITLES: Record<string, (where: string) => string> = {
+  contest: (w) => `A contest at ${w}`,
+  hardship: (w) => `A staged hardship at ${w}`,
+  hunt: (w) => `A staged hunt near ${w}`,
+  vault: (w) => `A competing vault near ${w}`,
+  pattern: (w) => `A staged pattern near ${w}`,
+  drop: (w) => `A drop of crates near ${w}`,
+  fair: (w) => `A fair at ${w}`,
+};
+
+/** A staging's kind as the card's author says it. */
+function stagedKind(st: StagedView): string {
+  return st.kind ? capitalise(st.kind) : "Staged";
+}
+
+/** A staging opened that is neither a drop nor a fair: what, where and who staged it. */
+function stagedOpenedCard(ev: api.StoryEvent, st: StagedView, lex: Lexicon, refs: Refs): Card {
+  const title = (STAGED_TITLES[st.kind] ?? ((w: string) => `Staged at ${w}`))(placeOf(ev));
+  return {
+    context: EVENTS_CHANNEL,
+    author: authorLine("Staged", stagedKind(st), placeOf(ev)),
+    title,
+    description: `${stagedLine(st.placed)}.
+${storyLine(ev.fact, lex, refs)}`,
+    picture: artPicture(ev.art, title),
+    fields: st.days ? [{ name: "Lasts", value: amount(st.days, "days"), inline: true }] : [],
+    footer: "Staged here, and posted only here: who staged it takes nothing from it.",
+    rows: [],
+    colour: COLOUR.hazard,
+  };
+}
+
+/** A staging opened: a drop and a fair are their own cards, kept live as their crates go. */
+function stagedEventCard(ev: StagedEvent, lex: Lexicon, refs: Refs): Card {
+  const st = stagedOf(ev, ev.stage);
+  if (st.kind === "drop") return dropCard(st);
+  if (st.kind === "fair") return fairCard(st, ev.contests ?? [], undefined, ev.art);
+  return stagedOpenedCard(ev, st, lex, refs);
+}
+
+/** A staging closed: early, at its end, or because it could not open; what came of it. */
+function stagedClosedCard(ev: api.StoryEvent, lex: Lexicon, refs: Refs): Card {
+  const st = stagedOf(ev);
+  const f = ev.fact;
+  const fields: EmbedField[] = [];
+  if (factNum(f, "crates"))
+    fields.push({ name: "Opened", value: plural(factNum(f, "crates"), "crate"), inline: true });
+  if (factNum(f, "winners"))
+    fields.push({
+      name: "Won by",
+      value: plural(factNum(f, "winners"), "character"),
+      inline: true,
+    });
+  return {
+    context: EVENTS_CHANNEL,
+    author: authorLine("Staged", stagedKind(st), "over"),
+    title: `${(STAGED_TITLES[st.kind] ?? ((w: string) => `Staged at ${w}`))(placeOf(ev))} is over`,
+    description: storyLine(f, lex, refs),
+    picture: "form",
+    fields,
+    footer: "What it paid stays staged where it was staged; nothing is refunded.",
+    rows: [],
+    colour: COLOUR.ash,
+  };
+}
+
+/** A competing vault taken: by a crew's size and the staged haul, never who sat in it. */
+function vaultTakenCard(ev: api.StoryEvent, lex: Lexicon, refs: Refs): Card {
+  const f = ev.fact;
+  const title = `The competing vault near ${placeOf(ev)} was taken`;
+  return {
+    context: EVENTS_CHANNEL,
+    author: authorLine("Vault", placeOf(ev), "taken"),
+    title,
+    description: storyLine(f, lex, refs),
+    picture: artPicture(ev.art, title),
+    fields: [
+      { name: "Crew", value: plural(factNum(f, "seats"), "member"), inline: true },
+      { name: "Haul", value: amount(factNum(f, "goods"), "goods"), inline: true },
+    ],
+    footer: "The first crew to solve it took the haul; a rival's machine went haywire.",
+    rows: [],
+    colour: COLOUR.signal,
+  };
+}
+
 /** The events channel's card for one story event, or null for a kind it does not post. */
-export function eventCard(ev: api.StoryEvent, lex: Lexicon): Card | null {
+export function eventCard(ev: StagedEvent, lex: Lexicon): Card | null {
   const named = ev.arc ? { ...ev, arc: namedArc(ev.arc, lex) } : ev;
   const refs = refsOf(ev.names);
   switch (ev.fact.kind) {
@@ -817,6 +914,12 @@ export function eventCard(ev: api.StoryEvent, lex: Lexicon): Card | null {
       return caravanRobbedCard(ev);
     case "theft.made":
       return theftEventCard(ev, lex, refs);
+    case "staged.opened":
+      return stagedEventCard(ev, lex, refs);
+    case "staged.closed":
+      return stagedClosedCard(ev, lex, refs);
+    case "vault.taken":
+      return vaultTakenCard(ev, lex, refs);
     default:
       return null;
   }

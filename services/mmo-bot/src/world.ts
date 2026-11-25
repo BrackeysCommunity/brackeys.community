@@ -46,10 +46,18 @@ export interface World {
   chronicleFact(characterId: string | undefined, id: number): Promise<WorldReply<api.FactCauses>>;
   /** The arcs open and lately ended; with no character, only those everyone may see. */
   arcs(characterId: string): Promise<api.Arcs>;
-  /** The events channel's facts after a fact id: the bot's own read. */
-  storyEvents(after: number): Promise<api.StoryEvents>;
+  /** The events channel's facts after a fact id: the bot's own read; with a server, as that server sees them. */
+  storyEvents(after: number, server?: string): Promise<api.StoryEvents>;
   /** The promotions after a fact id, each with its record: the bot's own read, for the chronicle channel. */
   storyPromotions(after: number): Promise<api.StoryEvents>;
+  /** A server's house; with a character and its member's flags, as that server's staff or admins see it. */
+  house?(
+    server: string,
+    character?: string,
+    flags?: { admin?: boolean; staff?: boolean },
+  ): Promise<WorldReply<api.House>>;
+  /** A page of a server's public log after a row id: the bot's own read. */
+  houseLog?(server: string, after: number): Promise<api.HouseLog>;
 }
 
 /**
@@ -145,8 +153,20 @@ export function httpWorld(base: string, token: string, fetcher: typeof fetch = f
     chronicleFact: (id, fact) =>
       read("GET", api.PathChronicleFact + q({ characterId: id || undefined, id: fact })),
     arcs: (id) => get(api.PathArcs + q({ characterId: id || undefined })),
-    storyEvents: (after) => get(api.PathStoryEvents + q({ after })),
+    storyEvents: (after, server) => get(api.PathStoryEvents + q({ after, server })),
     storyPromotions: (after) => get(api.PathStoryPromotions + q({ after })),
+    house: (server, character, flags) =>
+      read(
+        "GET",
+        api.PathHouse +
+          q({
+            server,
+            character: character || undefined,
+            admin: flags?.admin ? 1 : undefined,
+            staff: flags?.staff ? 1 : undefined,
+          }),
+      ),
+    houseLog: (server, after) => get(api.PathHouseLog + q({ server, after })),
     async media(key) {
       const res = await send("GET", `${api.PathMedia}${encodeURIComponent(key)}.png`);
       if (!res.ok) throw new WorldRequestError(res.status, (await res.json()) as api.Refusal);

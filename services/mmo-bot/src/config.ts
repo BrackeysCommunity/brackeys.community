@@ -8,6 +8,8 @@ export interface Config {
   token: string;
   applicationId: string;
   guildId: string;
+  /** Every guild the commands are registered to (MMO_GUILD_IDS, comma separated); DISCORD_GUILD_ID alone when unset. */
+  guildIds: string[];
   worldUrl: string;
   worldToken: string;
   redisUrl?: string;
@@ -23,6 +25,8 @@ export interface Config {
   eventsChannel?: string;
   /** The chronicle channel (GDD 12.7, 17.2): one post per closed world day, and each promotion as it happens. */
   chronicleChannel?: string;
+  /** The log channel (GDD 14.8, 17.2), by id or name, where a server's settings map none. */
+  logChannel?: string;
   /** The opt-in role a raid's start mentions; it must exist and sit below the bot's own role. */
   eventsAlarmRole?: string;
   /** How often the lexicon is read again, so found names reach the cards; unset is LEXICON_REFRESH_MS. */
@@ -74,12 +78,29 @@ export function withKey<T extends object>(
   return out;
 }
 
+/** The guilds named in MMO_GUILD_IDS, in order and once each, or the primary guild alone. */
+export function guildIds(
+  primary: string,
+  env: Record<string, string | undefined> = process.env,
+): string[] {
+  const ids = (env.MMO_GUILD_IDS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  for (const id of ids)
+    if (!/^\d{1,20}$/.test(id))
+      throw new Error(`MMO_GUILD_IDS holds "${id}", not a Discord server id`);
+  return ids.length ? [...new Set(ids)] : [primary];
+}
+
 /** Reads the bot settings and fails at startup if a required value is missing. */
 export function loadConfig(): Config {
+  const guildId = need("DISCORD_GUILD_ID");
   const config: Config = {
     token: need("DISCORD_TOKEN"),
     applicationId: need("DISCORD_APP_ID"),
-    guildId: need("DISCORD_GUILD_ID"),
+    guildId,
+    guildIds: guildIds(guildId),
     worldUrl: process.env.MMO_WORLD_URL?.trim() || "http://localhost:8080",
     worldToken: process.env.MMO_API_TOKEN?.trim() ?? "",
     redisUrl: process.env.REDIS_URL?.trim() || undefined,
@@ -89,6 +110,7 @@ export function loadConfig(): Config {
     gameChannel: process.env.MMO_GAME_CHANNEL?.trim() || undefined,
     eventsChannel: process.env.MMO_EVENTS_CHANNEL?.trim() || undefined,
     chronicleChannel: process.env.MMO_CHRONICLE_CHANNEL?.trim() || undefined,
+    logChannel: process.env.MMO_LOG_CHANNEL?.trim() || undefined,
     eventsAlarmRole: process.env.MMO_EVENTS_ALARM_ROLE?.trim() || undefined,
     lexiconRefreshMs: integer("LEXICON_REFRESH_MS"),
     narration: process.env.MMO_NARRATION?.trim() === "on",

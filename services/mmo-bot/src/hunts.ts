@@ -10,7 +10,8 @@ import type { HuntPost } from "./world.ts";
  * The hunt cards (GDD 7.6) in the events channel, or the game channel
  * where no events channel is set: one a hunt, posted when it opens, edited
  * on a timer at most once a world tick, and closed with its spoils table.
- * With neither channel set, nothing is posted.
+ * With neither channel set, nothing is posted. A server's staged hunt is
+ * posted only in that server's channel (GDD 14.5).
  */
 
 export const HUNT_POLL_MS = 10_000;
@@ -25,6 +26,87 @@ export interface ChannelSink {
   post(card: Card, mentionRole?: string): Promise<string>;
   /** Replaces a posted card; false when its message is gone. */
   edit(message: string, card: Card, mentionRole?: string): Promise<boolean>;
+}
+
+/** Each guild's house as the bot holds it; null when the world serves none. */
+export interface HouseReader {
+  houseOf(guild: string): Promise<api.House | null>;
+}
+
+/** The server a channel belongs to, and the houses that say which staged things are its own. */
+export interface Audience {
+  server: string;
+  houses: HouseReader;
+}
+
+/** Whether a staged hunt is this audience's: its stage is one of the server's own. */
+export function ownStage(house: api.House | null | undefined, stage: string): boolean {
+  return !!house?.stages.some((s) => s.id === stage);
+}
+
+/** Anything polled on a timer. */
+export interface Poller {
+  poll(): Promise<number>;
+}
+
+/**
+ * A poster's store prefix in one guild's channel: the base itself for the
+ * primary guild's own channel, so marks kept before guilds were told apart
+ * keep, and base<guild>:<channel>: for every other.
+ */
+export function posterPrefix(
+  base: string,
+  guild: string,
+  channel: string,
+  primary?: { guild: string; channel: string },
+): string {
+  return primary && primary.guild === guild && primary.channel === channel
+    ? base
+    : `${base}${guild}:${channel}:`;
+}
+
+/**
+ * One poster for each guild's channel, made the first time the channel is
+ * seen and polled together. The channel is read again each poll, so a
+ * guild that maps another channel gets a new poster, which starts at the
+ * present; a guild with no channel is skipped.
+ */
+export class GuildPosters<P extends Poller> implements Poller {
+  private readonly made = new Map<string, { channel: string; poster: P }>();
+
+  constructor(
+    private readonly guilds: readonly string[],
+    private readonly channelOf: (guild: string) => Promise<string | undefined>,
+    private readonly make: (guild: string, channel: string) => P,
+    private readonly log: (line: string) => void = console.log,
+    private readonly tag = "guilds",
+  ) {}
+
+  async poll(): Promise<number> {
+    let n = 0;
+    for (const guild of this.guilds) {
+      try {
+        const channel = await this.channelOf(guild);
+        if (!channel) {
+          this.made.delete(guild);
+          continue;
+        }
+        let was = this.made.get(guild);
+        if (was?.channel !== channel) {
+          was = { channel, poster: this.make(guild, channel) };
+          this.made.set(guild, was);
+        }
+        n += await was.poster.poll();
+      } catch (e) {
+        this.log(`[${this.tag}] ${guild}: ${String(e)}`);
+      }
+    }
+    return n;
+  }
+
+  start(ms: number): () => void {
+    return pollEvery(ms, () => this.poll(), this.log, this.tag);
+  }
 }
 
 /** Runs poll again a fixed wait after each run ends, until stopped. */
@@ -86,6 +168,7 @@ export class HuntPoster {
     private readonly prefix = "mmo-bot:hunt:",
     private readonly log: (line: string) => void = console.log,
     private readonly context?: string,
+    private readonly audience?: Audience,
   ) {
     this.cards = new LiveCards(store, sink, `${prefix}open`, log, "hunts");
   }
@@ -96,7 +179,13 @@ export class HuntPoster {
     const before = await this.cards.open();
     const still = new Set<string>();
     let changed = 0;
+    const house = await this.house(b.hunts);
     for (const h of b.hunts as HuntPost[]) {
+      if (h.stage && this.audience && !ownStage(house, h.stage)) {
+        // Unread, a staged card already up is left as it is, so it is never posted twice.
+        if (house === undefined && before.includes(h.id)) still.add(h.id);
+        continue;
+      }
       still.add(h.id);
       try {
         if (await this.show(h, b)) changed++;
@@ -108,6 +197,20 @@ export class HuntPoster {
     for (const id of before) if (!still.has(id)) await this.cards.drop(this.prefix + id);
     await this.cards.setOpen(still);
     return changed;
+  }
+
+  /**
+   * This channel's house, read only when a staged hunt is open: null when
+   * the world serves none, undefined when the read failed.
+   */
+  private async house(hunts: readonly api.HuntCard[]): Promise<api.House | null | undefined> {
+    if (!this.audience || !hunts.some((h) => h.stage)) return null;
+    try {
+      return await this.audience.houses.houseOf(this.audience.server);
+    } catch (e) {
+      this.log(`[hunts] house of ${this.audience.server}: ${String(e)}`);
+      return undefined;
+    }
   }
 
   private async show(h: HuntPost, b: api.HuntBoard): Promise<boolean> {

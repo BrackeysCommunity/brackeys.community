@@ -2,22 +2,30 @@ import { Client, Events, GatewayIntentBits } from "discord.js";
 import IORedis from "ioredis";
 
 import { describe } from "../../../packages/discord-kit/src/index.ts";
-import { channelSink, createHandler, forumSink, threadSink } from "./adapter.ts";
+import { channelSink, createHandler, forumSink, guildChannel, threadSink } from "./adapter.ts";
 import * as api from "./api.ts";
-import { ChroniclePoster } from "./chronicle.ts";
+import { CHRONICLE_POLL_MS, ChroniclePoster } from "./chronicle.ts";
 import { loadConfig } from "./config.ts";
 import { localBudget, redisBudget } from "./cooldown.ts";
-import { EventsPoster } from "./events.ts";
-import { BoardPoster, ForumPoster, type ForumStore, memoryStore } from "./forum.ts";
-import { HuntPoster } from "./hunts.ts";
+import { EVENTS_POLL_MS, EventsPoster } from "./events.ts";
+import { BoardPoster, FORUM_POLL_MS, ForumPoster, type ForumStore, memoryStore } from "./forum.ts";
+import {
+  type ChannelKind,
+  Houses,
+  memoryHeldNames,
+  redisHeldNames,
+  redisSwitchWriter,
+} from "./house.ts";
+import { GuildPosters, HUNT_POLL_MS, HuntPoster, posterPrefix } from "./hunts.ts";
 import { Lexicon } from "./lexicon.ts";
+import { LogPoster } from "./logs.ts";
 import { MediaCache } from "./media.ts";
 import { narrationParts, narratorFor } from "./narration/index.ts";
 import { redisNarrationStore } from "./narration/redis.ts";
 import { redisSwitch } from "./narration/switch.ts";
 import { Notifier } from "./notify.ts";
 import { PartyPoster } from "./party.ts";
-import { PromotionsPoster } from "./promotions.ts";
+import { PROMOTIONS_POLL_MS, PromotionsPoster } from "./promotions.ts";
 import { ThreadBudget } from "./publish.ts";
 import { LexiconRefresher } from "./refresh.ts";
 import { registerCommands } from "./register.ts";
@@ -29,7 +37,9 @@ import { httpWorld } from "./world.ts";
  * privileged intents; the game reads no messages), answering interactions,
  * keeping party threads, and posting the market and notice-board forums,
  * the events or game channel's hunts, the events channel and the chronicle
- * channel, its promotions among them, from the world service's API.
+ * channel, its promotions among them, from the world service's API. Each
+ * server's staff and admins have their consoles, and its public log is
+ * posted to its log channel.
  */
 process.on("unhandledRejection", (e) => console.error(`[unhandled] ${describe(e)}`));
 const config = loadConfig();
@@ -49,6 +59,10 @@ console.log(
 );
 const parts = narrationParts(narrator, redis ? redisNarrationStore(redis) : null, lex, { sw });
 const { narration, day } = parts;
+const houses = new Houses(world, {
+  writeSwitch: redis ? redisSwitchWriter(redis) : undefined,
+  held: redis ? redisHeldNames(redis) : memoryHeldNames(),
+});
 // Seeded once so stage endings and screens are costed under the right day before a chronicle post.
 try {
   const r = await world.chronicle("", undefined, config.guildId);
@@ -84,12 +98,15 @@ const handle = createHandler({
     lex,
     threatLine: config.threatLine ?? lex.numbers.ambushLine,
     ...parts,
+    house: houses,
   },
   budget: redis ? redisBudget(redis) : localBudget(),
   media: (key) => media.get(key),
   onLong: (user, character) => notifier.watch(user, character),
   onParty: (note) => parties.note(note),
   alarmRole: config.eventsAlarmRole,
+  staffRoles: (guild) => houses.staffRolesOf(guild),
+  alarmRoles: (guild) => houses.alarmRolesOf(guild),
 });
 
 client.on(Events.InteractionCreate, (i) => {
@@ -101,74 +118,145 @@ client.once(Events.ClientReady, async (c) => {
   notifier.start();
   parties.start();
   lexicon.start(config.lexiconRefreshMs);
-  const { marketForum, goalsForum, gameChannel, eventsChannel, chronicleChannel } = config;
-  if (!marketForum && !goalsForum && !gameChannel && !eventsChannel && !chronicleChannel) return;
   if (!redis) {
     // Without a durable store every restart would open the posts again.
-    console.warn("[forum] a forum or channel is set but REDIS_URL is not; nothing is posted");
+    console.warn("[forum] REDIS_URL is not set; no channel, forum or log is posted");
     return;
   }
+  const { guildId: primary, guildIds } = config;
   const channel = (id: string) => channelSink(client, id, (k) => media.get(k));
-  const huntChannel = eventsChannel ?? gameChannel;
-  if (huntChannel)
-    new HuntPoster(
-      world,
-      lex,
-      store,
-      channel(huntChannel),
-      undefined,
-      undefined,
-      eventsChannel ? EVENTS_CHANNEL : undefined,
-    ).start();
-  if (eventsChannel)
-    new EventsPoster(
-      {
-        storyEvents: (after) => world.storyEvents(after),
-        arcs: () => world.arcs(""),
-        hunts: () => world.hunts(),
-        chronicleFact: (_character, id) => world.chronicleFact(undefined, id),
-      },
-      lex,
-      store,
-      channel(eventsChannel),
-      config.eventsAlarmRole,
-      undefined,
-      undefined,
-      (ev, mode, template) => {
-        const card = template();
-        return card && narration.event(ev, config.guildId, mode, () => card);
-      },
-    ).start();
-  if (chronicleChannel)
-    new ChroniclePoster(
-      {
-        async chronicle(server) {
-          const r = await world.chronicle("", undefined, server);
-          if (r.ok) return r.reply;
-          // Not found: no world day has closed yet.
-          if (r.refusal.code === api.CodeNotFound) return null;
-          throw new Error(`chronicle refused: ${r.refusal.code} ${r.refusal.message ?? ""}`);
-        },
-      },
-      lex,
-      store,
-      channel(chronicleChannel),
-      config.guildId,
-      undefined,
-      undefined,
-      (ch, template) => narration.chronicle(ch, config.guildId, "post", template),
-      (d) => day.saw(d),
-    ).start();
-  if (chronicleChannel)
-    new PromotionsPoster(
-      { storyPromotions: (after) => world.storyPromotions(after) },
-      lex,
-      store,
-      channel(chronicleChannel),
-      () => lexicon.refresh(),
-    ).start();
   const sink = (id: string) => forumSink(client, id, (k) => media.get(k));
-  if (marketForum) new ForumPoster(world, lex, store, sink(marketForum)).start();
-  if (goalsForum) new BoardPoster(world, lex, store, sink(goalsForum)).start();
+  /** The bot's own channel for a kind in a guild: the primary guild's env id as it is, else looked up in that guild. */
+  const own = (guild: string, ref: string | undefined) =>
+    ref && guild === primary && /^\d+$/.test(ref)
+      ? Promise.resolve(ref)
+      : guildChannel(client, guild, ref);
+  /** A kind's channel in a guild: the one its settings map, else the bot's own. */
+  const mapped = (kind: ChannelKind, ref: string | undefined) => async (guild: string) =>
+    (await houses.channelOf(guild, kind)) ?? (await own(guild, ref));
+  const prefix = (base: string, ref: string | undefined) => (guild: string, id: string) =>
+    posterPrefix(base, guild, id, ref ? { guild: primary, channel: ref } : undefined);
+  const audience = (guild: string) => ({
+    server: guild,
+    houses,
+    board: () => world.board(),
+    now: Date.now,
+  });
+
+  new LogPoster(world, houses, store, channel, guildIds, (guild) =>
+    own(guild, config.logChannel),
+  ).start();
+
+  const { marketForum, goalsForum, gameChannel, eventsChannel, chronicleChannel } = config;
+  const huntRef = eventsChannel ?? gameChannel;
+  const huntPrefix = prefix("mmo-bot:hunt:", huntRef);
+  new GuildPosters(
+    guildIds,
+    mapped("events", huntRef),
+    (guild, id) =>
+      new HuntPoster(
+        world,
+        lex,
+        store,
+        channel(id),
+        huntPrefix(guild, id),
+        undefined,
+        id === gameChannel ? undefined : EVENTS_CHANNEL,
+        audience(guild),
+      ),
+    console.log,
+    "hunts",
+  ).start(HUNT_POLL_MS);
+
+  const eventsPrefix = prefix("mmo-bot:events:", eventsChannel);
+  new GuildPosters(
+    guildIds,
+    mapped("events", eventsChannel),
+    (guild, id) =>
+      new EventsPoster(
+        {
+          storyEvents: (after) => world.storyEvents(after, guild),
+          arcs: () => world.arcs(""),
+          hunts: () => world.hunts(),
+          chronicleFact: (_character, fact) => world.chronicleFact(undefined, fact),
+        },
+        lex,
+        store,
+        channel(id),
+        config.eventsAlarmRole,
+        eventsPrefix(guild, id),
+        undefined,
+        (ev, mode, template) => {
+          const card = template();
+          return card && narration.event(ev, guild, mode, () => card);
+        },
+        audience(guild),
+      ),
+    console.log,
+    "events",
+  ).start(EVENTS_POLL_MS);
+
+  const chroniclePrefix = prefix("mmo-bot:chronicle:", chronicleChannel);
+  new GuildPosters(
+    guildIds,
+    mapped("chronicle", chronicleChannel),
+    (guild, id) =>
+      new ChroniclePoster(
+        {
+          async chronicle(server) {
+            const r = await world.chronicle("", undefined, server);
+            if (r.ok) return r.reply;
+            // Not found: no world day has closed yet.
+            if (r.refusal.code === api.CodeNotFound) return null;
+            throw new Error(`chronicle refused: ${r.refusal.code} ${r.refusal.message ?? ""}`);
+          },
+        },
+        lex,
+        store,
+        channel(id),
+        guild,
+        chroniclePrefix(guild, id),
+        undefined,
+        (ch, template) => narration.chronicle(ch, guild, "post", template),
+        (d) => day.saw(d),
+      ),
+    console.log,
+    "chronicle",
+  ).start(CHRONICLE_POLL_MS);
+
+  const promotionsPrefix = prefix("mmo-bot:promotions:", chronicleChannel);
+  new GuildPosters(
+    guildIds,
+    mapped("chronicle", chronicleChannel),
+    (guild, id) =>
+      new PromotionsPoster(
+        { storyPromotions: (after) => world.storyPromotions(after) },
+        lex,
+        store,
+        channel(id),
+        () => lexicon.refresh(),
+        promotionsPrefix(guild, id),
+      ),
+    console.log,
+    "promotions",
+  ).start(PROMOTIONS_POLL_MS);
+
+  const marketPrefix = prefix("mmo-bot:forum:", marketForum);
+  new GuildPosters(
+    guildIds,
+    mapped("market", marketForum),
+    (guild, id) => new ForumPoster(world, lex, store, sink(id), marketPrefix(guild, id)),
+    console.log,
+    "forum",
+  ).start(FORUM_POLL_MS);
+
+  const boardPrefix = prefix("mmo-bot:board:", goalsForum);
+  new GuildPosters(
+    guildIds,
+    mapped("board", goalsForum),
+    (guild, id) => new BoardPoster(world, lex, store, sink(id), boardPrefix(guild, id)),
+    console.log,
+    "board",
+  ).start(FORUM_POLL_MS);
 });
 await client.login(config.token);

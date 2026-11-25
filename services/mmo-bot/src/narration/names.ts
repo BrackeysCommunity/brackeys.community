@@ -99,6 +99,8 @@ export interface HeldName {
   target: string;
   name: string;
   day: number;
+  /** The guild it was typed in, "" in a DM; entries held before the queue have none. */
+  guild?: string;
 }
 
 export interface NameOffers {
@@ -176,6 +178,7 @@ export function nameOffers(
         target: ctx.target,
         name,
         day: ctx.day,
+        guild: ctx.server,
       };
       try {
         if (!held) throw new Error("no store for held names");

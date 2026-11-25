@@ -2,9 +2,10 @@ import type { Modal } from "../../../packages/discord-kit/src/index.ts";
 import type { Narrator } from "../../../packages/mmo-narrate/src/index.ts";
 import * as api from "./api.ts";
 import type { Card } from "./card.ts";
+import type { ChannelKind, HeldEntry, HouseHooks } from "./house.ts";
 import { type Action, fields, type Id, integerTarget, type Launch, launchOf } from "./ids.ts";
 import { capitalise, type Lexicon } from "./lexicon.ts";
-import type { CommandName } from "./manifest.ts";
+import { type CommandName, REPORT } from "./manifest.ts";
 import { type DayClock, dayClock, type Narration, offNarration } from "./narration/hooks.ts";
 import {
   dungeonNaming,
@@ -51,6 +52,43 @@ import {
   nameModal,
   placesCard,
 } from "./screens/guild.ts";
+import {
+  adminConsole,
+  blankPin,
+  blankStage,
+  type GuildThing,
+  holdsCard,
+  isChannelKind,
+  isReason,
+  liftOf,
+  logCard,
+  minutesOf,
+  noConsoleCard,
+  noServerCard,
+  type PinDraft,
+  pinDraftOf,
+  pinOrder,
+  pinRows,
+  pinsForm,
+  pinsPlaced,
+  QUIET_FROM,
+  QUIET_TO,
+  queueCard,
+  type QueueFocus,
+  queueFocusOf,
+  quietModal,
+  reportForm,
+  reportRef,
+  type Role,
+  type StageDraft,
+  stageDraftOf,
+  stageForm,
+  stageMissing,
+  stageOrder,
+  staffConsole,
+  settingsCard,
+  templateName,
+} from "./screens/house.ts";
 import { hubCard, recapCard, startCard, whereCard } from "./screens/hub.ts";
 import { hexDistance, huntCard } from "./screens/hunt.ts";
 import {
@@ -81,6 +119,7 @@ import {
   type OrderDraft,
   ordersCard,
   reportCard,
+  stagedBookCard,
 } from "./screens/market.ts";
 import {
   HELD_NOTICE,
@@ -97,6 +136,7 @@ import {
   partyMachineCard,
   scoresOf,
 } from "./screens/party.ts";
+import { contestsOf, crateOpen, dropCard, fairCard } from "./screens/staged.ts";
 import { chronicleCard, factCard, giveModal, stageCard, UNITS_INPUT } from "./screens/story.ts";
 import { talkCard } from "./screens/talk.ts";
 import { travelCard } from "./screens/travel.ts";
@@ -154,6 +194,13 @@ export interface Press {
   fields?: Record<string, string>;
   /** The player holds the server's admin permission (GDD 4.8). */
   admin?: boolean;
+  /** The server counts the player as staff: Moderate Members, or a role its settings name (GDD 14.1). */
+  staff?: boolean;
+  /** The card a Report names, as its reason select carries it: a name ref, or p/<channel>/<message>. */
+  report?: string;
+  /** The guild's channels and roles, for the settings card; the adapter lists them where wantsGuildLists says. */
+  channels?: GuildThing[];
+  roles?: GuildThing[];
   /** The channel the press was made in, or a thread's parent: where a party's thread opens. */
   channel?: string;
 }
@@ -177,6 +224,8 @@ export function modalFor(id: Id): Modal | null {
       const f = fields(id.target, ":", 2);
       return f ? giveModal(f[0]!, f[1]!, id.version) : null;
     }
+    case "hs-quiet":
+      return quietModal(id.version);
     default:
       return null;
   }
@@ -189,6 +238,22 @@ export function modalFor(id: Id): Modal | null {
  */
 export function launchFor(id: Id): Launch | null {
   return id.action === "launch" ? launchOf(id.target) : null;
+}
+
+/** The presses whose card lists the guild's channels and roles, so the adapter reads them only there. */
+const SETTINGS_ACTIONS = new Set<Action>([
+  "hs-conf",
+  "hs-kind",
+  "hs-chan",
+  "hs-srole",
+  "hs-arole",
+  "hs-names",
+  "hs-narr",
+  "hs-quieted",
+]);
+
+export function wantsGuildLists(id: Id | undefined): boolean {
+  return !!id && SETTINGS_ACTIONS.has(id.action);
 }
 
 /**
@@ -212,6 +277,8 @@ export interface Ctx {
   day?: DayClock;
   /** Name suggestions and the screen on typed names; from the narrator when unset. */
   names?: NameOffers;
+  /** What a house write tells the bot's house cache and the narration switch, and the held names. */
+  house?: HouseHooks;
 }
 
 const clocks = new WeakMap<Ctx, DayClock>();
@@ -317,7 +384,7 @@ class Session {
     return { o, here };
   }
 
-  /** A write keyed on this press, at the card's version. */
+  /** A write keyed on this press, at the card's version; a house kind also names its member, for the log. */
   private async act(kind: string, version: number, fields: Partial<api.ActionRequest> = {}) {
     return this.world.act({
       interactionId: this.press.interaction,
@@ -326,6 +393,8 @@ class Session {
       kind,
       server: this.press.guild,
       admin: this.press.admin,
+      staff: this.press.staff,
+      ...(HOUSE_KINDS.has(kind) ? { discordId: this.press.user } : {}),
       ...fields,
     });
   }
@@ -363,10 +432,247 @@ class Session {
         return this.party();
       case "chronicle":
         return this.chronicle();
+      case "admin":
+        return this.console(undefined, "admin");
+      case "staff":
+        return this.console(undefined, "staff");
+      case REPORT:
+        return this.report();
       case "play":
       default:
         return this.open();
     }
+  }
+
+  /** The role this press speaks with on its server's consoles, or null for a member without one. */
+  private get role(): Role | null {
+    return this.press.admin ? "admin" : this.press.staff ? "staff" : null;
+  }
+
+  /** The house as this member reads it; a server with none yet reads as an empty one an admin installs. */
+  private async readHouse(): Promise<{ ok: true; house: api.House } | { ok: false; why: string }> {
+    const guild = this.press.guild!;
+    if (!this.world.house) return { ok: false, why: "the world serves no house to this bot yet" };
+    const r = await this.world.house(guild, this.character, {
+      admin: this.press.admin,
+      staff: this.press.staff,
+    });
+    if (r.ok) return { ok: true, house: r.reply };
+    if (r.refusal.code !== api.CodeNotFound) return { ok: false, why: refusalText(r.refusal) };
+    return { ok: true, house: emptyHouse(guild, this.press.guildName ?? "", this.role ?? "") };
+  }
+
+  /** Whether this press's flags give a role, in a server: a console's writes are sent only then. */
+  private may(want: Role): boolean {
+    const role = this.role;
+    return !!this.press.guild && !!role && (want === "staff" || role === "admin");
+  }
+
+  /** A console card, drawn only for a member whose flags give the role it needs. */
+  private async withHouse(
+    want: Role,
+    then: (h: api.House, role: Role, v: number) => Answer | Promise<Answer>,
+  ): Promise<Answer> {
+    if (!this.press.guild) return this.done(noServerCard(want));
+    const role = this.role;
+    if (!role || !this.may(want)) return this.done(noConsoleCard(want));
+    const [o, read] = await Promise.all([this.world.options(this.character), this.readHouse()]);
+    if (!read.ok) return this.retitled(this.done(noConsoleCard(want)), capitalise(read.why));
+    return then(read.house, role, o.version);
+  }
+
+  /** /admin, /staff, and the consoles' own buttons back to them. */
+  async console(notice?: string, want?: Role): Promise<Answer> {
+    const as = want ?? (this.role === "admin" ? "admin" : "staff");
+    return this.withHouse(as, (h, _role, v) =>
+      this.done(
+        as === "admin"
+          ? adminConsole(h, v, this.lex, notice)
+          : staffConsole(h, v, this.lex, notice),
+      ),
+    );
+  }
+
+  /** A house write; once accepted, the bot's cached house is dropped and the switch follows the settings. */
+  private async houseWrite(
+    kind: string,
+    v: number,
+    fields: Partial<api.ActionRequest>,
+    then: (reply: api.ActionReply | null, refusal?: string) => Promise<Answer>,
+    settings?: { before: api.HouseSettings; after: api.HouseSettings },
+  ): Promise<Answer> {
+    const res = await this.act(kind, v, fields);
+    if (!res.ok) return then(null, capitalise(refusalText(res.refusal)));
+    await this.ctx.house?.wrote(this.press.guild ?? "", settings?.before, settings?.after);
+    return then(res.reply);
+  }
+
+  async stageForm(d?: StageDraft, notice?: string): Promise<Answer> {
+    return this.withHouse("staff", (h, role, v) =>
+      this.done(stageForm(h, role, d ?? blankStage(h, role), v, this.lex, notice)),
+    );
+  }
+
+  private sendStage(d: StageDraft, v: number): Promise<Answer> {
+    return this.withHouse("staff", (h, role) => {
+      const order = stageOrder(h, d);
+      const missing = stageMissing(h, role, d, this.lex);
+      if (missing || !order)
+        return this.done(stageForm(h, role, d, v, this.lex, missing ?? "Pick the site"));
+      const what = templateName(this.lex, d.template, h.templates);
+      return this.houseWrite(api.ActStage, v, { stage: order }, (r, why) =>
+        why
+          ? this.stageForm(d, why)
+          : this.console(
+              `Staged: ${what}${r?.points ? `, ${amount(r.points, "event points")} from the pool` : ""}`,
+            ),
+      );
+    });
+  }
+
+  async queue(focus: QueueFocus, notice?: string): Promise<Answer> {
+    return this.withHouse("staff", async (h, role, v) => {
+      const held = await this.heldNames();
+      return this.done(queueCard(h, held, focus, role, v, notice));
+    });
+  }
+
+  private async heldNames(): Promise<HeldEntry[]> {
+    const store = this.ctx.house?.held;
+    if (!store || !this.press.guild) return [];
+    try {
+      return await store.list(this.press.guild);
+    } catch {
+      // The held list lives in Redis; the queue shows the world's cases without it.
+      return [];
+    }
+  }
+
+  /** A moderation action on a case: its ref, and a hold's days, come from the case the button names. */
+  private moderate(action: string, caseId: string, days: number, v: number): Promise<Answer> {
+    return this.withHouse("staff", (h) => {
+      const c = (h.cases ?? []).find((x) => x.id === caseId);
+      if (!c) return this.queue({ case: "", days }, "That case is closed");
+      const holds = action === "mute" || action === "suspend" || action === "exclude";
+      const order: api.ModerateOrder = {
+        action,
+        ref: action === "escalate" || action === "dismiss" ? undefined : c.ref,
+        days: holds ? days : undefined,
+        case: c.id,
+      };
+      const left = action === "dismiss" ? "" : c.id;
+      return this.houseWrite(api.ActModerate, v, { moderate: order }, (_, why) =>
+        this.queue({ case: left, days }, why ?? MODERATED[action] ?? "Done"),
+      );
+    });
+  }
+
+  private holds(notice?: string): Promise<Answer> {
+    return this.withHouse("staff", (h, role, v) => this.done(holdsCard(h, role, v, notice)));
+  }
+
+  /** The house's public log, walked to its newest row. */
+  private async logRows(): Promise<api.LogRow[]> {
+    const read = this.world.houseLog;
+    if (!read || !this.press.guild) return [];
+    const rows: api.LogRow[] = [];
+    let after = 0;
+    for (let i = 0; i < LOG_WALK_MOST; i++) {
+      const page = await read(this.press.guild, after);
+      rows.push(...page.rows.filter((r) => r.id > after));
+      if (!page.rows.length || page.next <= after) break;
+      after = page.next;
+    }
+    return rows;
+  }
+
+  private log(page: number): Promise<Answer> {
+    return this.withHouse("staff", async (h, role, v) =>
+      this.done(logCard(h, await this.logRows(), page, role, v)),
+    );
+  }
+
+  async settings(kind: ChannelKind, notice?: string): Promise<Answer> {
+    return this.withHouse("admin", (h, _role, v) =>
+      this.done(settingsCard(h, kind, this.press.channels, this.press.roles, v, notice)),
+    );
+  }
+
+  /** A change to the settings, sent whole: house-settings replaces them, and installs the server's guild if it has none. */
+  private saveSettings(
+    kind: ChannelKind,
+    v: number,
+    change: (s: api.HouseSettings) => api.HouseSettings | string,
+    said: string,
+  ): Promise<Answer> {
+    return this.withHouse("admin", (h) => {
+      const before = h.settings;
+      const after = change(structuredClone(before));
+      if (typeof after === "string") return this.settings(kind, after);
+      return this.houseWrite(
+        api.ActHouseSettings,
+        v,
+        { settings: after, note: this.press.guildName },
+        (_, why) => this.settings(kind, why ?? said),
+        { before, after },
+      );
+    });
+  }
+
+  async pins(d?: PinDraft, notice?: string): Promise<Answer> {
+    return this.withHouse("admin", async (h, _role, v) => {
+      const draft = d ?? blankPin(h);
+      const rows = pinRows(await this.world.lexicon(), draft.field);
+      return this.done(pinsForm(h, draft, rows, v, notice));
+    });
+  }
+
+  private sendPin(d: PinDraft, v: number): Promise<Answer> {
+    const pin = pinOrder(d);
+    if (!pin || !this.may("admin")) return this.pins(d, "Pick a tile and what it fixes");
+    return this.houseWrite(api.ActHousePin, v, { pin }, (_, why) =>
+      this.pins(d, why ?? "Pinned: it lands when someone first reaches the tile"),
+    );
+  }
+
+  async pinsPlaced(notice?: string): Promise<Answer> {
+    return this.withHouse("admin", (h, _role, v) => this.done(pinsPlaced(h, this.lex, v, notice)));
+  }
+
+  private sendUnpin(pin: string, v: number): Promise<Answer> {
+    return this.withHouse("admin", (h) => {
+      const p = h.pins?.find((x) => x.id === pin);
+      if (!p) return this.pinsPlaced("That pin is gone");
+      return this.houseWrite(
+        api.ActHouseUnpin,
+        v,
+        { pin: { at: p.at, fix: {}, pin: p.id } },
+        (_, why) => this.pinsPlaced(why ?? "Withdrawn: the tile is the world's again"),
+      );
+    });
+  }
+
+  /** Report on a message's menu: the reasons to pick from, for what the card names. */
+  async report(notice?: string): Promise<Answer> {
+    const o = await this.world.options(this.character);
+    if (!this.press.report)
+      return this.retitled(this.done(reportForm("", o.version)), "That message cannot be reported");
+    return this.done(reportForm(this.press.report, o.version, notice));
+  }
+
+  /** A staging of this server's, by id, as its house lists it. */
+  private async stageOf(id: string): Promise<api.StageView | undefined> {
+    if (!this.press.guild || !this.world.house || !id) return undefined;
+    const r = await this.world.house(this.press.guild, this.character);
+    return r.ok ? r.reply.stages.find((s) => s.id === id) : undefined;
+  }
+
+  private fileReport(raw: string, reason: string, v: number): Promise<Answer> {
+    const ref = reportRef(raw, this.press.guild);
+    if (!ref || !isReason(reason)) return Promise.resolve(backCards.unknown(this.character));
+    return this.write(api.ActReport, v, { case: { ref, reason } }, async (_, why) =>
+      this.done(reportForm(raw, v, why ?? "Reported: the server's staff will read it")),
+    );
   }
 
   /** /play with a character: since you left when something happened, else the hub. */
@@ -711,6 +1017,8 @@ class Session {
         return this.done(mineCard(o, m, lex, notice));
       case "report":
         return this.done(reportCard(o, m, lex));
+      case "staged":
+        return this.done(stagedBookCard(o, m, lex, notice));
       default:
         return this.done(bookCard(o, m, lex, notice));
     }
@@ -1091,11 +1399,15 @@ class Session {
         return this.write(
           kind,
           v,
-          { material: d.material, units: d.units, price: d.price },
+          { material: d.material, units: d.units, price: d.price, staged: d.staged || undefined },
           async (r, why) =>
             why
               ? this.retitled(await this.orderForm(d), why)
-              : this.market("mine", d.material, postNotice(r ? filled(r) : 0, d.units)),
+              : this.market(
+                  d.staged ? "staged" : "mine",
+                  d.material,
+                  postNotice(r ? filled(r) : 0, d.units),
+                ),
         );
       }
       case "withdraw":
@@ -1625,6 +1937,178 @@ class Session {
           if (!why) return this.fight();
           return this.hub(why);
         });
+      case "admin":
+        return this.console(undefined, "admin");
+      case "staff":
+        return this.console(undefined, "staff");
+      case "hs-stage": {
+        if (!id.target) return this.stageForm();
+        const d = stageDraftOf(id.target);
+        return d ? this.stageForm(d) : backCards.unknown(this.character);
+      }
+      case "hs-tpl":
+      case "hs-set":
+      case "hs-site":
+      case "hs-what":
+      case "hs-open":
+      case "hs-days": {
+        const d = stageDraftOf(id.target);
+        const next = d && stagePicked(d, id.action, value);
+        return next ? this.stageForm(next) : backCards.unknown(this.character);
+      }
+      case "hs-go": {
+        const d = stageDraftOf(id.target);
+        return d ? this.sendStage(d, v) : backCards.unknown(this.character);
+      }
+      case "hs-end":
+        if (!value || !this.may("staff")) return this.console();
+        return this.houseWrite(api.ActStageEnd, v, { target: value }, (_, why) =>
+          this.console(why ?? "Ended: what it left is gone, and nothing is refunded"),
+        );
+      case "hs-queue":
+        return this.queue(queueFocusOf(value || id.target));
+      case "hs-case":
+        return this.queue({ ...queueFocusOf(id.target), case: value });
+      case "hs-mod": {
+        const f = fields(id.target, ".", 3);
+        const days = integerTarget(f?.[2] ?? "");
+        if (!f || days === undefined) return backCards.unknown(this.character);
+        return this.moderate(f[0]!, f[1]!, days, v);
+      }
+      case "hs-lift": {
+        if (!value || !this.may("staff")) return this.holds();
+        const lift = liftOf(value);
+        if (!lift) return backCards.unknown(this.character);
+        return this.houseWrite(api.ActModerate, v, { moderate: lift }, (_, why) =>
+          this.holds(why ?? "Lifted"),
+        );
+      }
+      case "hs-held": {
+        if (!this.may("staff")) return this.queue(queueFocusOf(""));
+        const store = this.ctx.house?.held;
+        const gone =
+          store && this.press.guild ? await store.dismiss(this.press.guild, value) : false;
+        return this.queue(
+          queueFocusOf(""),
+          gone ? "Dismissed: the name was never sent" : "That name is no longer held",
+        );
+      }
+      case "hs-log":
+        return this.log(Math.max(0, integerTarget(id.target) ?? 0));
+      case "hs-conf":
+      case "hs-quiet":
+        return this.settings(isChannelKind(id.target) ? id.target : "events");
+      case "hs-kind":
+        return this.settings(isChannelKind(value) ? value : "events");
+      case "hs-chan": {
+        if (!isChannelKind(id.target)) return backCards.unknown(this.character);
+        const kind = id.target;
+        return this.saveSettings(
+          kind,
+          v,
+          (st) => ({ ...st, channels: withChannel(st.channels, kind, value) }),
+          value && value !== "-"
+            ? "Saved: the channel is mapped"
+            : "Saved: the bot's default channel",
+        );
+      }
+      case "hs-srole":
+      case "hs-arole": {
+        const kind = isChannelKind(id.target) ? id.target : "events";
+        const key = id.action === "hs-srole" ? "staffRoles" : "alarmRoles";
+        if (!value) return this.settings(kind);
+        return this.saveSettings(
+          kind,
+          v,
+          (st) => {
+            const roles = toggled(st[key], value);
+            if (roles.length > SETTINGS_ROLES_MOST)
+              return `A server names at most ${SETTINGS_ROLES_MOST} roles of each kind`;
+            return { ...st, [key]: roles };
+          },
+          "Saved: the roles are set",
+        );
+      }
+      case "hs-names": {
+        const kind = isChannelKind(id.target) ? id.target : "events";
+        return this.saveSettings(
+          kind,
+          v,
+          (st) => ({ ...st, hideNames: !st.hideNames }),
+          "Saved: player names",
+        );
+      }
+      case "hs-narr": {
+        const kind = isChannelKind(id.target) ? id.target : "events";
+        return this.saveSettings(
+          kind,
+          v,
+          (st) => ({ ...st, narrated: !st.narrated }),
+          "Saved: narration",
+        );
+      }
+      case "hs-quieted": {
+        const from = (this.press.fields?.[QUIET_FROM] ?? "").trim();
+        const to = (this.press.fields?.[QUIET_TO] ?? "").trim();
+        const a = minutesOf(from);
+        const b = minutesOf(to);
+        return this.saveSettings(
+          "events",
+          v,
+          (st) => {
+            if (!from && !to) return { ...st, quietFrom: 0, quietTo: 0 };
+            if (a === undefined || b === undefined)
+              return "Give both times as HH:MM in UTC, or leave both empty";
+            return { ...st, quietFrom: a, quietTo: b };
+          },
+          "Saved: quiet hours",
+        );
+      }
+      case "hs-pins": {
+        if (!id.target) return this.pins();
+        const d = pinDraftOf(id.target);
+        return d ? this.pins(d) : backCards.unknown(this.character);
+      }
+      case "hs-pset":
+      case "hs-ptile":
+      case "hs-pfield":
+      case "hs-prow": {
+        const d = pinDraftOf(id.target);
+        const next = d && pinPicked(d, id.action, value);
+        return next ? this.pins(next) : backCards.unknown(this.character);
+      }
+      case "hs-pin": {
+        const d = pinDraftOf(id.target);
+        return d ? this.sendPin(d, v) : backCards.unknown(this.character);
+      }
+      case "hs-pinls":
+        return this.pinsPlaced();
+      case "hs-unpin":
+        return this.sendUnpin(value, v);
+      case "rpt":
+        return this.fileReport(id.target, value, v);
+      case "crate": {
+        if (!id.target) return backCards.unknown(this.character);
+        // A post's button carries no version: the character's own is used.
+        const at = v || (await this.world.options(this.character)).version;
+        return this.write(api.ActCrateOpen, at, { target: id.target }, async (r, why) => {
+          const [o, st] = await Promise.all([
+            this.world.options(this.character),
+            this.stageOf(id.target),
+          ]);
+          return this.done(crateOpen(o, st, this.lex, r?.facts ?? [], why));
+        });
+      }
+      case "drop":
+      case "fair": {
+        const [o, st] = await Promise.all([
+          this.world.options(this.character),
+          this.stageOf(id.target),
+        ]);
+        if (!st) return this.where("That staging is over");
+        if (id.action === "drop") return this.done(dropCard(st, o));
+        return this.done(fairCard(st, contestsOf(await this.world.board(), st), o));
+      }
       case "launch":
         return this.launched(launchFor(id));
       case "start":
@@ -1637,6 +2121,110 @@ class Session {
 
 /** The title a name submitted empty gets. */
 const NO_NAME = "Give it a name: a few words the board takes";
+
+/** A server's staff and admin kinds: their writes name the member, for the log (GDD 14.8). */
+const HOUSE_KINDS = new Set<string>([
+  api.ActStage,
+  api.ActStageEnd,
+  api.ActHousePin,
+  api.ActHouseUnpin,
+  api.ActModerate,
+  api.ActHouseSettings,
+]);
+
+/** What the queue's title says once a moderation action is accepted. */
+const MODERATED: Record<string, string> = {
+  mask: "Masked: the name reads as its plain one here",
+  hide: "Hidden: the goal's title and note read as plain here",
+  mute: "Muted here",
+  suspend: "Suspended from this server's boards",
+  exclude: "Excluded from this server's settlements",
+  escalate: "Escalated to the world's operators",
+  dismiss: "Dismissed",
+};
+
+/** structural: the most pages of the public log one press reads. */
+const LOG_WALK_MOST = 200;
+
+/** structural: Discord's select holds this many roles, so a server names at most this many of a kind. */
+const SETTINGS_ROLES_MOST = 25;
+
+/** A server with no house yet, as its members read it before an admin saves the settings. */
+function emptyHouse(server: string, label: string, role: string): api.House {
+  return {
+    server,
+    label,
+    arrival: -1,
+    settings: {},
+    settlements: [],
+    templates: [],
+    hunts: [],
+    contests: [],
+    stages: [],
+    role,
+    stagedXp: 0,
+  };
+}
+
+/** A stage draft with one pick made. */
+function stagePicked(d: StageDraft, action: Action, value: string): StageDraft | null {
+  switch (action) {
+    case "hs-tpl":
+      return value ? { ...d, template: value, what: "-" } : null;
+    case "hs-set": {
+      const n = integerTarget(value);
+      return n === undefined ? null : { ...d, settlement: n, site: "-" };
+    }
+    case "hs-site":
+      return hexOf(value) ? { ...d, site: value } : null;
+    case "hs-what":
+      return value && !value.includes(".") ? { ...d, what: value } : null;
+    case "hs-open": {
+      const n = integerTarget(value);
+      return n === undefined || n < 0 ? null : { ...d, opens: n };
+    }
+    case "hs-days": {
+      const n = integerTarget(value);
+      return n === undefined || n < 0 ? null : { ...d, days: n };
+    }
+    default:
+      return null;
+  }
+}
+
+/** A pin draft with one pick made. */
+function pinPicked(d: PinDraft, action: Action, value: string): PinDraft | null {
+  switch (action) {
+    case "hs-pset": {
+      const n = integerTarget(value);
+      return n === undefined ? null : { ...d, settlement: n, site: "-" };
+    }
+    case "hs-ptile":
+      return hexOf(value) ? { ...d, site: value } : null;
+    case "hs-pfield":
+      return pinDraftOf([d.settlement, d.site, value, "-"].join("."));
+    case "hs-prow":
+      return value && !value.includes(".") ? { ...d, row: value } : null;
+    default:
+      return null;
+  }
+}
+
+/** The settings' channels with one kind mapped to a channel, or to the default with "-". */
+function withChannel(
+  channels: api.Channel[] | undefined,
+  kind: ChannelKind,
+  id: string,
+): api.Channel[] {
+  const rest = (channels ?? []).filter((c) => c.kind !== kind);
+  return id && id !== "-" ? [...rest, { kind, id }] : rest;
+}
+
+/** A role list with one role added, or taken off if it was there. */
+function toggled(roles: string[] | undefined, id: string): string[] {
+  const now = roles ?? [];
+  return now.includes(id) ? now.filter((r) => r !== id) : [...now, id];
+}
 
 /** Units a write filled on the market, by its fill facts. */
 function filled(r: api.ActionReply): number {

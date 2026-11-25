@@ -4,6 +4,7 @@ import type * as api from "../src/api.ts";
 import { bareNumbers, type Card, problems, render } from "../src/card.ts";
 import { launchFor } from "../src/flow.ts";
 import { boardPostCard, forumCard } from "../src/forum.ts";
+import { heldOf } from "../src/house.ts";
 import { decodeId, type LaunchCard } from "../src/ids.ts";
 import { Lexicon } from "../src/lexicon.ts";
 import { classesCard } from "../src/screens/classes.ts";
@@ -32,6 +33,24 @@ import {
   specOf,
 } from "../src/screens/goals.ts";
 import { bankCard, guildCard, leaveCard, memberCard, placesCard } from "../src/screens/guild.ts";
+import {
+  adminConsole,
+  blankPin,
+  blankStage,
+  holdsCard,
+  logCard,
+  logRowCard,
+  noConsoleCard,
+  noServerCard,
+  pinRows,
+  pinsForm,
+  pinsPlaced,
+  queueCard,
+  reportForm,
+  settingsCard,
+  stageForm,
+  staffConsole,
+} from "../src/screens/house.ts";
 import { hubCard, recapCard, startCard, whereCard } from "../src/screens/hub.ts";
 import { huntCard, huntClosedCard, huntPostCard } from "../src/screens/hunt.ts";
 import {
@@ -71,6 +90,7 @@ import * as mm8a from "./fixtures/mm8a.ts";
 import * as mm9 from "./fixtures/mm9.ts";
 import * as mm10 from "./fixtures/mm10.ts";
 import * as mm11a from "./fixtures/mm11a.ts";
+import * as mm12 from "./fixtures/mm12.ts";
 import samples from "./fixtures/world.json";
 
 /** Every card the bot draws, from replies a scripted run recorded off a real world, keeps the card standard (card.ts problems()). */
@@ -1330,7 +1350,73 @@ const cards: [string, () => Card][] = [
   ...storyCards(),
   ...emergenceCards(),
   ...theftCards(),
+  ...houseCards(),
 ];
+
+/** The consoles of a server's staff and admins, each page and state, and the report and log row cards. */
+function houseCards(): [string, () => Card][] {
+  const h = mm12.house;
+  const held = heldOf(mm12.heldRaws, mm12.GUILD);
+  const draft = { ...blankStage(h, "admin"), site: "3,-1" };
+  const hunt = { ...draft, template: "hunt-2", what: "cinder-hound" };
+  const pin = { ...blankPin(h), site: "3,-1", row: "old-pylon" };
+  const empty: api.House = {
+    ...h,
+    settlements: [],
+    stages: [],
+    arrival: -1,
+    cases: [],
+    holds: [],
+    masks: [],
+    hidden: [],
+  };
+  return [
+    ["admin console", () => adminConsole(h, 9, lex)],
+    ["admin console of a server with no house yet", () => adminConsole(empty, 9, lex)],
+    ["staff console", () => staffConsole(h, 9, lex, "Staged: Hunt, tier 2")],
+    ["staging form, what and where", () => stageForm(h, "admin", draft, 9, lex)],
+    [
+      "staging form, when and how long",
+      () => stageForm(h, "staff", { ...hunt, page: "t" }, 9, lex),
+    ],
+    ["staging form, a staff hunt", () => stageForm(h, "staff", hunt, 9, lex)],
+    [
+      "staging form, a pool short",
+      () => stageForm(h, "staff", { ...draft, settlement: 4, site: "-6,2" }, 9, lex),
+    ],
+    ["moderation queue", () => queueCard(h, held, { case: "", days: 7 }, "staff", 9)],
+    [
+      "moderation queue, a member's case",
+      () => queueCard(h, held, { case: "case-1", days: 0 }, "admin", 9),
+    ],
+    [
+      "moderation queue, a goal's case",
+      () => queueCard(h, [], { case: "case-2", days: 7 }, "staff", 9, "Hidden"),
+    ],
+    ["moderation queue, empty", () => queueCard(empty, [], { case: "", days: 7 }, "staff", 9)],
+    ["holds and masks", () => holdsCard(h, "staff", 9)],
+    ["public log", () => logCard(h, mm12.logRows, 0, "admin", 9)],
+    ["public log, empty", () => logCard(h, [], 0, "staff", 9)],
+    ["log channel row", () => logRowCard(mm12.logRows[1]!, h)],
+    ["server settings", () => settingsCard(h, "events", mm12.channels, mm12.roles, 9)],
+    [
+      "server settings, outside the server",
+      () => settingsCard(h, "log", undefined, undefined, 9, "Saved"),
+    ],
+    ["pin form", () => pinsForm(h, pin, pinRows(mm12.lexicon, "landmark"), 9)],
+    ["pins to withdraw", () => pinsPlaced(h, lex, 9)],
+    ["no pin to withdraw", () => pinsPlaced({ ...empty, pins: [] }, lex, 9)],
+    ["report", () => reportForm("character:c-14", 9)],
+    ["report of a post", () => reportForm("p/2222222222/5555555555", 9)],
+    [
+      "report filed",
+      () => reportForm("goal:goal-7", 9, "Reported: the server's staff will read it"),
+    ],
+    ["no admin console", () => noConsoleCard("admin")],
+    ["no staff console", () => noConsoleCard("staff")],
+    ["no console outside a server", () => noServerCard("staff")],
+  ];
+}
 
 /** Theft and alignment: the seven cards, and the where, why, talk, craft and events cards they touch. */
 function theftCards(): [string, () => Card][] {
