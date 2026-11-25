@@ -339,6 +339,9 @@ type Member struct {
 	Kit    Kit
 	Pick   string
 	Puzzle *puzzle.Result // a replayed machine, for a Lock or Puzzle pick
+	// XPCap is what is left of the member's staged xp allowance today
+	// (GDD 14.5), which grow spends; nil outside a staging.
+	XPCap *int64
 }
 
 // Pressed is what one member's press did.
@@ -903,7 +906,8 @@ func (r *Rules) grow(m *Member, g *Gear, xp int64, tick int64) []fact.Fact {
 	if g.Inst.Broken() {
 		return nil
 	}
-	lv := r.G.AddXP(g.Inst, g.Kind, xp)
+	var lv item.Levelled
+	Within(m.XPCap, g.Inst, xp, func(xp int64) { lv = r.G.AddXP(g.Inst, g.Kind, xp) })
 	if lv.To == lv.From {
 		return nil
 	}

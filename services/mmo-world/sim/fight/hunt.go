@@ -38,11 +38,24 @@ type Hunt struct {
 
 // StartHunt opens a hunt from its sheet row at a tick.
 func (r *Rules) StartHunt(id, row string, site Site, tick int64) (*Hunt, error) {
+	return r.StartHuntAt(id, row, site, tick, 0)
+}
+
+// StartHuntAt opens a hunt whose creature fights at a fights.tiers tier
+// instead of its archetype's, as a staging chooses (GDD 14.4); 0 keeps
+// the archetype's.
+func (r *Rules) StartHuntAt(id, row string, site Site, tick, tier int64) (*Hunt, error) {
 	h, ok := r.hunts[row]
 	if !ok {
 		return nil, fmt.Errorf("fight: no hunt %q", row)
 	}
 	c := r.Spawn(h.Creature, nil, site.Tags, site.Measures)
+	if tier != 0 {
+		if r.tiers[tier] == nil {
+			return nil, fmt.Errorf("fight: no tier %d", tier)
+		}
+		c.Tier, c.Health = tier, r.tiers[tier].HuntHealth
+	}
 	pool := h.HealthRatio.Of(r.tiers[c.Tier].HuntHealth)
 	return &Hunt{ID: id, Row: row, Creature: c, Site: slices.Clone(site.Tags), Health: pool, Max: pool,
 		Ends: tick + r.Window(row), Measures: site.Measures}, nil

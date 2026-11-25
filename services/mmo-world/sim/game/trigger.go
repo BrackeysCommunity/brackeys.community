@@ -121,7 +121,7 @@ func (g *Game) toolUse(c *Char, t int64) error {
 	tool.Use(1)
 	tier, _ := g.r.Fight.D.Material(c.Long.Material)
 	if tier >= k.Tier {
-		return g.levelled(c, tool, g.r.Growth.Deed("gather-tick"), t)
+		return g.levelledWithin(c, tool, g.r.Growth.Deed("gather-tick"), t)
 	}
 	return nil
 }

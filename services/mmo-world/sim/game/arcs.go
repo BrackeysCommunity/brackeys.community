@@ -465,6 +465,9 @@ func (g *Game) castFrom(tpl arc.Template, c arc.Candidate, by string, t int64) (
 	s.NextArc++
 	a := &Arc{ID: arcPrefix + i64(s.NextArc), Template: tpl.Row.ID, Scope: scope, Cast: arc.Sorted(c.Cast), Regions: slices.Clone(c.Regions),
 		Seat: c.Seat, By: by, Began: t, Cause: slices.Clone(c.Causes)}
+	if by == ByServer && g.staging != nil {
+		a.Staging = g.staging.ID
+	}
 	if scope == arc.Personal {
 		a.Char, a.Via = c.Char, c.Via
 	}
@@ -668,9 +671,10 @@ func arcClashes(a *Arc, c arc.Candidate) bool {
 }
 
 // placeTaken reports whether a place has a trouble running or an occasion.
+// A staged hardship is not the place's trouble and holds none back.
 func (g *Game) placeTaken(n int) bool {
 	ref := goal.SettlementRef(n)
-	if slices.ContainsFunc(g.openArcs(arc.Settlement), func(a *Arc) bool { return a.Place == ref }) {
+	if slices.ContainsFunc(g.openArcs(arc.Settlement), func(a *Arc) bool { return a.Place == ref && a.By != ByServer }) {
 		return true
 	}
 	ps := g.storyAt(n)
@@ -833,6 +837,9 @@ func (g *Game) castRegions(w arc.World, t int64) error {
 // day, a region or personal stage's days, a world stage's band end, a
 // finale's close.
 func (g *Game) stageDue(a *Arc, row sheets.StageRow, t int64) int64 {
+	if st := g.stagedArc(a); st != nil && st.Ends > t {
+		return st.Ends
+	}
 	switch a.Scope {
 	case arc.Settlement:
 		return t + sheets.TicksPerDay
@@ -894,7 +901,11 @@ func (g *Game) startStage(a *Arc, t int64) error {
 		mark := g.sideMark(a, sd, users, t)
 		sponsor, opponent := g.sideFactions(a, sd)
 		at, condAt := g.sideAt(a, sd)
-		reward := g.sideReward(a, mark, g.unitWorth(sd), left)
+		// A staged side pays staged prizes, never a faction's coin.
+		reward := int64(0)
+		if a.By != ByServer {
+			reward = g.sideReward(a, mark, g.unitWorth(sd), left)
+		}
 		takeHeld(reward, from, left, nil)
 		issuer := goal.Ref{Kind: goal.ByFaction, ID: strconv.Itoa(sponsor)}
 		x := &Goal{Title: a.Template + ": " + sd.ID, Issuer: issuer, Scope: scope, Members: members, Board: board, Reward: reward, Mode: goal.Pooled,
@@ -974,6 +985,13 @@ func (g *Game) troubleHunt(a *Arc, tr *sheets.TroubleRow, t int64) error {
 	r := g.World.RegionAt(a.Seat)
 	if r < 0 {
 		return nil
+	}
+	if st := g.stagedArc(a); st != nil {
+		x, err := g.openHuntAs(tr.Hunt, a.Seat, t, WhyStaged, huntOpening{ends: st.Ends, stage: st.ID})
+		if err == nil {
+			a.Hunt = x.H.ID
+		}
+		return refusedIsNothing(err)
 	}
 	if x := g.openHunt(tr.Hunt, world.RegionRef(r)); x != nil {
 		a.Hunt = x.H.ID
@@ -1489,6 +1507,12 @@ func (g *Game) endStageAt(a *Arc, won string, t int64, last bool) error {
 	if err != nil {
 		return err
 	}
+	if a.By == ByServer {
+		if err := g.hardshipEnded(a, won, held, f, key, t); err != nil {
+			return err
+		}
+		return g.endArc(a, won, f, t)
+	}
 	if err := g.troubleHeld(a, won, held, f, t); err != nil {
 		return err
 	}
@@ -1669,7 +1693,7 @@ func (g *Game) endArc(a *Arc, won string, last fact.ID, t int64) error {
 			g.restScope(arc.Region, arc.RegionRef(r), t)
 		}
 	case arc.Settlement:
-		if n, ok := goal.SettlementOf(a.Place); ok {
+		if n, ok := goal.SettlementOf(a.Place); ok && a.By != ByServer {
 			g.restScope(arc.Settlement, arc.SettlementRef(n), t)
 		}
 	case arc.Personal:

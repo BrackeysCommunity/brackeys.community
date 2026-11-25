@@ -675,7 +675,8 @@ func (g *Game) pressOption(c *Char, key, pick string, tick int64, w *worked) ([]
 	if !ok {
 		return nil, refuse(BadArgs, "no option %q on this beat", pick)
 	}
-	m := &fight.Member{Ch: c.C, Kit: kit, Pick: pick}
+	left, spent := g.xpLeft(c)
+	m := &fight.Member{Ch: c.C, Kit: kit, Pick: pick, XPCap: left}
 	if o.Puzzle {
 		if w == nil {
 			return nil, refuse(InActivity, "a machine is worked in the Activity")
@@ -689,6 +690,7 @@ func (g *Game) pressOption(c *Char, key, pick string, tick int64, w *worked) ([]
 	if err != nil {
 		return nil, err
 	}
+	spent()
 	if err := g.guardianPressed(c.C.At, e, nil, tick); err != nil {
 		return nil, err
 	}
@@ -700,7 +702,10 @@ func (g *Game) pressOption(c *Char, key, pick string, tick int64, w *worked) ([]
 		return nil, err
 	}
 	if len(pressed) > 0 && pressed[0].Outcome.Success {
-		g.wonBeat(c, e)
+		// A staged fight leaves no mark on the tile or its gauges.
+		if g.staging == nil {
+			g.wonBeat(c, e)
+		}
 		if err := g.noteReliance(c, e, pressed[0].Option, tick); err != nil {
 			return nil, err
 		}
@@ -731,20 +736,24 @@ func (g *Game) close(c *Char, key string, tick int64) error {
 	}
 	acc := ledger.Char(c.C.ID)
 	for i, s := range e.Haul {
-		if err := g.receive(c, ledger.Move(ledger.SubKey(key, "haul", strconv.Itoa(i)), "haul", tick, ledger.FromHaul, acc, ledger.Material(s.Material), s.Qty)); err != nil {
+		if err := g.receive(c, ledger.Move(ledger.SubKey(key, "haul", strconv.Itoa(i)), "haul", tick, g.mintSource(ledger.FromHaul), acc, g.mintAsset(s.Material), s.Qty)); err != nil {
 			return err
 		}
 	}
 	g.carriedFrom(c, e.Haul)
 	for _, sv := range e.Salvage {
 		for i, s := range sv.Spoil {
-			if err := g.receive(c, ledger.Move(ledger.SubKey(key, "salvage", strconv.Itoa(i)), "salvage", tick, ledger.FromSalvage, acc, ledger.Material(s.Material), s.Qty)); err != nil {
+			if err := g.receive(c, ledger.Move(ledger.SubKey(key, "salvage", strconv.Itoa(i)), "salvage", tick, g.mintSource(ledger.FromSalvage), acc, g.mintAsset(s.Material), s.Qty)); err != nil {
 				return err
 			}
 		}
 	}
 	if err := g.drop(c, key, e.Lost, tick); err != nil {
 		return err
+	}
+	// A staged fight's kill or fall reaches no population, tile or NPC.
+	if g.staging != nil {
+		return nil
 	}
 	switch e.Result {
 	case fight.Won:

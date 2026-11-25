@@ -53,6 +53,17 @@ func (g *Game) huntFact(tick int64, h hex.Hex, kind string, subjects []fact.Ref,
 // through it. A guardian's row, a tile outside the awake regions or off the
 // land, and a second open hunt of the row in the region are refused.
 func (g *Game) OpenHunt(row string, h hex.Hex, tick int64, why string) (*Hunt, error) {
+	return g.openHuntAs(row, h, tick, why, huntOpening{})
+}
+
+// huntOpening is what a staging sets on a hunt beyond its row: the tier
+// its creature fights at, the tick it ends and the stage it belongs to.
+type huntOpening struct {
+	tier, ends int64
+	stage      string
+}
+
+func (g *Game) openHuntAs(row string, h hex.Hex, tick int64, why string, o huntOpening) (*Hunt, error) {
 	def, ok := g.r.Fight.Hunt(row)
 	if !ok || def.Kind != "" {
 		return nil, refuse(NoSuchRow, "no hunt %q in the world's rows", row)
@@ -62,17 +73,20 @@ func (g *Game) OpenHunt(row string, h hex.Hex, tick int64, why string) (*Hunt, e
 		return nil, refuse(BadArgs, "a hunt opens on passable land inside the awake regions")
 	}
 	region := world.RegionRef(r)
-	if g.openHunt(row, region) != nil {
+	if g.openHunt(row, region) != nil || o.stage != "" && g.stagedHunt(row, region) != nil {
 		return nil, refuse(OpenHunt, "a hunt of %s is already open in %s", row, region)
 	}
 	ms := g.measures(h)
 	id := "hn-" + strconv.FormatInt(g.NextHunt+1, decimal)
-	fh, err := g.r.Fight.StartHunt(id, row, fight.Site{Tags: g.World.Place(h).Tags(), Measures: ms}, tick)
+	fh, err := g.r.Fight.StartHuntAt(id, row, fight.Site{Tags: g.World.Place(h).Tags(), Measures: ms}, tick, o.tier)
 	if err != nil {
 		return nil, err
 	}
+	if o.ends > tick {
+		fh.Ends = o.ends
+	}
 	g.NextHunt++
-	x := &Hunt{H: fh, Hex: h, Region: region, Why: why, Measures: ms}
+	x := &Hunt{H: fh, Hex: h, Region: region, Why: why, Measures: ms, Stage: o.stage}
 	g.Hunts = append(g.Hunts, x)
 	err = g.huntFact(tick, h, "hunt.opened", []fact.Ref{huntRef(id), {Kind: "archetype", ID: fh.Creature.Archetype}},
 		append(fact.At(h), fact.S("row", row), fact.S("why", why), fact.S("archetype", fh.Creature.Archetype),
@@ -81,10 +95,12 @@ func (g *Game) OpenHunt(row string, h hex.Hex, tick int64, why string) (*Hunt, e
 	return x, err
 }
 
-// openHunt is the open hunt of a row in a region, or nil.
+// openHunt is the world's open hunt of a row in a region, or nil. A
+// staged hunt is not the world's: it keeps no spawn or raid from
+// opening and answers none.
 func (g *Game) openHunt(row, region string) *Hunt {
 	for _, x := range g.Hunts {
-		if x.H.Row == row && x.Region == region && !x.H.Over {
+		if x.H.Row == row && x.Region == region && !x.H.Over && x.Stage == "" {
 			return x
 		}
 	}
@@ -146,6 +162,11 @@ func (g *Game) huntPress(c *Char, cmd Command) ([]fight.Pressed, error) {
 	if x == nil || x.H.Over || tick >= x.H.Ends {
 		return nil, refuse(NoHunt, "no hunt %q is open", cmd.Target)
 	}
+	restore, err := g.huntContext(x)
+	if err != nil {
+		return nil, err
+	}
+	defer restore()
 	if err := notDown(c); err != nil {
 		return nil, err
 	}
@@ -168,10 +189,12 @@ func (g *Game) huntPress(c *Char, cmd Command) ([]fight.Pressed, error) {
 	pack := slices.Clone(c.C.Pack)
 	salvaged := len(x.H.Salvage)
 	health := x.H.Health
-	p, facts, err := g.r.Fight.HuntBeat(x.H, &fight.Member{Ch: c.C, Kit: kit, Pick: cmd.Option}, tick)
+	left, spent := g.xpLeft(c)
+	p, facts, err := g.r.Fight.HuntBeat(x.H, &fight.Member{Ch: c.C, Kit: kit, Pick: cmd.Option, XPCap: left}, tick)
 	if err != nil {
 		return nil, err
 	}
+	spent()
 	x.Pressed.Bump(c.C.ID, tick-x.Pressed.Get(c.C.ID))
 	for _, f := range facts {
 		f.Region = x.Region
@@ -187,7 +210,7 @@ func (g *Game) huntPress(c *Char, cmd Command) ([]fight.Pressed, error) {
 	for i, sv := range x.H.Salvage[salvaged:] {
 		for j, s := range sv.Spoil {
 			k := ledger.SubKey(cmd.Key, "salvage", strconv.Itoa(i), strconv.Itoa(j))
-			if err := g.receive(c, ledger.Move(k, "salvage", tick, ledger.FromSalvage, acc, ledger.Material(s.Material), s.Qty)); err != nil {
+			if err := g.receive(c, ledger.Move(k, "salvage", tick, g.mintSource(ledger.FromSalvage), acc, g.mintAsset(s.Material), s.Qty)); err != nil {
 				return nil, err
 			}
 		}
@@ -208,7 +231,8 @@ func (g *Game) huntPress(c *Char, cmd Command) ([]fight.Pressed, error) {
 // huntSlain rolls a slain hunt's spoils once, mints the roll into the
 // hunt's pool, and pays each presser its part by health removed. The
 // parts sum to the roll exactly; the fact carries the roll and names
-// every presser.
+// every presser. A staged hunt's roll is staged goods, and its stager
+// takes no part; with nobody else to pay, nothing is rolled.
 func (g *Game) huntSlain(c *Char, x *Hunt, key string, tick int64) error {
 	h := x.H
 	h.Closed = tick
@@ -217,14 +241,17 @@ func (g *Game) huntSlain(c *Char, x *Hunt, key string, tick int64) error {
 			a.HuntSlain = true
 		}
 	}
-	x.Rolled = g.r.Fight.Roll(h)
+	shares := g.huntShares(x)
+	if len(shares) > 0 {
+		x.Rolled = g.r.Fight.Roll(h)
+	}
 	pool := ledger.HuntPool(h.ID)
 	for i, s := range x.Rolled {
-		if err := g.post(ledger.Move(ledger.SubKey(key, "hunt", "roll", strconv.Itoa(i)), "hunt", tick, ledger.FromHunt, pool, ledger.Material(s.Material), s.Qty)); err != nil {
+		if err := g.post(ledger.Move(ledger.SubKey(key, "hunt", "roll", strconv.Itoa(i)), "hunt", tick, g.mintSource(ledger.FromHunt), pool, g.mintAsset(s.Material), s.Qty)); err != nil {
 			return err
 		}
 	}
-	parts := fight.Split(x.Rolled, h.Removed, g.r.Fight.SplitTie(h.ID))
+	parts := fight.Split(x.Rolled, shares, g.r.Fight.SplitTie(h.ID))
 	var also []fact.Ref
 	for _, r := range h.Removed {
 		who := g.Char(r.Key)
@@ -236,7 +263,7 @@ func (g *Game) huntSlain(c *Char, x *Hunt, key string, tick int64) error {
 		}
 		for i, s := range parts[r.Key] {
 			k := ledger.SubKey(key, "hunt", "part", r.Key, strconv.Itoa(i))
-			if err := g.receive(who, ledger.Move(k, "hunt", tick, pool, ledger.Char(r.Key), ledger.Material(s.Material), s.Qty)); err != nil {
+			if err := g.receive(who, ledger.Move(k, "hunt", tick, pool, ledger.Char(r.Key), g.mintAsset(s.Material), s.Qty)); err != nil {
 				return err
 			}
 		}
@@ -259,7 +286,7 @@ func (g *Game) HuntParts(x *Hunt) map[string][]item.Spoil {
 	if !x.H.Slain {
 		return map[string][]item.Spoil{}
 	}
-	return fight.Split(x.Rolled, x.H.Removed, g.r.Fight.SplitTie(x.H.ID))
+	return fight.Split(x.Rolled, g.huntShares(x), g.r.Fight.SplitTie(x.H.ID))
 }
 
 // huntStart is the operator's hunt-start: a hunt of a row on a tile, with
@@ -276,20 +303,30 @@ func (g *Game) huntStart(cmd Command) error {
 // unfinished, and settles the dungeons' guardians.
 func (g *Game) huntsTurn(tick int64) error {
 	for _, x := range g.Hunts {
-		h := x.H
-		if h.Over || tick < h.Ends {
+		if x.H.Over || tick < x.H.Ends {
 			continue
 		}
-		h.Close(tick)
-		h.Closed = tick
-		if err := g.huntFact(tick, x.Hex, "hunt.left", []fact.Ref{huntRef(h.ID), {Kind: "archetype", ID: h.Creature.Archetype}},
-			append(fact.At(x.Hex), fact.S("row", h.Row), fact.S("archetype", h.Creature.Archetype), fact.N("health", h.Health),
-				fact.N("max", h.Max), fact.N("hunters", int64(len(h.Removed))))...); err != nil {
+		if err := g.leaveHunt(x, tick); err != nil {
 			return err
 		}
-		g.saw(g.inReach(x)...)
 	}
 	return g.guardiansTurn(tick)
+}
+
+// leaveHunt closes a hunt unfinished at tick: the creature leaves, and
+// nothing is paid.
+func (g *Game) leaveHunt(x *Hunt, tick int64) error {
+	h := x.H
+	h.Ends = min(h.Ends, tick)
+	h.Close(tick)
+	h.Closed = tick
+	if err := g.huntFact(tick, x.Hex, "hunt.left", []fact.Ref{huntRef(h.ID), {Kind: "archetype", ID: h.Creature.Archetype}},
+		append(fact.At(x.Hex), fact.S("row", h.Row), fact.S("archetype", h.Creature.Archetype), fact.N("health", h.Health),
+			fact.N("max", h.Max), fact.N("hunters", int64(len(h.Removed))))...); err != nil {
+		return err
+	}
+	g.saw(g.inReach(x)...)
+	return nil
 }
 
 // huntsDay forgets hunts that closed before the day began, and runs the
@@ -365,6 +402,9 @@ func (g *Game) huntDraft(n int) (Draft, bool) {
 	}
 	var best *Hunt
 	for _, x := range g.LiveHunts() {
+		if x.Stage != "" {
+			continue
+		}
 		if d := hex.Distance(x.Hex, h); d <= g.Near() && (best == nil || d < hex.Distance(best.Hex, h)) {
 			best = x
 		}
