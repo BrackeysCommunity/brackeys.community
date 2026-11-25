@@ -105,6 +105,9 @@ type sim struct {
 	Emergence *emerge.State `json:"emergence,omitempty"`
 	// Syndicate is absent until a den first moves.
 	Syndicate *game.Syndicate `json:"syndicate,omitempty"`
+	// Live and Houses are absent until a server first stages or keeps house.
+	Live   *game.LiveOps `json:"live,omitempty"`
+	Houses []*game.House `json:"houses,omitempty"`
 }
 
 func simOf(g *game.Game) ([]byte, error) {
@@ -116,7 +119,7 @@ func simOf(g *game.Game) ([]byte, error) {
 	}
 	return json.Marshal(sim{World: w, Pending: g.Pending, NextChar: g.NextChar, Log: g.Log, Posted: g.Ledger.Posted, Kinds: g.Kinds, Left: g.Left,
 		News: g.News, NPCChain: g.NPCs.Chain, Market: g.Market, Society: g.Society, Delve: g.Delve, Story: g.Story, Emergence: g.Emergence,
-		Syndicate: g.Syndicate})
+		Syndicate: g.Syndicate, Live: g.Live, Houses: g.Houses})
 }
 
 func ts(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }
@@ -250,7 +253,7 @@ func (s *Store) Load(ctx context.Context, r *game.Rules) (*game.Game, error) {
 	}
 	g := &game.Game{World: &world.State{}, Pending: sm.Pending, NextChar: sm.NextChar, Log: sm.Log, Kinds: sm.Kinds, Left: sm.Left,
 		News: sm.News, NPCs: npc.Book{List: []*npc.NPC{}, Chain: sm.NPCChain}, Market: sm.Market, Society: sm.Society, Delve: sm.Delve, Story: sm.Story, Emergence: sm.Emergence,
-		Syndicate: sm.Syndicate}
+		Syndicate: sm.Syndicate, Live: sm.Live, Houses: sm.Houses}
 	if g.News == nil {
 		g.News = []game.News{}
 	}
@@ -749,10 +752,13 @@ func (s *Store) snapshot(ctx context.Context, q *db.Queries, g *game.Game, diges
 // (unique on the interaction id), the characters it changed, the tiles it
 // writes (its dungeon records: a name, a guardian, a record made; the tick
 // save writes the rest), the world row, and its facts and ledger. discord
-// names the Discord user of a created character. A command changes others
-// than its own character, whoever it paid, handed goods or carried: each is
-// written with it, so no stored character lags the stored ledger. A world-
-// level command has no character (c is nil) and is recorded under none.
+// names the Discord user of a created character, and the sender of a house
+// command in its log row. A command changes others than its own character,
+// whoever it paid, handed goods or carried: each is written with it, so no
+// stored character lags the stored ledger. A world-level command has no
+// character (c is nil) and is recorded under none. A staff, admin or
+// operator command also writes its house log row here, so the log holds
+// exactly the commands applied.
 func (s *Store) SaveAction(ctx context.Context, g *game.Game, cmd game.Command, c *game.Char, discord string, reply []byte, now time.Time) error {
 	facts, txns := g.Flush()
 	cmdJSON, err := json.Marshal(cmd)
@@ -769,6 +775,11 @@ func (s *Store) SaveAction(ctx context.Context, g *game.Game, cmd game.Command, 
 		if err := q.InsertAction(ctx, db.InsertActionParams{WorldID: s.World, Seq: seq, InteractionID: cmd.Key, AfterTick: g.Tick(),
 			CharacterID: id, Kind: cmd.Kind, Command: cmdJSON, Reply: reply}); err != nil {
 			return err
+		}
+		if game.Logged(cmd.Kind) {
+			if err := q.InsertHouseLog(ctx, logRow(s.World, g, cmd, id, discord, now)); err != nil {
+				return err
+			}
 		}
 		if c != nil {
 			if err := s.char(ctx, q, c, discord); err != nil {

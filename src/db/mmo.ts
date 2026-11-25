@@ -1,5 +1,6 @@
 import {
   bigint,
+  bigserial,
   boolean,
   index,
   integer,
@@ -9,6 +10,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -218,6 +220,35 @@ export const mmoAction = mmoSchema.table(
     primaryKey({ columns: [t.worldId, t.seq] }),
     unique("action_world_interaction_uq").on(t.worldId, t.interactionId),
     index("action_world_tick_idx").on(t.worldId, t.afterTick),
+  ],
+);
+
+/**
+ * The public log of every staff, admin and operator command (GDD 14.8),
+ * written in the same transaction as its action row. Unique on the
+ * interaction id, so a command sent twice logs once. Every row is kept.
+ */
+export const mmoHouseLog = mmoSchema.table(
+  "house_log",
+  {
+    worldId: worldId(),
+    id: bigserial("id", { mode: "number" }).notNull(),
+    // "" for an operator command, which speaks for no server.
+    server: text("server").notNull(),
+    tick: big("tick").notNull(),
+    key: text("key").notNull(),
+    characterId: text("character_id").notNull().default(""),
+    discordId: text("discord_id").notNull().default(""),
+    role: text("role").notNull(),
+    kind: text("kind").notNull(),
+    what: text("what").notNull(),
+    points: big("points").notNull().default(0),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.worldId, t.id] }),
+    uniqueIndex("house_log_world_key_uq").on(t.worldId, t.key),
+    index("house_log_world_server_idx").on(t.worldId, t.server, t.id),
   ],
 );
 

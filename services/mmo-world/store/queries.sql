@@ -148,6 +148,18 @@ SELECT * FROM mmo.action WHERE world_id = @world_id AND seq > @seq AND after_tic
 -- name: LastActionSeq :one
 SELECT coalesce(max(seq), 0)::bigint FROM mmo.action WHERE world_id = $1;
 
+-- The house log (GDD 14.8): one row per logged command, unique on its
+-- interaction id, read in pages after an id.
+-- name: InsertHouseLog :exec
+INSERT INTO mmo.house_log (world_id, server, tick, key, character_id, discord_id, role, kind, what, points, at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
+
+-- name: HouseLogPage :many
+SELECT * FROM mmo.house_log WHERE world_id = @world_id AND server = @server AND id > @after ORDER BY id LIMIT @lim;
+
+-- name: HouseLogAll :many
+SELECT * FROM mmo.house_log WHERE world_id = @world_id AND id > @after ORDER BY id LIMIT @lim;
+
 -- name: InsertTick :exec
 INSERT INTO mmo.tick (world_id, tick, digest, facts, ms) VALUES ($1, $2, $3, $4, $5);
 
@@ -179,6 +191,9 @@ DELETE FROM mmo.ledger_txn WHERE world_id = $1;
 
 -- name: DeleteWorldActions :exec
 DELETE FROM mmo.action WHERE world_id = $1;
+
+-- name: DeleteWorldHouseLog :exec
+DELETE FROM mmo.house_log WHERE world_id = $1;
 
 -- name: DeleteWorldTicks :exec
 DELETE FROM mmo.tick WHERE world_id = $1;

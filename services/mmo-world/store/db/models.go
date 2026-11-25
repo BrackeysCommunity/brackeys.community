@@ -65,6 +65,21 @@ type MmoFaction struct {
 	Body    []byte
 }
 
+type MmoHouseLog struct {
+	WorldID     string
+	ID          int64
+	Server      string
+	Tick        int64
+	Key         string
+	CharacterID string
+	DiscordID   string
+	Role        string
+	Kind        string
+	What        string
+	Points      int64
+	At          pgtype.Timestamptz
+}
+
 type MmoLedgerEntry struct {
 	WorldID string
 	Txn     int64

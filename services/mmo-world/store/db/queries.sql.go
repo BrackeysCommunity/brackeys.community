@@ -173,6 +173,15 @@ func (q *Queries) DeleteWorldFacts(ctx context.Context, worldID string) error {
 	return err
 }
 
+const deleteWorldHouseLog = `-- name: DeleteWorldHouseLog :exec
+DELETE FROM mmo.house_log WHERE world_id = $1
+`
+
+func (q *Queries) DeleteWorldHouseLog(ctx context.Context, worldID string) error {
+	_, err := q.db.Exec(ctx, deleteWorldHouseLog, worldID)
+	return err
+}
+
 const deleteWorldLedgerEntries = `-- name: DeleteWorldLedgerEntries :exec
 DELETE FROM mmo.ledger_entry WHERE world_id = $1
 `
@@ -437,6 +446,98 @@ func (q *Queries) HeavyFactsSince(ctx context.Context, arg HeavyFactsSinceParams
 	return items, nil
 }
 
+const houseLogAll = `-- name: HouseLogAll :many
+SELECT world_id, id, server, tick, key, character_id, discord_id, role, kind, what, points, at FROM mmo.house_log WHERE world_id = $1 AND id > $2 ORDER BY id LIMIT $3
+`
+
+type HouseLogAllParams struct {
+	WorldID string
+	After   int64
+	Lim     int32
+}
+
+func (q *Queries) HouseLogAll(ctx context.Context, arg HouseLogAllParams) ([]MmoHouseLog, error) {
+	rows, err := q.db.Query(ctx, houseLogAll, arg.WorldID, arg.After, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MmoHouseLog
+	for rows.Next() {
+		var i MmoHouseLog
+		if err := rows.Scan(
+			&i.WorldID,
+			&i.ID,
+			&i.Server,
+			&i.Tick,
+			&i.Key,
+			&i.CharacterID,
+			&i.DiscordID,
+			&i.Role,
+			&i.Kind,
+			&i.What,
+			&i.Points,
+			&i.At,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const houseLogPage = `-- name: HouseLogPage :many
+SELECT world_id, id, server, tick, key, character_id, discord_id, role, kind, what, points, at FROM mmo.house_log WHERE world_id = $1 AND server = $2 AND id > $3 ORDER BY id LIMIT $4
+`
+
+type HouseLogPageParams struct {
+	WorldID string
+	Server  string
+	After   int64
+	Lim     int32
+}
+
+func (q *Queries) HouseLogPage(ctx context.Context, arg HouseLogPageParams) ([]MmoHouseLog, error) {
+	rows, err := q.db.Query(ctx, houseLogPage,
+		arg.WorldID,
+		arg.Server,
+		arg.After,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MmoHouseLog
+	for rows.Next() {
+		var i MmoHouseLog
+		if err := rows.Scan(
+			&i.WorldID,
+			&i.ID,
+			&i.Server,
+			&i.Tick,
+			&i.Key,
+			&i.CharacterID,
+			&i.DiscordID,
+			&i.Role,
+			&i.Kind,
+			&i.What,
+			&i.Points,
+			&i.At,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertAction = `-- name: InsertAction :exec
 INSERT INTO mmo.action (world_id, seq, interaction_id, after_tick, character_id, kind, command, reply)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -508,6 +609,44 @@ type InsertFactsParams struct {
 	Causes   []byte
 	StagedBy []byte
 	At       pgtype.Timestamptz
+}
+
+const insertHouseLog = `-- name: InsertHouseLog :exec
+INSERT INTO mmo.house_log (world_id, server, tick, key, character_id, discord_id, role, kind, what, points, at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+`
+
+type InsertHouseLogParams struct {
+	WorldID     string
+	Server      string
+	Tick        int64
+	Key         string
+	CharacterID string
+	DiscordID   string
+	Role        string
+	Kind        string
+	What        string
+	Points      int64
+	At          pgtype.Timestamptz
+}
+
+// The house log (GDD 14.8): one row per logged command, unique on its
+// interaction id, read in pages after an id.
+func (q *Queries) InsertHouseLog(ctx context.Context, arg InsertHouseLogParams) error {
+	_, err := q.db.Exec(ctx, insertHouseLog,
+		arg.WorldID,
+		arg.Server,
+		arg.Tick,
+		arg.Key,
+		arg.CharacterID,
+		arg.DiscordID,
+		arg.Role,
+		arg.Kind,
+		arg.What,
+		arg.Points,
+		arg.At,
+	)
+	return err
 }
 
 type InsertLedgerEntriesParams struct {

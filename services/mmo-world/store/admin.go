@@ -91,7 +91,7 @@ func (s *Store) wipe(ctx context.Context, q *db.Queries) error {
 		return fmt.Errorf("store: world %s is not disposable", s.World)
 	}
 	for _, del := range []func(context.Context, string) error{
-		q.DeleteWorldFacts, q.DeleteWorldLedgerEntries, q.DeleteWorldLedgerTxns, q.DeleteWorldActions, q.DeleteWorldTicks,
+		q.DeleteWorldFacts, q.DeleteWorldLedgerEntries, q.DeleteWorldLedgerTxns, q.DeleteWorldActions, q.DeleteWorldHouseLog, q.DeleteWorldTicks,
 		q.DeleteWorldSnapshots, q.DeleteWorldCharacters, q.DeleteWorldNPCs, q.DeleteWorldTiles, q.DeleteWorldNotables, q.DeleteWorldFactions,
 		q.DeleteWorldRegions, q.DeleteWorld,
 	} {
