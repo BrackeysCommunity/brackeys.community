@@ -18,10 +18,11 @@ import (
 )
 
 // testdata/pre-mm12 is a world saved before live operations, on world
-// day 16, in season 1: a road walkers promoted; a fill and a resting bid and ask by
-// players at the first settlement; a designer's pin, a server admin's
-// (landed) and a server staff member's, all sent by the operator path; an
-// operator's hunt part hunted and still open; and a burglar's hot lot.
+// day 16, in season 1: a road walkers promoted; a fill and a resting bid
+// and ask by players at the first settlement; a designer's pin, a server
+// admin's (landed) and a server staff member's, all sent by the operator
+// path; an operator's hunt part hunted and still open; and a burglar's hot
+// lot.
 const preMM12Dir = "testdata/pre-mm12/"
 
 // A world saved before live operations attaches at its digest with no

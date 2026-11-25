@@ -1944,6 +1944,10 @@ export const RoleAdmin = "admin";
  */
 export const RoleOperator = "operator";
 /**
+ * ConsoleOnly is the refusal a house kind from the Activity gets.
+ */
+export const ConsoleOnly = "a server's staff and admins act from their console in chat";
+/**
  * Paths of the house. The bot reads a server's; operators read every
  * server's log and the escalated cases.
  */

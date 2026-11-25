@@ -152,9 +152,9 @@ func (s *Server) board(w http.ResponseWriter, r *http.Request) {
 	reply(w, http.StatusOK, out)
 }
 
-// apiGoal is a goal as the board shows it, to a character if one looks,
-// and as a server reads it: a note its staff hid reads as the goal's
-// generated words, its condition with no title or note.
+// apiGoal is a goal as the board shows it, to a character if one looks;
+// where the server's staff hid its words, the title reads as its
+// condition and the note is empty.
 func apiGoal(g *game.Game, x *game.Goal, c *game.Char, server string) api.Goal {
 	out := api.Goal{ID: x.ID, Title: x.Title, Note: x.Note, Issuer: x.Issuer.Kind, By: issuerName(g, x, server), Verb: x.Cond.Verb, What: condText(g, x.Cond),
 		Where: placeRef(g, x.Cond.At), Reward: x.Reward, Mode: x.Mode, Cap: x.Cap, Lifetime: x.Lifetime, Turnover: x.Turnover, State: x.State,

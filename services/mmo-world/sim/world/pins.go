@@ -480,7 +480,7 @@ func (s *State) pathFrom(h hex.Hex, most int64) bool { return s.pathOver(h, most
 func (s *State) pathOver(h hex.Hex, most int64, f *tile.GroundFix) bool {
 	var patch []hex.Hex
 	if f != nil {
-		patch = patchOf(h, f)
+		patch = PatchOf(h, f)
 	}
 	step := func(_, n hex.Hex) (int64, bool) {
 		ok := s.g.Passable(s.Baseline(n).Terrain)

@@ -20,10 +20,6 @@ import (
 // them counts against a daily allowance, and nothing they do reaches a
 // gauge, a population, a faction, a notable or a trace.
 
-// hardshipPrizeDraw rolls each holder's prize when a staged hardship is
-// held.
-const hardshipPrizeDraw draw.Purpose = "liveops.prize"
-
 // openStagedHunt opens a hunt stage's hunt: its row on the stage's tile,
 // at the template's tier, until the stage ends. A refusal changes nothing.
 func (g *Game) openStagedHunt(st *Stage, t int64) error {
@@ -116,7 +112,7 @@ func (g *Game) hardshipEnded(a *Arc, won string, held []string, cause fact.ID, k
 		if c == nil || id == st.By {
 			continue
 		}
-		s, ok := g.stagedRoll(tpl.Table, hardshipPrizeDraw, draw.Str(st.ID), draw.Str(id))
+		s, ok := g.stagedRoll(tpl.Table, prizeDraw, draw.Str(st.ID), draw.Str(id))
 		if !ok {
 			continue
 		}
@@ -189,7 +185,7 @@ func (g *Game) xpLeft(c *Char) (*int64, func()) {
 	if c.C.StagedDay != day {
 		used = 0
 	}
-	left := max(0, sheets.IntParam(g.r.Book.LiveOpsParams, "staged-xp")-used)
+	left := max(0, g.lp("staged-xp")-used)
 	if st.By == c.C.ID {
 		left = 0
 	}

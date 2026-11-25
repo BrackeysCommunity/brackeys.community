@@ -32,3 +32,8 @@ export function stagedLine(p: PlacedBy): string {
 export function stagedGoodsLine(at: StagedWhere): string {
   return `staged · local to ${at.name || "its settlement"}`;
 }
+
+/** An amount of goods, with the staged tag when they were staged. */
+export function goodsAmountLine(amountText: string, staged?: StagedWhere): string {
+  return staged ? `${amountText} (${stagedGoodsLine(staged)})` : amountText;
+}

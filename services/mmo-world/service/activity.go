@@ -205,8 +205,7 @@ func actOn(ctx context.Context, d doer, req api.ActionRequest, check bool,
 
 // hostAct is a write from the Activity, with the reply's facts as its
 // character may read them. A pick window is closed only by the gateway's
-// clock, which names no row version. The Activity holds no role, so a
-// house kind is never one of its writes.
+// clock, which names no row version.
 func hostAct(ctx context.Context, d doer, w held, req api.ActionRequest, check bool) (api.ActionReply, *api.Refusal, error) {
 	if check && req.Kind == api.ActPartyWindow {
 		return api.ActionReply{}, clockOnly, nil
@@ -223,7 +222,7 @@ func hostAct(ctx context.Context, d doer, w held, req api.ActionRequest, check b
 
 // consoleOnly refuses a house kind from the Activity: a server's staff and
 // admins act from their consoles in chat.
-var consoleOnly = &api.Refusal{Code: api.CodeForbidden, Message: "a server's staff and admins act from their console in chat"}
+var consoleOnly = &api.Refusal{Code: api.CodeForbidden, Message: api.ConsoleOnly}
 
 // Act applies a player's request as POST /v1/actions does, the countdown
 // kinds included, with the reply's facts as its character may read them.

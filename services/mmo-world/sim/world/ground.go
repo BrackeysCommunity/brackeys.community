@@ -62,8 +62,8 @@ func (s *State) noteGround(h hex.Hex, c *tile.Content) {
 	delete(s.grounds, h)
 }
 
-// patchOf is the tiles a ground fix covers: its tile, then its ring.
-func patchOf(at hex.Hex, f *tile.GroundFix) []hex.Hex {
+// PatchOf is the tiles a ground fix covers: its tile, then its ring.
+func PatchOf(at hex.Hex, f *tile.GroundFix) []hex.Hex {
 	if !f.Ring {
 		return []hex.Hex{at}
 	}
@@ -72,7 +72,7 @@ func patchOf(at hex.Hex, f *tile.GroundFix) []hex.Hex {
 
 func (p *Pin) patches(h hex.Hex) bool {
 	f := p.Fix.Ground
-	return f != nil && (p.At == h || (f.Ring && hex.Distance(p.At, h) == 1))
+	return f != nil && slices.Contains(PatchOf(p.At, f), h)
 }
 
 // groundPinAt is the live terrain pin whose patch covers h at tick t: one
@@ -125,7 +125,7 @@ func (s *State) checkTerrain(at hex.Hex, fix tile.Fix, by PinBy, edit bool) erro
 	if !rest.Empty() && !s.g.Passable(gf.Terrain) {
 		return refuse(CodePinGround, "what else the pin sets stands on passable ground, and %s is not", gf.Terrain)
 	}
-	for _, h := range patchOf(at, gf) {
+	for _, h := range PatchOf(at, gf) {
 		switch {
 		case edit || s.reached(h):
 			return refuse(CodePinSeen, "%s is already reached", h.Ref())
@@ -190,14 +190,14 @@ func (s *State) passWorst(h hex.Hex, over map[hex.Hex]gen.Ground) bool {
 // pure ones throughout (pin-world).
 func (s *State) checkRelay(at hex.Hex, f *tile.GroundFix) error {
 	over := map[hex.Hex]gen.Ground{}
-	for _, h := range patchOf(at, f) {
+	for _, h := range PatchOf(at, f) {
 		over[h] = groundOf(f)
 	}
 	if err := s.checkCut(at, over); err != nil {
 		return err
 	}
 	var ccs []gen.ChunkCoord
-	for _, h := range patchOf(at, f) {
+	for _, h := range PatchOf(at, f) {
 		if cc := s.g.ChunkOf(h); !slices.Contains(ccs, cc) {
 			ccs = append(ccs, cc)
 		}
@@ -258,8 +258,8 @@ func chunkDigests(g *gen.Gen, ccs []gen.ChunkCoord) ([]canon.Sum, error) {
 	return out, nil
 }
 
-// checkCut labels the disc's passable tiles by what joins them inside it,
-// before the patch and after, at their worst.
+// checkCut refuses ground that would part off-patch tiles of the disc
+// joined before it (pin-cut), each read at its worst.
 func (s *State) checkCut(at hex.Hex, over map[hex.Hex]gen.Ground) error {
 	disc := hex.DiscAt(at, sheets.IntParam(s.b.LiveOpsParams, "ground-check-tiles"))
 	before := joined(disc, func(h hex.Hex) bool { return s.passWorst(h, nil) })

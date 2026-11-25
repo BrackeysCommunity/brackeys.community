@@ -72,17 +72,14 @@ func (g *Game) placePin(at hex.Hex, reach int64, fix tile.Fix, by world.PinBy, e
 	return refusedFrom(err)
 }
 
-// groundOverBoard refuses ground laid over a pattern board's point or
-// clue, stored or still the scaffold's, which the world cannot see.
+// groundOverBoard refuses ground over a pattern board's point or clue,
+// stored or the scaffold's: boards live in the story, where the world's
+// pin checks do not look.
 func (g *Game) groundOverBoard(at hex.Hex, f *tile.GroundFix) error {
 	if f == nil || g.Story == nil {
 		return nil
 	}
-	patch := []hex.Hex{at}
-	if f.Ring {
-		patch = append(patch, hex.Ring(at, 1)...)
-	}
-	for _, h := range patch {
+	for _, h := range world.PatchOf(at, f) {
 		if b, _, ok := g.pointAt(h); ok {
 			return refuse(world.CodePinGround, "%s lies on the pattern board %s", h.Ref(), b.ID)
 		}
@@ -121,13 +118,12 @@ func housePin(g *Game, c *Char, cmd Command) error {
 		return refuse(world.CodePinGround, "%s holds a settlement", p.At.Ref())
 	}
 	var points int64
-	if role == RoleStaff {
-		if l := g.pinLimit(world.PinStaff); l != nil {
-			points = l.Points
-		}
-		if have := g.PoolOf(cmd.Server, n); have < points {
-			return refuse(PoolShort, "a staff pin costs %d event points and the pool holds %d", points, have)
-		}
+	if l := g.pinLimit(world.PinStaff); l != nil {
+		points = l.Points
+	}
+	points, err = g.staffCost(cmd.Server, n, role, points, "a staff pin")
+	if err != nil {
+		return err
 	}
 	by := world.PinBy{Role: role, Server: cmd.Server, Char: c.C.ID, Label: gd.G.Name, Region: &region}
 	if err := g.placePin(p.At, max(p.Reach, 1), p.Fix, by, g.World.Content(p.At) != nil); err != nil {
@@ -150,11 +146,9 @@ func houseUnpin(g *Game, _ *Char, cmd Command) error {
 	}
 	if i := slices.IndexFunc(g.World.Pins, func(x world.Pin) bool { return x.ID == p.Pin }); i >= 0 {
 		by := g.World.Pins[i].By
-		switch {
-		case by.Server != cmd.Server || !slices.Contains([]string{world.PinAdmin, world.PinStaff}, by.Role):
-			return refuse(HouseScope, "%s was not placed from this server", p.Pin)
-		case role == RoleStaff && by.Role != world.PinStaff:
-			return refuse(HouseRoleCode, "%s was placed by the server's admins", p.Pin)
+		mine := by.Server == cmd.Server && slices.Contains([]string{world.PinAdmin, world.PinStaff}, by.Role)
+		if err := houseOwns(role, mine, by.Role == world.PinStaff, p.Pin, "placed"); err != nil {
+			return err
 		}
 	}
 	_, err = g.World.Withdraw(g.Log, p.Pin)

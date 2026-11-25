@@ -94,7 +94,7 @@ func (g *Game) stagedServer(n int) string {
 func (g *Game) stampedBy(server string) (restore func()) {
 	was := g.stagedBy
 	if server != "" {
-		g.stagedBy = &fact.Ref{Kind: stampServer, ID: server}
+		g.stagedBy = serverStamp(server)
 	}
 	return func() { g.stagedBy = was }
 }
@@ -207,24 +207,9 @@ func other(side market.Side) market.Side {
 // stagedMatch fills a staged book between players and settles each fill;
 // an owner never trades with itself, and a young character stays capped.
 func (g *Game) stagedMatch(b *market.Book, key string) error {
-	fills := market.Match(b, g.Tick(), func(bid, ask market.Order) bool {
+	return g.fill(b, key, func(bid, ask market.Order) bool {
 		return bid.Owner == ask.Owner || g.capped(b.Material, bid, ask, market.Price(bid, ask), min(bid.Qty, ask.Qty))
-	})
-	for _, f := range fills {
-		for _, id := range f.Closed {
-			owner := f.Ask.Owner
-			if id == f.Bid.ID {
-				owner = f.Bid.Owner
-			}
-			g.Market.opened(owner, -1)
-		}
-	}
-	for i, f := range fills {
-		if err := g.stagedSettle(b, f, ledger.SubKey(key, "fill", strconv.Itoa(i))); err != nil {
-			return err
-		}
-	}
-	return nil
+	}, g.stagedSettle)
 }
 
 // stagedSettle moves one staged fill: the staged units from the ask's

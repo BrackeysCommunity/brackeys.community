@@ -1,7 +1,7 @@
 import type * as api from "./api.ts";
 import type { Card } from "./card.ts";
 import type { ForumStore } from "./forum.ts";
-import { quietNow } from "./house.ts";
+import { alarmRoleOf, quietNow } from "./house.ts";
 import { type Audience, type ChannelSink, pollEvery } from "./hunts.ts";
 import type { Lexicon } from "./lexicon.ts";
 import { editDue, LiveCards, postOnce } from "./live.ts";
@@ -266,7 +266,7 @@ export class EventsPoster {
   private async mention(ev: api.StoryEvent): Promise<string | undefined> {
     if (!ev.alarm) return undefined;
     const house = await this.house();
-    const role = house?.settings.alarmRoles?.[0] ?? this.alarmRole;
+    const role = alarmRoleOf(house?.settings, this.alarmRole);
     if (!role) return undefined;
     if (house && quietNow(house.settings, (this.audience?.now ?? Date.now)())) return undefined;
     return role;

@@ -29,7 +29,25 @@ import { hexDistance } from "./hunt.ts";
  */
 
 /** Where the events channel's cards appear and who sees them. */
-const EVENTS = "Events channel · everyone in the server can see this";
+export const EVENTS_CHANNEL = "Events channel · everyone in the server can see this";
+
+/** What each kind of staging is called on its card; `.over` is a drop's or fair's own card once closed. */
+export const STAGED_TITLES: Record<string, (where: string) => string> = {
+  contest: (w) => `A contest at ${w}`,
+  hardship: (w) => `A staged hardship at ${w}`,
+  hunt: (w) => `A staged hunt near ${w}`,
+  vault: (w) => `A competing vault near ${w}`,
+  pattern: (w) => `A staged pattern near ${w}`,
+  drop: (w) => `A drop of crates near ${w}`,
+  "drop.over": (w) => `The drop near ${w} is over`,
+  fair: (w) => `A fair at ${w}`,
+  "fair.over": (w) => `The fair at ${w} is over`,
+};
+
+/** A staging's title by its kind, for a kind the table does not name too. */
+export function stagedTitle(kind: string, where: string): string {
+  return (STAGED_TITLES[kind] ?? ((w: string) => `Staged at ${w}`))(where);
+}
 
 /** A staging as a card reads it: the house's stage view, or a staged.opened event's fields where the tile is not known. */
 export type StagedView = Omit<api.StageView, "at"> & { at?: api.Hex; days?: number };
@@ -120,15 +138,29 @@ function cratesField(st: StagedView, o?: api.Options): EmbedField {
 }
 
 /** Open a crate where the viewer can, else the way to the crates; on the public post, the press that tries. */
-function crateButtons(st: StagedView, o?: api.Options): Button[] {
+function crateButtons(
+  st: StagedView,
+  o?: api.Options,
+  open = "Open a crate",
+  goStyle?: Extract<Button, { kind: "page" }>["style"],
+): Button[] {
   if (!openable(st)) return [];
-  if (!o) return [btn("Open a crate", "crate", st.id, 0, { style: "success" })];
-  if (onTile(o, st)) return [btn("Open a crate", "crate", st.id, o.version, { style: "success" })];
-  return st.at ? [btn("Go there", "goto", target(",", st.at.q, st.at.r), o.version)] : [];
+  if (!o) return [btn(open, "crate", st.id, 0, { style: "success" })];
+  if (onTile(o, st)) return [btn(open, "crate", st.id, o.version, { style: "success" })];
+  if (!st.at) return [];
+  return [
+    btn(
+      "Go there",
+      "goto",
+      target(",", st.at.q, st.at.r),
+      o.version,
+      goStyle ? { style: goStyle } : {},
+    ),
+  ];
 }
 
-/** An authored art slot's picture, or a form where the world sent none. */
-function artPicture(art: api.Art | undefined, title: string): Picture | "form" {
+/** An authored art slot's picture, headed by the card's title; a form when the world sent none. */
+export function artPicture(art: api.Art | undefined, title: string): Picture | "form" {
   return art?.key ? { media: art.key, alt: artAlt(art.slot, title) } : "form";
 }
 
@@ -144,11 +176,9 @@ export function dropCard(st: StagedView, o?: api.Options): Card {
   const fields = [cratesField(st, o), lastsField(st, o)].filter((f): f is EmbedField => !!f);
   const buttons = crateButtons(st, o);
   if (o) buttons.push(back(o.version));
-  const title = st.closed
-    ? `The drop near ${placeName(st)} is over`
-    : `A drop of crates near ${placeName(st)}`;
+  const title = stagedTitle(st.closed ? "drop.over" : "drop", placeName(st));
   return {
-    context: o ? PRIVATE : EVENTS,
+    context: o ? PRIVATE : EVENTS_CHANNEL,
     author: authorLine("Drop", placeName(st), st.closed ? "over" : "open"),
     title,
     description: `${stagedLine(st.placed)}.\nStand on its tile to open a crate: what it holds is ${localTo(st)}.`,
@@ -177,7 +207,7 @@ export function fairCard(
   o?: api.Options,
   art?: api.Art,
 ): Card {
-  const title = st.closed ? `The fair at ${placeName(st)} is over` : `A fair at ${placeName(st)}`;
+  const title = stagedTitle(st.closed ? "fair.over" : "fair", placeName(st));
   const fields: EmbedField[] = [
     {
       name: "Contests",
@@ -196,7 +226,7 @@ export function fairCard(
   const buttons = crateButtons(st, o);
   if (o) buttons.push(btn("The contests", "goals", "", o.version), back(o.version));
   return {
-    context: o ? PRIVATE : EVENTS,
+    context: o ? PRIVATE : EVENTS_CHANNEL,
     author: authorLine("Fair", placeName(st), st.closed ? "over" : "open"),
     title,
     description: `${stagedLine(st.placed)}.\nWin a contest on the notice board, or open a crate of the drop on its tile.`,
@@ -241,13 +271,7 @@ export function crateOpen(
     : here
       ? `The crates are on this tile. What each holds is ${localTo(st)}.`
       : `The crates are ${plural(away, "tile")} away, near ${placeName(st)}. Stand on their tile to open one.`;
-  const buttons: Button[] = [];
-  if (openable(crates) && here)
-    buttons.push(
-      btn(opened ? "Open another" : "Open a crate", "crate", st.id, v, { style: "success" }),
-    );
-  if (!here && openable(crates))
-    buttons.push(btn("Go there", "goto", target(",", st.at.q, st.at.r), v, { style: "primary" }));
+  const buttons = crateButtons(crates, o, opened ? "Open another" : "Open a crate", "primary");
   buttons.push(back(v));
   const fields = [cratesField(crates, o), lastsField(crates, o)].filter(
     (f): f is EmbedField => !!f,

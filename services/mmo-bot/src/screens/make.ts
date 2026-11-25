@@ -10,6 +10,7 @@ import {
   banner,
   btn,
   factNum,
+  held,
   launch,
   option,
   priceLadder,
@@ -17,6 +18,7 @@ import {
   ROW_MOST,
   SELECT_MOST,
   stagedGoodsLine,
+  stagedHeld,
   stationLine,
   usable,
 } from "./common.ts";
@@ -66,6 +68,21 @@ export function draftRecipe(d: Draft): api.Recipe {
     slot: d.slot,
     inputs: [{ material: d.material!, units: d.qty! }],
   };
+}
+
+/**
+ * Whether goods held cover a recipe's inputs as the sim draws them: clean
+ * units first, and every shortfall from the staged units of one origin.
+ */
+export function canCraft(goods: readonly api.Goods[], inputs: readonly api.Goods[]): boolean {
+  const short = inputs
+    .map((i) => ({ material: i.material, units: i.units - held(goods, i.material) }))
+    .filter((s) => s.units > 0);
+  if (!short.length) return true;
+  const origins = new Set(goods.flatMap((g) => (g.staged ? [g.staged.settlement] : [])));
+  return [...origins].some((at) =>
+    short.every((s) => stagedHeld(goods, s.material, at) >= s.units),
+  );
 }
 
 /**
@@ -157,7 +174,9 @@ export function craftCard(
     const have = usable(sheet.character.goods, d.material);
     rows.push({
       buttons: [1, 2, 3]
-        .filter((q) => q <= have)
+        .filter(
+          (q) => q <= have && canCraft(sheet.character.goods, draftRecipe({ ...d, qty: q }).inputs),
+        )
         .map((q) =>
           btn(`${amount(q, lex.material(d.material!))}`, "craft-q", draftKey({ ...d, qty: q }), v),
         ),

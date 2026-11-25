@@ -83,9 +83,11 @@ const STORY_KINDS = [
   "theft.made",
   "watch.caught",
   "character.betrayed",
+  "staged.ordered",
   "staged.opened",
   "staged.closed",
   "vault.taken",
+  "name.renamed",
 ];
 
 const weights = JSON.parse(
@@ -659,6 +661,20 @@ describe("staged lines", () => {
     );
   });
 
+  test("an order to open later names who staged it and no open time", () => {
+    expect(
+      chronicleLine(
+        staged("staged.ordered", { ...opened, role: "staff", points: 80, days: 3 }),
+        NAMES,
+      ),
+    ).toBe(
+      "Staff of Lantern Hall staged a drop at Ashford for 3 days, for 80 event points, to open later.",
+    );
+    expect(chronicleLine(staged("staged.ordered", { kind: "fair", role: "admin" }))).toBe(
+      "The admins of a server staged a fair at a settlement, to open later.",
+    );
+  });
+
   test("a close says how it closed and what came of it", () => {
     expect(
       chronicleLine(
@@ -713,6 +729,24 @@ describe("staged lines", () => {
       "A crew of 3 members took the competing vault Lantern Hall staged near Kell's Rest, its Circuit at level 2 solved first, for 18 goods staged there.",
     );
     expect(line).not.toContain(CHAR_NAME);
+  });
+});
+
+describe("name.renamed", () => {
+  const renamed = (o: Record<string, string>): StoryFact => ({
+    kind: "name.renamed",
+    region: "r-2",
+    subjects: [],
+    data: Object.entries(o).map(([k, s]) => ({ k, s })),
+  });
+
+  test("names the new name, or says only that it changed", () => {
+    expect(chronicleLine(renamed({ ref: "settlement:4", name: "Emberwick" }), NAMES)).toBe(
+      "Something in Dunmarch was renamed: it is called Emberwick now.",
+    );
+    expect(chronicleLine(renamed({ ref: "settlement:4", name: "" }), NAMES)).toBe(
+      "Something in Dunmarch was renamed.",
+    );
   });
 });
 

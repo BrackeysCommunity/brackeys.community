@@ -546,7 +546,13 @@ func (g *Game) charOf(acc string) *Char {
 
 // match fills a book and settles each fill.
 func (g *Game) match(b *market.Book, key string) error {
-	fills := market.Match(b, g.Tick(), func(bid, ask market.Order) bool { return g.mayNotTrade(b, bid, ask) })
+	return g.fill(b, key, func(bid, ask market.Order) bool { return g.mayNotTrade(b, bid, ask) }, g.settle)
+}
+
+// fill matches a book under veto, frees each closed order's slot, and
+// settles each fill under its own key.
+func (g *Game) fill(b *market.Book, key string, veto func(bid, ask market.Order) bool, settle func(*market.Book, market.Fill, string) error) error {
+	fills := market.Match(b, g.Tick(), veto)
 	for _, f := range fills {
 		for _, id := range f.Closed {
 			owner := f.Ask.Owner
@@ -557,7 +563,7 @@ func (g *Game) match(b *market.Book, key string) error {
 		}
 	}
 	for i, f := range fills {
-		if err := g.settle(b, f, ledger.SubKey(key, "fill", strconv.Itoa(i))); err != nil {
+		if err := settle(b, f, ledger.SubKey(key, "fill", strconv.Itoa(i))); err != nil {
 			return err
 		}
 	}

@@ -46,10 +46,9 @@ func (g *Game) stampOf(cmd Command) *fact.Ref {
 		if cmd.Server != "" {
 			return serverStamp(cmd.Server)
 		}
-	case StagingEnd, CrateOpen, MachineArm, MachineSolve, HuntPress:
-		if st := g.cmdStage(cmd); st != nil {
-			return serverStamp(st.Server)
-		}
+	}
+	if st := g.cmdStage(cmd); st != nil {
+		return serverStamp(st.Server)
 	}
 	switch {
 	case Operator(cmd.Kind) && !slices.Contains(unstagedKinds, cmd.Kind):
@@ -181,6 +180,15 @@ func (g *Game) serverStaged(ref fact.Ref) *fact.Ref {
 }
 
 func serverStamp(server string) *fact.Ref { return &fact.Ref{Kind: stampServer, ID: server} }
+
+// StampedServer is the server whose staging a fact is stamped by, "" for
+// a fact no server staged.
+func StampedServer(f fact.Fact) string {
+	if s := f.StagedBy; s != nil && s.Kind == stampServer {
+		return s.ID
+	}
+	return ""
+}
 
 // structural: the ref kinds a staged hunt, arc, stage and goal are named by.
 const (

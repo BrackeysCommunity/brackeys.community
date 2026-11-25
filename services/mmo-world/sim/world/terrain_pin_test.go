@@ -97,7 +97,7 @@ func TestTerrainPinRefused(t *testing.T) {
 			if !s.open(h) || !s.pathFrom(h, s.mp("pin-path-tiles")) {
 				return false
 			}
-			for _, n := range patchOf(h, groundFix("forest", true).Ground) {
+			for _, n := range PatchOf(h, groundFix("forest", true).Ground) {
 				if s.notFree(n, h) != "" || s.reached(n) {
 					return false
 				}

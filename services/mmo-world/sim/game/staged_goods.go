@@ -24,27 +24,42 @@ var stagedEscrows []func(g *Game, acc string) bool
 // by its server, staged mints take stg: goods from src:staged, and the
 // guard refuses any clean mint. The func it returns puts back what was.
 func (g *Game) withStage(st *Stage) (restore func()) {
-	was, wasBy := g.staging, g.stagedBy
-	g.staging, g.stagedBy = st, &fact.Ref{Kind: stampServer, ID: st.Server}
+	was := g.staging
+	g.staging = st
+	unstamp, end := g.stampedBy(st.Server), g.stagedSpan()
+	return func() {
+		g.staging = was
+		unstamp()
+		end()
+	}
+}
+
+// stagedSpan marks every fact written until end is called as staged.
+// Len is the id of the last fact already written.
+func (g *Game) stagedSpan() (end func()) {
 	from := fact.ID(g.Log.Len())
 	return func() {
-		g.staging, g.stagedBy = was, wasBy
 		if to := fact.ID(g.Log.Len()); to > from {
 			g.stagedFacts = append(g.stagedFacts, factSpan{from, to})
 		}
 	}
 }
 
-// stagedFact reports whether a fact was written in a stage's context or
-// names a staged hunt, arc, stage or contest. Such a fact counts only
-// toward staged contests and staged arcs' sides, so staging pays no coin
-// or standing through the world's goals.
+// stagedFact reports whether a fact was written in a stage's context,
+// equips a staged item, or names a staged hunt, arc, stage or contest.
+// Such a fact counts only toward staged contests and staged arcs' sides,
+// so staging pays no coin or standing through the world's goals.
 func (g *Game) stagedFact(f fact.Fact) bool {
 	if g.Live == nil {
 		return false
 	}
 	for _, s := range g.stagedFacts {
-		if f.ID >= s.From && f.ID < s.To {
+		if f.ID > s.From && f.ID <= s.To {
+			return true
+		}
+	}
+	if f.Kind == "item.equipped" {
+		if in := g.equippedItem(f); in != nil && in.Staged != nil {
 			return true
 		}
 	}

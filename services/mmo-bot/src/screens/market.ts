@@ -146,11 +146,8 @@ function base(
   };
 }
 
-/** The book: the best prices each side for one material, and what you can do at once. */
-export function bookCard(o: api.Options, m: api.Market, lex: Lexicon, notice?: string): Card {
-  const v = o.version;
-  const b = m.book;
-  const name = lex.material(b.material);
+/** Asks best-last above bids best-first, so the spread sits in the middle. */
+function ladderTable(b: api.BookView): Card["table"] {
   const side = (ls: api.Level[]) =>
     ls.map((l) => [amount(l.price, "coin"), amount(l.units, "goods"), l.who.slice(0, 24)]);
   const rows = [
@@ -159,6 +156,42 @@ export function bookCard(o: api.Options, m: api.Market, lex: Lexicon, notice?: s
       .map((r) => ["ask", ...r]),
     ...side(b.bids).map((r) => ["bid", ...r]),
   ];
+  return rows.length
+    ? { header: ["Side", "Price (coin each)", "Units (goods)", "Whose"], rows }
+    : undefined;
+}
+
+function bookFields(b: api.BookView, holdLabel: string, held: string): EmbedField[] {
+  return [
+    { name: "Last", value: b.last ? amount(b.last, "coin") : "no trade yet", inline: true },
+    { name: "Reference value", value: amount(b.value, "coin"), inline: true },
+    { name: holdLabel, value: held, inline: true },
+  ];
+}
+
+/** Holders draft an ask, everyone else a bid, at the reference value. */
+function postOrderButton(b: api.BookView, have: number, v: number, staged: boolean): Button {
+  return btn(
+    "Post an order",
+    "mkt-o",
+    draftId({
+      material: b.material,
+      side: have > 0 ? "ask" : "bid",
+      price: Math.max(1, b.value),
+      units: 1,
+      ...(staged ? { staged: true } : {}),
+    }),
+    v,
+    staged ? { style: "primary" } : {},
+  );
+}
+
+/** The book: the best prices each side for one material, and what you can do at once. */
+export function bookCard(o: api.Options, m: api.Market, lex: Lexicon, notice?: string): Card {
+  const v = o.version;
+  const b = m.book;
+  const name = lex.material(b.material);
+  const table = ladderTable(b);
   const have = heldOf(o.purse, b.material);
   const actions: Button[] = [];
   if (have > 0 && b.bids.length)
@@ -169,32 +202,16 @@ export function bookCard(o: api.Options, m: api.Market, lex: Lexicon, notice?: s
     );
   if (b.asks.length)
     actions.push(btn(`Buy ${amount(1, name)} now`, "mkt-take", target(":", b.material, 1), v));
-  actions.push(
-    btn(
-      "Post an order",
-      "mkt-o",
-      draftId({
-        material: b.material,
-        side: have > 0 ? "ask" : "bid",
-        price: Math.max(1, b.value),
-        units: 1,
-      }),
-      v,
-    ),
-  );
+  actions.push(postOrderButton(b, have, v, false));
   actions.push(back(v));
   return {
     ...base(m, listLabel("book"), notice ?? `${name} at ${m.name}`),
-    description: rows.length
+    description: table
       ? `Matched by price, then time; what you post waits in escrow. Each fill pays a ${percent(m.fee)} fee from the seller.`
       : "Nobody is buying or selling this here yet. Post the first order.",
-    table: rows.length
-      ? { header: ["Side", "Price (coin each)", "Units (goods)", "Whose"], rows }
-      : undefined,
+    table,
     fields: [
-      { name: "Last", value: b.last ? amount(b.last, "coin") : "no trade yet", inline: true },
-      { name: "Reference value", value: amount(b.value, "coin"), inline: true },
-      { name: "You hold", value: amount(have, name), inline: true },
+      ...bookFields(b, "You hold", amount(have, name)),
       ...(hasStaged(o, m) ? [stagedBeside(o, m, lex)] : []),
     ],
     footer: `Orders last ${plural(m.days, "day")}; you may hold ${amount(m.limit, "orders")} open.`,
@@ -233,25 +250,10 @@ export function stagedBookCard(o: api.Options, m: api.Market, lex: Lexicon, noti
     last: 0,
     value: m.book.value,
   };
-  const side = (ls: api.Level[]) =>
-    ls.map((l) => [amount(l.price, "coin"), amount(l.units, "goods"), l.who.slice(0, 24)]);
-  const rows = [
-    ...side(sb.asks)
-      .reverse()
-      .map((r) => ["ask", ...r]),
-    ...side(sb.bids).map((r) => ["bid", ...r]),
-  ];
+  const table = ladderTable(sb);
   const mine = stagedHere(o, m);
   const away = stagedAway(o, m);
-  const fields: EmbedField[] = [
-    { name: "Last", value: sb.last ? amount(sb.last, "coin") : "no trade yet", inline: true },
-    { name: "Reference value", value: amount(sb.value, "coin"), inline: true },
-    {
-      name: "You hold, staged here",
-      value: amount(mine, name),
-      inline: true,
-    },
-  ];
+  const fields = bookFields(sb, "You hold, staged here", amount(mine, name));
   if (away.length)
     fields.push({
       name: "Staged elsewhere",
@@ -261,12 +263,10 @@ export function stagedBookCard(o: api.Options, m: api.Market, lex: Lexicon, noti
     });
   return {
     ...base(m, listLabel("staged"), notice ?? `Staged ${name} at ${m.name}`),
-    description: rows.length
+    description: table
       ? "Goods staged here trade on this book alone, between players, with no fee. No faction, keeper or trader buys or sells on it."
       : "Nobody is buying or selling staged goods of this kind here yet. Post the first order: an order that meets one fills at once.",
-    table: rows.length
-      ? { header: ["Side", "Price (coin each)", "Units (goods)", "Whose"], rows }
-      : undefined,
+    table,
     fields,
     footer:
       "Staged goods never reach another book, price or ledger: they stay where they were staged.",
@@ -274,19 +274,7 @@ export function stagedBookCard(o: api.Options, m: api.Market, lex: Lexicon, noti
       ...switchers(o, m, "staged", lex),
       {
         buttons: [
-          btn(
-            "Post an order",
-            "mkt-o",
-            draftId({
-              material: m.material,
-              side: mine > 0 ? "ask" : "bid",
-              price: Math.max(1, sb.value),
-              units: 1,
-              staged: true,
-            }),
-            v,
-            { style: "primary" },
-          ),
+          postOrderButton(sb, mine, v, true),
           btn("The book", "market", target(":", "book", m.material), v),
           back(v),
         ],

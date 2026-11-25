@@ -292,7 +292,7 @@ type Game struct {
 	stagedFacts []factSpan
 }
 
-// factSpan is the fact ids from From up to but not including To.
+// factSpan is the fact ids after From up to and including To.
 type factSpan struct{ From, To fact.ID }
 
 type markedBy struct {

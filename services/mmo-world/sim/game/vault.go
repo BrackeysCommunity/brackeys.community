@@ -210,31 +210,11 @@ func (g *Game) vaultArm(c *Char, cmd Command, st *Stage) error {
 	if left := c.lockedFor(spec.Place, tick); left > 0 {
 		return refuse(LockedDown, "locked down for %d more ticks", left)
 	}
-	p := g.Puzzles()
-	if len(seats) > 1 {
-		if v := p.PartyVersion(spec.Family, spec.Where()); v != "" {
-			spec.Party, spec.Seats = v, int64(len(seats))
-		}
-	}
 	sh := g.newShared(g.partyOf(c), st.At, 0, seats)
-	m := &PartyMachine{Source: SourceFork, Spec: spec, At: cmd.Now, Tick: tick}
-	for _, s := range seats {
-		m.Seats = append(m.Seats, s.C.ID)
-		m.Practice = max(m.Practice, s.C.Level(spec.Family))
-	}
-	m.Countdown = p.MachineCountdown(spec, m.Practice)
-	sh.Machine = m
-	for _, s := range seats {
-		s.Worked++
-		s.LastMachine = nil
-		s.Lockdowns = slices.DeleteFunc(s.Lockdowns, func(l Lockdown) bool { return l.Until <= tick })
-		if s != c {
-			g.touchOnce(s)
-		}
-	}
+	m := g.armShared(c, sh, seats, spec, SourceFork, cmd.Now, tick)
 	g.race(sh)
-	_, err := g.factWith(c, sh.refs(), "machine.armed", tick, fact.S("family", spec.Family), fact.N("level", spec.Level), fact.S("source", SourceFork),
-		fact.S("party", spec.Party), fact.N("seats", int64(len(seats))), fact.S("stage", st.ID))
+	_, err := g.factWith(c, sh.refs(), "machine.armed", tick, fact.S("family", m.Spec.Family), fact.N("level", m.Spec.Level), fact.S("source", SourceFork),
+		fact.S("party", m.Spec.Party), fact.N("seats", int64(len(seats))), fact.S("stage", st.ID))
 	return err
 }
 
@@ -247,18 +227,7 @@ func (g *Game) vaultSolve(c *Char, cmd Command, sh *Shared, st *Stage) ([]fight.
 	if !slices.Contains(m.Seats, c.C.ID) {
 		return nil, nil, refuse(NoMachine, "%s has no seat at the machine", c.C.ID)
 	}
-	log := cmd.Machine.log()
-	elapsed := int64(-1)
-	if m.At > 0 && cmd.Now > 0 {
-		elapsed = max(0, cmd.Now-m.At)
-	}
-	p := g.Puzzles()
-	res := p.Play(m.Spec, log, puzzle.Limits{Countdown: m.Countdown, Elapsed: elapsed, Master: len(m.Seats) == 1 && g.mastery(m.Practice)})
-	if !res.Solved {
-		res.Haywire = g.haywireOf(m.Spec, false)
-	}
-	movers := moversOf(m, log)
-	seats := g.seatChars(m)
+	res, movers, seats := g.playShared(m, cmd)
 	tick := g.Tick()
 	if res.Solved {
 		if err := g.partySolved(seats, m, res, movers, tick); err != nil {

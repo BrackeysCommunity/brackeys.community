@@ -18,7 +18,7 @@ type StageCmd struct {
 	At         hex.Hex `json:"at"`                // in that settlement's region
 	Hunt       string  `json:"hunt,omitempty"`    // fights.hunts, a hunt template's creature
 	Contest    string  `json:"contest,omitempty"` // liveops.contests, a contest template's
-	Pattern    string  `json:"pattern,omitempty"` // story.patterns, the pattern template's
+	Pattern    string  `json:"pattern,omitempty"` // story.pattern-puzzles, the pattern template's
 	Opens      int64   `json:"opens,omitempty"`   // ticks from now, at most stage-lead-days
 	Days       int64   `json:"days,omitempty"`    // 0: the template's
 }

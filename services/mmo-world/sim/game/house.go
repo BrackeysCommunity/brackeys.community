@@ -169,9 +169,9 @@ func (g *Game) houseAt(server string) (int, bool) {
 	return slices.BinarySearchFunc(g.Houses, server, func(h *House, s string) int { return strings.Compare(h.Server, s) })
 }
 
-// roleOf is the role a player-path command's flags make its sender.
+// RoleOf is the role a player-path command's flags make its sender.
 // Admin implies every staff right.
-func roleOf(cmd Command) string {
+func RoleOf(cmd Command) string {
 	switch {
 	case cmd.Admin:
 		return RoleAdmin
@@ -190,7 +190,7 @@ const houseWide = -1
 // asks only for the server's guild; house-settings, which installs that
 // guild, asks for an admin and no guild.
 func (g *Game) houseRole(cmd Command, settlement int) (role string, gd *Guild, err error) {
-	role = roleOf(cmd)
+	role = RoleOf(cmd)
 	if cmd.Server == "" || role == RolePlayer {
 		return "", nil, refuse(HouseRoleCode, "%s is for a server's staff or admins", cmd.Kind)
 	}
@@ -213,13 +213,36 @@ func (g *Game) houseRole(cmd Command, settlement int) (role string, gd *Guild, e
 	return role, gd, nil
 }
 
+// staffCost is what a staff order pays from a settlement's pool: points,
+// refused when the pool holds less. Admins pay nothing.
+func (g *Game) staffCost(server string, n int, role string, points int64, what string) (int64, error) {
+	if role != RoleStaff {
+		return 0, nil
+	}
+	if have := g.PoolOf(server, n); have < points {
+		return 0, refuse(PoolShort, "%s costs %d event points and the pool holds %d", what, points, have)
+	}
+	return points, nil
+}
+
+// houseOwns refuses a house command on something its server did not
+// make, or, for staff, something the server's admins made.
+func houseOwns(role string, mine, staffMade bool, id, verb string) error {
+	switch {
+	case !mine:
+		return refuse(HouseScope, "%s was not %s from this server", id, verb)
+	case role == RoleStaff && !staffMade:
+		return refuse(HouseRoleCode, "%s was %s by the server's admins", id, verb)
+	}
+	return nil
+}
+
 // houseFn applies a character-scoped house kind.
 type houseFn func(g *Game, c *Char, cmd Command) error
 
 // The registries the house's rules fill from their own files' init: character
 // kinds, world kinds (rename, case-close), gates run before every
 // character command, and hooks on each world tick and each world day.
-// Empty, a world runs as before them.
 var (
 	houseCommands = map[string]houseFn{}
 	houseWorld    = map[string]func(g *Game, cmd Command) error{}
@@ -313,7 +336,7 @@ func LogWhat(cmd Command) string {
 	case Moderate:
 		if m := cmd.Moderate; m != nil {
 			switch m.Action {
-			case "mute", "suspend", "exclude":
+			case ModMute, ModSuspend, ModExclude:
 				if m.Days > 0 {
 					parts = append(parts, units(m.Days, "day", "days"))
 				} else {

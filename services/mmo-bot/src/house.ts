@@ -42,6 +42,14 @@ export function quietNow(settings: api.HouseSettings | undefined, nowMs: number)
   return from < to ? m >= from && m < to : m >= from || m < to;
 }
 
+/** The role an alarm mentions: the first the server's settings name, else the fallback. */
+export function alarmRoleOf(
+  settings: api.HouseSettings | undefined,
+  fallback: string | undefined,
+): string | undefined {
+  return settings?.alarmRoles?.[0] ?? fallback;
+}
+
 /** The channel id a server's settings map to a kind, if any. */
 export function channelIn(settings: api.HouseSettings | undefined, kind: ChannelKind) {
   return settings?.channels?.find((c) => c.kind === kind)?.id;

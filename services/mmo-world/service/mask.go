@@ -144,8 +144,8 @@ func labelRefOf(g *game.Game, f api.Fact) string {
 const kindStage = "stage"
 
 // maskFact is a fact as a server reads it: a written name it carries, a
-// thing's "name" or a staging's "label", reads as generated where the
-// server masks what it names.
+// thing's "name", a renamed promotion's "was" or a staging's "label",
+// reads as generated where the server masks what it names.
 func maskFact(g *game.Game, server string, f api.Fact) api.Fact {
 	if server == "" || g.House(server) == nil {
 		return f
@@ -155,7 +155,7 @@ func maskFact(g *game.Game, server string, f api.Fact) api.Fact {
 		switch {
 		case d.S == "":
 			continue
-		case d.Key == "name":
+		case d.Key == "name", d.Key == "was" && f.Kind == "promotion.renamed":
 			ref = nameRefOf(g, f)
 		case d.Key == "label":
 			ref = labelRefOf(g, f)

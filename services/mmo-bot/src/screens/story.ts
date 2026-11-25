@@ -5,7 +5,6 @@ import {
   type Modal,
   type Row,
 } from "../../../../packages/discord-kit/src/index.ts";
-import { artAlt } from "../../../../packages/mmo-words/src/alt.ts";
 import {
   arcName,
   arcWords,
@@ -23,7 +22,7 @@ import {
   wantUnit,
 } from "../../../../packages/mmo-words/src/index.ts";
 import type * as api from "../api.ts";
-import { authorLine, type Card, COLOUR, type Picture } from "../card.ts";
+import { authorLine, type Card, COLOUR } from "../card.ts";
 import { encodeId, target } from "../ids.ts";
 import { capitalise, type Lexicon } from "../lexicon.ts";
 import { amount, num, plural } from "../units.ts";
@@ -41,7 +40,17 @@ import {
   stagedLine,
   storyLine,
 } from "./common.ts";
-import { dropCard, fairCard, stagedOf, type StagedView } from "./staged.ts";
+import {
+  artPicture,
+  dropCard,
+  EVENTS_CHANNEL,
+  fairCard,
+  stagedOf,
+  stagedTitle,
+  type StagedView,
+} from "./staged.ts";
+
+export { EVENTS_CHANNEL };
 
 /**
  * The story's cards (GDD 12, 17.2): an arc's stage with its sides and a
@@ -52,8 +61,6 @@ import { dropCard, fairCard, stagedOf, type StagedView } from "./staged.ts";
  * chronicle names guilds, places, factions and counts (GDD 12.7).
  */
 
-/** Where the events channel's cards appear and who sees them. */
-export const EVENTS_CHANNEL = "Events channel · everyone in the server can see this";
 /** Where the chronicle channel's daily card appears and who sees it. */
 export const CHRONICLE_CHANNEL = "Chronicle channel · everyone in the server can see this";
 
@@ -439,11 +446,6 @@ export function factCard(fc: api.FactCauses, lex: Lexicon, version: number): Car
 
 type Refs = ReadonlyMap<string, string>;
 
-/** An authored art slot's picture, headed by the card's title; a form when the world sent none. */
-function artPicture(art: api.Art | undefined, title: string): Picture | "form" {
-  return art?.key ? { media: art.key, alt: artAlt(art.slot, title) } : "form";
-}
-
 /** The place an event names, or a settlement. */
 const placeOf = (ev: api.StoryEvent) => ev.place || "a settlement";
 
@@ -792,17 +794,6 @@ function theftEventCard(ev: api.StoryEvent, lex: Lexicon, refs: Refs): Card {
  */
 export type StagedEvent = api.StoryEvent & { stage?: api.StageView; contests?: api.Goal[] };
 
-/** What each kind of staging is called on its card. */
-const STAGED_TITLES: Record<string, (where: string) => string> = {
-  contest: (w) => `A contest at ${w}`,
-  hardship: (w) => `A staged hardship at ${w}`,
-  hunt: (w) => `A staged hunt near ${w}`,
-  vault: (w) => `A competing vault near ${w}`,
-  pattern: (w) => `A staged pattern near ${w}`,
-  drop: (w) => `A drop of crates near ${w}`,
-  fair: (w) => `A fair at ${w}`,
-};
-
 /** A staging's kind as the card's author says it. */
 function stagedKind(st: StagedView): string {
   return st.kind ? capitalise(st.kind) : "Staged";
@@ -810,7 +801,7 @@ function stagedKind(st: StagedView): string {
 
 /** A staging opened that is neither a drop nor a fair: what, where and who staged it. */
 function stagedOpenedCard(ev: api.StoryEvent, st: StagedView, lex: Lexicon, refs: Refs): Card {
-  const title = (STAGED_TITLES[st.kind] ?? ((w: string) => `Staged at ${w}`))(placeOf(ev));
+  const title = stagedTitle(st.kind, placeOf(ev));
   return {
     context: EVENTS_CHANNEL,
     author: authorLine("Staged", stagedKind(st), placeOf(ev)),
@@ -849,7 +840,7 @@ function stagedClosedCard(ev: api.StoryEvent, lex: Lexicon, refs: Refs): Card {
   return {
     context: EVENTS_CHANNEL,
     author: authorLine("Staged", stagedKind(st), "over"),
-    title: `${(STAGED_TITLES[st.kind] ?? ((w: string) => `Staged at ${w}`))(placeOf(ev))} is over`,
+    title: `${stagedTitle(st.kind, placeOf(ev))} is over`,
     description: storyLine(f, lex, refs),
     picture: "form",
     fields,

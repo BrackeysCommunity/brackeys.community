@@ -31,8 +31,8 @@ func (r Routes) Equal(o Routes) bool {
 	return slices.EqualFunc(r.Paths, o.Paths, slices.Equal[[]Hex]) && slices.EqualFunc(r.Rivers, o.Rivers, slices.Equal[[]Hex])
 }
 
-// Overlay is a fresh Gen of the sheets and key whose raw ground reads over
-// in place of the noise on those tiles; only a pin's validator makes one.
+// Overlay is a fresh Gen of the sheets and key with over laid on its raw
+// ground in place of the noise.
 func Overlay(b *sheets.Book, key draw.Key, over map[Hex]Ground) (*Gen, error) {
 	g, err := New(b, key)
 	if err != nil {

@@ -163,11 +163,10 @@ func (g *Game) PriceFor(c *Char, h hex.Hex, o FactionOrder) (int64, bool) {
 // sell sells carried goods now to the best bids here, at no less than
 // the price named (any, for none); what finds no buyer stays carried.
 func (g *Game) sell(c *Char, cmd Command) error {
-	if cmd.Staged {
-		return g.stagedOrder(c, cmd, market.Ask, false)
-	}
-	if err := g.wanted(c, cmd.Material, market.Bid); err != nil {
-		return err
+	if !cmd.Staged {
+		if err := g.wanted(c, cmd.Material, market.Bid); err != nil {
+			return err
+		}
 	}
 	return g.order(c, cmd, market.Ask, false)
 }
@@ -175,11 +174,10 @@ func (g *Game) sell(c *Char, cmd Command) error {
 // take buys goods now from the best asks here, at no more than the price
 // named (any, for none).
 func (g *Game) take(c *Char, cmd Command) error {
-	if cmd.Staged {
-		return g.stagedOrder(c, cmd, market.Bid, false)
-	}
-	if err := g.wanted(c, cmd.Material, market.Ask); err != nil {
-		return err
+	if !cmd.Staged {
+		if err := g.wanted(c, cmd.Material, market.Ask); err != nil {
+			return err
+		}
 	}
 	return g.order(c, cmd, market.Bid, false)
 }
@@ -567,6 +565,7 @@ func (g *Game) craftCmd(c *Char, cmd Command) error {
 	if len(staged) > 0 {
 		mark = &item.Stage{At: origin, Server: g.stagedServer(origin)}
 		defer g.stampedBy(mark.Server)()
+		defer g.stagedSpan()()
 		if res.Discovered {
 			facts = slices.DeleteFunc(facts, func(f fact.Fact) bool { return f.Kind == factKindDiscovered })
 			res.Kind.FirstMaker = ""
@@ -925,8 +924,18 @@ func (g *Game) crawled(c *Char, t int64) error {
 	return err
 }
 
-// Carried is the load a character carries: one per unit of goods.
+// Carried is the clean goods a character carries, one per unit; hauling
+// deeds count only these.
 func (c *Char) Carried() int64 { return item.Total(c.C.Goods) }
+
+// Load is everything a character carries, staged units included.
+func (c *Char) Load() int64 {
+	n := c.Carried()
+	for _, s := range c.C.Staged {
+		n += s.Units
+	}
+	return n
+}
 
 // Capacity is what a character can carry before it is laden: an unfed
 // mount carries nothing.
@@ -939,4 +948,4 @@ func (g *Game) Capacity(c *Char) int64 {
 }
 
 // Laden reports whether a character carries over what it can.
-func (g *Game) Laden(c *Char) bool { return c.Carried() > g.Capacity(c) }
+func (g *Game) Laden(c *Char) bool { return c.Load() > g.Capacity(c) }

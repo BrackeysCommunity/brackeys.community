@@ -47,10 +47,7 @@ func (g *Game) seeOwn(f fact.Fact) []goal.Event {
 }
 
 func (g *Game) event(f fact.Fact) (goal.Event, bool) {
-	who := ""
-	if len(f.Subjects) > 0 && f.Subjects[0].Kind == "character" {
-		who = f.Subjects[0].ID
-	}
+	who := factWho(f)
 	e := goal.Event{Fact: f.ID, Who: who}
 	h, at := fact.HexOf(f)
 	if at {
@@ -95,7 +92,7 @@ func (g *Game) event(f fact.Fact) (goal.Event, bool) {
 		e.Verb = goal.Defeat
 		e.Kind, e.Tags = defeated(f)
 	case "item.equipped":
-		in := g.itemOf(who, str("item"))
+		in := g.equippedItem(f)
 		if in == nil {
 			return e, false
 		}
@@ -170,6 +167,20 @@ func (g *Game) materialTags(material string) []string {
 		return slices.Clone(m.Tags)
 	}
 	return nil
+}
+
+// factWho is the character a fact is first about, if any.
+func factWho(f fact.Fact) string {
+	if len(f.Subjects) > 0 && f.Subjects[0].Kind == "character" {
+		return f.Subjects[0].ID
+	}
+	return ""
+}
+
+// equippedItem is the instance an item.equipped fact names.
+func (g *Game) equippedItem(f fact.Fact) *item.Instance {
+	d, _ := f.Get("item")
+	return g.itemOf(factWho(f), d.S)
 }
 
 func (g *Game) itemOf(who, id string) *item.Instance {

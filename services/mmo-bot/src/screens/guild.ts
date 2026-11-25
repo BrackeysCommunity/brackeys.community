@@ -4,6 +4,7 @@ import {
   type Modal,
   type Row,
 } from "../../../../packages/discord-kit/src/index.ts";
+import { goodsAmountLine } from "../../../../packages/mmo-words/src/index.ts";
 import type * as api from "../api.ts";
 import { authorLine, type Card, COLOUR } from "../card.ts";
 import { encodeId, target } from "../ids.ts";
@@ -19,7 +20,6 @@ import {
   PRIVATE,
   ROW_MOST,
   SELECT_MOST,
-  stagedGoodsLine,
 } from "./common.ts";
 import { NAME_INPUT } from "./emergence.ts";
 import { REWARDS } from "./goals.ts";
@@ -401,10 +401,7 @@ export function bankCard(
           amount(o.purse.provisions, "provisions"),
           ...o.purse.goods
             .slice(0, 6)
-            .map(
-              (x) =>
-                `${amount(x.units, lex.material(x.material))}${x.staged ? ` (${stagedGoodsLine(x.staged)})` : ""}`,
-            ),
+            .map((x) => goodsAmountLine(amount(x.units, lex.material(x.material)), x.staged)),
         ].join(", "),
         inline: true,
       },

@@ -342,6 +342,13 @@ function stagedOpenedLine(r: Reading): string {
   return `${capital(stager(r))} staged ${stagedWhat(r)} at ${r.place()}${span}${stagedCost(r)}${open}.`;
 }
 
+/** A staging ordered to open later: the fact carries no open time, so the line names none. */
+function stagedOrderedLine(r: Reading): string {
+  const days = r.n("days");
+  const span = days > 0 ? ` for ${plural(days, "day")}` : "";
+  return `${capital(stager(r))} staged ${stagedWhat(r)} at ${r.place()}${span}${stagedCost(r)}, to open later.`;
+}
+
 /** How a staging came to its close, by the reason the world gives. */
 function stagedHow(why: string): string {
   switch (why) {
@@ -817,10 +824,17 @@ const LINES: Record<string, Line> = {
   "dungeon.slain-first": (r) =>
     `A dungeon's guardian${r.where()} was slain for the first time: its naming is open.`,
   "dungeon.named": (r) => `A dungeon${r.where()} was named ${r.s("name") || "at last"}.`,
+  "name.renamed": (r) => {
+    const name = r.s("name");
+    return name
+      ? `Something${r.where()} was renamed: it is called ${name} now.`
+      : `Something${r.where()} was renamed.`;
+  },
   "guild.founded": (r) => `${capital(r.s("name") || r.subject("guild"))} was founded.`,
   "goal.vow-broken": () => "A vow on a guild's board was broken.",
 
   // A server's staging, told of its admins or staff and never a character (GDD 14.5).
+  "staged.ordered": stagedOrderedLine,
   "staged.opened": stagedOpenedLine,
   "staged.closed": stagedClosedLine,
   "vault.taken": vaultTakenLine,

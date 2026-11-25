@@ -13,6 +13,7 @@ import (
 	"jams.team/mmo-world/harness/agent"
 	"jams.team/mmo-world/service"
 	"jams.team/mmo-world/sim/canon"
+	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/goal"
@@ -24,11 +25,11 @@ import (
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// A staging twin is two soaks of the Economy population on one seed: one
-// where an admin and a staff member of the main server stage through the
-// player path and its players take and use what they stage, and one where
-// the same stagers stage nothing. The twins differ only by the staging,
-// so what moves at another settlement moved because of it (GDD 18.4).
+// A staging twin set is four soaks of the Economy population on one seed:
+// staged and taken, unstaged, the control (staged the same, nothing taken)
+// and a staging-free twin whose main players change their play a little.
+// staging-stays-local holds the control's footprint against the unstaged
+// twin (GDD 18.4).
 
 // structural: the staging twin's shape and the readings it is held to.
 const (
@@ -227,9 +228,8 @@ func (s *stagingBoard) Home(server string) (int, bool) {
 	return i, i >= 0
 }
 
-// Sites are a settlement's passable tiles in its region within siteRings,
-// walkable from it, as a console's site list offers them; read once a
-// world day.
+// Sites are the passable, awake tiles on the rings round a settlement out
+// to siteRings that are walkable from it; read once a world day.
 func (s *stagingBoard) Sites(n int) []api.Hex {
 	if day := s.g.Tick() / sheets.TicksPerDay; day != s.sitesOn {
 		s.sites, s.sitesOn = map[int][]api.Hex{}, day
@@ -405,8 +405,8 @@ type stagingWatch struct {
 	policy stagingPolicy
 	staged bool
 	// rest makes every restEvery-th main player rest one tick in
-	// restTicks from staging's first day: a change of play with nothing
-	// staged, the scale the twins' reading is read against.
+	// restTicks from staging's first day: the staging-free twin, reported
+	// beside the control.
 	rest   bool
 	server string
 	g      *game.Game
@@ -552,7 +552,7 @@ func (w *stagingWatch) stagedHunts(g *game.Game) {
 	}
 }
 
-// homeOf reports whether an account may hold staged goods (Decision 11).
+// homeOf reports whether an account may hold staged goods.
 func (w *stagingWatch) homeOf(acc string) bool {
 	if ledger.StagedRest(acc) {
 		return true
@@ -830,33 +830,23 @@ func (w *stagingWatch) attempt(req api.ActionRequest) string {
 		return "give staged goods"
 	case req.Kind == api.ActList && slices.ContainsFunc(c.C.Pack, func(in *item.Instance) bool { return in.ID == req.Item && in.Staged != nil }):
 		return "list a staged item"
-	case req.Kind == api.ActCraft && req.Recipe != nil && slices.ContainsFunc(req.Recipe.Inputs, func(in api.Goods) bool { return stagedHeld(c, in.Material) > 0 }):
+	case req.Kind == api.ActCraft && req.Recipe != nil && slices.ContainsFunc(req.Recipe.Inputs, func(in api.Goods) bool { _, st := w.g.Usable(c, in.Material); return stagedUnits(st) > 0 }):
 		return "craft with staged goods"
-	case (req.Kind == api.ActSell || req.Kind == api.ActAsk) && stagedHeld(c, req.Material) > 0 && cleanHeld(c, req.Material) < req.Units:
-		return req.Kind + " staged goods on the book"
+	case req.Kind == api.ActSell || req.Kind == api.ActAsk:
+		if clean, st := w.g.Usable(c, req.Material); stagedUnits(st) > 0 && clean < req.Units {
+			return req.Kind + " staged goods on the book"
+		}
 	}
 	return ""
 }
 
-// stagedHeld and cleanHeld are a character's staged and clean units of a
-// material.
-func stagedHeld(c *game.Char, m string) int64 {
+// stagedUnits is the units in staged lots.
+func stagedUnits(lots []char.StagedGoods) int64 {
 	var n int64
-	for _, s := range c.C.Staged {
-		if s.Material == m {
-			n += s.Units
-		}
+	for _, s := range lots {
+		n += s.Units
 	}
 	return n
-}
-
-func cleanHeld(c *game.Char, m string) int64 {
-	for _, s := range c.C.Goods {
-		if s.Material == m {
-			return s.Qty
-		}
-	}
-	return 0
 }
 
 // priceRow is one settlement's material read in both twins over the
@@ -880,7 +870,7 @@ type stagingReading struct {
 }
 
 // compareTwins reads every public book at every settlement but the
-// staging one, in both twins, over the staging window (Decision 5).
+// staging one, in both twins, over the staging window.
 func compareTwins(s, u *stagingWatch) stagingReading {
 	var out stagingReading
 	keys := slices.SortedFunc(maps.Keys(s.books), func(a, b bookKey) int { return cmp.Or(cmp.Compare(a.n, b.n), cmp.Compare(a.m, b.m)) })
@@ -1015,9 +1005,9 @@ func stagingSection(p func(string, ...any), title string, ts twinSet) {
 	p("")
 }
 
-// economyStaging is the Economy run's staging (Decision 71): at each size,
-// the fixed maximum policy staged at the main server against its unstaged
-// twin, read for staging-stays-local and staged-goods-local.
+// economyStaging is the Economy run's staging: at each size, the fixed
+// maximum policy's twin set, with staging-stays-local held on the
+// control's footprint and staged-goods-local on every soak.
 func economyStaging(p func(string, ...any), b *sheets.Book, sizes []int, days int64) ([]Measured, error) {
 	pol := strongestSeed()
 	gate, local, problems := true, true, 0
@@ -1030,10 +1020,8 @@ func economyStaging(p func(string, ...any), b *sheets.Book, sizes []int, days in
 		taken, footprint, play := ts.readings()
 		stagingSection(p, fmt.Sprintf("Staging at %s players", comma(int64(size))), ts)
 		local = local && footprint.holds()
-		for _, s := range ts.soaks() {
-			gate = gate && s.watch.leaks == 0
-			problems += s.watch.leaks
-		}
+		g, n := stagingGate(ts.soaks())
+		gate, problems = gate && g, problems+n
 		where = append(where, fmt.Sprintf("%s players: the stages' footprint %s; taken, %s; a staging-free change of play, %s", comma(int64(size)), footprint.where(), taken.where(), play.where()))
 	}
 	if len(sizes) == 0 {
@@ -1041,6 +1029,20 @@ func economyStaging(p func(string, ...any), b *sheets.Book, sizes []int, days in
 	}
 	return []Measured{
 		{Target: "staging-stays-local", Value: fmt.Sprintf("`%s`, %s", pol.name, strings.Join(where, "; ")), Holds: local},
-		{Target: "staged-goods-local", Value: either(gate, "every staged unit in a staged home and accounted for", fmt.Sprintf("%d problems", problems)), Holds: gate},
+		{Target: "staged-goods-local", Value: gateValue(gate, problems), Holds: gate},
 	}, nil
+}
+
+// stagingGate holds staged-goods-local over soaks: no soak leaked.
+func stagingGate(soaks []*stagingSoak) (holds bool, problems int) {
+	holds = true
+	for _, s := range soaks {
+		holds = holds && s.watch.leaks == 0
+		problems += s.watch.leaks
+	}
+	return holds, problems
+}
+
+func gateValue(holds bool, problems int) string {
+	return either(holds, "every staged unit in a staged home and accounted for", fmt.Sprintf("%d problems", problems))
 }

@@ -34,13 +34,7 @@ func houseRoleOf(r *http.Request) string {
 	q := r.URL.Query()
 	admin, _ := strconv.ParseBool(q.Get("admin"))
 	staff, _ := strconv.ParseBool(q.Get("staff"))
-	switch {
-	case admin:
-		return api.RoleAdmin
-	case staff:
-		return api.RoleStaff
-	}
-	return api.RolePlayer
+	return game.RoleOf(game.Command{Admin: admin, Staff: staff})
 }
 
 // house is a server's house as one of its members reads it. A server with
@@ -183,9 +177,7 @@ func stageView(g *game.Game, server string, st *game.Stage) api.StageView {
 // the settlement. Those with a dungeon, a landmark or a site come first,
 // then the rest, each nearest first.
 func houseSitesOf(g *game.Game, server string, n int) []api.HouseSite {
-	gen := g.Rules().Gen
 	home := g.Places[n].Hex
-	region := gen.RegionOf(home)
 	type site struct {
 		at    hex.Hex
 		name  string
@@ -194,7 +186,7 @@ func houseSitesOf(g *game.Game, server string, n int) []api.HouseSite {
 	var all []site
 	seen := map[hex.Hex]bool{}
 	consider := func(h hex.Hex) {
-		if seen[h] || gen.RegionOf(h) != region || g.World.RegionAt(h) < 0 || g.IsSettlement(h) || !gen.Passable(g.World.Baseline(h).Terrain) {
+		if seen[h] || !g.Stageable(n, h) {
 			return
 		}
 		seen[h] = true

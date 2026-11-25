@@ -47,20 +47,33 @@ func (g *Game) partyArm(c *Char, cmd Command) error {
 	if left := c.lockedFor(spec.Place, tick); left > 0 {
 		return refuse(LockedDown, "locked down for %d more ticks", left)
 	}
+	spec.Shape = g.Puzzles().Shape(spec.Family, spec.Level, spec.Where())
+	sh.LostRace, sh.Movers = "", nil
+	m := g.armShared(c, sh, seats, spec, src, cmd.Now, tick)
+	if src == SourceFork {
+		g.race(sh)
+	}
+	_, err = g.factWith(c, sh.refs(), "machine.armed", tick, fact.S("family", m.Spec.Family), fact.N("level", m.Spec.Level), fact.S("source", src),
+		fact.S("party", m.Spec.Party), fact.N("seats", int64(len(seats))))
+	return err
+}
+
+// armShared seats every member at one machine built from spec and starts
+// its countdown; the party version applies when more than one sits.
+func (g *Game) armShared(c *Char, sh *Shared, seats []*Char, spec puzzle.Spec, src string, now, tick int64) *PartyMachine {
 	p := g.Puzzles()
-	spec.Shape = p.Shape(spec.Family, spec.Level, spec.Where())
 	if len(seats) > 1 {
 		if v := p.PartyVersion(spec.Family, spec.Where()); v != "" {
 			spec.Party, spec.Seats = v, int64(len(seats))
 		}
 	}
-	m := &PartyMachine{Source: src, Spec: spec, At: cmd.Now, Tick: tick}
+	m := &PartyMachine{Source: src, Spec: spec, At: now, Tick: tick}
 	for _, s := range seats {
 		m.Seats = append(m.Seats, s.C.ID)
 		m.Practice = max(m.Practice, s.C.Level(spec.Family))
 	}
 	m.Countdown = p.MachineCountdown(spec, m.Practice)
-	sh.Machine, sh.LostRace, sh.Movers = m, "", nil
+	sh.Machine = m
 	for _, s := range seats {
 		s.Worked++
 		s.LastMachine = nil
@@ -69,12 +82,7 @@ func (g *Game) partyArm(c *Char, cmd Command) error {
 			g.touchOnce(s)
 		}
 	}
-	if src == SourceFork {
-		g.race(sh)
-	}
-	_, err = g.factWith(c, sh.refs(), "machine.armed", tick, fact.S("family", spec.Family), fact.N("level", spec.Level), fact.S("source", src),
-		fact.S("party", spec.Party), fact.N("seats", int64(len(seats))))
-	return err
+	return m
 }
 
 // partySpec is the machine a party arms from a source: the beat's, from
@@ -122,18 +130,7 @@ func (g *Game) partySolve(c *Char, cmd Command) ([]fight.Pressed, *puzzle.Result
 	if !slices.Contains(m.Seats, c.C.ID) {
 		return nil, nil, refuse(NoMachine, "%s has no seat at the machine", c.C.ID)
 	}
-	log := cmd.Machine.log()
-	elapsed := int64(-1)
-	if m.At > 0 && cmd.Now > 0 {
-		elapsed = max(0, cmd.Now-m.At)
-	}
-	p := g.Puzzles()
-	res := p.Play(m.Spec, log, puzzle.Limits{Countdown: m.Countdown, Elapsed: elapsed, Master: len(m.Seats) == 1 && g.mastery(m.Practice)})
-	if !res.Solved {
-		res.Haywire = g.haywireOf(m.Spec, false)
-	}
-	movers := moversOf(m, log)
-	seats := g.seatChars(m)
+	res, movers, seats := g.playShared(m, cmd)
 	tick := g.Tick()
 	var pressed []fight.Pressed
 	var err error
@@ -156,6 +153,21 @@ func (g *Game) partySolve(c *Char, cmd Command) ([]fight.Pressed, *puzzle.Result
 	g.endPartyMachine(sh, m, res, cmd.Now, tick, c)
 	sh.Movers = movers
 	return pressed, &res, nil
+}
+
+// playShared plays a command's merged log against an armed machine: the
+// result, the seats that moved, and the seats still in the world.
+func (g *Game) playShared(m *PartyMachine, cmd Command) (puzzle.Result, []string, []*Char) {
+	log := cmd.Machine.log()
+	elapsed := int64(-1)
+	if m.At > 0 && cmd.Now > 0 {
+		elapsed = max(0, cmd.Now-m.At)
+	}
+	res := g.Puzzles().Play(m.Spec, log, puzzle.Limits{Countdown: m.Countdown, Elapsed: elapsed, Master: len(m.Seats) == 1 && g.mastery(m.Practice)})
+	if !res.Solved {
+		res.Haywire = g.haywireOf(m.Spec, false)
+	}
+	return res, moversOf(m, log), g.seatChars(m)
 }
 
 // moversOf are the seats a merged log has moves from, in seat order.

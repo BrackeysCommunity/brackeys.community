@@ -8,7 +8,7 @@ import { type Card, problems } from "../src/card.ts";
 import { localBudget } from "../src/cooldown.ts";
 import { modalFor, wantsGuildLists } from "../src/flow.ts";
 import { memoryStore } from "../src/forum.ts";
-import { heldKeyOf, Houses, quietNow, refOf, staffOf } from "../src/house.ts";
+import { alarmRoleOf, heldKeyOf, Houses, quietNow, refOf, staffOf } from "../src/house.ts";
 import { type Action, decodeId, encodeId } from "../src/ids.ts";
 import { LogPoster } from "../src/logs.ts";
 import { REPORT } from "../src/manifest.ts";
@@ -812,4 +812,12 @@ test("Raid alarms toggles the first alarm role the settings name, else the bot's
   });
   await plain(press() as unknown as Interaction);
   expect(toggled).toEqual(["+4444444444", "+1234567890"]);
+});
+
+test("an alarm mentions the house's first alarm role, else the fallback", () => {
+  expect(alarmRoleOf({ alarmRoles: ["r1", "r2"] }, "env")).toBe("r1");
+  expect(alarmRoleOf({ alarmRoles: [] }, "env")).toBe("env");
+  expect(alarmRoleOf({}, "env")).toBe("env");
+  expect(alarmRoleOf(undefined, "env")).toBe("env");
+  expect(alarmRoleOf(undefined, undefined)).toBeUndefined();
 });

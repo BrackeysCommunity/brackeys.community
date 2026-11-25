@@ -22,7 +22,7 @@ const (
 	searchPolicies    = 6
 	searchGenerations = 4
 	searchClimbFrom   = 100
-	searchShare       = 10 // the climb's size, a tenth of the run's
+	searchShare       = 10 // the climb plays at n/searchShare
 	stagingSmallDays  = 30
 )
 
@@ -47,7 +47,7 @@ func (c climbed) worse(than climbed) bool {
 	return c.reading.worst.most > than.reading.worst.most
 }
 
-// SearchRun is the Search run aimed at staging (Decision 69): an adversary
+// SearchRun is the Search run aimed at staging (GDD 18.4): an adversary
 // that stages without limit at the main server and does the most damaging
 // thing with what it gives, read for how far it moves prices at every
 // other settlement (staging-stays-local), whether a staged unit ever
@@ -114,10 +114,9 @@ func SearchRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	}
 	taken, footprint, play := set.readings()
 	stagingSection(p, fmt.Sprintf("The confirming twin at %d players", n), set)
-	gate, problems, xp := true, 0, int64(0)
+	gate, problems := stagingGate(all)
+	xp := int64(0)
 	for _, s := range all {
-		gate = gate && s.watch.leaks == 0
-		problems += s.watch.leaks
 		xp = max(xp, s.watch.xpMost)
 	}
 	if err := doc.save(out, "search.md"); err != nil {
@@ -126,7 +125,7 @@ func SearchRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	xpCap := set.staged.watch.xpCap
 	return []Measured{
 		{Target: "staging-stays-local", Value: fmt.Sprintf("`%s` at %d players: the stages' footprint %s; taken, %s; a staging-free change of play, %s", best.policy.name, n, footprint.where(), taken.where(), play.where()), Holds: footprint.holds()},
-		{Target: "staged-goods-local", Value: fmt.Sprintf("%d soaks: %s", len(all), either(gate, "every staged unit in a staged home and accounted for", fmt.Sprintf("%d problems", problems))), Holds: gate},
+		{Target: "staged-goods-local", Value: fmt.Sprintf("%d soaks: %s", len(all), gateValue(gate, problems)), Holds: gate},
 		{Target: "staged-xp-cap", Value: fmt.Sprintf("at most %d staged xp in a world day (cap %d)", xp, xpCap), Holds: xp <= xpCap},
 	}, nil
 }

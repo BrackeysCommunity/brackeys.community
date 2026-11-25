@@ -270,23 +270,10 @@ func factNames(g *game.Game, viewer, server string, fs ...api.Fact) map[string]s
 	return names
 }
 
-// structural: the stamp kind a server's staging writes, as sim/game
-// stamps it.
-const stampServer = "server"
-
-// stampedServer is the server whose staging a fact is stamped by, "" for
-// a fact no server staged.
-func stampedServer(f fact.Fact) string {
-	if s := f.StagedBy; s != nil && s.Kind == stampServer {
-		return s.ID
-	}
-	return ""
-}
-
-// otherServers reports whether a fact is another server's staging than
-// server's: staging stays local (GDD 14.5).
+// otherServers reports whether a fact is staging by a server other than
+// server (GDD 14.5).
 func otherServers(f fact.Fact, server string) bool {
-	by := stampedServer(f)
+	by := game.StampedServer(f)
 	return by != "" && by != server
 }
 
@@ -664,7 +651,7 @@ func storyEvent(g *game.Game, f fact.Fact, server string) (api.StoryEvent, bool)
 	}
 	v = maskFact(g, server, v)
 	ev := api.StoryEvent{Fact: v, Promotion: promotionOf(g, f), Names: factNames(g, "", server, v), Art: artOf(factSlot(f)),
-		Server: stampedServer(f)}
+		Server: game.StampedServer(f)}
 	if d, ok := f.Get("arc"); ok {
 		if a := g.ArcByID(d.S); a != nil && a.Scope == arc.Settlement {
 			ev.Trouble = troubleView(g, a)

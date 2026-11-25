@@ -86,8 +86,6 @@ func init() {
 	houseGates = append(houseGates, moderationGate)
 }
 
-func (g *Game) houseParam(id string) int64 { return sheets.IntParam(g.r.Book.LiveOpsParams, id) }
-
 // MaskedFor reports whether a name ref reads as its plain generated name
 // on a server: masked there, or the server hides every player's names.
 func (g *Game) MaskedFor(server, ref string) bool {
@@ -221,7 +219,7 @@ func (g *Game) fileReport(c *Char, cmd Command) error {
 		if join >= 0 && slices.Contains(h.Cases[join].By, c.C.ID) {
 			return refuse(BadArgs, "%s has reported %s already", c.C.ID, h.Cases[join].ID)
 		}
-		if n := h.reportsToday(c.C.ID, g.Tick()); n >= g.houseParam("reports-per-day") {
+		if n := h.reportsToday(c.C.ID, g.Tick()); n >= g.lp("reports-per-day") {
 			return refuse(CaseLimit, "%s has made %d reports here today", c.C.ID, n)
 		}
 	}
@@ -233,7 +231,7 @@ func (g *Game) fileReport(c *Char, cmd Command) error {
 	h.NextCase++
 	h.Cases = append(h.Cases, Case{ID: "case-" + strconv.FormatInt(h.NextCase, decimal), Ref: cmd.Case.Ref, Reason: cmd.Case.Reason,
 		By: []string{c.C.ID}, Tick: g.Tick(), State: CaseOpen})
-	h.trimQueue(g.houseParam("queue-kept"))
+	h.trimQueue(g.lp("queue-kept"))
 	return nil
 }
 
@@ -397,8 +395,8 @@ func (g *Game) holdChange(h *House, m *ModerateCmd, same func(string) (func(*Hou
 		}
 		return func(h *House) { h.Holds = slices.Delete(h.Holds, i, i+1) }, nil
 	}
-	if m.Days < 0 || m.Days > g.houseParam("hold-days-max") {
-		return nil, refuse(BadArgs, "a %s lasts 1 to %d days, or 0 until lifted", kind, g.houseParam("hold-days-max"))
+	if m.Days < 0 || m.Days > g.lp("hold-days-max") {
+		return nil, refuse(BadArgs, "a %s lasts 1 to %d days, or 0 until lifted", kind, g.lp("hold-days-max"))
 	}
 	x := Hold{Char: r.id, Kind: kind, Case: m.Case}
 	if m.Days > 0 {
@@ -417,10 +415,9 @@ func (g *Game) holdChange(h *House, m *ModerateCmd, same func(string) (func(*Hou
 }
 
 // houseSettings replaces what one server sees (GDD 14.7), making its house
-// if it has none, and installs the server's guild with the admin's
-// character as its founder if the server has none; its players arrive at
-// the guild's settlement. The founder keeps playing in its own guild, so the installed guild starts
-// with no member until a player of the server arrives.
+// if need be. A server with no guild gets one installed at the admin's
+// settlement, with no member until a player of the server arrives: the
+// founder keeps its own guild.
 func (g *Game) houseSettings(c *Char, cmd Command) error {
 	_, gd, err := g.houseRole(cmd, houseWide)
 	if err != nil {

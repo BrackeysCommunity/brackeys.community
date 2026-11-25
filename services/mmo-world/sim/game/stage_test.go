@@ -367,7 +367,7 @@ func mustTiles(t *testing.T, row sheets.ContestRow) int64 {
 
 // TestStageScheduled: a stage ordered ahead writes staged.ordered, holds
 // nothing until its tick, opens then stamped by its server, and closes at
-// the first world day past its end.
+// its end tick.
 func TestStageScheduled(t *testing.T) {
 	g, c, home := houseGame(t)
 	at := stageTile(t, g, home)
@@ -410,7 +410,7 @@ func TestStageScheduled(t *testing.T) {
 		}
 		facts = append(facts, out...)
 	}
-	if !st.Closed || g.Tick() < st.Ends || g.Tick()%sheets.TicksPerDay != 0 || st.Crates != 0 {
+	if !st.Closed || g.Tick() != st.Ends || st.Crates != 0 {
 		t.Fatalf("the stage closed at %d (ends %d): %+v", g.Tick(), st.Ends, st)
 	}
 	stampedBy(t, facts, factStagedClosed, "a")

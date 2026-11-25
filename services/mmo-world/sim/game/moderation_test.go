@@ -106,7 +106,7 @@ func TestModerationNoLedger(t *testing.T) {
 		modCmd(staff, "m6", ModUnmute, who, 0, ""),
 		modCmd(staff, "m7", ModSuspend, who, 0, ""),
 		modCmd(staff, "m8", ModUnsuspend, who, 0, ""),
-		modCmd(staff, "m9", ModExclude, who, g.houseParam("hold-days-max"), ""),
+		modCmd(staff, "m9", ModExclude, who, g.lp("hold-days-max"), ""),
 		modCmd(staff, "m10", ModUnexclude, who, 0, ""),
 		modCmd(staff, "m11", ModEscalate, "", 0, "case-1"),
 		{Key: "o1", Kind: CaseClose, Target: "a/case-1"},
@@ -291,7 +291,7 @@ func TestModerationMasks(t *testing.T) {
 		{modCmd(staff, "", ModMask, RefSettlement+":0"+strconv.Itoa(home), 0, ""), BadArgs},
 		{modCmd(staff, "", ModMask, "post:https://discord.com/x", 0, ""), BadArgs},
 		{modCmd(staff, "", ModMute, guildRef, 0, ""), BadArgs},
-		{modCmd(staff, "", ModMute, RefCharacter+":"+d.C.ID, g.houseParam("hold-days-max")+1, ""), BadArgs},
+		{modCmd(staff, "", ModMute, RefCharacter+":"+d.C.ID, g.lp("hold-days-max")+1, ""), BadArgs},
 		{modCmd(staff, "", ModMute, RefCharacter+":"+d.C.ID, -1, ""), BadArgs},
 		{modCmd(staff, "", ModUnmute, RefCharacter+":"+d.C.ID, 0, ""), BadArgs},
 		{modCmd(staff, "", "ban", RefCharacter+":"+d.C.ID, 0, ""), BadArgs},
@@ -311,7 +311,7 @@ func TestModerationMasks(t *testing.T) {
 // and the next day the count starts again.
 func TestReportsPerDay(t *testing.T) {
 	g, staff, d, e, _ := modGame(t)
-	most := g.houseParam("reports-per-day")
+	most := g.lp("reports-per-day")
 	var refs []string
 	chars := []*Char{staff, d, e}
 	for i := range most {

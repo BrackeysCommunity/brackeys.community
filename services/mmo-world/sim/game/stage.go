@@ -27,8 +27,8 @@ func init() {
 	registerHouse(Staging, stageCmd)
 	registerHouse(StagingEnd, stageEnd)
 	registerHouse(CrateOpen, crateOpen)
-	houseTicks = append(houseTicks, openDue)
-	houseDays = append(houseDays, closeDue, refillPools)
+	houseTicks = append(houseTicks, closeLapsed, openDue)
+	houseDays = append(houseDays, forgetClosed, refillPools)
 }
 
 // stagedPart is how a kind of stage owned by another rule is checked at
@@ -49,6 +49,12 @@ const (
 	factStagedOpened  = "staged.opened"
 	factStagedClosed  = "staged.closed"
 	factCrateOpened   = "crate.opened"
+)
+
+// The liveops draws.
+const (
+	crateDraw draw.Purpose = "liveops.crate"
+	prizeDraw draw.Purpose = "liveops.prize"
 )
 
 // Why a stage closed.
@@ -193,12 +199,9 @@ func stageCmd(g *Game, c *Char, cmd Command) error {
 	if err != nil {
 		return err
 	}
-	points := int64(0)
-	if role == RoleStaff {
-		points = t.Points
-		if have := g.PoolOf(cmd.Server, s.Settlement); have < points {
-			return refuse(PoolShort, "%s costs %d event points and the pool holds %d", t.ID, points, have)
-		}
+	points, err := g.staffCost(cmd.Server, s.Settlement, role, t.Points, t.ID)
+	if err != nil {
+		return err
 	}
 	next := int64(0)
 	if g.Live != nil {
@@ -222,6 +225,18 @@ func stageCmd(g *Game, c *Char, cmd Command) error {
 	}
 	_, err = g.worldFact(st.At, factStagedOrdered, []fact.Ref{stageRef(st.ID)}, nil, stageData(st)...)
 	return err
+}
+
+// stageGround is ground a stage or a reach contest may name: awake,
+// passable, and no settlement's own.
+func (g *Game) stageGround(h hex.Hex) bool {
+	return g.World.RegionAt(h) >= 0 && g.r.Gen.Passable(g.World.Baseline(h).Terrain) && !g.IsSettlement(h)
+}
+
+// Stageable is whether a staging at a settlement may name h.
+func (g *Game) Stageable(settlement int, h hex.Hex) bool {
+	gen := g.r.Gen
+	return gen.RegionOf(h) == gen.RegionOf(g.SettlementHex(settlement)) && g.stageGround(h)
 }
 
 // stageSite refuses a stage's tile: off the settlement's region, outside
@@ -387,20 +402,28 @@ func (g *Game) openParts(st *Stage, tick int64) error {
 	return nil
 }
 
-// closeDue closes, at the world day, every stage past its end, and
-// forgets those closed a world day past their end, as hunts are.
-func closeDue(g *Game, _ int64) error {
+// closeLapsed closes every open stage whose end the tick has reached.
+func closeLapsed(g *Game, tick int64) error {
 	if g.Live == nil {
 		return nil
 	}
-	t := g.Tick()
 	for _, st := range g.Live.Stages {
-		if st.Open && !st.Closed && st.Ends <= t {
-			if err := g.closeStage(st, closedLapsed, t); err != nil {
+		if st.Open && !st.Closed && st.Ends <= tick {
+			if err := g.closeStage(st, closedLapsed, tick); err != nil {
 				return err
 			}
 		}
 	}
+	return nil
+}
+
+// forgetClosed forgets, at the world day, stages closed a world day past
+// their end, as hunts are.
+func forgetClosed(g *Game, _ int64) error {
+	if g.Live == nil {
+		return nil
+	}
+	t := g.Tick()
 	g.Live.Stages = slices.DeleteFunc(g.Live.Stages, func(st *Stage) bool { return st.Closed && st.Ends < t-sheets.TicksPerDay })
 	return nil
 }
@@ -454,13 +477,11 @@ func stageEnd(g *Game, _ *Char, cmd Command) error {
 		return err
 	}
 	st := g.StageByID(cmd.Target)
-	switch {
-	case st == nil || st.Closed:
+	if st == nil || st.Closed {
 		return refuse(NoStage, "no live stage %q", cmd.Target)
-	case st.Server != cmd.Server:
-		return refuse(HouseScope, "%s was not staged from this server", st.ID)
-	case role == RoleStaff && st.Role != RoleStaff:
-		return refuse(HouseRoleCode, "%s was staged by the server's admins", st.ID)
+	}
+	if err := houseOwns(role, st.Server == cmd.Server, st.Role == RoleStaff, st.ID, "staged"); err != nil {
+		return err
 	}
 	return g.closeStage(st, closedEnded, g.Tick())
 }
@@ -513,7 +534,7 @@ func (g *Game) reachTile(settlement int, tiles int64, toward hex.Hex) (hex.Hex, 
 	ring := hex.Ring(home, tiles)
 	slices.SortStableFunc(ring, func(a, b hex.Hex) int { return cmp.Compare(hex.Distance(a, toward), hex.Distance(b, toward)) })
 	for _, h := range ring {
-		if g.World.RegionAt(h) < 0 || !g.r.Gen.Passable(g.World.Baseline(h).Terrain) || g.IsSettlement(h) {
+		if !g.stageGround(h) {
 			continue
 		}
 		if _, _, ok := g.World.Path(home, h); ok {
@@ -527,7 +548,7 @@ func (g *Game) reachTile(settlement int, tiles int64, toward hex.Hex) (hex.Hex, 
 // table, minted to the opener as staged goods. The stager opens none.
 func crateOpen(g *Game, c *Char, cmd Command) error {
 	st := g.StageByID(cmd.Target)
-	if st == nil || st.Kind != sheets.StageDrop && st.Kind != sheets.StageFair || !st.Open || st.Closed || st.Crates <= 0 {
+	if st == nil || st.Kind != sheets.StageDrop && st.Kind != sheets.StageFair || !st.Open || st.Closed || st.Crates <= 0 || g.Tick() >= st.Ends {
 		return refuse(NoStage, "no crates left at %q", cmd.Target)
 	}
 	if c.C.At != st.At || c.C.Floor > 0 {
@@ -547,7 +568,7 @@ func crateOpen(g *Game, c *Char, cmd Command) error {
 		return refuse(NoStage, "no template %q", st.Template)
 	}
 	n := st.Opened.Sum() + 1
-	s, ok := g.stagedRoll(t.Table, "liveops.crate", draw.Str(st.ID), draw.Int(n), draw.Str(c.C.ID))
+	s, ok := g.stagedRoll(t.Table, crateDraw, draw.Str(st.ID), draw.Int(n), draw.Str(c.C.ID))
 	if !ok {
 		return refuse(NoStage, "%s's crates hold nothing", st.ID)
 	}
@@ -591,7 +612,7 @@ func (g *Game) stagedPrize(x *Goal, cl goal.Claim, key string) error {
 		return nil
 	}
 	defer g.withStage(st)()
-	s, ok := g.stagedRoll(x.Prize, "liveops.prize", draw.Str(st.ID), draw.Str(x.ID), draw.Str(cl.Who))
+	s, ok := g.stagedRoll(x.Prize, prizeDraw, draw.Str(st.ID), draw.Str(x.ID), draw.Str(cl.Who))
 	if !ok {
 		return nil
 	}

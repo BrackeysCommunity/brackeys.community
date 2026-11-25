@@ -52,6 +52,9 @@ func HouseKind(kind string) bool {
 	return false
 }
 
+// ConsoleOnly is the refusal a house kind from the Activity gets.
+const ConsoleOnly = "a server's staff and admins act from their console in chat"
+
 // Paths of the house. The bot reads a server's; operators read every
 // server's log and the escalated cases.
 const (

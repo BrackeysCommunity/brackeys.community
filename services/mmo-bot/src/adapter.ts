@@ -32,7 +32,7 @@ import {
   wantsGuildLists,
 } from "./flow.ts";
 import type { ForumSink } from "./forum.ts";
-import { refOf, staffOf } from "./house.ts";
+import { alarmRoleOf, refOf, staffOf } from "./house.ts";
 import type { ChannelSink } from "./hunts.ts";
 import { decodeId } from "./ids.ts";
 import { REPORT } from "./manifest.ts";
@@ -112,7 +112,7 @@ export function createHandler(opts: AdapterOptions) {
       log(`[role] alarm roles of ${guild}: ${describe(e)}`);
       return [] as readonly string[];
     });
-    return named[0] ?? alarmRole;
+    return alarmRoleOf({ alarmRoles: [...named] }, alarmRole);
   }
 
   /** Who an interaction is from, marked staff where its server counts them so. */
@@ -120,13 +120,13 @@ export function createHandler(opts: AdapterOptions) {
     const w = who(i);
     if (!w.guild) return w;
     const staff = async () => {
-      if (i.memberPermissions?.has(PermissionFlagsBits.ModerateMembers)) return true;
-      if (w.admin || !staffRoles) return false;
+      const moderates = i.memberPermissions?.has(PermissionFlagsBits.ModerateMembers) ?? false;
+      if (moderates || w.admin || !staffRoles) return staffOf(undefined, moderates, []);
       const named = await staffRoles(w.guild!).catch((e: unknown) => {
         log(`[staff] roles of ${w.guild}: ${describe(e)}`);
         return [] as readonly string[];
       });
-      return staffOf({ staffRoles: [...named] }, false, memberRoles(i));
+      return staffOf({ staffRoles: [...named] }, moderates, memberRoles(i));
     };
     return (await staff()) ? { ...w, staff: true } : w;
   }

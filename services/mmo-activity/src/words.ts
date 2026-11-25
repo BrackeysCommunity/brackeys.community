@@ -2,7 +2,7 @@ import { names } from "virtual:pack";
 
 import { clampAlt as clamp } from "../../../packages/mmo-words/src/alt.ts";
 import { encounterLine, WASTELAND_ENCOUNTERS } from "../../../packages/mmo-words/src/encounters.ts";
-import { stagedGoodsLine } from "../../../packages/mmo-words/src/placed.ts";
+import { goodsAmountLine } from "../../../packages/mmo-words/src/placed.ts";
 import { clueLine as storyClue } from "../../../packages/mmo-words/src/story.ts";
 import { capital, countWords, list } from "../../../packages/mmo-words/src/units.ts";
 import {
@@ -82,10 +82,12 @@ export function goodsNames(found?: Found): Set<string> {
 export function goodsLine(goods: Goods[], found?: Found): string {
   if (goods.length === 0) return "nothing";
   return goods
-    .map((g) => {
-      const line = amount(g.units, name("items.materials", g.material, found).toLowerCase());
-      return g.staged ? `${line} (${stagedGoodsLine(g.staged)})` : line;
-    })
+    .map((g) =>
+      goodsAmountLine(
+        amount(g.units, name("items.materials", g.material, found).toLowerCase()),
+        g.staged,
+      ),
+    )
     .join(", ");
 }
 

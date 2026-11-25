@@ -488,10 +488,8 @@ func (g *Gateway) intent(ctx context.Context, s *Seat, c *conn, msg api.ClientMe
 		c.send(refusal(msg.Seq, "", api.CodeBadJSON, "an intent carries an id of 8 to 64 letters, digits and dashes"))
 		return
 	}
-	// The Activity carries no role: a server's staff and admins act from
-	// their consoles in chat.
 	if api.HouseKind(in.Kind) {
-		c.send(refusal(msg.Seq, in.ID, api.CodeForbidden, "a server's staff and admins act from their console in chat"))
+		c.send(refusal(msg.Seq, in.ID, api.CodeForbidden, api.ConsoleOnly))
 		return
 	}
 	if !slices.Contains(api.ActivityKinds, in.Kind) {

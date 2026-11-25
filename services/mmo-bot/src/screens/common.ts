@@ -11,9 +11,9 @@ import { bannerAlt } from "../../../../packages/mmo-words/src/alt.ts";
 import {
   chronicleKinds,
   chronicleLine,
+  goodsAmountLine,
   type Names,
   refKey,
-  stagedGoodsLine,
 } from "../../../../packages/mmo-words/src/index.ts";
 import type * as api from "../api.ts";
 import type { Picture } from "../card.ts";
@@ -55,10 +55,7 @@ export function relative(ms: number): string {
 /** Goods as a comma list of amounts, staged ones tagged with where they stay; empty when there are none. */
 export function goodsLine(goods: readonly api.Goods[], lex: Lexicon): string {
   return goods
-    .map(
-      (g) =>
-        `${amount(g.units, lex.material(g.material))}${g.staged ? ` (${stagedGoodsLine(g.staged)})` : ""}`,
-    )
+    .map((g) => goodsAmountLine(amount(g.units, lex.material(g.material)), g.staged))
     .join(", ");
 }
 
@@ -468,8 +465,9 @@ export function stagedHeld(goods: readonly api.Goods[], material: string, at: nu
 }
 
 /**
- * Units of a material one craft can draw: the clean ones, then the staged
- * ones of a single origin, since a craft never mixes two.
+ * An upper bound on the units of one material a craft can draw: the clean
+ * ones plus the largest staged lot. A recipe of several materials must take
+ * all its staged units from one origin, so this alone does not decide it.
  */
 export function usable(goods: readonly api.Goods[], material: string): number {
   const staged = goods.filter((g) => g.material === material && g.staged);
