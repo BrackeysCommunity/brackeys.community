@@ -79,7 +79,13 @@ type Arc struct {
 	// Via is the faction whose offer cap a personal thread counts against
 	// while it runs: the one that offered it, or the one a rival is against.
 	Via fact.Ref `json:"via,omitempty,omitzero"`
+	// Staging is the server staging that cast it, By ByServer; Stage is
+	// the arc's own stage index.
+	Staging string `json:"staging,omitempty"`
 }
+
+// ByServer casts an arc a server's staging bound by hand.
+const ByServer = "server"
 
 // StageRun is one stage of an arc as it runs.
 type StageRun struct {

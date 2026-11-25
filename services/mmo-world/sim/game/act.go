@@ -91,6 +91,16 @@ type Command struct {
 	// waylay's haul to the prey side the character backs (GDD 4.5, 6.5).
 	BackRoom bool `json:"backRoom,omitempty"`
 	ForSide  bool `json:"forSide,omitempty"`
+	// Staff marks a command from a member its server counts as staff:
+	// Moderate Members, or a role its settings name (GDD 14.1).
+	Staff bool `json:"staff,omitempty"`
+	// Staged sends a market command to the staged book here (GDD 10.8).
+	Staged   bool           `json:"staged,omitempty"`
+	Stage    *StageCmd      `json:"stage,omitempty"`
+	Case     *CaseCmd       `json:"case,omitempty"`
+	Moderate *ModerateCmd   `json:"moderate,omitempty"`
+	Settings *HouseSettings `json:"settings,omitempty"`
+	Rename   *RenameCmd     `json:"rename,omitempty"`
 }
 
 // Stop is when a journey halts on its own: before a region at or above a
@@ -105,12 +115,12 @@ type Stop struct {
 // Operator reports whether a command kind is for operators only.
 func Operator(kind string) bool {
 	return kind == Correct || kind == Grant || kind == Ban || kind == Unban || kind == HideGoal || kind == SetMachine ||
-		kind == HideName || kind == SetReady || WorldLevel(kind)
+		kind == HideName || kind == SetReady || kind == Rename || kind == CaseClose || WorldLevel(kind)
 }
 
 // passive reports whether a kind is sent for a character rather than by
 // it: it neither counts as the character acting nor collects for it.
-func passive(kind string) bool { return Operator(kind) || kind == PartyWindow }
+func passive(kind string) bool { return Operator(kind) || kind == PartyWindow || HouseKind(kind) }
 
 // Refused is a command the rules turn down. Nothing changed.
 type Refused struct {
@@ -147,6 +157,8 @@ type Result struct {
 	// those whose view it changed while their rows stayed.
 	Moved []string `json:"-"`
 	Seen  []string `json:"-"`
+	// Points are the event points the command spent (GDD 14.3).
+	Points int64 `json:"points,omitempty"`
 }
 
 // Act applies a command at the current tick. A refused command changes
@@ -157,6 +169,7 @@ func (g *Game) Act(cmd Command) (Result, error) {
 		return Result{}, err
 	}
 	g.touched, g.seen = g.touched[:0], g.seen[:0]
+	g.points = 0
 	if WorldLevel(cmd.Kind) {
 		return g.actWorld(cmd)
 	}
@@ -212,7 +225,10 @@ func (g *Game) Act(cmd Command) (Result, error) {
 			return Result{}, refuse(MachineArmed, "the party's machine is armed and its countdown is running")
 		}
 		undo := g.admit(c, cmd)
-		if pressed, machine, err = g.dispatch(c, cmd); err != nil {
+		if err = g.houseGate(c, cmd); err == nil {
+			pressed, machine, err = g.dispatchStaged(c, cmd)
+		}
+		if err != nil {
 			undo()
 		}
 	}
@@ -256,7 +272,8 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	}
 	g.World.Note(facts...)
 	facts = g.Log.Since(first)
-	return Result{Char: c, Facts: facts, Pressed: pressed, Machine: machine, Moved: slices.Clone(g.touched), Seen: g.seenNow()}, nil
+	g.spent = g.points
+	return Result{Char: c, Facts: facts, Pressed: pressed, Machine: machine, Moved: slices.Clone(g.touched), Seen: g.seenNow(), Points: g.points}, nil
 }
 
 // actWorld applies a command that acts on the world itself: there is no
@@ -281,7 +298,8 @@ func (g *Game) actWorld(cmd Command) (Result, error) {
 	}
 	g.World.Note(facts...)
 	facts = g.Log.Since(first)
-	return Result{Facts: facts, Moved: slices.Clone(g.touched), Seen: g.seenNow()}, nil
+	g.spent = g.points
+	return Result{Facts: facts, Moved: slices.Clone(g.touched), Seen: g.seenNow(), Points: g.points}, nil
 }
 
 // seenNow are the characters the command showed something new to, less
@@ -294,6 +312,15 @@ func (g *Game) seenNow() []string {
 		}
 	}
 	return out
+}
+
+// dispatchStaged runs a command, in its stage's context when it works on
+// one.
+func (g *Game) dispatchStaged(c *Char, cmd Command) ([]fight.Pressed, *puzzle.Result, error) {
+	if st := g.cmdStage(cmd); st != nil {
+		defer g.withStage(st)()
+	}
+	return g.dispatch(c, cmd)
 }
 
 // dispatch runs a command; a machine command also hands back the result
@@ -443,6 +470,9 @@ func (g *Game) act(c *Char, cmd Command) ([]fight.Pressed, error) {
 		return nil, g.patternSet(c, cmd)
 	}
 	if run := crimeCommands[cmd.Kind]; run != nil {
+		return nil, run(g, c, cmd)
+	}
+	if run := houseCommands[cmd.Kind]; run != nil {
 		return nil, run(g, c, cmd)
 	}
 	return nil, refuse(BadArgs, "unknown command %q", cmd.Kind)
@@ -763,6 +793,8 @@ func hold(c *char.Character, asset string, n int64) {
 	default:
 		if m, ok := ledger.MaterialOf(asset); ok {
 			c.Goods = addGoods(c.Goods, m, n)
+		} else if at, m, ok := ledger.StagedOf(asset); ok {
+			c.Staged = char.AddStaged(c.Staged, at, m, n)
 		}
 	}
 }

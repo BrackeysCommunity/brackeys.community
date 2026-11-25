@@ -339,3 +339,44 @@ func TestValidBack(t *testing.T) {
 		t.Error("a side on a verb that is not Back was valid")
 	}
 }
+
+// TestValidStaged: a staged contest is an Each goal of a Defeat, Make or
+// Reach that pays a prize table and no coin, and lives as long as its
+// stage; a prize on any other goal is refused.
+func TestValidStaged(t *testing.T) {
+	l := Limits{RewardLeast: 10, EachCap: 50, PartyMost: 4, TitleLen: 60, NoteLen: 300, EphemeralLeast: 6, EphemeralMost: 432}
+	contest := func(verb string) *Goal {
+		g := &Goal{Title: "Clear the marsh", Issuer: Ref{Kind: ByStaged, ID: "st-1"}, Scope: Settlement, Mode: Each, Cap: 3,
+			Prize: "prize-contest", Cond: Condition{Verb: verb, Count: 2}, Lifetime: Ephemeral, Expires: 2000, Turnover: Expire}
+		if verb == Reach {
+			g.Cond.At = "tile:3,4"
+		}
+		return g
+	}
+	for _, verb := range []string{Defeat, Make, Reach} {
+		if err := Valid(contest(verb), 0, l); err != nil {
+			t.Errorf("a staged %s: %v", verb, err)
+		}
+	}
+	for name, change := range map[string]func(*Goal){
+		"first mode":  func(g *Goal) { g.Mode = First },
+		"pooled mode": func(g *Goal) { g.Mode = Pooled },
+		"coin":        func(g *Goal) { g.Reward = 20 },
+		"a fee":       func(g *Goal) { g.Fee = 1 },
+		"no prize":    func(g *Goal) { g.Prize = "" },
+		"a discover":  func(g *Goal) { g.Cond.Verb = Discover },
+		"a character's prize": func(g *Goal) {
+			g.Issuer = Ref{Kind: ByCharacter, ID: "c-1"}
+		},
+	} {
+		g := contest(Defeat)
+		change(g)
+		if Valid(g, 0, l) == nil {
+			t.Errorf("%s was valid", name)
+		}
+	}
+	over := contest(Defeat)
+	if Valid(over, over.Expires, l) == nil {
+		t.Error("a staged contest past its stage was valid")
+	}
+}

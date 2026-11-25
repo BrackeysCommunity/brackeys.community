@@ -256,8 +256,12 @@ type Game struct {
 	Emergence *emerge.State `json:"emergence,omitempty"`
 	// Syndicate is nil until a den first moves.
 	Syndicate *Syndicate `json:"syndicate,omitempty"`
-	Log       *fact.Tail `json:"log"`
-	r         *Rules
+	// Houses are each server's own, sorted by server; Live every
+	// server-staged thing. Both are nil until first used (GDD 14).
+	Houses []*House   `json:"houses,omitempty"`
+	Live   *LiveOps   `json:"live,omitempty"`
+	Log    *fact.Tail `json:"log"`
+	r      *Rules
 	// touched are the characters the command or tick in hand has changed,
 	// its own actor aside; seen those whose view it changed with no row.
 	touched []string
@@ -277,6 +281,12 @@ type Game struct {
 	// traceErr is the first error a trace hook gave while news was kept,
 	// handed on by takeTraceErr.
 	traceErr error
+	// staging is the stage being applied, if any (see withStage); points
+	// the event points the command in hand spends, and spent the last
+	// applied command's.
+	staging *Stage
+	points  int64
+	spent   int64
 }
 
 type markedBy struct {
@@ -418,6 +428,9 @@ func HoldingsOf(chars []*Char) []ledger.Balance {
 		for _, s := range c.C.Goods {
 			add(ledger.Material(s.Material), s.Qty)
 		}
+		for _, s := range c.C.Staged {
+			add(ledger.Staged(s.At, s.Material), s.Units)
+		}
 		for _, in := range c.C.Pack {
 			add(ledger.Item(in.ID), 1)
 			if in.Exploit != nil {
@@ -439,5 +452,11 @@ func (g *Game) factWith(c *Char, also []fact.Ref, kind string, tick int64, data 
 	return g.factCaused(c, also, kind, tick, 0, data...)
 }
 
-// post moves goods or coin through the ledger.
-func (g *Game) post(t ledger.Txn) error { return g.Ledger.Post(t) }
+// post moves goods or coin through the ledger, once the staged guard has
+// passed it.
+func (g *Game) post(t ledger.Txn) error {
+	if err := g.guardStaged(t); err != nil {
+		return err
+	}
+	return g.Ledger.Post(t)
+}

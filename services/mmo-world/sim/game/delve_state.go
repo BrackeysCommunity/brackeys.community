@@ -99,6 +99,8 @@ func worldCommand(kind string) func(*Game, Command) error {
 		return (*Game).arcCast
 	case EmergenceStart:
 		return (*Game).emergenceStart
+	case Rename, CaseClose:
+		return houseWorldCommand(kind)
 	}
 	return nil
 }
@@ -196,6 +198,8 @@ type Hunt struct {
 	Why     string       `json:"why"`               // "spawn", "operator", or a caller's
 	Pressed tally.Tally  `json:"pressed,omitempty"` // character → tick of its last press
 	Rolled  []item.Spoil `json:"rolled,omitempty"`
+	// Stage is the server staging that opened it, if one did.
+	Stage string `json:"stage,omitempty"`
 	// Measures are the ones it opened under, put back on H when a saved
 	// game is attached.
 	Measures []tags.Measure `json:"measures,omitempty"`

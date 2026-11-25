@@ -378,6 +378,9 @@ func (g *Game) Advance() ([]fact.Fact, error) {
 	}
 	after := fact.ID(g.Log.Len())
 	g.syncPlaces()
+	if err := g.houseTick(t); err != nil {
+		return nil, err
+	}
 	if err := g.creditGoals(first, ledger.SubKey("tick", strconv.FormatInt(t, decimal))); err != nil {
 		return nil, err
 	}

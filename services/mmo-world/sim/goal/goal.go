@@ -80,6 +80,9 @@ const (
 	ByFaction    = "faction"
 	ByWorld      = "world"
 	BySyndicate  = "syndicate"
+	// ByStaged is a server's staged contest; its ID is the stage's. It pays
+	// a prize of staged goods, never coin (GDD 14.3).
+	ByStaged = "staged"
 )
 
 // States a goal moves through.
@@ -333,7 +336,10 @@ type Goal struct {
 	Cond    Condition `json:"cond"`
 	// Reward is coin to each claimant (first, each) or the pool (pooled);
 	// 0 is a vow, which pays nothing and is tracked.
-	Reward   int64  `json:"reward"`
+	Reward int64 `json:"reward"`
+	// Prize is the liveops.drops table a staged contest's winners each
+	// roll, in place of a reward.
+	Prize    string `json:"prize,omitempty"`
 	Mode     string `json:"mode"`
 	Cap      int64  `json:"cap,omitempty"`
 	Lifetime string `json:"lifetime"`
@@ -686,6 +692,12 @@ func Valid(g *Goal, now int64, l Limits) error {
 		return fmt.Errorf("a Back names its arc stage's side")
 	case c.Verb == Back && g.Issuer.Kind != ByFaction && g.Issuer.Kind != ByWorld:
 		return fmt.Errorf("a side is posted by the story, not by a character")
+	case (g.Prize != "") != (g.Issuer.Kind == ByStaged):
+		return fmt.Errorf("a prize is a staged contest's, and a staged contest pays one")
+	case g.Issuer.Kind == ByStaged && (g.Mode != Each || g.Reward != 0 || g.Fee != 0):
+		return fmt.Errorf("a staged contest pays each winner a prize of staged goods: Each mode, no coin, no fee")
+	case g.Issuer.Kind == ByStaged && c.Verb != Defeat && c.Verb != Make && c.Verb != Reach:
+		return fmt.Errorf("a staged contest is a Defeat, a Make or a Reach")
 	case c.unread() != "":
 		return fmt.Errorf("a %s is not narrowed by a %s", c.Verb, c.unread())
 	case c.Count <= 0 && !c.Abstains():
@@ -721,9 +733,9 @@ func Valid(g *Goal, now int64, l Limits) error {
 	}
 	switch g.Lifetime {
 	case Ephemeral:
-		// A side lives as long as its stage, however long a poster's
-		// ephemeral goal may last.
-		if c.Verb == Back && g.Expires > now {
+		// A side or a staged contest lives as long as its stage, however
+		// long a poster's ephemeral goal may last.
+		if (c.Verb == Back || g.Issuer.Kind == ByStaged) && g.Expires > now {
 			break
 		}
 		if d := g.Expires - now; d < l.EphemeralLeast || d > l.EphemeralMost {

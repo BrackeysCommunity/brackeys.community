@@ -59,6 +59,8 @@ const (
 	ToWorks      = Sink + "works"     // what guild works consume
 	ToTolls      = Sink + "tolls"     // coin paid to cross a tolled road
 	ToSyndicate  = Sink + "syndicate" // what fences bought, emptied at each world day
+	FromStaged   = Source + "staged"  // a server's staging; mints only staged assets and items
+	ToStaged     = Sink + "staged"    // staged goods destroyed by forget-me or an operator
 )
 
 // Material, Item and Char name a material asset, an item asset and a
@@ -155,6 +157,7 @@ const (
 	escrowPrefix  = "escrow:"
 	caravanPrefix = "caravan:"
 	storePrefix   = "store:"
+	stgPrefix     = "stg:"
 	decimal       = 10
 	floorBits     = 64
 )
@@ -173,6 +176,45 @@ func GoodsOf(asset string) (string, bool) {
 		return Provisions, true
 	}
 	return MaterialOf(asset)
+}
+
+// Staged is the asset a material staged at settlement n trades as: never
+// the material's own, so no path that names mat: can move it (GDD 14.5).
+func Staged(n int, material string) string {
+	return stgPrefix + strconv.Itoa(n) + ":" + material
+}
+
+// StagedOf reads a staged asset back.
+func StagedOf(asset string) (n int, material string, ok bool) {
+	rest, ok := strings.CutPrefix(asset, stgPrefix)
+	if !ok {
+		return 0, "", false
+	}
+	at, m, ok := strings.Cut(rest, ":")
+	if !ok || m == "" {
+		return 0, "", false
+	}
+	n, err := strconv.Atoi(at)
+	if err != nil || n < 0 {
+		return 0, "", false
+	}
+	return n, m, true
+}
+
+// IsStaged reports whether an asset is staged goods.
+func IsStaged(asset string) bool { return strings.HasPrefix(asset, stgPrefix) }
+
+// StagedRest reports whether an account may hold staged goods by kind
+// alone: a character, a tile, wait or floor pool (they pay out only to
+// characters), sink:staged, sink:craft, sink:lost or sink:operator. Hunt
+// pools and escrows the game decides.
+func StagedRest(acc string) bool {
+	switch acc {
+	case ToStaged, ToCraft, ToLost, ToOperator:
+		return true
+	}
+	return strings.HasPrefix(acc, Holder) || strings.HasPrefix(acc, Pool+"tile:") ||
+		strings.HasPrefix(acc, Pool+"wait:") || strings.HasPrefix(acc, Pool+"floor:")
 }
 
 // MaterialOf reads a material asset back.

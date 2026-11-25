@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"strings"
 
 	"jams.team/mmo-world/sim/class"
 	"jams.team/mmo-world/sim/fact"
@@ -140,6 +141,9 @@ type Character struct {
 	Pack     []*item.Instance `json:"pack"`
 	Equipped []Equipped       `json:"equipped"`
 	Goods    []item.Spoil     `json:"goods"` // materials carried
+	// Staged are the staged goods carried, by origin settlement and
+	// material, mirroring the ledger's stg: assets; Goods never holds them.
+	Staged []StagedGoods `json:"staged,omitempty"`
 
 	// Knowledge
 	Recipes   []string `json:"recipes"`
@@ -199,10 +203,42 @@ type Character struct {
 	// Flags
 	Flags    []string `json:"flags"`
 	StagedXP int64    `json:"stagedXP"` // used today
+	// StagedDay is the world day StagedXP counts.
+	StagedDay int64 `json:"stagedDay,omitempty"`
 
 	// Alignment is nil until the first act that moves it, so a character
 	// saved before alignment reads 0 and digests as it did (GDD 5.10).
 	Alignment *Alignment `json:"alignment,omitempty"`
+}
+
+// StagedGoods are units of one material a server staged at one
+// settlement (GDD 14.5).
+type StagedGoods struct {
+	At       int    `json:"at"` // Place.N
+	Material string `json:"material"`
+	Units    int64  `json:"units"`
+}
+
+// AddStaged changes the units of one origin's material in a list kept
+// sorted by origin then material, dropping an entry that comes to nothing.
+func AddStaged(list []StagedGoods, at int, material string, n int64) []StagedGoods {
+	i, ok := slices.BinarySearchFunc(list, StagedGoods{At: at, Material: material}, func(a, b StagedGoods) int {
+		return cmp.Or(cmp.Compare(a.At, b.At), strings.Compare(a.Material, b.Material))
+	})
+	if !ok {
+		if n == 0 {
+			return list
+		}
+		list = slices.Insert(list, i, StagedGoods{At: at, Material: material})
+	}
+	list[i].Units += n
+	if list[i].Units == 0 {
+		list = slices.Delete(list, i, i+1)
+	}
+	if len(list) == 0 {
+		return nil
+	}
+	return list
 }
 
 // WantedCondition is the condition the watch's Wanted entries hold on,

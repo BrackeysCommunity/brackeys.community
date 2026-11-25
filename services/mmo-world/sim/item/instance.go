@@ -37,7 +37,9 @@ type Instance struct {
 	Exploit *Instance `json:"exploit,omitempty"`
 	// Pattern names the kind a written pattern teaches.
 	Pattern string `json:"pattern,omitempty"`
-	Staged  bool   `json:"staged,omitempty"`
+	// Staged is a server's staging's mark, nil when clean; it never fades
+	// and nothing removes it (GDD 14.5).
+	Staged *Stage `json:"staged,omitempty"`
 	// Legend is the tag a legend's trait gives the item, outside its picks
 	// and their budget.
 	Legend tags.Tag `json:"legend,omitempty"`
@@ -51,6 +53,13 @@ type Hot struct {
 	Faction string `json:"faction,omitempty"`
 	Ends    int64  `json:"ends"` // the first world day it is clean
 	At      string `json:"at"`   // the theft's tile ref
+}
+
+// Stage is where an item's staged goods came from: the settlement that
+// staged them, by Place.N, and the server that staged it.
+type Stage struct {
+	At     int    `json:"at"`
+	Server string `json:"server"`
 }
 
 // HotOn reports whether a mark is still live on a world day.

@@ -22,7 +22,7 @@ const (
 // unstagedKinds are operator kinds that keep the world as it is rather
 // than stage anything in it. A pin keeps the stamp the pin rules give it,
 // and a designer's pin is the world's own.
-var unstagedKinds = []string{ContentFreeze, SeasonStart, SeasonEpoch, EmergenceStart, PinReserve, PinEdit, PinWithdraw}
+var unstagedKinds = []string{ContentFreeze, SeasonStart, SeasonEpoch, EmergenceStart, PinReserve, PinEdit, PinWithdraw, Rename, CaseClose}
 
 // stagingFor stamps the facts a command writes while it is applied, and
 // notes whether it is a character's own; the func it returns puts back

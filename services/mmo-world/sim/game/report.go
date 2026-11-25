@@ -231,6 +231,9 @@ func (g *Game) dayTurn(t int64) error {
 			return err
 		}
 	}
+	if err := g.houseDay(day); err != nil {
+		return err
+	}
 	return g.postFactionOrders(t)
 }
 
