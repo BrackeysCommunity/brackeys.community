@@ -69,6 +69,24 @@
       "holdsFrom": "MM12"
     },
     {
+      "id": "staged-goods-local",
+      "text": "No staged unit reaches another settlement's market, a faction order, store or budget, a guild bank, a goal, a haul or a caravan, and every staged unit is accounted for",
+      "runs": "economy, search",
+      "holdsFrom": "MM12"
+    },
+    {
+      "id": "staged-xp-cap",
+      "text": "No character gains more than 150 xp in a world day from staged fights",
+      "runs": "search",
+      "holdsFrom": "MM12"
+    },
+    {
+      "id": "terrain-pins-hold",
+      "text": "Every terrain pin the validator accepts keeps every pattern point and starting settlement reachable, every pinned slot reachable, the chunk-order digest unchanged, and changes no tile outside its patch, on 1,000 seeds",
+      "runs": "terrain",
+      "holdsFrom": "MM12"
+    },
+    {
       "id": "structures-reachable",
       "text": "Every pattern point, and every starting settlement, is reachable on foot from every starting settlement, on 1,000 sampled seeds and out to 200 tiles",
       "runs": "world",

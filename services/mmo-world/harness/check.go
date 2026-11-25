@@ -284,7 +284,7 @@ func ruleProblems(b *sheets.Book) []string {
 // runs, and the readings taken outside them (growth curves, search).
 var targetRuns = []string{
 	"activity", "battle", "content", "craft", "crime", "delve", "economy", "emergence",
-	"growth", "puzzles", "search", "season", "social", "world",
+	"growth", "puzzles", "search", "season", "seen", "social", "terrain", "world",
 }
 
 func targetProblems(b *sheets.Book) []string {

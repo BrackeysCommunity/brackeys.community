@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "liveops.drops",
+  "title": "liveops.drops",
+  "description": "The tables staged crates, prizes and hauls roll, as staged goods (GDD 14.4).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "liveops.drops"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "table",
+          "material",
+          "weight",
+          "min",
+          "max"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "table": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "material": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "items.materials"
+          },
+          "weight": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "weight"
+          },
+          "min": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "goods"
+          },
+          "max": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "goods"
+          }
+        }
+      }
+    }
+  }
+}

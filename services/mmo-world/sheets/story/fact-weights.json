@@ -1398,6 +1398,42 @@
       "kind": "den.moved",
       "weight": 30,
       "note": "GDD 5.10, 6.5 and 4.5; provisional."
+    },
+    {
+      "id": "staged-ordered",
+      "kind": "staged.ordered",
+      "weight": 10,
+      "note": "GDD 14.4 to 14.6; provisional."
+    },
+    {
+      "id": "staged-opened",
+      "kind": "staged.opened",
+      "weight": 50,
+      "note": "GDD 14.4 to 14.6; provisional."
+    },
+    {
+      "id": "staged-closed",
+      "kind": "staged.closed",
+      "weight": 30,
+      "note": "GDD 14.4 to 14.6; provisional."
+    },
+    {
+      "id": "crate-opened",
+      "kind": "crate.opened",
+      "weight": 5,
+      "note": "GDD 14.4 to 14.6; provisional."
+    },
+    {
+      "id": "vault-taken",
+      "kind": "vault.taken",
+      "weight": 40,
+      "note": "GDD 14.4 to 14.6; provisional."
+    },
+    {
+      "id": "name-renamed",
+      "kind": "name.renamed",
+      "weight": 10,
+      "note": "GDD 14.4 to 14.6; provisional."
     }
   ]
 }

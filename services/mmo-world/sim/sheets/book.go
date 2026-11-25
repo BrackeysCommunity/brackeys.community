@@ -112,7 +112,10 @@ type Book struct {
 	LegendTraits    []LegendTrait  `sheet:"emergence.legend-traits" doc:"The traits a legend may carry."`
 	EmergenceParams []Param        `sheet:"emergence.params" doc:"Decay keeping, roads, tolls, caravans, adaptation, legends and the measures."`
 
-	LiveOpsParams []Param `sheet:"liveops.params" doc:"Pool cap and refill, prices, the staged xp allowance."`
+	LiveOpsParams    []Param         `sheet:"liveops.params" doc:"Pool cap and refill, prices, the staged xp allowance."`
+	LiveOpsTemplates []StageTemplate `sheet:"liveops.templates" doc:"What a server's staff and admins may stage, what it costs and what it rolls (GDD 14.4)."`
+	LiveOpsDrops     []DropRow       `sheet:"liveops.drops" doc:"The tables staged crates, prizes and hauls roll, as staged goods (GDD 14.4)."`
+	LiveOpsContests  []ContestRow    `sheet:"liveops.contests" doc:"Contests a staging posts as Each goals, and those a fair runs (GDD 14.3)."`
 
 	Vocabulary []Vocab   `sheet:"tags.vocabulary" doc:"Every tag."`
 	Measures   []Measure `sheet:"tags.measures" doc:"Numbers a rule can test or scale."`
@@ -328,7 +331,7 @@ func (b *Book) Validate() error {
 			errs = append(errs, checkValue(row, where, has)...)
 		}
 	}
-	for _, p := range slices.Concat(b.delveProblems(), b.contentProblems(), b.storyProblems(), b.emergenceProblems(), b.crimeProblems()) {
+	for _, p := range slices.Concat(b.delveProblems(), b.contentProblems(), b.storyProblems(), b.emergenceProblems(), b.crimeProblems(), b.liveopsProblems()) {
 		errs = append(errs, errors.New(p))
 	}
 	return errors.Join(errs...)

@@ -14,7 +14,8 @@
         "dungeon",
         "floors",
         "lead",
-        "stock"
+        "stock",
+        "ground"
       ],
       "note": "Designers stage the world itself: any field, anywhere, without a cap."
     },
@@ -27,9 +28,10 @@
         "site",
         "site-kind",
         "landmark",
-        "lead"
+        "lead",
+        "ground"
       ],
-      "note": "A server's admins stage places, never goods: one a day per server (GDD 14.5)."
+      "note": "A server's admins stage places and ground, never goods: one a day per server (GDD 14.5)."
     },
     {
       "id": "staff",

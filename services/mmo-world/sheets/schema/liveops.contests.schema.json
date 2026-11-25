@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "liveops.contests",
+  "title": "liveops.contests",
+  "description": "Contests a staging posts as Each goals, and those a fair runs (GDD 14.3).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "liveops.contests"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "verb",
+          "count",
+          "target",
+          "most",
+          "prize",
+          "days",
+          "note"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "verb": {
+            "type": "string",
+            "enum": [
+              "defeat",
+              "make",
+              "reach"
+            ],
+            "x-unit": "enum"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "count"
+          },
+          "target": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "defeat: a creatures.archetypes id; make: a tags.vocabulary tag; reach: a distance in tiles from the settlement."
+          },
+          "most": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "count",
+            "description": "Winners, at most goals.params each-cap."
+          },
+          "prize": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id",
+            "description": "The liveops.drops table each winner rolls."
+          },
+          "fair": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "A fair runs it."
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "days"
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

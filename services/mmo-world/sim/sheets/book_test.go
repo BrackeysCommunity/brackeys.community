@@ -45,7 +45,9 @@ func TestContentSheets(t *testing.T) {
 			t.Errorf("%s: %+v", role, l)
 		}
 	}
-	if len(limits["designer"].Fields) != 7 || len(limits["admin"].Fields) != 4 {
+	if len(limits["designer"].Fields) != 8 || len(limits["admin"].Fields) != 5 ||
+		!slices.Contains(limits["designer"].Fields, sheets.FieldGround) || !slices.Contains(limits["admin"].Fields, sheets.FieldGround) ||
+		slices.Contains(limits["staff"].Fields, sheets.FieldGround) {
 		t.Errorf("designer fields %v, admin fields %v", limits["designer"].Fields, limits["admin"].Fields)
 	}
 	for id, want := range map[string]int64{
@@ -130,15 +132,19 @@ func TestContentProblems(t *testing.T) {
 		{limits, `"role": "admin",
       "reachMax": 12,`, `"role": "admin",
       "reachMax": 13,`, "admin: reaches past the designer's", false},
-		{limits, `"site-kind",
-        "landmark",
-        "lead"
+		{limits, `"lead",
+        "ground"
       ],
-      "note": "A server's`, `"site-kind",
-        "landmark",
+      "note": "A server's`, `"lead",
         "stock"
       ],
       "note": "A server's`, "admin: a staged pin sets no stock, dungeon or floors", false},
+		{limits, `"lead"
+      ],
+      "points": 60,`, `"lead",
+        "ground"
+      ],
+      "points": 60,`, "staff: staff pin no ground", false},
 		{limits, `"perDay": 1,`, `"perDay": 1,
       "points": 5,`, "admin: only staff pins cost points", false},
 		{params, `"id": "history-radius",

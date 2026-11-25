@@ -67,7 +67,8 @@
                 "dungeon",
                 "floors",
                 "lead",
-                "stock"
+                "stock",
+                "ground"
               ]
             },
             "uniqueItems": true,

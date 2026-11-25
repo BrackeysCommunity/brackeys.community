@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "liveops.templates",
+  "title": "liveops.templates",
+  "description": "What a server's staff and admins may stage, what it costs and what it rolls (GDD 14.4).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "liveops.templates"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "points",
+          "days",
+          "note"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "contest",
+              "hardship",
+              "drop",
+              "hunt",
+              "fair",
+              "vault",
+              "pattern"
+            ],
+            "x-unit": "enum"
+          },
+          "points": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "event-points",
+            "description": "What staff pay from the pool; admins pay nothing."
+          },
+          "staff": {
+            "type": "boolean",
+            "x-unit": "flag",
+            "description": "Staff may stage it."
+          },
+          "tier": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "tier"
+          },
+          "crates": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "count"
+          },
+          "table": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id",
+            "description": "The liveops.drops table its crates, prizes or haul roll."
+          },
+          "trouble": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "story.troubles"
+          },
+          "family": {
+            "type": "string",
+            "x-unit": "ref",
+            "x-ref": "puzzles.families"
+          },
+          "level": {
+            "type": "integer",
+            "minimum": 0,
+            "x-unit": "level"
+          },
+          "patterns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "x-unit": "refs",
+            "x-ref": "story.pattern-puzzles"
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 1,
+            "x-unit": "days"
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}

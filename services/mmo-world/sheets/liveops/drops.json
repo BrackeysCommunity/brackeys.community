@@ -1,0 +1,278 @@
+{
+  "$schema": "../schema/liveops.drops.schema.json",
+  "sheet": "liveops.drops",
+  "rows": [
+    {
+      "id": "crate-small-copper-ore",
+      "table": "crate-small",
+      "material": "copper-ore",
+      "weight": 3,
+      "min": 1,
+      "max": 3
+    },
+    {
+      "id": "crate-small-timber",
+      "table": "crate-small",
+      "material": "timber",
+      "weight": 3,
+      "min": 1,
+      "max": 3
+    },
+    {
+      "id": "crate-small-reedflax",
+      "table": "crate-small",
+      "material": "reedflax",
+      "weight": 3,
+      "min": 1,
+      "max": 3
+    },
+    {
+      "id": "crate-small-fieldstone",
+      "table": "crate-small",
+      "material": "fieldstone",
+      "weight": 2,
+      "min": 1,
+      "max": 3
+    },
+    {
+      "id": "crate-small-stalker-hide",
+      "table": "crate-small",
+      "material": "stalker-hide",
+      "weight": 2,
+      "min": 1,
+      "max": 2
+    },
+    {
+      "id": "crate-small-river-clay",
+      "table": "crate-small",
+      "material": "river-clay",
+      "weight": 2,
+      "min": 1,
+      "max": 3
+    },
+    {
+      "id": "crate-small-saltglass",
+      "table": "crate-small",
+      "material": "saltglass",
+      "weight": 1,
+      "min": 1,
+      "max": 1
+    },
+    {
+      "id": "crate-large-bog-iron",
+      "table": "crate-large",
+      "material": "bog-iron",
+      "weight": 3,
+      "min": 2,
+      "max": 4
+    },
+    {
+      "id": "crate-large-timber",
+      "table": "crate-large",
+      "material": "timber",
+      "weight": 3,
+      "min": 2,
+      "max": 4
+    },
+    {
+      "id": "crate-large-stalker-hide",
+      "table": "crate-large",
+      "material": "stalker-hide",
+      "weight": 2,
+      "min": 1,
+      "max": 3
+    },
+    {
+      "id": "crate-large-ember-salt",
+      "table": "crate-large",
+      "material": "ember-salt",
+      "weight": 2,
+      "min": 1,
+      "max": 3
+    },
+    {
+      "id": "crate-large-saltglass",
+      "table": "crate-large",
+      "material": "saltglass",
+      "weight": 2,
+      "min": 1,
+      "max": 2
+    },
+    {
+      "id": "crate-large-marsh-amber",
+      "table": "crate-large",
+      "material": "marsh-amber",
+      "weight": 1,
+      "min": 1,
+      "max": 2
+    },
+    {
+      "id": "crate-large-cinder-ore",
+      "table": "crate-large",
+      "material": "cinder-ore",
+      "weight": 1,
+      "min": 1,
+      "max": 2
+    },
+    {
+      "id": "crate-large-heartwood",
+      "table": "crate-large",
+      "material": "heartwood",
+      "weight": 1,
+      "min": 1,
+      "max": 2
+    },
+    {
+      "id": "prize-contest-saltglass",
+      "table": "prize-contest",
+      "material": "saltglass",
+      "weight": 2,
+      "min": 2,
+      "max": 3
+    },
+    {
+      "id": "prize-contest-marsh-amber",
+      "table": "prize-contest",
+      "material": "marsh-amber",
+      "weight": 2,
+      "min": 1,
+      "max": 3
+    },
+    {
+      "id": "prize-contest-cinder-ore",
+      "table": "prize-contest",
+      "material": "cinder-ore",
+      "weight": 2,
+      "min": 1,
+      "max": 3
+    },
+    {
+      "id": "prize-contest-thick-hide",
+      "table": "prize-contest",
+      "material": "thick-hide",
+      "weight": 2,
+      "min": 1,
+      "max": 3
+    },
+    {
+      "id": "prize-contest-heartwood",
+      "table": "prize-contest",
+      "material": "heartwood",
+      "weight": 2,
+      "min": 1,
+      "max": 3
+    },
+    {
+      "id": "prize-hardship-bog-iron",
+      "table": "prize-hardship",
+      "material": "bog-iron",
+      "weight": 2,
+      "min": 2,
+      "max": 4
+    },
+    {
+      "id": "prize-hardship-timber",
+      "table": "prize-hardship",
+      "material": "timber",
+      "weight": 2,
+      "min": 2,
+      "max": 4
+    },
+    {
+      "id": "prize-hardship-ember-salt",
+      "table": "prize-hardship",
+      "material": "ember-salt",
+      "weight": 2,
+      "min": 1,
+      "max": 3
+    },
+    {
+      "id": "prize-hardship-reed-ash",
+      "table": "prize-hardship",
+      "material": "reed-ash",
+      "weight": 1,
+      "min": 1,
+      "max": 3
+    },
+    {
+      "id": "prize-hardship-thick-hide",
+      "table": "prize-hardship",
+      "material": "thick-hide",
+      "weight": 1,
+      "min": 1,
+      "max": 2
+    },
+    {
+      "id": "vault-haul-chips",
+      "table": "vault-haul",
+      "material": "chips",
+      "weight": 3,
+      "min": 2,
+      "max": 4
+    },
+    {
+      "id": "vault-haul-cinder-ore",
+      "table": "vault-haul",
+      "material": "cinder-ore",
+      "weight": 2,
+      "min": 2,
+      "max": 4
+    },
+    {
+      "id": "vault-haul-saltglass",
+      "table": "vault-haul",
+      "material": "saltglass",
+      "weight": 2,
+      "min": 2,
+      "max": 3
+    },
+    {
+      "id": "vault-haul-marsh-amber",
+      "table": "vault-haul",
+      "material": "marsh-amber",
+      "weight": 1,
+      "min": 1,
+      "max": 3
+    },
+    {
+      "id": "pattern-cache-chips",
+      "table": "pattern-cache",
+      "material": "chips",
+      "weight": 2,
+      "min": 2,
+      "max": 4
+    },
+    {
+      "id": "pattern-cache-heartwood",
+      "table": "pattern-cache",
+      "material": "heartwood",
+      "weight": 2,
+      "min": 2,
+      "max": 4
+    },
+    {
+      "id": "pattern-cache-thick-hide",
+      "table": "pattern-cache",
+      "material": "thick-hide",
+      "weight": 2,
+      "min": 2,
+      "max": 3
+    },
+    {
+      "id": "pattern-cache-marsh-amber",
+      "table": "pattern-cache",
+      "material": "marsh-amber",
+      "weight": 2,
+      "min": 2,
+      "max": 3
+    },
+    {
+      "id": "pattern-cache-saltglass",
+      "table": "pattern-cache",
+      "material": "saltglass",
+      "weight": 1,
+      "min": 2,
+      "max": 3
+    }
+  ]
+}

@@ -1,5 +1,78 @@
 {
   "$schema": "../schema/liveops.params.schema.json",
   "sheet": "liveops.params",
-  "rows": []
+  "rows": [
+    {
+      "id": "pool-cap",
+      "value": 400,
+      "unit": "event-points",
+      "doc": "A settlement's staff pool holds at most this (GDD 14.3)."
+    },
+    {
+      "id": "pool-refill",
+      "value": 20,
+      "unit": "event-points",
+      "doc": "Added to each pool at the world day."
+    },
+    {
+      "id": "pool-per-active",
+      "value": 4,
+      "unit": "count",
+      "doc": "Plus one event point per this many active characters of the server."
+    },
+    {
+      "id": "staged-xp",
+      "value": 150,
+      "unit": "xp",
+      "doc": "Experience from staged fights per character per world day (GDD 14.5)."
+    },
+    {
+      "id": "crate-cap",
+      "value": 3,
+      "unit": "count",
+      "doc": "Crates one character may open from one drop."
+    },
+    {
+      "id": "stage-lead-days",
+      "value": 7,
+      "unit": "days",
+      "doc": "How far ahead a staging may open."
+    },
+    {
+      "id": "stage-days-max",
+      "value": 7,
+      "unit": "days",
+      "doc": "How long a staging may last."
+    },
+    {
+      "id": "live-stages-most",
+      "value": 24,
+      "unit": "count",
+      "doc": "Live stages a settlement may hold at once."
+    },
+    {
+      "id": "queue-kept",
+      "value": 200,
+      "unit": "count",
+      "doc": "Cases a server's queue keeps."
+    },
+    {
+      "id": "reports-per-day",
+      "value": 5,
+      "unit": "count",
+      "doc": "Reports a character may make to one server in a world day."
+    },
+    {
+      "id": "hold-days-max",
+      "value": 56,
+      "unit": "days",
+      "doc": "The longest mute, suspension or exclusion with an end."
+    },
+    {
+      "id": "ground-check-tiles",
+      "value": 12,
+      "unit": "tiles",
+      "doc": "A terrain pin's reachability check looks this far round it."
+    }
+  ]
 }

@@ -50,7 +50,7 @@ type PinLimit struct {
 	Role     string   `json:"role" unit:"enum" enum:"designer|admin|staff"`
 	ReachMax int64    `json:"reachMax" unit:"tiles" min:"1"`
 	PerDay   int64    `json:"perDay" unit:"count" min:"0" doc:"Pins an issuer may make in a world day; 0 means no cap."`
-	Fields   []string `json:"fields" unit:"enum" enum:"site|landmark|site-kind|dungeon|floors|lead|stock"`
+	Fields   []string `json:"fields" unit:"enum" enum:"site|landmark|site-kind|dungeon|floors|lead|stock|ground"`
 	Points   int64    `json:"points,omitempty" unit:"event-points" min:"0" doc:"Event points a staff pin costs, recorded on its label."`
 	Note     string   `json:"note" unit:"text"`
 }
@@ -60,6 +60,8 @@ const LeadRegion = "region"
 
 // PinRoleDesigner is the role whose reach bounds every other's.
 const PinRoleDesigner = "designer"
+
+const pinRoleStaff = "staff"
 
 // BandLines are a gauge's distinct line values, rising. A region's band in
 // that gauge is how many of them its value is at or above.
@@ -77,6 +79,10 @@ func BandLines(lines []GaugeLine, gauge string) []int64 {
 // stagedOnly are the fields a staged pin may never set: each would put
 // goods or a delve in play (GDD 14.5).
 var stagedOnly = []string{"stock", "dungeon", "floors"}
+
+// FieldGround is a terrain pin's field. Staff never pin ground: terrain is
+// the most shared change, and no event-point price exists for it.
+const FieldGround = "ground"
 
 // contentProblems checks the content and pin sheets against each other
 // and against the sheets they name.
@@ -200,7 +206,10 @@ func (b *Book) contentProblems() []string {
 		if l.Role != PinRoleDesigner && slices.ContainsFunc(l.Fields, func(s string) bool { return slices.Contains(stagedOnly, s) }) {
 			p = append(p, "map.pin-limits "+l.ID+": a staged pin sets no stock, dungeon or floors")
 		}
-		if l.Points > 0 && l.Role != "staff" {
+		if l.Role == pinRoleStaff && slices.Contains(l.Fields, FieldGround) {
+			p = append(p, "map.pin-limits "+l.ID+": staff pin no ground")
+		}
+		if l.Points > 0 && l.Role != pinRoleStaff {
 			p = append(p, "map.pin-limits "+l.ID+": only staff pins cost points")
 		}
 	}

@@ -1,0 +1,114 @@
+{
+  "$schema": "../schema/liveops.templates.schema.json",
+  "sheet": "liveops.templates",
+  "rows": [
+    {
+      "id": "contest",
+      "kind": "contest",
+      "points": 30,
+      "staff": true,
+      "days": 3,
+      "note": "A contest on the settlement's board in Each mode; its condition and prize come from a liveops.contests row (GDD 14.3). Provisional."
+    },
+    {
+      "id": "storm",
+      "kind": "hardship",
+      "points": 40,
+      "staff": true,
+      "table": "prize-hardship",
+      "trouble": "shortage",
+      "days": 1,
+      "note": "A staged storm: a shortage the settlement answers for staged prizes, never coin. Provisional."
+    },
+    {
+      "id": "scare",
+      "kind": "hardship",
+      "points": 40,
+      "staff": true,
+      "table": "prize-hardship",
+      "trouble": "panic",
+      "days": 1,
+      "note": "A staged scare: a panic the settlement answers for staged prizes. Provisional."
+    },
+    {
+      "id": "drill",
+      "kind": "hardship",
+      "points": 40,
+      "staff": true,
+      "table": "prize-hardship",
+      "trouble": "raid",
+      "days": 1,
+      "note": "A staged drill: a raid the settlement answers for staged prizes. Provisional."
+    },
+    {
+      "id": "drop-small",
+      "kind": "drop",
+      "points": 60,
+      "staff": true,
+      "crates": 40,
+      "table": "crate-small",
+      "days": 2,
+      "note": "A small drop of crates on one tile (GDD 14.4). Provisional."
+    },
+    {
+      "id": "hunt-2",
+      "kind": "hunt",
+      "points": 80,
+      "staff": true,
+      "tier": 2,
+      "days": 2,
+      "note": "A tier 2 hunt of a world hunt's creature. Provisional."
+    },
+    {
+      "id": "fair",
+      "kind": "fair",
+      "points": 120,
+      "staff": true,
+      "crates": 40,
+      "table": "crate-small",
+      "days": 1,
+      "note": "A fair: every fair contest and a small drop for one world day. Provisional."
+    },
+    {
+      "id": "hunt-3",
+      "kind": "hunt",
+      "points": 140,
+      "staff": true,
+      "tier": 3,
+      "days": 2,
+      "note": "A tier 3 hunt of a world hunt's creature. Provisional."
+    },
+    {
+      "id": "drop-large",
+      "kind": "drop",
+      "points": 150,
+      "staff": true,
+      "crates": 120,
+      "table": "crate-large",
+      "days": 2,
+      "note": "A large drop of crates on one tile (GDD 14.4). Provisional."
+    },
+    {
+      "id": "vault",
+      "kind": "vault",
+      "points": 60,
+      "staff": true,
+      "table": "vault-haul",
+      "family": "circuit",
+      "level": 2,
+      "days": 2,
+      "note": "A competing vault: one fork machine two parties race for; the first solve takes the haul. Priced as a small drop. Provisional."
+    },
+    {
+      "id": "pattern",
+      "kind": "pattern",
+      "points": 0,
+      "table": "pattern-cache",
+      "patterns": [
+        "second-triangle"
+      ],
+      "days": 7,
+      "note": "An admin's pattern: the triangle laid by its shape around a tile, with no chain; its solve pays a staged cache. Admins only."
+    }
+  ]
+}

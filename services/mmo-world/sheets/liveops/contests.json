@@ -1,0 +1,49 @@
+{
+  "$schema": "../schema/liveops.contests.schema.json",
+  "sheet": "liveops.contests",
+  "rows": [
+    {
+      "id": "rat-cull",
+      "verb": "defeat",
+      "count": 5,
+      "target": "reed-rat",
+      "most": 10,
+      "prize": "prize-contest",
+      "fair": true,
+      "days": 3,
+      "note": "Defeat five reed rats; the first ten win. Provisional."
+    },
+    {
+      "id": "blade-smith",
+      "verb": "make",
+      "count": 1,
+      "target": "blade",
+      "most": 10,
+      "prize": "prize-contest",
+      "fair": true,
+      "days": 3,
+      "note": "Make a blade; the first ten win. Provisional."
+    },
+    {
+      "id": "far-walk",
+      "verb": "reach",
+      "count": 1,
+      "target": "12",
+      "most": 10,
+      "prize": "prize-contest",
+      "fair": true,
+      "days": 3,
+      "note": "Reach a tile 12 tiles from the settlement; the first ten win. Provisional."
+    },
+    {
+      "id": "hound-hunt",
+      "verb": "defeat",
+      "count": 3,
+      "target": "cinder-hound",
+      "most": 5,
+      "prize": "prize-contest",
+      "days": 3,
+      "note": "Defeat three cinder hounds; the first five win. Provisional."
+    }
+  ]
+}
