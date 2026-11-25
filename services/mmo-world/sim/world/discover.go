@@ -29,9 +29,20 @@ func (s *State) Reach(log fact.Log, h hex.Hex, t int64) error {
 	}
 	d := s.DigestAt(h, t)
 	key := d.Key()
-	dr := s.g.Content(h, site, d, key)
+	// A terrain pin's ground lands with the tile's first reach, and the
+	// lead is drawn for the ground it lands.
+	gp := s.groundPinAt(h, t)
+	var dr gen.Drawn
+	if gp != nil {
+		dr = s.g.ContentOn(h, s.g.GroundTile(h, groundOf(gp.Fix.Ground)), site, d, key)
+	} else {
+		dr = s.g.Content(h, site, d, key)
+	}
 	c := contentOf(dr)
 	c.Drawn, c.Key, c.Digest = t, key, &d
+	if gp != nil && gp != p {
+		s.landRing(&c, gp)
+	}
 	if p != nil {
 		if err := s.applyFix(&c, h, p, t, log); err != nil {
 			return err
@@ -57,6 +68,7 @@ func (s *State) Content(h hex.Hex) *tile.Content {
 // setContent stores a tile's content and lists the tile as edited.
 func (s *State) setContent(h hex.Hex, c *tile.Content) {
 	s.touch(h).Content = c
+	s.noteGround(h, c)
 	s.MarkEdited(h)
 }
 

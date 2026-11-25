@@ -19,7 +19,7 @@ func TerrainTags(t *sheets.Terrain) []tags.Tag {
 // and what the weather leaves, and what its stored state says (fire,
 // corruption, local weather). Each tag says where it came from.
 func (s *State) Place(h hex.Hex) tags.TagSet {
-	t := s.g.Baseline(h)
+	t := s.Baseline(h)
 	ter := s.terrain(t.Terrain)
 	var set tags.TagSet
 	add := func(from tags.Source, ts ...string) {
@@ -78,7 +78,7 @@ func (s *State) terrain(id string) *sheets.Terrain {
 // terrain's sight, cut by a dead zone, lengthened on high ground under a
 // clear sky.
 func (s *State) Sight(h hex.Hex) int64 {
-	t := s.g.Baseline(h)
+	t := s.Baseline(h)
 	sight := s.terrain(t.Terrain).Sight
 	if e, kind := s.weatherAt(h); kind != "" {
 		if e.Sight > 0 {
@@ -95,12 +95,12 @@ func (s *State) Sight(h hex.Hex) int64 {
 // neighbour now: the baseline, the weather's crossing cost on rivers and
 // wet ground, plus its drag. ok is false onto impassable terrain.
 func (s *State) EnterTicks(from, to hex.Hex) (cost int64, ok bool) {
-	t := s.g.Baseline(to)
+	t := s.Baseline(to)
 	ter := s.terrain(t.Terrain)
 	if !ter.Passable {
 		return 0, false
 	}
-	cost = s.g.StepTicks(t.Terrain, t.River && s.g.Baseline(from).River, t.River)
+	cost = s.g.StepTicks(t.Terrain, t.River && s.Baseline(from).River, t.River)
 	if e, kind := s.weatherAt(to); kind != "" {
 		if e.CrossTicks > 0 && (t.River || ter.Wet()) {
 			cost = e.CrossTicks

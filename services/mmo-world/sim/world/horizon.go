@@ -247,7 +247,7 @@ func (s *State) seatFactions(d *day) {
 		seat := none
 		for _, r := range order {
 			reg := s.Regions[r]
-			if reg.Settlement || reg.Holder != none || !passable(s.g, reg.Lattice) {
+			if reg.Settlement || reg.Holder != none || !s.passable(reg.Lattice) {
 				continue
 			}
 			ok := true

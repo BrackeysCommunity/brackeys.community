@@ -187,6 +187,7 @@ func TestAPIMatchesRules(t *testing.T) {
 		{api.CodePinGround, simworld.CodePinGround}, {api.CodePinPath, simworld.CodePinPath}, {api.CodePinFix, simworld.CodePinFix},
 		{api.CodePinBudget, simworld.CodePinBudget}, {api.CodePinAnchor, simworld.CodePinAnchor}, {api.CodePinTaken, simworld.CodePinTaken},
 		{api.CodePinEntered, simworld.CodePinEntered}, {api.CodePinGone, simworld.CodePinGone}, {api.CodeAlreadyFrozen, simworld.CodeAlreadyFrozen},
+		{api.CodePinRoute, simworld.CodePinRoute}, {api.CodePinCut, simworld.CodePinCut}, {api.CodePinWorld, simworld.CodePinWorld},
 		{api.ActSteal, game.Steal}, {api.ActFence, game.Fence}, {api.ActPayFine, game.PayFine}, {api.ActFlee, game.Flee},
 		{api.TheftLift, game.KindLift}, {api.TheftBurgle, game.KindBurgle}, {api.TheftWaylay, game.KindWaylay}, {api.TheftFlee, game.KindFlee},
 		{api.CodeNoTarget, game.NoTarget}, {api.CodeNothingToSteal, game.NothingToSteal}, {api.CodeStoppedByWatch, game.StoppedCode},

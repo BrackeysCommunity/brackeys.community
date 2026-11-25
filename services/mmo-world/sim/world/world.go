@@ -93,10 +93,12 @@ type State struct {
 	tileAt    map[hex.Hex]int
 	gauge     map[string]int
 	// Never saved: edited is the tiles whose content changed since the last
-	// Advance; pinCells and findsIn are indexes rebuilt on demand after Pins
-	// or Finds change; arriving is the running tick's arrivals, nil outside Advance.
+	// Advance; pinCells, grounds and findsIn are indexes rebuilt on demand
+	// after Pins, Tiles or Finds change; arriving is the running tick's
+	// arrivals, nil outside Advance.
 	edited    map[hex.Hex]bool
 	pinCells  map[pinCell][]int
+	grounds   map[hex.Hex]gen.Ground
 	findsIn   map[gen.LatticeID][]int
 	findsSeen int
 	arriving  *arrivals
@@ -146,6 +148,7 @@ func (s *State) Attach(b *sheets.Book, g *gen.Gen, key draw.Key) {
 	for i, t := range s.Tiles {
 		s.tileAt[t.Hex] = i
 	}
+	s.grounds = nil
 }
 
 // Gen is the generator the world reads its baseline from.
@@ -294,8 +297,8 @@ func (s *State) parts(list string) []string {
 	return out
 }
 
-func passable(g *gen.Gen, id gen.LatticeID) bool {
-	return slices.ContainsFunc(g.RegionTiles(id), func(h hex.Hex) bool { return g.Passable(g.Baseline(h).Terrain) })
+func (s *State) passable(id gen.LatticeID) bool {
+	return slices.ContainsFunc(s.g.RegionTiles(id), func(h hex.Hex) bool { return s.g.Passable(s.Baseline(h).Terrain) })
 }
 
 // furnish stands a starting settlement's opening structures on its tile:

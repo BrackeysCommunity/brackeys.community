@@ -32,6 +32,7 @@ type Content struct {
 	Dungeon  *Plan            `json:"dungeon,omitempty"`
 	Pin      string           `json:"pin,omitempty"`
 	Placed   *Placed          `json:"placed,omitempty"`
+	Ground   *GroundFix       `json:"ground,omitempty"` // a terrain pin's ground, over the scaffold's; never Ring
 }
 
 // Plan is a dungeon's stored plan; a native one keeps no floors.
@@ -78,13 +79,21 @@ type Placed struct {
 
 // Fix is what a pin sets; "" and 0 leave a field to the draw.
 type Fix struct {
-	Site     string `json:"site,omitempty"`
-	Landmark string `json:"landmark,omitempty"`
-	SiteKind string `json:"siteKind,omitempty"`
-	Dungeon  string `json:"dungeon,omitempty"`
-	Floors   int64  `json:"floors,omitempty"`
-	Lead     string `json:"lead,omitempty"`
-	Stock    string `json:"stock,omitempty"` // map.stock-bands row
+	Site     string     `json:"site,omitempty"`
+	Landmark string     `json:"landmark,omitempty"`
+	SiteKind string     `json:"siteKind,omitempty"`
+	Dungeon  string     `json:"dungeon,omitempty"`
+	Floors   int64      `json:"floors,omitempty"`
+	Lead     string     `json:"lead,omitempty"`
+	Stock    string     `json:"stock,omitempty"` // map.stock-bands row
+	Ground   *GroundFix `json:"ground,omitempty"`
+}
+
+// GroundFix is a terrain pin's fix: its tile, or its tile and ring.
+type GroundFix struct {
+	Terrain   string `json:"terrain"`
+	Elevation int64  `json:"elevation,omitempty"` // 0 keeps the tile's own
+	Ring      bool   `json:"ring,omitempty"`
 }
 
 // Empty reports whether the fix sets nothing.

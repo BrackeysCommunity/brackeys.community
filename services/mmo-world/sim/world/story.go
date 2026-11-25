@@ -396,7 +396,7 @@ func (s *State) splitSeat(pi int, taken []int) int {
 	spacing := s.p("seat-spacing")
 	far, farthest := none, int64(0)
 	for _, r := range taken {
-		if !passable(s.g, s.Regions[r].Lattice) {
+		if !s.passable(s.Regions[r].Lattice) {
 			continue
 		}
 		spaced := true

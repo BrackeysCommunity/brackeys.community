@@ -280,6 +280,7 @@ func (s *State) fields(f tile.Fix) []string {
 	add(f.Floors != 0, fieldFloors)
 	add(f.Lead != "", fieldLead)
 	add(f.Stock != "", fieldStock)
+	add(f.Ground != nil, sheets.FieldGround)
 	return out
 }
 
@@ -300,6 +301,11 @@ func (s *State) CheckPin(at hex.Hex, reach int64, fix tile.Fix, by PinBy, edit b
 	if err := s.checkAnchor(at, by); err != nil {
 		return err
 	}
+	if fix.Ground != nil {
+		if err := s.checkTerrain(at, fix, by, edit); err != nil {
+			return err
+		}
+	}
 	if edit && s.Content(at) == nil {
 		return refuse(CodePinUnseen, "nobody has reached %s", at.Ref())
 	}
@@ -319,10 +325,16 @@ func (s *State) CheckPin(at hex.Hex, reach int64, fix tile.Fix, by PinBy, edit b
 		return refuse(CodePinEntered, "the dungeon on %s has been entered", at.Ref())
 	}
 	walk := s.mp("pin-path-tiles")
-	if !s.pathFrom(at, walk) {
+	if !s.pathOver(at, walk, fix.Ground) {
 		return refuse(CodePinPath, "no known ground within %d tiles of %s", walk, at.Ref())
 	}
-	return s.checkBudget(at, fix, by, limit)
+	if err := s.checkBudget(at, fix, by, limit); err != nil {
+		return err
+	}
+	if fix.Ground != nil {
+		return s.checkRelay(at, fix.Ground)
+	}
+	return nil
 }
 
 // checkAnchor holds a server's pin to its settlement's region and label.
@@ -345,7 +357,7 @@ func (s *State) checkAnchor(at hex.Hex, by PinBy) error {
 // settlement or a pattern's part, and a slot or landmark on a tile that
 // holds one already.
 func (s *State) checkGround(at hex.Hex, fix tile.Fix) error {
-	b := s.g.Baseline(at)
+	b := s.Baseline(at)
 	occupied := s.slotOf(at) != "" || s.landmarkOn(at) != ""
 	switch {
 	case !s.g.Passable(b.Terrain):
@@ -369,7 +381,10 @@ func (s *State) checkFix(at hex.Hex, fix tile.Fix, limit *sheets.PinLimit, edit 
 			return refuse(CodePinFix, "a %s may not set %s", limit.Role, f)
 		}
 	}
-	b := s.g.Baseline(at)
+	b := s.pending(at)
+	if fix.Ground != nil {
+		b = s.g.GroundTile(at, groundOf(fix.Ground))
+	}
 	site := fix.Site
 	if site == "" {
 		site = s.slotOf(at)
@@ -416,7 +431,7 @@ func (s *State) checkFix(at hex.Hex, fix tile.Fix, limit *sheets.PinLimit, edit 
 	if fix.Floors != 0 && !s.floorsFit(site, kind, fix.Floors) {
 		return refuse(CodePinFix, "%d floors do not fit a dungeon here", fix.Floors)
 	}
-	if fix.Lead != "" && !slices.Contains(s.g.Archetypes(at), fix.Lead) {
+	if fix.Lead != "" && !slices.Contains(s.g.ArchetypesOf(b.Terrain), fix.Lead) {
 		return refuse(CodePinFix, "%s does not live on %s", fix.Lead, at.Ref())
 	}
 	if fix.Stock != "" {
@@ -458,8 +473,22 @@ func (s *State) entered(h hex.Hex) bool {
 
 // pathFrom reports whether a walk over passable ground from h, within
 // pin-path-tiles, meets a discovered tile or a starting settlement.
-func (s *State) pathFrom(h hex.Hex, most int64) bool {
-	step := func(_, n hex.Hex) (int64, bool) { return 1, s.g.Passable(s.g.Baseline(n).Terrain) }
+func (s *State) pathFrom(h hex.Hex, most int64) bool { return s.pathOver(h, most, nil) }
+
+// pathOver is pathFrom with a terrain pin's patch round h laid, at its
+// worst: a patch tile passes only where the ground and the tile both do.
+func (s *State) pathOver(h hex.Hex, most int64, f *tile.GroundFix) bool {
+	var patch []hex.Hex
+	if f != nil {
+		patch = patchOf(h, f)
+	}
+	step := func(_, n hex.Hex) (int64, bool) {
+		ok := s.g.Passable(s.Baseline(n).Terrain)
+		if slices.Contains(patch, n) {
+			ok = ok && s.g.Passable(f.Terrain)
+		}
+		return 1, ok
+	}
 	walked := hex.Reach([]hex.Hex{h}, step, most)
 	for _, at := range hex.DiscAt(h, most) {
 		if _, ok := walked[at]; !ok {
@@ -647,14 +676,25 @@ func (s *State) fix(c *tile.Content, h hex.Hex, p *Pin) {
 			c.Stock = map[string]int64{}
 		}
 	}
-	c.Pin = p.ID
-	if p.By.staged() {
-		by := tile.PlacedAdmins
-		if p.By.Role == PinStaff {
-			by = tile.PlacedStaff
-		}
-		c.Placed = &tile.Placed{By: by, Server: p.By.Server, Label: p.By.Label, Points: p.By.Points}
+	if f.Ground != nil {
+		c.Ground = &tile.GroundFix{Terrain: f.Ground.Terrain, Elevation: f.Ground.Elevation}
 	}
+	c.Pin = p.ID
+	if pl := placedOf(p); pl != nil {
+		c.Placed = pl
+	}
+}
+
+// placedOf says who staged a server's pin, or nil for a designer's.
+func placedOf(p *Pin) *tile.Placed {
+	if !p.By.staged() {
+		return nil
+	}
+	by := tile.PlacedAdmins
+	if p.By.Role == PinStaff {
+		by = tile.PlacedStaff
+	}
+	return &tile.Placed{By: by, Server: p.By.Server, Label: p.By.Label, Points: p.By.Points}
 }
 
 // pinFact writes a pin's fact; only a landing names a region or a tile. A

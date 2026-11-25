@@ -31,7 +31,7 @@ func (s *State) Capacity(h hex.Hex, species string) int64 {
 	if c == nil {
 		return 0
 	}
-	t := s.g.Baseline(h)
+	t := s.Baseline(h)
 	if !slices.Contains(c.Biomes, t.Terrain) {
 		return 0
 	}
@@ -115,7 +115,7 @@ func (s *State) spawnBand(r int) {
 		return
 	}
 	at := base.Centre
-	if !slices.Contains(c.Biomes, s.g.Baseline(at).Terrain) {
+	if !slices.Contains(c.Biomes, s.Baseline(at).Terrain) {
 		return
 	}
 	s.Bands = append(s.Bands, Band{ID: s.NextBand, Species: c.ID, At: at, Count: s.cp("herd-size"), Herd: herd, Region: r})
@@ -130,7 +130,8 @@ func (d *day) moveBand(i int) {
 	b := &s.Bands[i]
 	c := s.creature(b.Species)
 	ok := func(h hex.Hex) bool {
-		return s.RegionAt(h) >= 0 && slices.Contains(c.Biomes, s.g.Baseline(h).Terrain) && s.g.Passable(s.g.Baseline(h).Terrain)
+		t := s.Baseline(h).Terrain
+		return s.RegionAt(h) >= 0 && slices.Contains(c.Biomes, t) && s.g.Passable(t)
 	}
 	var next hex.Hex
 	moved := false

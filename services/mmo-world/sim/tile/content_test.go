@@ -1,6 +1,9 @@
 package tile
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 func TestPlanFloorsInOrder(t *testing.T) {
 	var p Plan
@@ -41,5 +44,33 @@ func TestContentKeepsTileStored(t *testing.T) {
 	}
 	if !(Fix{}).Empty() || (Fix{Floors: 4}).Empty() {
 		t.Fatal("Fix.Empty")
+	}
+}
+
+// A fix or content without ground encodes as it did before ground pins.
+func TestGroundOmitted(t *testing.T) {
+	for _, v := range []any{Fix{Site: "site"}, Content{Drawn: 3, Pin: "pin-1"}} {
+		b, err := json.Marshal(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(b, &m); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := m["ground"]; ok {
+			t.Fatalf("%s carries ground", b)
+		}
+	}
+	f := Fix{Ground: &GroundFix{Terrain: "forest", Ring: true}}
+	if f.Empty() {
+		t.Fatal("a ground fix reads as empty")
+	}
+	b, err := json.Marshal(Content{Ground: &GroundFix{Terrain: "forest"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `{"drawn":0,"ground":{"terrain":"forest"}}`; string(b) != want {
+		t.Fatalf("content ground encodes as %s, not %s", b, want)
 	}
 }
