@@ -325,7 +325,7 @@ func (s *Server) routeRisk(w http.ResponseWriter, r *http.Request) {
 	if !s.withCharErr(w, r, func(c *game.Char) error {
 		route, _, ok := s.g.Route(c, to)
 		if !ok {
-			return notHere("no known way to " + to.Ref())
+			return notHere("no known way there")
 		}
 		out = apiRisk(s.g.RouteRisk(c, route), s.g.PlaceName(to))
 		return nil

@@ -531,7 +531,7 @@ func crateOpen(g *Game, c *Char, cmd Command) error {
 		return refuse(NoStage, "no crates left at %q", cmd.Target)
 	}
 	if c.C.At != st.At || c.C.Floor > 0 {
-		return refuse(BadArgs, "the crates of %s are on %s", st.ID, st.At.Ref())
+		return refuse(BadArgs, "stand on the drop's tile to open a crate")
 	}
 	if err := free(c); err != nil {
 		return err

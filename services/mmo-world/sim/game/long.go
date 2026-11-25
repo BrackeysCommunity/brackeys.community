@@ -211,7 +211,7 @@ func (g *Game) journey(c *Char, cmd Command) ([]hex.Hex, int64, error) {
 	}
 	route, total, ok := g.Route(c, *cmd.To)
 	if !ok {
-		return nil, 0, refuse(NotHere, "no known way to %s", cmd.To.Ref())
+		return nil, 0, refuse(NotHere, "no known way there")
 	}
 	return route, total, nil
 }
