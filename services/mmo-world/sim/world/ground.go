@@ -86,6 +86,12 @@ func (s *State) groundPinAt(h hex.Hex, t int64) *Pin {
 	return nil
 }
 
+// GroundPending reports whether a live terrain pin's patch will land on h
+// at its first reach.
+func (s *State) GroundPending(h hex.Hex) bool {
+	return s.Content(h) == nil && s.groundPinAt(h, s.Tick+1) != nil
+}
+
 // pending is what h will read once a live terrain pin lands on it, and
 // what it reads now everywhere else.
 func (s *State) pending(h hex.Hex) gen.TileBaseline {

@@ -234,7 +234,7 @@ func (g *Game) target(c *Char, cond goal.Condition) error {
 	if cond.At != "" && !g.placed(cond.At) {
 		return refuse(BadArgs, "no place %q", cond.At)
 	}
-	if _, ok := g.r.Gen.Baseline(c.C.At).Fields()[cond.Field]; cond.Field != "" && !ok {
+	if _, ok := g.World.Baseline(c.C.At).Fields()[cond.Field]; cond.Field != "" && !ok {
 		return refuse(BadArgs, "no field %q", cond.Field)
 	}
 	if err := g.reachable(cond); err != nil {

@@ -100,7 +100,7 @@ func (g *Game) CanRest(h hex.Hex) bool { return g.IsSettlement(h) }
 func (g *Game) CanExplore(h hex.Hex) bool { return g.explorable(h, g.slot(h)) }
 
 func (g *Game) explorable(h hex.Hex, site string) bool {
-	return site != "" && site != gen.PlaceSettlement && len(g.r.Gen.Archetypes(h)) > 0 && !g.FloorCleared(h)
+	return site != "" && site != gen.PlaceSettlement && len(g.r.Gen.ArchetypesOf(g.World.Baseline(h).Terrain)) > 0 && !g.FloorCleared(h)
 }
 
 // FloorCleared reports whether a dungeon's first floor is cleared and not

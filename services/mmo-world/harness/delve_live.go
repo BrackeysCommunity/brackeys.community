@@ -22,11 +22,11 @@ import (
 	"jams.team/mmo-world/service"
 	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/game"
-	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/puzzle"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/tile"
+	"jams.team/mmo-world/sim/world"
 )
 
 // The delve run (GDD 4.9, 7.5, 7.6, 7.11): on a live, disposable world, a
@@ -188,7 +188,7 @@ func DelveRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	if d.entrance, ok = firstTierEntrance(founded, home); !ok {
 		return nil, fmt.Errorf("no dungeon entrance in a first-tier region within %d tiles of the first settlement", delveSearch)
 	}
-	if d.huntAt, ok = passableBeside(r.Gen, home); !ok {
+	if d.huntAt, ok = passableBeside(founded.World, home); !ok {
 		return nil, errors.New("no passable land beside the first settlement")
 	}
 	wait := delveWait
@@ -260,9 +260,9 @@ func (d *liveDelve) planOnArrival(ctx context.Context) error {
 	return nil
 }
 
-func passableBeside(g *gen.Gen, h hex.Hex) (hex.Hex, bool) {
+func passableBeside(w *world.State, h hex.Hex) (hex.Hex, bool) {
 	for _, n := range h.Neighbours() {
-		if g.Passable(g.Baseline(n).Terrain) {
+		if w.Gen().Passable(w.Baseline(n).Terrain) {
 			return n, true
 		}
 	}

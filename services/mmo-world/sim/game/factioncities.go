@@ -141,7 +141,7 @@ func (g *Game) factionCityTile(r int) (hex.Hex, bool) {
 		if !g.claimable(h, -1) {
 			continue
 		}
-		if e := g.r.Gen.Baseline(h).Elevation; !found || e > top {
+		if e := g.World.Baseline(h).Elevation; !found || e > top {
 			best, top, found = h, e, true
 		}
 	}

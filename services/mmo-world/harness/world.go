@@ -55,7 +55,7 @@ func (e *Explorer) Day(s *world.State, perDay int) []world.Action {
 		}
 		h := e.steps[e.at]
 		e.at++
-		t := s.Gen().Baseline(h)
+		t := s.Baseline(h)
 		if !s.Gen().Passable(t.Terrain) {
 			continue
 		}

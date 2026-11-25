@@ -26,7 +26,7 @@ func (g *Game) riskBand(c *Char, h hex.Hex) (sheets.RouteRisk, int, bool) {
 			i = j
 		}
 	}
-	cover := g.r.Gen.Baseline(h).Cover
+	cover := g.World.Baseline(h).Cover
 	quiet := g.charScale(c, "cover", 0)
 	switch {
 	case i > 0 && quiet > 0 && cover+quiet >= g.mp("cover-raise"):

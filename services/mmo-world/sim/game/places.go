@@ -221,7 +221,7 @@ const (
 
 // freeGround reports whether a tile is passable and holds no site.
 func (g *Game) freeGround(h hex.Hex) bool {
-	return g.slot(h) == "" && g.r.Gen.Passable(g.r.Gen.Baseline(h).Terrain)
+	return g.slot(h) == "" && g.r.Gen.Passable(g.World.Baseline(h).Terrain)
 }
 
 // foundSettlement charters a settlement on the character's tile for its
@@ -578,7 +578,7 @@ func (g *Game) CharterAt(c *Char) CharterView {
 		out.Why = ref.Msg
 	}
 	if g.charScale(c, "sees-fields", 0) > 0 {
-		out.Fields = g.r.Gen.Baseline(c.C.At).Fields()
+		out.Fields = g.World.Baseline(c.C.At).Fields()
 	}
 	return out
 }

@@ -869,7 +869,7 @@ func (g *Game) balance(c *Char, asset string) int64 {
 // sheet's least, rising with fertility to its most, plus one by water
 // (GDD 6.4).
 func (g *Game) ForageYield(h hex.Hex) int64 {
-	b := g.r.Gen.Baseline(h)
+	b := g.World.Baseline(h)
 	lo, hi := g.r.wp("forage-min"), g.r.wp("forage-max")
 	n := lo + (hi-lo)*b.Fertility/fertilityScale
 	if b.Water != gen.WaterNone {

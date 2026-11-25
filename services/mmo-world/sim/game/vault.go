@@ -393,7 +393,7 @@ func (g *Game) layStaged(st *Stage) (*Board, *sheets.PatternPuzzle, error) {
 // knownWithin reports whether a walk over passable ground from h, within
 // most tiles, meets a discovered tile or a starting settlement.
 func (g *Game) knownWithin(h hex.Hex, most int64) bool {
-	step := func(_, n hex.Hex) (int64, bool) { return 1, g.r.Gen.Passable(g.r.Gen.Baseline(n).Terrain) }
+	step := func(_, n hex.Hex) (int64, bool) { return 1, g.r.Gen.Passable(g.World.Baseline(n).Terrain) }
 	walked := hex.Reach([]hex.Hex{h}, step, most)
 	for _, at := range hex.DiscAt(h, most) {
 		if _, ok := walked[at]; !ok {

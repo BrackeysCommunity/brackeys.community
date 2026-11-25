@@ -390,7 +390,7 @@ func (g *Game) Trails(c *Char, h hex.Hex) []Trail {
 // lowWater is what crossing a river under drought costs, when the
 // trigger makes it cheaper (GDD 8.6, Low water).
 func (g *Game) lowWater(to hex.Hex, cost int64) (int64, bool) {
-	b := g.r.Gen.Baseline(to)
+	b := g.World.Baseline(to)
 	if !b.River || b.Water == gen.WaterFord {
 		return cost, false
 	}
@@ -460,7 +460,7 @@ func (g *Game) encounterTags(c *Char, h hex.Hex, arch string) (creature, place [
 	if n := len(c.C.Trail); n >= cameFrom {
 		from := c.C.Trail[n-cameFrom]
 		tr := g.trigger(TrigHigh)
-		if g.r.Gen.Baseline(h).Elevation-g.r.Gen.Baseline(from).Elevation >= tr.Magnitude {
+		if g.World.Baseline(h).Elevation-g.World.Baseline(from).Elevation >= tr.Magnitude {
 			place = append(place, tags.Tag(tr.Tag))
 		}
 	}

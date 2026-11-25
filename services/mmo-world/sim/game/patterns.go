@@ -307,7 +307,7 @@ func (g *Game) openGround(h hex.Hex) bool {
 // chainFree is a tile a placed pattern may stand on: open ground the
 // world has not built on, pinned, reserved, or given to another board.
 func (g *Game) chainFree(h hex.Hex) bool {
-	if !g.openGround(h) || g.PlaceAt(h) != nil || g.World.ReserveAt(h) != nil {
+	if !g.openGround(h) || g.PlaceAt(h) != nil || g.World.ReserveAt(h) != nil || g.World.GroundPending(h) {
 		return false
 	}
 	if c, ok := g.Content(h); ok && (c.Site != "" || c.Landmark != "" || c.Pin != "") {
@@ -727,7 +727,7 @@ func (g *Game) patternSeam(b *Board, n int64, cause fact.ID) {
 // seamMaterial is the highest-tier material gathered on a passable tile,
 // the first listed on a tie.
 func (g *Game) seamMaterial(h hex.Hex) (string, bool) {
-	if !g.r.Gen.Passable(g.r.Gen.Baseline(h).Terrain) {
+	if !g.r.Gen.Passable(g.World.Baseline(h).Terrain) {
 		return "", false
 	}
 	best, tier := "", int64(0)

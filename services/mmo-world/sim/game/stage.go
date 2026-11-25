@@ -231,7 +231,7 @@ func (g *Game) stageSite(settlement int, at hex.Hex) error {
 	switch {
 	case gen.RegionOf(at) != gen.RegionOf(g.SettlementHex(settlement)):
 		return refuse(HouseScope, "%s is outside the region of settlement %d", at.Ref(), settlement)
-	case g.World.RegionAt(at) < 0 || !gen.Passable(gen.Baseline(at).Terrain):
+	case g.World.RegionAt(at) < 0 || !gen.Passable(g.World.Baseline(at).Terrain):
 		return refuse(BadArgs, "a stage stands on passable ground in the awake world")
 	case g.IsSettlement(at):
 		return refuse(BadArgs, "a stage stands outside a settlement")
@@ -513,7 +513,7 @@ func (g *Game) reachTile(settlement int, tiles int64, toward hex.Hex) (hex.Hex, 
 	ring := hex.Ring(home, tiles)
 	slices.SortStableFunc(ring, func(a, b hex.Hex) int { return cmp.Compare(hex.Distance(a, toward), hex.Distance(b, toward)) })
 	for _, h := range ring {
-		if g.World.RegionAt(h) < 0 || !g.r.Gen.Passable(g.r.Gen.Baseline(h).Terrain) || g.IsSettlement(h) {
+		if g.World.RegionAt(h) < 0 || !g.r.Gen.Passable(g.World.Baseline(h).Terrain) || g.IsSettlement(h) {
 			continue
 		}
 		if _, _, ok := g.World.Path(home, h); ok {

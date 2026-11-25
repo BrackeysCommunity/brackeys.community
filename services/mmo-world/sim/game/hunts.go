@@ -69,7 +69,7 @@ func (g *Game) openHuntAs(row string, h hex.Hex, tick int64, why string, o huntO
 		return nil, refuse(NoSuchRow, "no hunt %q in the world's rows", row)
 	}
 	r := g.World.RegionAt(h)
-	if r < 0 || !g.r.Gen.Passable(g.r.Gen.Baseline(h).Terrain) {
+	if r < 0 || !g.r.Gen.Passable(g.World.Baseline(h).Terrain) {
 		return nil, refuse(BadArgs, "a hunt opens on passable land inside the awake regions")
 	}
 	region := world.RegionRef(r)
@@ -373,7 +373,7 @@ func (g *Game) herd(r int, species string) (tiles []hex.Hex, pop, capacity int64
 		}
 		capacity += n
 		pop += g.World.Population(h, species)
-		if b := g.r.Gen.Baseline(h); g.r.Gen.Passable(b.Terrain) && b.Site != gen.PlaceSettlement {
+		if b := g.World.Baseline(h); g.r.Gen.Passable(b.Terrain) && b.Site != gen.PlaceSettlement {
 			tiles = append(tiles, h)
 		}
 	}

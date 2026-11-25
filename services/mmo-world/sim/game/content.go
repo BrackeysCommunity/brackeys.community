@@ -27,11 +27,12 @@ func (g *Game) Creatures(h hex.Hex) []string { return g.hauntedLead(h, g.livesOn
 
 // livesOn are the archetypes a tile's content holds, its lead first.
 func (g *Game) livesOn(h hex.Hex) []string {
-	c, ok := g.Content(h)
-	if !ok || c.Lead == "" {
-		return g.r.Gen.Creatures(h)
+	b := g.World.Baseline(h)
+	lead := g.r.Gen.Region(b.Region).Creature
+	if c, ok := g.Content(h); ok && c.Lead != "" {
+		lead = c.Lead
 	}
-	return g.r.Gen.CreaturesLed(h, c.Lead)
+	return g.r.Gen.CreaturesOn(b.Terrain, lead)
 }
 
 // Plan is the plan of the dungeon whose entrance is h; false where none

@@ -306,7 +306,7 @@ func (g *Game) witnessAmong(c *Char, kind string, h hex.Hex, victim string, peop
 			uprights++
 		}
 	}
-	cover := min(g.r.Gen.Baseline(h).Cover+g.charScale(c, "cover", 0), fixed.Hundredths)
+	cover := min(g.World.Baseline(h).Cover+g.charScale(c, "cover", 0), fixed.Hundredths)
 	more := func(label string, v int64) {
 		if v != 0 {
 			parts = append(parts, fight.Part{Label: label, Value: v})

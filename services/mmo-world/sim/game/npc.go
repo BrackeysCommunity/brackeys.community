@@ -153,7 +153,7 @@ func (g *Game) PeopleHere(c *Char, h hex.Hex) []Person {
 }
 
 func (g *Game) wanderer(h hex.Hex, t int64) (npc.Stub, bool) {
-	b := g.r.Gen.Baseline(h)
+	b := g.World.Baseline(h)
 	if g.IsSettlement(h) || !g.r.Gen.Passable(b.Terrain) {
 		return npc.Stub{}, false
 	}

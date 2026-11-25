@@ -73,7 +73,7 @@ func (g *Game) placePin(at hex.Hex, reach int64, fix tile.Fix, by world.PinBy, e
 }
 
 // groundOverBoard refuses ground laid over a pattern board's point or
-// clue, which the world cannot see.
+// clue, stored or still the scaffold's, which the world cannot see.
 func (g *Game) groundOverBoard(at hex.Hex, f *tile.GroundFix) error {
 	if f == nil || g.Story == nil {
 		return nil
@@ -82,11 +82,12 @@ func (g *Game) groundOverBoard(at hex.Hex, f *tile.GroundFix) error {
 	if f.Ring {
 		patch = append(patch, hex.Ring(at, 1)...)
 	}
-	for _, b := range g.Story.Patterns {
-		for _, h := range patch {
-			if slices.Contains(b.Points, h) || slices.Contains(b.Clues, h) {
-				return refuse(world.CodePinGround, "%s lies on the pattern board %s", h.Ref(), b.ID)
-			}
+	for _, h := range patch {
+		if b, _, ok := g.pointAt(h); ok {
+			return refuse(world.CodePinGround, "%s lies on the pattern board %s", h.Ref(), b.ID)
+		}
+		if bs, _ := g.cluesAt(h); len(bs) > 0 {
+			return refuse(world.CodePinGround, "%s lies on the pattern board %s", h.Ref(), bs[0].ID)
 		}
 	}
 	return nil

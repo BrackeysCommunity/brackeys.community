@@ -146,7 +146,7 @@ func (g *Game) enterCost(c *Char, from, to hex.Hex, tick int64, laden bool, why 
 // ground is what a mount reads of a tile on a world day; a cut road is no
 // road.
 func (g *Game) ground(h hex.Hex, day int64) item.Ground {
-	b := g.r.Gen.Baseline(h)
+	b := g.World.Baseline(h)
 	return item.Ground{Terrain: b.Terrain, River: b.River, Road: g.onRoad(h, day)}
 }
 

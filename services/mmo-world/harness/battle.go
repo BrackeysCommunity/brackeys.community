@@ -780,7 +780,7 @@ func witnessRun(b *sheets.Book) (witnessResult, error) {
 		return out, err
 	}
 	lift, _ := w.g.TheftKind(api.TheftLift)
-	cover := w.g.Rules().Gen.Baseline(w.home).Cover
+	cover := w.g.World.Baseline(w.home).Cover
 	for i, c := range w.cs {
 		sleight := int64(d.Below(witnessSleightMost+1, "witness.lift-sleight", draw.Int(int64(i))))
 		setLevel(c.C, practiceSleight, sleight)

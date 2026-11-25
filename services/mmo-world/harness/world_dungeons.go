@@ -279,7 +279,7 @@ func Dungeons(g *game.Game, from hex.Hex, radius int64, least int64) ([]hex.Hex,
 func Beside(g *game.Game, h hex.Hex) (hex.Hex, bool) {
 	gn := g.Rules().Gen
 	for _, n := range h.Neighbours() {
-		if gn.Passable(gn.Baseline(n).Terrain) && g.World.RegionAt(n) >= 0 {
+		if gn.Passable(g.World.Baseline(n).Terrain) && g.World.RegionAt(n) >= 0 {
 			return n, true
 		}
 	}
@@ -461,7 +461,7 @@ func playDelveWorld(b *sheets.Book, seed int) (delveWorld, error) {
 	}
 	var far []hex.Hex
 	for _, n := range hex.Ring(beside, huntWalk) {
-		if r.Gen.Passable(r.Gen.Baseline(n).Terrain) && g.World.RegionAt(n) >= 0 {
+		if r.Gen.Passable(g.World.Baseline(n).Terrain) && g.World.RegionAt(n) >= 0 {
 			far = append(far, n)
 		}
 	}
