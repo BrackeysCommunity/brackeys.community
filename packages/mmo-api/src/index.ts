@@ -727,6 +727,24 @@ export interface ActionRequest {
    */
   backRoom?: boolean;
   forSide?: boolean;
+  /**
+   * Staff marks a member its server counts as staff: Moderate Members, or
+   * a role its settings name (GDD 14.1).
+   */
+  staff?: boolean;
+  /**
+   * Staged sends a market command to the staged book here (GDD 10.8).
+   */
+  staged?: boolean;
+  /**
+   * The house kinds' orders. A house-pin's As, For and Label are ignored:
+   * the world takes them from the command.
+   */
+  stage?: StageOrder;
+  case?: CaseOrder;
+  moderate?: ModerateOrder;
+  settings?: HouseSettings;
+  pin?: PinOrder;
 }
 /**
  * OperatorRequest is an operator's correction, grant or ban: recorded as
@@ -757,6 +775,10 @@ export interface OperatorRequest {
    */
   epoch?: Epoch;
   arc?: ArcOrder;
+  /**
+   * Rename is what a rename sets.
+   */
+  rename?: RenameOrder;
 }
 /**
  * ActionReply is what an accepted press did. Duplicate is true when the
@@ -772,6 +794,10 @@ export interface ActionReply {
    * Machine is the fact a move log became, on a machine action.
    */
   machine?: PuzzleResult;
+  /**
+   * Points are the event points the command spent from a staff pool.
+   */
+  points?: number /* int64 */;
 }
 /**
  * Refusal is a press the rules turned down; nothing changed. Version is
@@ -851,11 +877,13 @@ export const CondWounded = "wounded";
  */
 export const CondHungry = "hungry";
 /**
- * Goods are units of a material a character carries.
+ * Goods are units of a material a character carries. Staged goods are
+ * listed apart from clean ones, by where they were staged.
  */
 export interface Goods {
   material: string;
   units: number /* int64 */;
+  staged?: StagedAt;
 }
 /**
  * Skill is a skill and its level.
@@ -921,6 +949,10 @@ export interface Character {
   hot?: HotGoods[];
   wanted?: WantedIn[];
   stopped?: WatchStop;
+  /**
+   * StagedXP is the experience staged fights have granted today.
+   */
+  stagedXp?: number /* int64 */;
 }
 /**
  * Move is a step in one of six directions: open or not, and what it
@@ -1079,6 +1111,7 @@ export interface Quote {
   bidUnits: number /* int64 */;
   ask: number /* int64 */;
   value: number /* int64 */;
+  staged?: boolean; // the staged book's
 }
 /**
  * PreviewRequest asks for one option's band before pressing it.
@@ -1323,6 +1356,18 @@ export const CodePinGone = "pin-gone";
 /**
  * Refusal codes of pins and the freeze.
  */
+export const CodePinRoute = "pin-route"; // the re-laid corridors would move
+/**
+ * Refusal codes of pins and the freeze.
+ */
+export const CodePinCut = "pin-cut"; // tiles connected round the pin would part
+/**
+ * Refusal codes of pins and the freeze.
+ */
+export const CodePinWorld = "pin-world"; // a chunk's digest moved; never expected
+/**
+ * Refusal codes of pins and the freeze.
+ */
 export const CodeAlreadyFrozen = "already-frozen";
 /**
  * Refusal codes of pins and the freeze.
@@ -1351,6 +1396,19 @@ export interface PinFix {
   floors?: number /* int64 */;
   lead?: string;
   stock?: string; // a map.stock-bands row
+  /**
+   * Ground is a terrain pin's ground, over the scaffold where it lands.
+   */
+  ground?: GroundFix;
+}
+/**
+ * GroundFix sets a map.terrain row and an elevation, 0 for the tile's own,
+ * on a pin's tile or its tile and ring; water follows from the terrain.
+ */
+export interface GroundFix {
+  terrain: string;
+  elevation?: number /* int64 */;
+  ring?: boolean;
 }
 /**
  * PinOrder is what a pin kind carries. As is "" or designer, admin or
@@ -1749,6 +1807,373 @@ export interface RegionShare {
 }
 
 //////////
+// source: house.go
+
+/**
+ * House kinds (GDD 14): a server's staff and admin commands, sent on the
+ * player path with Admin or Staff set; crate-open and report are any
+ * player's. The operator kinds go through PathOperator.
+ */
+export const ActStage = "stage";
+/**
+ * House kinds (GDD 14): a server's staff and admin commands, sent on the
+ * player path with Admin or Staff set; crate-open and report are any
+ * player's. The operator kinds go through PathOperator.
+ */
+export const ActStageEnd = "stage-end";
+/**
+ * House kinds (GDD 14): a server's staff and admin commands, sent on the
+ * player path with Admin or Staff set; crate-open and report are any
+ * player's. The operator kinds go through PathOperator.
+ */
+export const ActCrateOpen = "crate-open";
+/**
+ * House kinds (GDD 14): a server's staff and admin commands, sent on the
+ * player path with Admin or Staff set; crate-open and report are any
+ * player's. The operator kinds go through PathOperator.
+ */
+export const ActHousePin = "house-pin";
+/**
+ * House kinds (GDD 14): a server's staff and admin commands, sent on the
+ * player path with Admin or Staff set; crate-open and report are any
+ * player's. The operator kinds go through PathOperator.
+ */
+export const ActHouseUnpin = "house-unpin";
+/**
+ * House kinds (GDD 14): a server's staff and admin commands, sent on the
+ * player path with Admin or Staff set; crate-open and report are any
+ * player's. The operator kinds go through PathOperator.
+ */
+export const ActReport = "report";
+/**
+ * House kinds (GDD 14): a server's staff and admin commands, sent on the
+ * player path with Admin or Staff set; crate-open and report are any
+ * player's. The operator kinds go through PathOperator.
+ */
+export const ActModerate = "moderate";
+/**
+ * House kinds (GDD 14): a server's staff and admin commands, sent on the
+ * player path with Admin or Staff set; crate-open and report are any
+ * player's. The operator kinds go through PathOperator.
+ */
+export const ActHouseSettings = "house-settings";
+/**
+ * House kinds (GDD 14): a server's staff and admin commands, sent on the
+ * player path with Admin or Staff set; crate-open and report are any
+ * player's. The operator kinds go through PathOperator.
+ */
+export const OpRename = "rename";
+/**
+ * House kinds (GDD 14): a server's staff and admin commands, sent on the
+ * player path with Admin or Staff set; crate-open and report are any
+ * player's. The operator kinds go through PathOperator.
+ */
+export const OpCaseClose = "case-close";
+/**
+ * Refusal codes of the house, staging and moderation.
+ */
+export const CodeHouseRole = "house-role";
+/**
+ * Refusal codes of the house, staging and moderation.
+ */
+export const CodeHouseScope = "house-scope";
+/**
+ * Refusal codes of the house, staging and moderation.
+ */
+export const CodePoolShort = "pool-short";
+/**
+ * Refusal codes of the house, staging and moderation.
+ */
+export const CodeStageLimit = "stage-limit";
+/**
+ * Refusal codes of the house, staging and moderation.
+ */
+export const CodeStageTemplate = "stage-template";
+/**
+ * Refusal codes of the house, staging and moderation.
+ */
+export const CodeStagedLocal = "staged-local";
+/**
+ * Refusal codes of the house, staging and moderation.
+ */
+export const CodeStagedOwn = "staged-own";
+/**
+ * Refusal codes of the house, staging and moderation.
+ */
+export const CodeCrateCap = "crate-cap";
+/**
+ * Refusal codes of the house, staging and moderation.
+ */
+export const CodeNoStage = "no-stage";
+/**
+ * Refusal codes of the house, staging and moderation.
+ */
+export const CodeMuted = "muted";
+/**
+ * Refusal codes of the house, staging and moderation.
+ */
+export const CodeSuspended = "suspended";
+/**
+ * Refusal codes of the house, staging and moderation.
+ */
+export const CodeExcluded = "excluded";
+/**
+ * Refusal codes of the house, staging and moderation.
+ */
+export const CodeCaseLimit = "case-limit";
+/**
+ * Roles a command speaks with (GDD 14.1), as House.Role and LogRow.Role
+ * read.
+ */
+export const RolePlayer = "player";
+/**
+ * Roles a command speaks with (GDD 14.1), as House.Role and LogRow.Role
+ * read.
+ */
+export const RoleStaff = "staff";
+/**
+ * Roles a command speaks with (GDD 14.1), as House.Role and LogRow.Role
+ * read.
+ */
+export const RoleAdmin = "admin";
+/**
+ * Roles a command speaks with (GDD 14.1), as House.Role and LogRow.Role
+ * read.
+ */
+export const RoleOperator = "operator";
+/**
+ * Paths of the house. The bot reads a server's; operators read every
+ * server's log and the escalated cases.
+ */
+export const PathHouse = "/v1/house"; // ?server=&character=
+/**
+ * Paths of the house. The bot reads a server's; operators read every
+ * server's log and the escalated cases.
+ */
+export const PathHouseLog = "/v1/house/log"; // ?server=&after=
+/**
+ * Paths of the house. The bot reads a server's; operators read every
+ * server's log and the escalated cases.
+ */
+export const PathOperatorHouseLog = "/v1/operator/house/log";
+/**
+ * Paths of the house. The bot reads a server's; operators read every
+ * server's log and the escalated cases.
+ */
+export const PathOperatorCases = "/v1/operator/cases";
+/**
+ * StageOrder is a staging order (GDD 14.4): the stager chooses these; the
+ * sheets decide the rest. Opens is ticks from now; Days 0 takes the
+ * template's.
+ */
+export interface StageOrder {
+  template: string;
+  settlement: number /* int */;
+  at: Hex;
+  hunt?: string;
+  contest?: string;
+  pattern?: string;
+  opens?: number /* int64 */;
+  days?: number /* int64 */;
+}
+/**
+ * CaseOrder is a player's report: a name ref, goal:<id> or post:<link>,
+ * and one of the five reasons.
+ */
+export interface CaseOrder {
+  ref: string;
+  reason: string;
+}
+/**
+ * ModerateOrder is a moderation action (GDD 14.6). Days is a hold's
+ * length, 0 until lifted; Case is the case it answers.
+ */
+export interface ModerateOrder {
+  action: string;
+  ref?: string;
+  days?: number /* int64 */;
+  case?: string;
+}
+/**
+ * RenameOrder is an operator's global rename; an empty Name restores the
+ * plain generated name.
+ */
+export interface RenameOrder {
+  ref: string;
+  name?: string;
+}
+/**
+ * HouseSettings change only what one server sees (GDD 14.7). Quiet hours
+ * are minutes past midnight UTC; equal ends mean none.
+ */
+export interface HouseSettings {
+  channels?: Channel[];
+  staffRoles?: string[]; // Discord role ids
+  alarmRoles?: string[];
+  hideNames?: boolean;
+  narrated?: boolean;
+  quietFrom?: number /* int64 */;
+  quietTo?: number /* int64 */;
+}
+/**
+ * Channel is the Discord channel the game posts one kind to: chronicle,
+ * events, market, board or log.
+ */
+export interface Channel {
+  kind: string;
+  id: string;
+}
+/**
+ * House is one server's house as its staff and admins read it. Arrival is
+ * the settlement new players arrive at, -1 while there is none; Role is
+ * what the reading character's flags make it here.
+ */
+export interface House {
+  server: string;
+  label: string; // the server guild's name
+  guild?: string;
+  arrival: number /* int */;
+  settings: HouseSettings;
+  settlements: HouseSettlement[];
+  templates: StageTemplate[];
+  hunts: string[]; // fights.hunts rows a hunt template may take
+  contests: string[];
+  stages: StageView[];
+  cases?: Case[]; // staff and admins only
+  holds?: Hold[];
+  masks?: string[];
+  hidden?: string[];
+  role: string;
+  stagedXp: number /* int64 */; // the daily allowance from staged fights
+}
+/**
+ * HouseSettlement is a settlement the server's guild runs, with its staff
+ * pool in event points and the sites a staging may name.
+ */
+export interface HouseSettlement {
+  n: number /* int */;
+  name: string;
+  region: string;
+  pool: number /* int64 */;
+  poolCap: number /* int64 */;
+  refill: number /* int64 */; // added at the next world day
+  sites: HouseSite[]; // known sites in its region, nearest first
+}
+/**
+ * HouseSite is a tile a staging may name.
+ */
+export interface HouseSite {
+  at: Hex;
+  name: string;
+}
+/**
+ * StageTemplate is a liveops.templates row as a console offers it.
+ */
+export interface StageTemplate {
+  id: string;
+  kind: string; // contest, hardship, drop, hunt, fair, vault, pattern
+  points: number /* int64 */;
+  staff: boolean;
+  tier?: number /* int64 */;
+  crates?: number /* int64 */;
+  days: number /* int64 */;
+}
+/**
+ * StageView is one staging, from its order to its close. Opens and Ends
+ * are ticks; Crates are those left.
+ */
+export interface StageView {
+  id: string;
+  template: string;
+  kind: string;
+  placed: Placed;
+  settlement: number /* int */;
+  place: string;
+  at: Hex;
+  opens: number /* int64 */;
+  ends: number /* int64 */;
+  open?: boolean;
+  closed?: boolean;
+  hunt?: string;
+  crates?: number /* int64 */;
+  goals?: string[];
+  taken?: boolean;
+}
+/**
+ * Case is one reported thing in a queue. State is open, acted, dismissed,
+ * escalated or closed; Server is set on the operator's read.
+ */
+export interface Case {
+  id: string;
+  ref: string;
+  reason: string;
+  state: string;
+  action?: string;
+  reporters: number /* int64 */;
+  tick: number /* int64 */;
+  server?: string;
+}
+/**
+ * Hold is a mute, suspension or exclusion of one character on a server.
+ * Ends is the first world day it no longer holds, 0 until lifted.
+ */
+export interface Hold {
+  char: string;
+  kind: string;
+  ends: number /* int64 */;
+  case?: string;
+}
+/**
+ * LogRow is one line of the public log (GDD 14.8): who acted, with which
+ * role, and what the world says it did. At is unix ms.
+ */
+export interface LogRow {
+  id: number /* int64 */;
+  server: string;
+  tick: number /* int64 */;
+  at: number /* int64 */;
+  character?: string;
+  discord?: string;
+  role: string;
+  kind: string;
+  what: string;
+  points?: number /* int64 */;
+}
+/**
+ * HouseLog is a page of log rows after an id; Next is the id to ask after
+ * next.
+ */
+export interface HouseLog {
+  rows: LogRow[];
+  next: number /* int64 */;
+}
+/**
+ * Cases is the reply on PathOperatorCases: escalated cases of every
+ * server.
+ */
+export interface Cases {
+  cases: Case[];
+}
+/**
+ * StagedAt marks goods or an item staged at a settlement: local to it.
+ */
+export interface StagedAt {
+  settlement: number /* int */;
+  name: string;
+}
+/**
+ * StagedLine is one server's staged goods on the weekly report: goods
+ * minted, held and spent, and coin traded on its staged books.
+ */
+export interface StagedLine {
+  server: string;
+  minted: number /* int64 */;
+  held: number /* int64 */;
+  spent: number /* int64 */;
+  traded: number /* int64 */;
+}
+
+//////////
 // source: market.go
 
 /**
@@ -1825,6 +2250,10 @@ export interface Market {
   name: string;
   material: string;
   book: BookView;
+  /**
+   * StagedBook is the material's staged book here, where one is open.
+   */
+  stagedBook?: BookView;
   exchange: Exchange[];
   movers: Mover[];
   elsewhere: Far[];
@@ -1905,6 +2334,7 @@ export interface Listing {
   value: number /* int64 */;
   mine: boolean;
   sigil: string; // a media key
+  staged?: boolean; // sold only here, to players
 }
 /**
  * GearWant is a buy order for gear standing here.
@@ -1967,6 +2397,10 @@ export interface Report {
   every: number /* int64 */; // world days between reports
   audit: number /* int */;
   chart?: string;
+  /**
+   * Staged are each server's staged goods, apart from every line above.
+   */
+  staged?: StagedLine[];
 }
 /**
  * History is one material's price over time at a settlement, as a chart.
@@ -2479,6 +2913,11 @@ export interface HuntView {
   spoils: Goods[]; // the row's, the most each line can roll
   canPress: boolean;
   options?: Option[];
+  /**
+   * Placed and Stage are set on a server's staged hunt.
+   */
+  placed?: Placed;
+  stage?: string;
 }
 /**
  * HuntPresser is one character's part in a hunt: the health it removed.
@@ -2630,6 +3069,8 @@ export interface HuntCard {
   slain?: boolean;
   rolled?: Goods[];
   shares?: HuntShare[];
+  placed?: Placed;
+  stage?: string;
 }
 /**
  * HuntShare is one presser's part of a slain hunt's roll.
@@ -3524,9 +3965,11 @@ export interface Item {
   value: number /* int64 */; // coin, at reference
   traderPays: number /* int64 */; // coin a settlement's trader pays for it, as worn
   /**
-   * Hot is set while the item is stolen and marked.
+   * Hot is set while the item is stolen and marked; Staged while it was
+   * made from staged goods, which keep it local.
    */
   hot?: HotGoods;
+  staged?: StagedAt;
 }
 /**
  * Standing is standing with a faction or a place.
@@ -4284,6 +4727,10 @@ export interface StoryEvent {
    */
   names?: { [key: string]: string };
   art?: Art;
+  /**
+   * Server is the staging server of a staged event, posted only there.
+   */
+  server?: string;
 }
 /**
  * StoryEvents are the events after a fact id; Last is the id to ask after

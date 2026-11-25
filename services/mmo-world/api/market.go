@@ -34,10 +34,12 @@ type Floor struct {
 // Market is everything /market shows a character in a settlement: the
 // eight lists of GDD 10.6. Material picks the book and its history.
 type Market struct {
-	Settlement int        `json:"settlement"`
-	Name       string     `json:"name"`
-	Material   string     `json:"material"`
-	Book       BookView   `json:"book"`
+	Settlement int      `json:"settlement"`
+	Name       string   `json:"name"`
+	Material   string   `json:"material"`
+	Book       BookView `json:"book"`
+	// StagedBook is the material's staged book here, where one is open.
+	StagedBook *BookView  `json:"stagedBook,omitempty"`
 	Exchange   []Exchange `json:"exchange"`
 	Movers     []Mover    `json:"movers"`
 	Elsewhere  []Far      `json:"elsewhere"`
@@ -111,7 +113,8 @@ type Listing struct {
 	Price      int64  `json:"price"`
 	Value      int64  `json:"value"`
 	Mine       bool   `json:"mine"`
-	Sigil      string `json:"sigil"` // a media key
+	Sigil      string `json:"sigil"`            // a media key
+	Staged     bool   `json:"staged,omitempty"` // sold only here, to players
 }
 
 // GearWant is a buy order for gear standing here.
@@ -169,6 +172,8 @@ type Report struct {
 	Every     int64   `json:"every"` // world days between reports
 	Audit     int     `json:"audit"`
 	Chart     string  `json:"chart,omitempty"`
+	// Staged are each server's staged goods, apart from every line above.
+	Staged []StagedLine `json:"staged,omitempty"`
 }
 
 // History is one material's price over time at a settlement, as a chart.

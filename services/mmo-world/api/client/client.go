@@ -163,6 +163,37 @@ func (h *HTTP) OperatorEmergence(ctx context.Context) (api.Emergence, error) {
 	return out, Refused("operator emergence", ref, err)
 }
 
+// House is a server's house as one of its characters reads it: the role
+// its flags make it, and the queue only for staff and admins.
+func (h *HTTP) House(ctx context.Context, server, character string) (api.House, error) {
+	var out api.House
+	path := api.PathHouse + "?server=" + url.QueryEscape(server) + "&character=" + url.QueryEscape(character)
+	ref, err := h.Do(ctx, http.MethodGet, path, nil, &out)
+	return out, Refused("house of "+server, ref, err)
+}
+
+// HouseLog is a page of a server's log after a row id.
+func (h *HTTP) HouseLog(ctx context.Context, server string, after int64) (api.HouseLog, error) {
+	var out api.HouseLog
+	path := api.PathHouseLog + "?server=" + url.QueryEscape(server) + "&after=" + strconv.FormatInt(after, 10)
+	ref, err := h.Do(ctx, http.MethodGet, path, nil, &out)
+	return out, Refused("house log of "+server, ref, err)
+}
+
+// OperatorHouseLog is a page of every server's log after a row id.
+func (h *HTTP) OperatorHouseLog(ctx context.Context, after int64) (api.HouseLog, error) {
+	var out api.HouseLog
+	ref, err := h.Do(ctx, http.MethodGet, api.PathOperatorHouseLog+"?after="+strconv.FormatInt(after, 10), nil, &out)
+	return out, Refused("operator house log", ref, err)
+}
+
+// OperatorCases are the cases escalated from every server.
+func (h *HTTP) OperatorCases(ctx context.Context) (api.Cases, error) {
+	var out api.Cases
+	ref, err := h.Do(ctx, http.MethodGet, api.PathOperatorCases, nil, &out)
+	return out, Refused("operator cases", ref, err)
+}
+
 // Refused turns a refusal into an error, for calls that expect none.
 func Refused(what string, ref *api.Refusal, err error) error {
 	if err == nil && ref != nil {

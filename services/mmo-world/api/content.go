@@ -28,6 +28,9 @@ const (
 	CodePinTaken      = "pin-taken"
 	CodePinEntered    = "pin-entered"
 	CodePinGone       = "pin-gone"
+	CodePinRoute      = "pin-route" // the re-laid corridors would move
+	CodePinCut        = "pin-cut"   // tiles connected round the pin would part
+	CodePinWorld      = "pin-world" // a chunk's digest moved; never expected
 	CodeAlreadyFrozen = "already-frozen"
 	CodeContentNative = "content-native"
 )
@@ -51,6 +54,16 @@ type PinFix struct {
 	Floors   int64  `json:"floors,omitempty"`
 	Lead     string `json:"lead,omitempty"`
 	Stock    string `json:"stock,omitempty"` // a map.stock-bands row
+	// Ground is a terrain pin's ground, over the scaffold where it lands.
+	Ground *GroundFix `json:"ground,omitempty"`
+}
+
+// GroundFix sets a map.terrain row and an elevation, 0 for the tile's own,
+// on a pin's tile or its tile and ring; water follows from the terrain.
+type GroundFix struct {
+	Terrain   string `json:"terrain"`
+	Elevation int64  `json:"elevation,omitempty"`
+	Ring      bool   `json:"ring,omitempty"`
 }
 
 // PinOrder is what a pin kind carries. As is "" or designer, admin or

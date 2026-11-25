@@ -42,6 +42,7 @@ var EventKinds = []string{
 	"core.opened", "pattern.solved",
 	"road.cut", "road.tolled", "caravan.robbed",
 	"theft.made",
+	"staged.opened", "staged.closed", "vault.taken",
 }
 
 // Refusal codes of the story.
@@ -256,6 +257,8 @@ type StoryEvent struct {
 	// Names are what the fact's refs are called, as on the chronicle.
 	Names map[string]string `json:"names,omitempty"`
 	Art   *Art              `json:"art,omitempty"`
+	// Server is the staging server of a staged event, posted only there.
+	Server string `json:"server,omitempty"`
 }
 
 // StoryEvents are the events after a fact id; Last is the id to ask after

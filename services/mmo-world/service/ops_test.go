@@ -196,9 +196,27 @@ func TestAPIMatchesRules(t *testing.T) {
 		{api.CondWanted, char.WantedCondition},
 		{api.LeaningUpright, npc.LeaningUpright}, {api.LeaningCrooked, npc.LeaningCrooked}, {api.LeaningNone, npc.LeaningNone},
 		{api.MoodWarm, game.MoodWarm}, {api.MoodCold, game.MoodCold}, {api.MoodHostile, game.MoodHostile},
+		{api.ActStage, game.Staging}, {api.ActStageEnd, game.StagingEnd}, {api.ActCrateOpen, game.CrateOpen},
+		{api.ActHousePin, game.HousePin}, {api.ActHouseUnpin, game.HouseUnpin}, {api.ActReport, game.ReportCase},
+		{api.ActModerate, game.Moderate}, {api.ActHouseSettings, game.SetHouse}, {api.OpRename, game.Rename}, {api.OpCaseClose, game.CaseClose},
+		{api.CodeHouseRole, game.HouseRoleCode}, {api.CodeHouseScope, game.HouseScope}, {api.CodePoolShort, game.PoolShort},
+		{api.CodeStageLimit, game.StageLimit}, {api.CodeStageTemplate, game.StageTemplate}, {api.CodeStagedLocal, game.StagedLocal},
+		{api.CodeStagedOwn, game.StagedOwn}, {api.CodeCrateCap, game.CrateCap}, {api.CodeNoStage, game.NoStage},
+		{api.CodeMuted, game.Muted}, {api.CodeSuspended, game.Suspended}, {api.CodeExcluded, game.Excluded}, {api.CodeCaseLimit, game.CaseLimit},
+		{api.RolePlayer, game.RolePlayer}, {api.RoleStaff, game.RoleStaff}, {api.RoleAdmin, game.RoleAdmin}, {api.RoleOperator, game.RoleOperator},
 	} {
 		if pair[0] != pair[1] {
 			t.Errorf("the API says %q where the rules say %q", pair[0], pair[1])
+		}
+	}
+	for _, kind := range []string{game.Staging, game.StagingEnd, game.HousePin, game.HouseUnpin, game.Moderate, game.SetHouse} {
+		if !api.HouseKind(kind) {
+			t.Errorf("the API does not count %q a house kind", kind)
+		}
+	}
+	for _, kind := range []string{game.CrateOpen, game.ReportCase, game.Rename, game.CaseClose, game.Press} {
+		if api.HouseKind(kind) {
+			t.Errorf("the API counts %q a house kind", kind)
 		}
 	}
 	if api.Unseen != puzzle.Unseen {

@@ -93,8 +93,10 @@ type Item struct {
 	Sigil      string   `json:"sigil"`           // a media key
 	Value      int64    `json:"value"`           // coin, at reference
 	TraderPays int64    `json:"traderPays"`      // coin a settlement's trader pays for it, as worn
-	// Hot is set while the item is stolen and marked.
-	Hot *HotGoods `json:"hot,omitempty"`
+	// Hot is set while the item is stolen and marked; Staged while it was
+	// made from staged goods, which keep it local.
+	Hot    *HotGoods `json:"hot,omitempty"`
+	Staged *StagedAt `json:"staged,omitempty"`
 }
 
 // Standing is standing with a faction or a place.

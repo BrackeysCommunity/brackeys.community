@@ -117,6 +117,18 @@ type ActionRequest struct {
 	// haul to the prey side the character backs (GDD 4.5, 6.5).
 	BackRoom bool `json:"backRoom,omitempty"`
 	ForSide  bool `json:"forSide,omitempty"`
+	// Staff marks a member its server counts as staff: Moderate Members, or
+	// a role its settings name (GDD 14.1).
+	Staff bool `json:"staff,omitempty"`
+	// Staged sends a market command to the staged book here (GDD 10.8).
+	Staged bool `json:"staged,omitempty"`
+	// The house kinds' orders. A house-pin's As, For and Label are ignored:
+	// the world takes them from the command.
+	Stage    *StageOrder    `json:"stage,omitempty"`
+	Case     *CaseOrder     `json:"case,omitempty"`
+	Moderate *ModerateOrder `json:"moderate,omitempty"`
+	Settings *HouseSettings `json:"settings,omitempty"`
+	Pin      *PinOrder      `json:"pin,omitempty"`
 }
 
 // OperatorRequest is an operator's correction, grant or ban: recorded as
@@ -138,6 +150,8 @@ type OperatorRequest struct {
 	// Epoch is what a season-epoch takes, and Arc what an arc-cast casts.
 	Epoch *Epoch    `json:"epoch,omitempty"`
 	Arc   *ArcOrder `json:"arc,omitempty"`
+	// Rename is what a rename sets.
+	Rename *RenameOrder `json:"rename,omitempty"`
 }
 
 // ActionReply is what an accepted press did. Duplicate is true when the
@@ -150,6 +164,8 @@ type ActionReply struct {
 	Pressed   []Pressed `json:"pressed,omitempty"`
 	// Machine is the fact a move log became, on a machine action.
 	Machine *PuzzleResult `json:"machine,omitempty"`
+	// Points are the event points the command spent from a staff pool.
+	Points int64 `json:"points,omitempty"`
 }
 
 // Refusal is a press the rules turned down; nothing changed. Version is
@@ -189,10 +205,12 @@ const (
 	CondHungry  = "hungry"
 )
 
-// Goods are units of a material a character carries.
+// Goods are units of a material a character carries. Staged goods are
+// listed apart from clean ones, by where they were staged.
 type Goods struct {
-	Material string `json:"material"`
-	Units    int64  `json:"units"`
+	Material string    `json:"material"`
+	Units    int64     `json:"units"`
+	Staged   *StagedAt `json:"staged,omitempty"`
 }
 
 // Skill is a skill and its level.
@@ -248,6 +266,8 @@ type Character struct {
 	Hot       []HotGoods `json:"hot,omitempty"`
 	Wanted    []WantedIn `json:"wanted,omitempty"`
 	Stopped   *WatchStop `json:"stopped,omitempty"`
+	// StagedXP is the experience staged fights have granted today.
+	StagedXP int64 `json:"stagedXp,omitempty"`
 }
 
 // Move is a step in one of six directions: open or not, and what it
@@ -382,6 +402,7 @@ type Quote struct {
 	BidUnits int64  `json:"bidUnits"`
 	Ask      int64  `json:"ask"`
 	Value    int64  `json:"value"`
+	Staged   bool   `json:"staged,omitempty"` // the staged book's
 }
 
 // PreviewRequest asks for one option's band before pressing it.

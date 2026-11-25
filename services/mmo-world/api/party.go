@@ -211,6 +211,9 @@ type HuntView struct {
 	Spoils   []Goods       `json:"spoils"` // the row's, the most each line can roll
 	CanPress bool          `json:"canPress"`
 	Options  []Option      `json:"options,omitempty"`
+	// Placed and Stage are set on a server's staged hunt.
+	Placed *Placed `json:"placed,omitempty"`
+	Stage  string  `json:"stage,omitempty"`
 }
 
 // HuntPresser is one character's part in a hunt: the health it removed.
@@ -347,6 +350,8 @@ type HuntCard struct {
 	Slain    bool          `json:"slain,omitempty"`
 	Rolled   []Goods       `json:"rolled,omitempty"`
 	Shares   []HuntShare   `json:"shares,omitempty"`
+	Placed   *Placed       `json:"placed,omitempty"`
+	Stage    string        `json:"stage,omitempty"`
 }
 
 // HuntShare is one presser's part of a slain hunt's roll.
