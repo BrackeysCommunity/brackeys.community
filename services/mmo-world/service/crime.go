@@ -192,7 +192,7 @@ func itemName(g *game.Game, c *game.Char, id, listing string) string {
 	if in == nil {
 		return ""
 	}
-	return g.KindName(in.Kind)
+	return shownKind(g, c.Server, in.Kind)
 }
 
 // syndicateGoal reports whether a goal is a syndicate job, which only the

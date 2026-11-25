@@ -302,8 +302,19 @@ func TestSocketRules(t *testing.T) {
 	refused(`{"t":"intent","seq":%d,"intent":{"id":"short","kind":"press"}}`, api.CodeBadJSON)
 	refused(`{"t":"intent","seq":%d,"intent":{"id":"has/a/slash","kind":"press"}}`, api.CodeBadJSON)
 	refused(`{"t":"intent","seq":%d,"intent":{"id":"`+strings.Repeat("x", 65)+`","kind":"press"}}`, api.CodeBadJSON)
-	for _, kind := range []string{api.ActCreate, api.ActStep, "grant", "ban", "", "guild-found"} {
+	for _, kind := range []string{api.ActCreate, api.ActStep, "grant", "ban", "", "guild-found", api.OpRename, api.OpCaseClose} {
 		refused(`{"t":"intent","seq":%d,"intent":{"id":"12345678","kind":"`+kind+`"}}`, api.CodeForbidden)
+	}
+	// A house kind is refused as a console's: an intent carries no role.
+	for _, kind := range []string{api.ActStage, api.ActStageEnd, api.ActHousePin, api.ActHouseUnpin, api.ActModerate, api.ActHouseSettings} {
+		if !api.HouseKind(kind) {
+			t.Fatalf("%s is not a house kind", kind)
+		}
+		v.seq++
+		v.raw(fmt.Sprintf(`{"t":"intent","seq":%d,"intent":{"id":"house-%s","kind":"%s"}}`, v.seq, kind, kind))
+		if r := v.reply(); r.OK || r.Refusal == nil || r.Refusal.Code != api.CodeForbidden || !strings.Contains(r.Refusal.Message, "console") {
+			t.Fatalf("a %s intent was answered %+v, want forbidden from the console", kind, r)
+		}
 	}
 	if len(h.acts) != 0 {
 		t.Fatalf("refused frames reached the world: %+v", h.acts)

@@ -244,6 +244,12 @@ func TestOperatorPins(t *testing.T) {
 		t.Fatalf("the admin's pin listed as %+v", p)
 	}
 	adminPin := pins.Pins[0].ID
+	if h := houseOf(t, r, pinServer, id, true, false); len(h.Pins) != 1 || h.Pins[0].ID != adminPin {
+		t.Fatalf("the admin's house lists pins %+v", h.Pins)
+	}
+	if h := houseOf(t, r, pinServer, id, false, false); len(h.Pins) != 0 {
+		t.Fatalf("a player's house lists pins %+v", h.Pins)
+	}
 
 	advance(t, ctx, r, 3)
 	tick, live := digest(t, ctx, r)

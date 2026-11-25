@@ -430,6 +430,8 @@ export interface MachineView {
   due?: number /* int64 */; // unix ms, grace included: when the server ends it
   locked?: number /* int64 */; // ticks until a lockdown lifts
   practice: PracticeLine;
+  place?: string; // set for a vault's machine: "vault:<stage id>"
+  placed?: Placed; // who staged the vault
   party?: string; // a party version
   seat?: number /* int64 */;
   seats?: SeatView[];
@@ -2043,6 +2045,7 @@ export interface House {
   holds?: Hold[];
   masks?: string[];
   hidden?: string[];
+  pins?: Pin[]; // the server's live pins, staff and admins only
   role: string;
   stagedXp: number /* int64 */; // the daily allowance from staged fights
 }
@@ -2077,6 +2080,10 @@ export interface StageTemplate {
   tier?: number /* int64 */;
   crates?: number /* int64 */;
   days: number /* int64 */;
+  /**
+   * Patterns are the story.pattern-puzzles rows a pattern template lays.
+   */
+  patterns?: string[];
 }
 /**
  * StageView is one staging, from its order to its close. Opens and Ends

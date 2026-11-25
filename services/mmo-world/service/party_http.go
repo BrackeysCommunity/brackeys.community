@@ -199,20 +199,56 @@ func huntCard(g *game.Game, x *game.Hunt) api.HuntCard {
 	h := x.H
 	out := api.HuntCard{ID: h.ID, Row: h.Row, Name: huntName(g, h.Row), Creature: h.Creature.Archetype, At: apiHex(x.Hex), Region: x.Region,
 		Health: h.Health, Max: h.Max, Ends: h.Ends, Pressers: pressers(g, "", x), Spoils: huntSpoils(g, h.Row), Closed: h.Over, Slain: h.Slain}
+	out.Stage, out.Placed = huntStage(g, "", x)
+	at := huntStaged(g, "", x)
+	out.Spoils = markStaged(out.Spoils, at)
 	if in, ok := huntPortrait(x); ok {
 		out.Portrait = portraitKey(in)
 	}
 	if !h.Slain {
 		return out
 	}
-	out.Rolled = apiGoods(x.Rolled)
+	out.Rolled = markStaged(apiGoods(x.Rolled), at)
 	for who, goods := range g.HuntParts(x) {
-		out.Shares = append(out.Shares, api.HuntShare{Name: charName(g, who), Removed: h.Removed.Get(who), Goods: apiGoods(goods)})
+		out.Shares = append(out.Shares, api.HuntShare{Name: charName(g, who), Removed: h.Removed.Get(who), Goods: markStaged(apiGoods(goods), at)})
 	}
 	slices.SortFunc(out.Shares, func(a, b api.HuntShare) int {
 		return cmp.Or(cmp.Compare(b.Removed, a.Removed), cmp.Compare(a.Name, b.Name))
 	})
 	return out
+}
+
+// huntStage is the stage a server's staged hunt belongs to and who staged
+// it (GDD 14.5), as a server reads it; "" and nil for any other hunt.
+func huntStage(g *game.Game, server string, x *game.Hunt) (string, *api.Placed) {
+	if x.Stage == "" {
+		return "", nil
+	}
+	if st := g.StageByID(x.Stage); st != nil {
+		return x.Stage, stagePlaced(g, server, st)
+	}
+	return x.Stage, nil
+}
+
+// huntStaged is where a server's staged hunt pays its spoils staged, nil
+// for any other hunt.
+func huntStaged(g *game.Game, server string, x *game.Hunt) *api.StagedAt {
+	if st := g.StageByID(x.Stage); st != nil {
+		return stagedAt(g, server, st.Settlement)
+	}
+	return nil
+}
+
+// markStaged marks goods as staged at, when at is set.
+func markStaged(goods []api.Goods, at *api.StagedAt) []api.Goods {
+	if at == nil {
+		return goods
+	}
+	for i := range goods {
+		v := *at
+		goods[i].Staged = &v
+	}
+	return goods
 }
 
 // threadOf is a party's thread hint: its members' Discord users, in join

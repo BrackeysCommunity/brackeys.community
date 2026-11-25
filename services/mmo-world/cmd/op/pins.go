@@ -89,11 +89,12 @@ func pinFlags(args []string, o *api.PinOrder) ([]string, error) {
 }
 
 // fixArg reads field=value words into a fix; it fixes at least one field,
-// each once.
+// each once. Elevation and ring go with a ground.
 func fixArg(words []string) (api.PinFix, error) {
 	var f api.PinFix
+	var gr api.GroundFix
 	text := map[string]*string{"site": &f.Site, "landmark": &f.Landmark, "site-kind": &f.SiteKind,
-		"dungeon": &f.Dungeon, "lead": &f.Lead, "stock": &f.Stock}
+		"dungeon": &f.Dungeon, "lead": &f.Lead, "stock": &f.Stock, "ground": &gr.Terrain}
 	seen := map[string]bool{}
 	for _, w := range words {
 		k, v, ok := strings.Cut(w, "=")
@@ -108,14 +109,34 @@ func fixArg(words []string) (api.PinFix, error) {
 			*into = v
 			continue
 		}
-		if k != "floors" {
-			return f, fmt.Errorf("no field %q: a pin fixes site, landmark, site-kind, dungeon, floors, lead or stock", k)
+		switch k {
+		case "floors":
+			n, err := strconv.ParseInt(v, 10, 64)
+			if err != nil || n < 1 {
+				return f, fmt.Errorf("floors is a count of floors, not %q", v)
+			}
+			f.Floors = n
+		case "elevation":
+			n, err := strconv.ParseInt(v, 10, 64)
+			if err != nil || n < 1 {
+				return f, fmt.Errorf("elevation is a positive height, not %q", v)
+			}
+			gr.Elevation = n
+		case "ring":
+			ring, err := strconv.ParseBool(v)
+			if err != nil {
+				return f, fmt.Errorf("ring is true or false, not %q", v)
+			}
+			gr.Ring = ring
+		default:
+			return f, fmt.Errorf("no field %q: a pin fixes site, landmark, site-kind, dungeon, floors, lead, stock or ground", k)
 		}
-		n, err := strconv.ParseInt(v, 10, 64)
-		if err != nil || n < 1 {
-			return f, fmt.Errorf("floors is a count of floors, not %q", v)
-		}
-		f.Floors = n
+	}
+	switch {
+	case gr.Terrain != "":
+		f.Ground = &gr
+	case gr != (api.GroundFix{}):
+		return f, errors.New("elevation and ring go with ground=<terrain>")
 	}
 	if f == (api.PinFix{}) {
 		return f, errors.New("a pin fixes at least one field=value")

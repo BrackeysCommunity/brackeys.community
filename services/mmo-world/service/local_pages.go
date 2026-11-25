@@ -55,7 +55,7 @@ func (l *Local) Goals(_ context.Context, id string) (api.Goals, error) {
 	out.Settlement, out.Officer = n, g.OfficerHere(c)
 	for _, x := range g.Board(n) {
 		if (x.May(c.C.ID) || x.Poster == c.C.ID) && seesGoal(c, x) {
-			out.Board = append(out.Board, apiGoal(g, x, c))
+			out.Board = append(out.Board, apiGoal(g, x, c, c.Server))
 		}
 	}
 	return out, nil

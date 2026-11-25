@@ -16,11 +16,19 @@ import (
 // stored content.
 
 func simFix(f api.PinFix) tile.Fix {
-	return tile.Fix{Site: f.Site, Landmark: f.Landmark, SiteKind: f.SiteKind, Dungeon: f.Dungeon, Floors: f.Floors, Lead: f.Lead, Stock: f.Stock}
+	out := tile.Fix{Site: f.Site, Landmark: f.Landmark, SiteKind: f.SiteKind, Dungeon: f.Dungeon, Floors: f.Floors, Lead: f.Lead, Stock: f.Stock}
+	if gr := f.Ground; gr != nil {
+		out.Ground = &tile.GroundFix{Terrain: gr.Terrain, Elevation: gr.Elevation, Ring: gr.Ring}
+	}
+	return out
 }
 
 func apiFix(f tile.Fix) api.PinFix {
-	return api.PinFix{Site: f.Site, Landmark: f.Landmark, SiteKind: f.SiteKind, Dungeon: f.Dungeon, Floors: f.Floors, Lead: f.Lead, Stock: f.Stock}
+	out := api.PinFix{Site: f.Site, Landmark: f.Landmark, SiteKind: f.SiteKind, Dungeon: f.Dungeon, Floors: f.Floors, Lead: f.Lead, Stock: f.Stock}
+	if gr := f.Ground; gr != nil {
+		out.Ground = &api.GroundFix{Terrain: gr.Terrain, Elevation: gr.Elevation, Ring: gr.Ring}
+	}
+	return out
 }
 
 func simPin(p api.PinOrder) game.PinCmd {

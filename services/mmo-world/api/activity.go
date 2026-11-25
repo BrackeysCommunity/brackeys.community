@@ -331,7 +331,9 @@ type MachineView struct {
 	Due       int64         `json:"due,omitempty"`      // unix ms, grace included: when the server ends it
 	Locked    int64         `json:"locked,omitempty"`   // ticks until a lockdown lifts
 	Practice  PracticeLine  `json:"practice"`
-	Party     string        `json:"party,omitempty"` // a party version
+	Place     string        `json:"place,omitempty"`  // set for a vault's machine: "vault:<stage id>"
+	Placed    *Placed       `json:"placed,omitempty"` // who staged the vault
+	Party     string        `json:"party,omitempty"`  // a party version
 	Seat      int64         `json:"seat,omitempty"`
 	Seats     []SeatView    `json:"seats,omitempty"`
 	Movers    int64         `json:"movers,omitempty"`

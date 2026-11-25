@@ -40,14 +40,14 @@ func (s *Server) goals(w http.ResponseWriter, r *http.Request) {
 	if !s.withCharErr(w, r, func(c *game.Char) error {
 		g := s.g
 		gp := func(id string) int64 { return sheets.IntParam(g.Rules().Book.GoalParams, id) }
-		out = api.Goals{Settlement: -1, Name: g.PlaceName(c.C.At), Board: []api.Goal{}, Drafts: []api.Draft{}, Mine: []api.Goal{}, Met: []api.Goal{},
+		out = api.Goals{Settlement: -1, Name: shownPlace(g, c.Server, c.C.At), Board: []api.Goal{}, Drafts: []api.Draft{}, Mine: []api.Goal{}, Met: []api.Goal{},
 			Live: g.LiveGoals(c), Limit: gp("live-goals"), Fee: g.Rules().Values.Param("goal-fee"), FeeLeast: g.Rules().Values.Param("goal-fee-min"),
 			RewardLeast: gp("reward-least"), PledgeNeed: gp("pledge-need"), EachCap: gp("each-cap"), Verbs: slices.Clone(goal.Verbs), Coin: c.C.Coin,
 			Targets: []api.Targets{}, At: apiHex(c.C.At), Traits: []api.Pick{}, Places: []api.Pick{}, Fields: []api.Pick{}, Vows: []api.Pick{},
 			Gauges: []api.HoldGauge{}, Sides: []api.Pick{},
 			Party: []api.Pick{}, PartyMost: gp("party-most"), Even: g.EvenShares(c), Waiting: []api.Waiting{}}
 		for _, x := range slices.Concat(g.PostedBy(c), g.Hauling(c)) {
-			out.Mine = append(out.Mine, apiGoal(g, x, c))
+			out.Mine = append(out.Mine, apiGoal(g, x, c, c.Server))
 		}
 		for _, w := range g.WaitingFor(c) {
 			out.Waiting = append(out.Waiting, api.Waiting{Place: g.PlaceName(w.At), Goods: heldGoods(w.Goods)})
@@ -63,12 +63,12 @@ func (s *Server) goals(w http.ResponseWriter, r *http.Request) {
 		// a syndicate job for the made.
 		for _, x := range g.Board(n) {
 			if (x.May(c.C.ID) || x.Poster == c.C.ID) && seesGoal(c, x) {
-				out.Board = append(out.Board, apiGoal(g, x, c))
+				out.Board = append(out.Board, apiGoal(g, x, c, c.Server))
 			}
 		}
 		for i := len(g.Goals) - 1; i >= 0 && len(out.Met) < metShown; i-- {
 			if x := g.Goals[i]; x.Board == n && x.State == goal.Done && !x.Hidden && x.May(c.C.ID) && seesGoal(c, x) {
-				out.Met = append(out.Met, apiGoal(g, x, c))
+				out.Met = append(out.Met, apiGoal(g, x, c, c.Server))
 			}
 		}
 		for _, d := range g.Drafts(c) {
@@ -116,8 +116,10 @@ func holdSides() []api.Pick {
 	return []api.Pick{{Value: api.SideBelow, Label: api.SideBelow}, {Value: api.SideAbove, Label: api.SideAbove}}
 }
 
-// board is every settlement's live public goals, one forum post each.
+// board is every settlement's live public goals, one forum post each, as
+// the server named reads them.
 func (s *Server) board(w http.ResponseWriter, r *http.Request) {
+	server := r.URL.Query().Get("server")
 	unlock, ok := s.hold(r.Context(), w, true)
 	if !ok {
 		return
@@ -130,7 +132,7 @@ func (s *Server) board(w http.ResponseWriter, r *http.Request) {
 			if x.Scope == goal.Personal || x.Scope == goal.Party || !seesGoal(nil, x) {
 				continue
 			}
-			out.Posts = append(out.Posts, api.BoardPost{Settlement: n, Name: g.PlaceName(h), Goal: apiGoal(g, x, nil)})
+			out.Posts = append(out.Posts, api.BoardPost{Settlement: n, Name: shownPlace(g, server, h), Goal: apiGoal(g, x, nil, server)})
 			banners = append(banners, s.bannerInput(h))
 		}
 	}
@@ -150,12 +152,17 @@ func (s *Server) board(w http.ResponseWriter, r *http.Request) {
 	reply(w, http.StatusOK, out)
 }
 
-// apiGoal is a goal as the board shows it, to a character if one looks.
-func apiGoal(g *game.Game, x *game.Goal, c *game.Char) api.Goal {
-	out := api.Goal{ID: x.ID, Title: x.Title, Note: x.Note, Issuer: x.Issuer.Kind, By: issuerName(g, x), Verb: x.Cond.Verb, What: condText(g, x.Cond),
+// apiGoal is a goal as the board shows it, to a character if one looks,
+// and as a server reads it: a note its staff hid reads as the goal's
+// generated words, its condition with no title or note.
+func apiGoal(g *game.Game, x *game.Goal, c *game.Char, server string) api.Goal {
+	out := api.Goal{ID: x.ID, Title: x.Title, Note: x.Note, Issuer: x.Issuer.Kind, By: issuerName(g, x, server), Verb: x.Cond.Verb, What: condText(g, x.Cond),
 		Where: placeRef(g, x.Cond.At), Reward: x.Reward, Mode: x.Mode, Cap: x.Cap, Lifetime: x.Lifetime, Turnover: x.Turnover, State: x.State,
 		Progress: x.Total(), Count: x.Cond.Count, Claims: int64(len(x.Claims)), Need: x.Need, Pledged: x.Pledges.Sum(), Vow: x.Vow(), Top: []api.Contribution{},
 		Evolved: x.Evolved != 0 && x.Evolved == g.World.Day, Even: x.Even, Legend: g.GoalLegend(x), Custom: g.GoalCustom(x)}
+	if server != "" && g.HiddenFor(server, x.ID) {
+		out.Title, out.Note = out.What, ""
+	}
 	if x.State == goal.Proposed {
 		out.Reward, out.Vow = out.Pledged, false
 	}
@@ -235,19 +242,19 @@ func goalSide(g *game.Game, id, viewer string) *api.Side {
 	return &sd
 }
 
-// issuerName names who issued a goal.
-func issuerName(g *game.Game, x *game.Goal) string {
+// issuerName names who issued a goal, as a server reads it.
+func issuerName(g *game.Game, x *game.Goal, server string) string {
 	switch x.Issuer.Kind {
 	case goal.ByFaction:
 		fi, _ := strconv.Atoi(x.Issuer.ID)
 		return g.FactionName(fi)
 	case goal.BySettlement:
-		return g.PlaceName(g.SettlementHex(x.Board))
+		return shownPlace(g, server, g.SettlementHex(x.Board))
 	case goal.BySyndicate:
 		return g.StandingName(goal.BySyndicate)
 	}
 	if gd := g.MusterGuild(x); gd != nil {
-		return gd.G.Name
+		return shownGuild(g, server, gd.G.ID, gd.G.Name)
 	}
 	return charName(g, x.Poster)
 }
@@ -403,7 +410,7 @@ func apiGuild(g *game.Game, c *game.Char) api.Guild {
 		Charter: apiCharter(g.CharterAt(c))}
 	for _, gd := range g.Guilds {
 		if slices.Contains(gd.Invited, c.C.ID) {
-			out.Invites = append(out.Invites, api.Pick{Value: gd.G.ID, Label: gd.G.Name})
+			out.Invites = append(out.Invites, api.Pick{Value: gd.G.ID, Label: shownGuild(g, c.Server, gd.G.ID, gd.G.Name)})
 		}
 	}
 	gd := g.GuildOf(c.C.Guild)
@@ -411,7 +418,7 @@ func apiGuild(g *game.Game, c *game.Char) api.Guild {
 		return out
 	}
 	gg := gd.G
-	out.ID, out.Name, out.Server, out.Leader = gg.ID, gg.Name, gg.Server != "", charName(g, gg.Leader)
+	out.ID, out.Name, out.Server, out.Leader = gg.ID, shownGuild(g, c.Server, gg.ID, gg.Name), gg.Server != "", charName(g, gg.Leader)
 	out.Named, out.OfficersMax, out.Full, out.Officer = gg.Named(), gg.Officers(r.Guild), gg.Full(r.Guild), gg.IsOfficer(c.C.ID)
 	out.BankHere = g.BankHere(c)
 	if out.Officer {
@@ -447,7 +454,7 @@ func apiGuild(g *game.Game, c *game.Char) api.Guild {
 		if p.Guild != gg.ID {
 			continue
 		}
-		v := apiSettlement(g, p, p == here)
+		v := apiSettlement(g, p, p == here, c.Server)
 		if p == here && out.Officer {
 			for i := range v.Structures {
 				if v.Structures[i].CanRaise {
@@ -484,9 +491,9 @@ func apiGuild(g *game.Game, c *game.Char) api.Guild {
 	return out
 }
 
-func apiSettlement(g *game.Game, p *game.Place, here bool) api.Settlement {
+func apiSettlement(g *game.Game, p *game.Place, here bool, server string) api.Settlement {
 	r := g.Rules()
-	out := api.Settlement{N: p.N, Name: g.PlaceName(p.Hex), Treasury: g.Ledger.Of(game.TreasuryPool(p.N), ledger.Coin), Here: here, Structures: []api.Structure{},
+	out := api.Settlement{N: p.N, Name: shownPlace(g, server, p.Hex), Treasury: g.Ledger.Of(game.TreasuryPool(p.N), ledger.Coin), Here: here, Structures: []api.Structure{},
 		ConditionMax: r.Settle.ConditionMax, City: apiCity(g, p)}
 	for _, row := range r.Book.Structures {
 		st := p.Get(row.ID)
@@ -600,7 +607,7 @@ func narrowings(g *game.Game, c *game.Char, out *api.Goals) {
 			out.Places = slices.Clone(t.Options)
 		}
 	}
-	for _, f := range slices.Sorted(maps.Keys(r.Gen.Baseline(c.C.At).Fields())) {
+	for _, f := range slices.Sorted(maps.Keys(g.World.Baseline(c.C.At).Fields())) {
 		out.Fields = append(out.Fields, api.Pick{Value: f, Label: f})
 	}
 	for _, s := range r.Book.Slots {

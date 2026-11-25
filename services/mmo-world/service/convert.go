@@ -111,7 +111,39 @@ func apiCharacter(g *game.Game, c *game.Char) api.Character {
 	out.Titles, out.Pouches, out.Armed, out.Floor = g.Titles(c), int64(len(c.Pouches)), c.Armed != nil, ch.Floor
 	v := newVictims(g, c)
 	out.Alignment, out.Hot, out.Wanted, out.Stopped = apiAlignment(g, c), hotGoods(g, c, v), apiWanted(g, c, v), apiStopped(g, c)
+	out.Goods = append(out.Goods, stagedGoods(g, c)...)
+	if ch.StagedDay == g.Tick()/sheets.TicksPerDay {
+		out.StagedXP = ch.StagedXP
+	}
 	return out
+}
+
+// stagedAt marks goods or an item as staged at a settlement, and so local
+// to it, named as the reader's server names it.
+func stagedAt(g *game.Game, server string, n int) *api.StagedAt {
+	out := &api.StagedAt{Settlement: n}
+	if n >= 0 && n < len(g.Places) {
+		out.Name = shownPlace(g, server, g.SettlementHex(n))
+	}
+	return out
+}
+
+// stagedGoods are the staged goods a character carries, each its own
+// entry by where it was staged.
+func stagedGoods(g *game.Game, c *game.Char) []api.Goods {
+	var out []api.Goods
+	for _, sg := range c.C.Staged {
+		out = append(out, api.Goods{Material: sg.Material, Units: sg.Units, Staged: stagedAt(g, c.Server, sg.At)})
+	}
+	return out
+}
+
+// itemStaged is an item's staged mark as a reader's server names it.
+func itemStaged(g *game.Game, server string, in *item.Instance) *api.StagedAt {
+	if in.Staged == nil {
+		return nil
+	}
+	return stagedAt(g, server, in.Staged.At)
 }
 
 // structural: the listings a purse shows.
@@ -129,8 +161,9 @@ func cheapest(g *game.Game, c *game.Char, n, most int) []api.Listing {
 
 func apiListing(g *game.Game, c *game.Char, l market.Listing) api.Listing {
 	in := l.Item
-	out := api.Listing{ID: l.ID, Kind: in.Kind, Name: g.KindName(in.Kind), Level: in.Level, Picks: int64(len(in.Picks)), Durability: in.Durability,
-		Max: in.MaxDurability, Maker: in.Maker, Seller: g.OwnerName(l.Seller), Price: l.Price, Value: g.ItemValue(in), Mine: l.Seller == ledger.Char(c.C.ID)}
+	out := api.Listing{ID: l.ID, Kind: in.Kind, Name: shownKind(g, c.Server, in.Kind), Level: in.Level, Picks: int64(len(in.Picks)), Durability: in.Durability,
+		Max: in.MaxDurability, Maker: in.Maker, Seller: g.OwnerName(l.Seller), Price: l.Price, Value: g.ItemValue(in), Mine: l.Seller == ledger.Char(c.C.ID),
+		Staged: l.Staged}
 	if k, ok := g.Kinds.Kind(in.Kind); ok {
 		out.Slot = k.Slot
 	}
@@ -202,7 +235,7 @@ func apiFight(g *game.Game, c *game.Char, f *game.FightView) *api.Fight {
 		v.Portrait = portraitKey(in)
 	}
 	for _, in := range g.SwapDecks(c) {
-		v.Decks = append(v.Decks, api.DeckView{ID: in.ID, Name: g.KindName(in.Kind)})
+		v.Decks = append(v.Decks, api.DeckView{ID: in.ID, Name: shownKind(g, c.Server, in.Kind)})
 	}
 	if sh := g.SharedByID(f.Shared); sh != nil {
 		v.Shared, v.Party = true, fightParty(g, c, sh)
@@ -285,7 +318,8 @@ const (
 )
 
 func apiPurse(g *game.Game, c *game.Char) api.Purse {
-	p := api.Purse{Coin: c.C.Coin, Provisions: c.C.Provisions, Goods: apiGoods(c.C.Goods), Load: api.Load{Carried: c.Carried(), Capacity: g.Capacity(c)},
+	p := api.Purse{Coin: c.C.Coin, Provisions: c.C.Provisions, Goods: append(apiGoods(c.C.Goods), stagedGoods(g, c)...),
+		Load: api.Load{Carried: c.Carried(), Capacity: g.Capacity(c)},
 		Open: g.OpenOrders(c), Markets: []api.Hex{}}
 	worn := func(in *item.Instance) api.Worn {
 		w := api.Worn{ID: in.ID, Kind: in.Kind, Durability: in.Durability, Max: in.MaxDurability, Value: g.ItemValue(in)}
@@ -326,6 +360,14 @@ func apiPurse(g *game.Game, c *game.Char) api.Purse {
 	for _, b := range g.BooksAt(n) {
 		bid, ask := b.Best()
 		q := api.Quote{Material: b.Material, Bid: bid, Ask: ask, Value: rv.Asset(b.Material)}
+		if len(b.Bids) > 0 {
+			q.BidUnits = b.Bids[0].Qty
+		}
+		p.Quotes = append(p.Quotes, q)
+	}
+	for _, b := range g.StagedBooksAt(n) {
+		bid, ask := b.Best()
+		q := api.Quote{Material: b.Material, Bid: bid, Ask: ask, Value: rv.Asset(b.Material), Staged: true}
 		if len(b.Bids) > 0 {
 			q.BidUnits = b.Bids[0].Qty
 		}
@@ -378,7 +420,7 @@ func apiTile(g *game.Game, h hex.Hex) (api.Tile, bool) {
 // tileView is a tile as a client sees it, found or not: only for a tile
 // the asking character stands on.
 func tileView(g *game.Game, h hex.Hex) api.Tile {
-	b := g.Rules().Gen.Baseline(h)
+	b := g.World.Baseline(h)
 	out := api.Tile{Hex: apiHex(h), Terrain: b.Terrain, Water: b.Water, Site: g.SiteAt(h), Landmark: b.Landmark}
 	if c, ok := g.Content(h); ok {
 		out.SiteKind, out.Placed = c.SiteKind, apiPlaced(c.Placed)

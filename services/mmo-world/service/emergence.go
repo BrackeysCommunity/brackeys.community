@@ -244,7 +244,7 @@ func (s *Server) storyPromotions(w http.ResponseWriter, r *http.Request) {
 	out := api.StoryEvents{Events: []api.StoryEvent{}, Last: after}
 	for _, f := range facts {
 		out.Last = max(out.Last, int64(f.ID))
-		if ev, ok := storyEvent(s.g, f); ok {
+		if ev, ok := storyEvent(s.g, f, ""); ok {
 			out.Events = append(out.Events, ev)
 		}
 	}

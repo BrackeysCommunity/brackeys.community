@@ -77,7 +77,7 @@ func notHere(msg string) error { return &game.Refused{Code: game.NotHere, Msg: m
 func apiMarket(g *game.Game, c *game.Char, n int, material string) api.Market {
 	rv := g.Rules().Values
 	h := c.C.At
-	out := api.Market{Settlement: n, Name: g.PlaceName(h), Exchange: []api.Exchange{}, Movers: []api.Mover{}, Elsewhere: []api.Far{},
+	out := api.Market{Settlement: n, Name: shownPlace(g, c.Server, h), Exchange: []api.Exchange{}, Movers: []api.Mover{}, Elsewhere: []api.Far{},
 		Gear: []api.Listing{}, Wants: []api.GearWant{}, Orders: []api.Order{}, Fee: rv.FeePercent(), Limit: rv.Param("open-orders"),
 		Days: rv.Param("order-days"), PerPoint: rv.Param("standing-coin"),
 		Mine: api.Mine{Open: []api.Open{}, Entries: []api.Entry{}, Young: g.Young(c), Cap: rv.Param("young-cap")}}
@@ -91,6 +91,9 @@ func apiMarket(g *game.Game, c *game.Char, n int, material string) api.Market {
 		out.Book.Bids = levels(g, b.Bids)
 		out.Book.Asks = levels(g, b.Asks)
 		out.Book.Last = b.Last
+	}
+	if b := g.StagedBookOf(n, material); b != nil {
+		out.StagedBook = &api.BookView{Material: material, Bids: levels(g, b.Bids), Asks: levels(g, b.Asks), Last: b.Last, Value: rv.Asset(material)}
 	}
 	for _, b := range books {
 		bid, ask := b.Best()
@@ -107,7 +110,7 @@ func apiMarket(g *game.Game, c *game.Char, n int, material string) api.Market {
 	}
 	if g.Market != nil {
 		if reports := g.Market.Reports; len(reports) > 0 {
-			r := apiReport(reports[len(reports)-1], rv.Param("report-days"))
+			r := apiReport(reports[len(reports)-1], rv.Param("report-days"), c.Server)
 			out.Report = &r
 		}
 	}
@@ -197,11 +200,18 @@ func mine(g *game.Game, c *game.Char) ([]api.Open, int64) {
 	return out, escrow
 }
 
-func apiReport(r game.Report, every int64) api.Report {
+// apiReport is a weekly report as a server reads it: only its own staged
+// line, since nothing staged reaches another server's books.
+func apiReport(r game.Report, every int64, server string) api.Report {
 	out := api.Report{Day: r.Day, Supply: r.Supply, Active: r.Active, PerActive: r.PerActive, Low: r.Low, High: r.High, Rate: r.Rate.Floor(),
 		Velocity: r.Velocity.Of(fixed.Hundredths), Faucet: r.Faucet, Fees: r.Fees, Top: []api.Goods{}, Every: every, Audit: r.Audit}
 	for _, t := range r.Top {
 		out.Top = append(out.Top, api.Goods{Material: t.Material, Units: t.Units})
+	}
+	for _, l := range r.Staged {
+		if l.Server == server {
+			out.Staged = append(out.Staged, api.StagedLine{Server: l.Server, Minted: l.Minted, Held: l.Held, Spent: l.Spent, Traded: l.Traded})
+		}
 	}
 	return out
 }

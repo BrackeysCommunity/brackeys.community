@@ -1,6 +1,7 @@
 // Command op is the operator CLI: inspect, correct, grant, ban, audit, economy,
 // stand a character before a machine, pin content, start a season, cast an
-// arc, read the story and the emergence dashboard, reset and replay a world.
+// arc, rename for everyone, close escalated cases, read the story, the
+// emergence dashboard and the house log, reset and replay a world.
 //
 // Writes go through the running service's operator API, so the service
 // stays the only writer and every correction replays. replay reads the
@@ -46,8 +47,14 @@ const usage = `op [-id <interaction id>] <command>
                                   stage content on a tile nobody has reached
   pin-edit <q,r> <field=value>... [-as ... -for ... -label ...]   change a reached tile's content
   pin-withdraw <pin-id> [-as ... -for ...]   stop a live pin counting
-      fields: site, landmark, site-kind, dungeon, floors, lead, stock
+      fields: site, landmark, site-kind, dungeon, floors, lead, stock;
+              ground=<terrain> [elevation=N] [ring=true] lays terrain on the tile, or the tile and its ring
   pins                            the live pins
+  rename <ref> [name...]          rename a guild:, settlement:, dungeon:, kind: or promotion: ref for every
+                                  server; no name restores the one the world gave it
+  cases                           the cases every server escalated
+  case-close <server>/<case> [note...]   close an escalated case once it is acted on
+  house-log [-after N]            every server's log of staff, admin and operator commands, after a row id
   freeze-content [note...]        store the seed's content on a world from before history
   season-start [note...]          give a world from before seasons the season it is in
   arc-cast <template> <role>=<kind>:<id>... [seat=q,r]
@@ -216,6 +223,26 @@ func run(args []string) error {
 			return errors.New(usage)
 		}
 		return shown(cli().Pins(context.Background()))
+	case api.OpRename:
+		if err := need(rest, 1); err != nil {
+			return err
+		}
+		return operate(api.OperatorRequest{InteractionID: *id, Kind: cmd, Rename: &api.RenameOrder{Ref: rest[0], Name: strings.Join(rest[1:], " ")}})
+	case "cases":
+		if len(rest) != 0 {
+			return errors.New(usage)
+		}
+		return shown(cli().OperatorCases(context.Background()))
+	case api.OpCaseClose:
+		if err := need(rest, 1); err != nil {
+			return err
+		}
+		if server, c, ok := strings.Cut(rest[0], "/"); !ok || server == "" || c == "" {
+			return fmt.Errorf("a case is <server>/<case id>, not %q", rest[0])
+		}
+		return operate(api.OperatorRequest{InteractionID: *id, Kind: cmd, Target: rest[0], Note: strings.Join(rest[1:], " ")})
+	case "house-log":
+		return houseLog(rest)
 	case "freeze-content":
 		return operate(api.OperatorRequest{InteractionID: *id, Kind: api.OpContentFreeze, Note: strings.Join(rest, " ")})
 	case api.OpSeasonStart:
@@ -248,6 +275,19 @@ func run(args []string) error {
 		return replayCmd(rest)
 	}
 	return errors.New(usage)
+}
+
+// houseLog prints a page of every server's log after a row id.
+func houseLog(args []string) error {
+	fs := flag.NewFlagSet("house-log", flag.ContinueOnError)
+	after := fs.Int64("after", 0, "the row id to read after")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 || *after < 0 {
+		return errors.New(usage)
+	}
+	return shown(cli().OperatorHouseLog(context.Background(), *after))
 }
 
 // hexArg reads a tile written "q,r".

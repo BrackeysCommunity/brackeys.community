@@ -163,11 +163,18 @@ func (h *HTTP) OperatorEmergence(ctx context.Context) (api.Emergence, error) {
 	return out, Refused("operator emergence", ref, err)
 }
 
-// House is a server's house as one of its characters reads it: the role
-// its flags make it, and the queue only for staff and admins.
-func (h *HTTP) House(ctx context.Context, server, character string) (api.House, error) {
+// House is a server's house as one of its characters reads it, at the
+// role (api.RoleAdmin, RoleStaff or RolePlayer) the member's flags give:
+// the queue, holds, masks and pins only for staff and admins.
+func (h *HTTP) House(ctx context.Context, server, character, role string) (api.House, error) {
 	var out api.House
 	path := api.PathHouse + "?server=" + url.QueryEscape(server) + "&character=" + url.QueryEscape(character)
+	switch role {
+	case api.RoleAdmin:
+		path += "&admin=1"
+	case api.RoleStaff:
+		path += "&staff=1"
+	}
 	ref, err := h.Do(ctx, http.MethodGet, path, nil, &out)
 	return out, Refused("house of "+server, ref, err)
 }

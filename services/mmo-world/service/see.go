@@ -34,7 +34,7 @@ func found(g *game.Game, h hex.Hex) bool {
 func Filter(g *game.Game, c *game.Char, v api.Viewer, passed int64, now time.Time) api.ActivityState {
 	h := c.C.At
 	st := api.ActivityState{Tick: g.Tick(), Context: contextOf(g, c), Character: apiCharacter(g, c),
-		Place: api.ActivityHere{Tile: tileView(g, h), Name: g.PlaceName(h)}}
+		Place: api.ActivityHere{Tile: tileView(g, h), Name: shownPlace(g, c.Server, h)}}
 	if !now.IsZero() {
 		st.Now = now.UnixMilli()
 	}

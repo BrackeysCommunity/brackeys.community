@@ -258,14 +258,36 @@ func nameFacts(g *game.Game, viewer string, names map[string]string, fs ...api.F
 	}
 }
 
-// factNames are nameFacts' names as a new map, nil when there are none.
-func factNames(g *game.Game, viewer string, fs ...api.Fact) map[string]string {
+// factNames are nameFacts' names as a new map, masked for a server, nil
+// when there are none.
+func factNames(g *game.Game, viewer, server string, fs ...api.Fact) map[string]string {
 	names := map[string]string{}
 	nameFacts(g, viewer, names, fs...)
 	if len(names) == 0 {
 		return nil
 	}
+	maskNames(g, server, names)
 	return names
+}
+
+// structural: the stamp kind a server's staging writes, as sim/game
+// stamps it.
+const stampServer = "server"
+
+// stampedServer is the server whose staging a fact is stamped by, "" for
+// a fact no server staged.
+func stampedServer(f fact.Fact) string {
+	if s := f.StagedBy; s != nil && s.Kind == stampServer {
+		return s.ID
+	}
+	return ""
+}
+
+// otherServers reports whether a fact is another server's staging than
+// server's: staging stays local (GDD 14.5).
+func otherServers(f fact.Fact, server string) bool {
+	by := stampedServer(f)
+	return by != "" && by != server
 }
 
 // arcs are the open and lately ended arcs, the season, and the side goals
@@ -439,7 +461,7 @@ func (s *Server) chronicle(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, err)
 		return
 	}
-	facts = slices.DeleteFunc(facts, func(f fact.Fact) bool { return !game.Visible("", f.Kind, f.Subjects) })
+	facts = slices.DeleteFunc(facts, func(f fact.Fact) bool { return !game.Visible("", f.Kind, f.Subjects) || otherServers(f, server) })
 	here := make(map[fact.ID]bool, len(facts))
 	for _, f := range facts {
 		here[f.ID] = ps.touches(f)
@@ -469,7 +491,7 @@ func (s *Server) chronicle(w http.ResponseWriter, r *http.Request) {
 		}
 		shown = append(shown, f)
 		if int64(len(out.Lines)) < most {
-			out.Lines = append(out.Lines, api.ChronicleLine{Fact: v, Here: here[f.ID], Causes: int64(len(f.Causes))})
+			out.Lines = append(out.Lines, api.ChronicleLine{Fact: maskFact(s.g, server, v), Here: here[f.ID], Causes: int64(len(f.Causes))})
 		}
 	}
 	out.More = max(0, int64(len(shown))-most)
@@ -478,7 +500,7 @@ func (s *Server) chronicle(w http.ResponseWriter, r *http.Request) {
 	for i, l := range out.Lines {
 		lines[i] = l.Fact
 	}
-	out.Names = factNames(s.g, "", lines...)
+	out.Names = factNames(s.g, "", server, lines...)
 	out.Cover = coverOf(facts)
 	reply(w, http.StatusOK, out)
 }
@@ -549,14 +571,14 @@ func (s *Server) chronicleFact(w http.ResponseWriter, r *http.Request) {
 		refuse(w, http.StatusBadRequest, api.Refusal{Code: api.CodeBadJSON, Message: "id is a fact id"})
 		return
 	}
-	viewer, made := "", false
+	viewer, made, server := "", false, r.URL.Query().Get("server")
 	unlock, ok := s.hold(r.Context(), w, true)
 	if !ok {
 		return
 	}
 	c, ok := s.viewerOf(w, r)
 	if c != nil {
-		viewer, made = c.C.ID, char.IsMade(c.C)
+		viewer, made, server = c.C.ID, char.IsMade(c.C), c.Server
 	}
 	unlock()
 	if !ok {
@@ -566,7 +588,7 @@ func (s *Server) chronicleFact(w http.ResponseWriter, r *http.Request) {
 		refuse(w, http.StatusNotFound, api.Refusal{Code: api.CodeNotFound, Message: fmt.Sprintf("no fact %d", id)})
 	}
 	f, causes, err := s.st.FactCauses(r.Context(), fact.ID(id))
-	if errors.Is(err, store.ErrNoFact) || err == nil && !game.VisibleTo(viewer, made, f.Kind, f.Subjects) {
+	if errors.Is(err, store.ErrNoFact) || err == nil && (!game.VisibleTo(viewer, made, f.Kind, f.Subjects) || otherServers(f, server)) {
 		missing()
 		return
 	}
@@ -583,20 +605,22 @@ func (s *Server) chronicleFact(w http.ResponseWriter, r *http.Request) {
 		missing()
 		return
 	}
-	out := api.FactCauses{Fact: top, Causes: []api.Fact{}}
+	out := api.FactCauses{Fact: maskFact(s.g, server, top), Causes: []api.Fact{}}
 	for _, x := range causes {
-		if v, ok := seen(s.g, viewer, apiFact(x)); ok {
-			out.Causes = append(out.Causes, v)
+		if v, ok := seen(s.g, viewer, apiFact(x)); ok && !otherServers(x, server) {
+			out.Causes = append(out.Causes, maskFact(s.g, server, v))
 		}
 	}
-	out.Names = factNames(s.g, "", append([]api.Fact{top}, out.Causes...)...)
+	out.Names = factNames(s.g, "", server, append([]api.Fact{top}, out.Causes...)...)
 	reply(w, http.StatusOK, out)
 }
 
 // storyEvents are the facts of the events channel after a fact id, each
-// with its arc or trouble as the game holds it now. Last is the id to ask
-// after next.
+// with its arc or trouble as the game holds it now, and the server whose
+// staging it is. Named for a server, they are masked for it and leave out
+// other servers' staging. Last is the id to ask after next.
 func (s *Server) storyEvents(w http.ResponseWriter, r *http.Request) {
+	server := r.URL.Query().Get("server")
 	var after int64
 	if q := r.URL.Query().Get("after"); q != "" {
 		n, err := strconv.ParseInt(q, 10, 64)
@@ -620,7 +644,10 @@ func (s *Server) storyEvents(w http.ResponseWriter, r *http.Request) {
 	out := api.StoryEvents{Events: []api.StoryEvent{}, Last: after}
 	for _, f := range facts {
 		out.Last = max(out.Last, int64(f.ID))
-		if ev, ok := storyEvent(g, f); ok {
+		if server != "" && otherServers(f, server) {
+			continue
+		}
+		if ev, ok := storyEvent(g, f, server); ok {
 			out.Events = append(out.Events, ev)
 		}
 	}
@@ -629,13 +656,15 @@ func (s *Server) storyEvents(w http.ResponseWriter, r *http.Request) {
 
 // storyEvent is one fact for the events channel with its snapshot: a
 // trouble's, an arc's that is not a personal thread, or the promotion it
-// names. False for a fact the public may not read.
-func storyEvent(g *game.Game, f fact.Fact) (api.StoryEvent, bool) {
+// names, masked for a server. False for a fact the public may not read.
+func storyEvent(g *game.Game, f fact.Fact, server string) (api.StoryEvent, bool) {
 	v, ok := seen(g, "", apiFact(f))
 	if !ok {
 		return api.StoryEvent{}, false
 	}
-	ev := api.StoryEvent{Fact: v, Promotion: promotionOf(g, f), Names: factNames(g, "", v), Art: artOf(factSlot(f))}
+	v = maskFact(g, server, v)
+	ev := api.StoryEvent{Fact: v, Promotion: promotionOf(g, f), Names: factNames(g, "", server, v), Art: artOf(factSlot(f)),
+		Server: stampedServer(f)}
 	if d, ok := f.Get("arc"); ok {
 		if a := g.ArcByID(d.S); a != nil && a.Scope == arc.Settlement {
 			ev.Trouble = troubleView(g, a)
@@ -656,7 +685,7 @@ func storyEvent(g *game.Game, f fact.Fact) (api.StoryEvent, bool) {
 		}
 	}
 	if n >= 0 && n < int64(len(g.Places)) {
-		ev.Place = g.PlaceName(g.SettlementHex(int(n)))
+		ev.Place = shownPlace(g, server, g.SettlementHex(int(n)))
 	}
 	return ev, true
 }

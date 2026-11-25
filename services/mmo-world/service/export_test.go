@@ -21,3 +21,6 @@ var VariantSeen = variantSeen
 
 // ScrubFirsts drops other characters from the FirstKinds facts a reply holds.
 var ScrubFirsts = scrubFirsts
+
+// VaultMarks is a machine's vault place and who staged it.
+var VaultMarks = vaultMarks

@@ -135,6 +135,7 @@ type House struct {
 	Holds       []Hold            `json:"holds,omitempty"`
 	Masks       []string          `json:"masks,omitempty"`
 	Hidden      []string          `json:"hidden,omitempty"`
+	Pins        []Pin             `json:"pins,omitempty"` // the server's live pins, staff and admins only
 	Role        string            `json:"role"`
 	StagedXP    int64             `json:"stagedXp"` // the daily allowance from staged fights
 }
@@ -166,6 +167,8 @@ type StageTemplate struct {
 	Tier   int64  `json:"tier,omitempty"`
 	Crates int64  `json:"crates,omitempty"`
 	Days   int64  `json:"days"`
+	// Patterns are the story.pattern-puzzles rows a pattern template lays.
+	Patterns []string `json:"patterns,omitempty"`
 }
 
 // StageView is one staging, from its order to its close. Opens and Ends

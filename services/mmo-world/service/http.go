@@ -60,6 +60,8 @@ func (s *Server) Handler() http.Handler {
 	player("GET "+api.PathStoryEvents, s.storyEvents)
 	player("GET "+api.PathArcs, s.arcs)
 	player("GET "+api.PathStoryPromotions, s.storyPromotions)
+	player("GET "+api.PathHouse, s.house)
+	player("GET "+api.PathHouseLog, s.houseLog)
 	mux.HandleFunc("GET "+api.PathMedia+"{key}", s.mediaHandler)
 	op := func(path string, h http.HandlerFunc) {
 		mux.Handle(path, s.guard(s.cfg.OperatorToken, s.operatorOnly(h)))
@@ -74,6 +76,8 @@ func (s *Server) Handler() http.Handler {
 	op("GET "+api.PathOperatorStory, s.operatorStory)
 	op("GET "+api.PathOperatorEmergence, s.operatorEmergence)
 	op("GET "+api.PathArcKit, s.arcKit)
+	op("GET "+api.PathOperatorHouseLog, s.operatorHouseLog)
+	op("GET "+api.PathOperatorCases, s.operatorCases)
 	op("POST "+api.PathOperatorReset, s.reset)
 	op("POST "+api.PathOperatorClock, s.clock)
 	return mux
@@ -246,7 +250,8 @@ func (s *Server) do(ctx context.Context, cmd game.Command, discord string, versi
 // actionReply is what a command did; a world-level command's names no
 // character.
 func actionReply(g *game.Game, res game.Result) api.ActionReply {
-	out := api.ActionReply{Tick: g.Tick(), Facts: apiFacts(res.Facts), Pressed: apiPressed(g, res.Pressed), Machine: apiResult(res.Machine)}
+	out := api.ActionReply{Tick: g.Tick(), Facts: apiFacts(res.Facts), Pressed: apiPressed(g, res.Pressed), Machine: apiResult(res.Machine),
+		Points: res.Points}
 	if res.Char != nil {
 		out.Character = apiCharacter(g, res.Char)
 	}
@@ -417,8 +422,10 @@ func (s *Server) inspectCharacter(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// inspectTile is a tile as operators see it: its stored state and its
-// baseline, discovered or not, and the live pins a draw there would read.
+// inspectTile is a tile as operators see it: its stored state, its
+// baseline as the world reads it (with a landed terrain pin's ground) and
+// the scaffold under it, discovered or not, and the live pins a draw there
+// would read.
 func (s *Server) inspectTile(w http.ResponseWriter, r *http.Request) {
 	h, ok := hexParam(w, r)
 	if !ok {
@@ -429,8 +436,8 @@ func (s *Server) inspectTile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer unlock()
-	reply(w, http.StatusOK, map[string]any{"baseline": s.g.Rules().Gen.Baseline(h), "state": s.g.World.Tile(h), "region": s.g.World.RegionAt(h),
-		"pins": livePins(s.g, &h)})
+	reply(w, http.StatusOK, map[string]any{"baseline": s.g.World.Baseline(h), "scaffold": s.g.Rules().Gen.Baseline(h), "state": s.g.World.Tile(h),
+		"region": s.g.World.RegionAt(h), "pins": livePins(s.g, &h)})
 }
 
 func (s *Server) auditHandler(w http.ResponseWriter, r *http.Request) {

@@ -834,6 +834,9 @@ const most = 200
 func factOf(x db.MmoFact) (fact.Fact, error) {
 	f := fact.Fact{ID: fact.ID(x.ID), Tick: x.Tick, Kind: x.Kind, Region: x.Region.String, Weight: int64(x.Weight)}
 	err := errors.Join(json.Unmarshal(x.Subjects, &f.Subjects), json.Unmarshal(x.Data, &f.Data), json.Unmarshal(x.Causes, &f.Causes))
+	if len(x.StagedBy) > 0 {
+		err = errors.Join(err, json.Unmarshal(x.StagedBy, &f.StagedBy))
+	}
 	return f, err
 }
 

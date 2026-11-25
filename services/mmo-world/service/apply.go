@@ -57,7 +57,8 @@ func playerCommand(req api.ActionRequest) (game.Command, *api.Refusal, int) {
 	}
 	cmd := game.Command{Key: req.InteractionID, Char: req.CharacterID, Kind: req.Kind, Dir: req.Dir, Material: req.Material,
 		Ticks: req.Ticks, Option: req.Option, Units: req.Units, Asset: req.Asset, Item: req.Item, Slot: req.Slot, NPC: req.NPC, Server: req.Server,
-		Price: req.Price, Target: req.Target, Note: req.Note, Admin: req.Admin, Along: req.Along, BackRoom: req.BackRoom, ForSide: req.ForSide}
+		Price: req.Price, Target: req.Target, Note: req.Note, Admin: req.Admin, Along: req.Along, BackRoom: req.BackRoom, ForSide: req.ForSide,
+		Staff: req.Staff, Staged: req.Staged}
 	if req.Goal != nil {
 		s := simGoal(*req.Goal)
 		cmd.Goal = &s
@@ -78,7 +79,41 @@ func playerCommand(req api.ActionRequest) (game.Command, *api.Refusal, int) {
 		cmd.Stop = &game.Stop{Threat: req.Stop.Threat, Provisions: req.Stop.Provisions, Unknown: req.Stop.Unknown}
 	}
 	cmd.Machine = simMachine(req.Machine)
+	houseOrders(req, &cmd)
 	return cmd, nil, 0
+}
+
+// houseOrders copies the house kinds' orders. A house pin speaks for the
+// command's server, so the pin's own As, For and Label are dropped.
+func houseOrders(req api.ActionRequest, cmd *game.Command) {
+	if s := req.Stage; s != nil {
+		cmd.Stage = &game.StageCmd{Template: s.Template, Settlement: s.Settlement, At: simHex(s.At), Hunt: s.Hunt, Contest: s.Contest,
+			Pattern: s.Pattern, Opens: s.Opens, Days: s.Days}
+	}
+	if c := req.Case; c != nil {
+		cmd.Case = &game.CaseCmd{Ref: c.Ref, Reason: c.Reason}
+	}
+	if m := req.Moderate; m != nil {
+		cmd.Moderate = &game.ModerateCmd{Action: m.Action, Ref: m.Ref, Days: m.Days, Case: m.Case}
+	}
+	if s := req.Settings; s != nil {
+		set := simSettings(*s)
+		cmd.Settings = &set
+	}
+	if req.Pin != nil {
+		p := simPin(*req.Pin)
+		p.As, p.For, p.Label = "", "", ""
+		cmd.Pin = &p
+	}
+}
+
+func simSettings(s api.HouseSettings) game.HouseSettings {
+	out := game.HouseSettings{StaffRoles: s.StaffRoles, AlarmRoles: s.AlarmRoles, HideNames: s.HideNames, Narrated: s.Narrated,
+		QuietFrom: s.QuietFrom, QuietTo: s.QuietTo}
+	for _, c := range s.Channels {
+		out.Channels = append(out.Channels, game.Channel{Kind: c.Kind, ID: c.ID})
+	}
+	return out
 }
 
 // simMachine is what a machine action carries, as the rules take it.
@@ -111,6 +146,9 @@ func operatorCommand(req api.OperatorRequest) (game.Command, *api.Refusal, int) 
 	}
 	if req.Arc != nil {
 		cmd.Arc = simArcOrder(*req.Arc)
+	}
+	if req.Rename != nil {
+		cmd.Rename = &game.RenameCmd{Ref: req.Rename.Ref, Name: req.Rename.Name}
 	}
 	if game.WorldLevel(req.Kind) {
 		cmd.Char = ""
@@ -188,6 +226,9 @@ func applyCommand(ctx context.Context, g *game.Game, rec records, subs *listener
 	rep := actionReply(g, res)
 	if !game.Operator(cmd.Kind) {
 		rep.Facts = scrubFirsts(cmd.Char, playerFacts(g, cmd.Char, rep.Facts))
+		if res.Char != nil {
+			rep.Facts = maskFacts(g, res.Char.Server, rep.Facts)
+		}
 	}
 	body, err := json.Marshal(rep)
 	if err != nil {

@@ -291,6 +291,8 @@ func huntView(g *game.Game, c *game.Char, x *game.Hunt) *api.HuntView {
 	out := &api.HuntView{ID: h.ID, Name: huntName(g, h.Row), Creature: h.Creature.Archetype, Health: h.Health, Max: h.Max, Ends: h.Ends,
 		EndsIn: max(0, h.Ends-g.Tick()), Pressers: pressers(g, c.C.ID, x), Mine: h.Removed.Get(c.C.ID), Spoils: huntSpoils(g, h.Row),
 		CanPress: canPress(g, c, x)}
+	out.Stage, out.Placed = huntStage(g, c.Server, x)
+	out.Spoils = markStaged(out.Spoils, huntStaged(g, c.Server, x))
 	if total := h.Removed.Sum(); total > 0 {
 		out.Share = out.Mine * percent / total
 	}
@@ -327,8 +329,10 @@ func partyMachineView(g *game.Game, c *game.Char, sh *game.Shared) *api.MachineV
 			return nil
 		}
 		family := spec.Family
-		return &api.MachineView{Source: source, Family: family, Name: familyName(g, family), Layout: api.PuzzleLayout{Family: family},
+		out := &api.MachineView{Source: source, Family: family, Name: familyName(g, family), Layout: api.PuzzleLayout{Family: family},
 			Practice: practiceLine(g, c, family), Seat: int64(seat), Seats: seatViews(g, c, seats)}
+		out.Place, out.Placed = vaultMarks(g, c.Server, spec.Place)
+		return out
 	}
 	rig, ok := g.PartyRigOf(c)
 	if !ok || rig.Seat < 0 {
@@ -348,6 +352,7 @@ func partyMachineView(g *game.Game, c *game.Char, sh *game.Shared) *api.MachineV
 		out.Glimpse = &gl
 	}
 	out.Rival = rivalView(g, sh)
+	out.Place, out.Placed = vaultMarks(g, c.Server, spec.Place)
 	if spec.Party == "" && len(m.Seats) == 1 && p.Gifts(c.C.Level(spec.Family)).Mastery {
 		in := apiLayout(p.Inner(spec))
 		out.Inner = &in

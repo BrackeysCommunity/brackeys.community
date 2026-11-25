@@ -256,7 +256,7 @@ func (s *Server) apiSheet(c *game.Char, pictures *[]func() error) (api.Sheet, er
 	}
 	v := newVictims(g, c)
 	for _, in := range c.C.Pack {
-		it, err := s.apiItem(in, worn[in.ID], pictures)
+		it, err := s.apiItem(c.Server, in, worn[in.ID], pictures)
 		if err != nil {
 			return out, err
 		}
@@ -306,13 +306,14 @@ func apiFind(f game.Find) api.Find {
 	return out
 }
 
-// apiItem prepares an item's card and queues its sigil for rendering.
-func (s *Server) apiItem(in *item.Instance, worn string, pictures *[]func() error) (api.Item, error) {
+// apiItem prepares an item's card, named as its owner's server names it,
+// and queues its sigil for rendering.
+func (s *Server) apiItem(server string, in *item.Instance, worn string, pictures *[]func() error) (api.Item, error) {
 	g := s.g
 	r := g.Rules()
 	out := api.Item{ID: in.ID, Kind: in.Kind, Worn: worn, Level: in.Level, XP: in.XP, Durability: in.Durability, Max: in.MaxDurability,
 		Dormant: in.Dormant, Axes: []api.Part{}, Traits: []string{}, Picks: append([]string{}, in.Picks...), Offers: slices.Clone(in.Offers), Maker: in.Maker, Mount: in.Mount,
-		WearIn: []string{}}
+		WearIn: []string{}, Staged: itemStaged(g, server, in)}
 	if in.Mount != "" {
 		out.Name, out.Slot = r.Name("mounts.kinds:"+in.Mount), char.Mount
 		if m := r.Mounts.Kind(in.Mount); m != nil {
@@ -321,7 +322,7 @@ func (s *Server) apiItem(in *item.Instance, worn string, pictures *[]func() erro
 	}
 	k, ok := g.Kinds.Kind(in.Kind)
 	if ok {
-		out.Name, out.Slot, out.Tier, out.Value = g.Kinds.Name(k.ID), k.Slot, k.Tier, r.Values.Kind(&g.Kinds, k)
+		out.Name, out.Slot, out.Tier, out.Value = shownName(g, server, game.RefKind+":"+k.ID, g.Kinds.Name(k.ID)), k.Slot, k.Tier, r.Values.Kind(&g.Kinds, k)
 		out.TraderPays = g.TraderPays(in)
 		out.WearIn, out.Loads, out.Deck = append(out.WearIn, game.WearIn(k.Slot)...), game.Loads(k), game.IsDeck(k)
 		out.ToNext = r.Growth.ToNext(in.Level)
@@ -346,7 +347,7 @@ func (s *Server) apiItem(in *item.Instance, worn string, pictures *[]func() erro
 		})
 	}
 	if in.Exploit != nil {
-		x, err := s.apiItem(in.Exploit, "", pictures)
+		x, err := s.apiItem(server, in.Exploit, "", pictures)
 		if err != nil {
 			return out, err
 		}
@@ -405,7 +406,7 @@ func (s *Server) here(w http.ResponseWriter, r *http.Request) {
 func apiHere(g *game.Game, c *game.Char) api.Here {
 	h := c.C.At
 	place := placeView(g, h)
-	out := api.Here{Place: place, Name: g.PlaceName(h), Stations: []api.Station{}, Orders: []api.Order{}, Offers: []api.Offer{},
+	out := api.Here{Place: place, Name: shownPlace(g, c.Server, h), Stations: []api.Station{}, Orders: []api.Order{}, Offers: []api.Offer{},
 		People: []api.Person{}, Trails: []api.Trail{}, Search: g.CanSearch(c, h), Materials: []api.Stock{}, Forage: g.ForageYield(h), Recent: []api.Fact{},
 		Downed: []api.Downed{}}
 	for _, d := range g.DownedAt(c) {
@@ -463,7 +464,7 @@ func conversing(g *game.Game, c *game.Char, s npc.Stub) game.Person {
 func (s *Server) bannerInput(h hex.Hex) render.BannerInput {
 	g := s.g
 	r := g.Rules()
-	b := r.Gen.Baseline(h)
+	b := g.World.Baseline(h)
 	in := render.BannerInput{Terrain: b.Terrain, Hour: (g.Tick() % sheets.TicksPerDay) / sheets.TicksPerHour, Settlement: g.IsSettlement(h)}
 	if ri := g.World.RegionAt(h); ri >= 0 {
 		reg := g.World.Regions[ri]
@@ -569,7 +570,7 @@ func (s *Server) recipes(w http.ResponseWriter, r *http.Request) {
 			if k, ok := s.g.Kinds.Kind(id); ok && !seen[id] {
 				seen[id] = true
 				_, refused := s.g.CanNameKind(id, c.C.ID)
-				out.Known = append(out.Known, api.Known{Kind: id, Name: s.g.Kinds.Name(id), Recipe: apiRecipe(k.Recipe), First: first, Renamable: refused == nil})
+				out.Known = append(out.Known, api.Known{Kind: id, Name: shownName(s.g, c.Server, game.RefKind+":"+id, s.g.Kinds.Name(id)), Recipe: apiRecipe(k.Recipe), First: first, Renamable: refused == nil})
 			}
 		}
 		for _, id := range c.C.Discovered {
@@ -614,12 +615,13 @@ func (s *Server) recap(w http.ResponseWriter, r *http.Request) {
 			x := api.RecapLine{Rule: l.Rule, Kind: l.Kind, NPC: l.NPC}
 			if l.NPC == "" {
 				f, _ := seen(s.g, c.C.ID, apiFact(l.Fact))
+				f = maskFact(s.g, c.Server, f)
 				x.Fact, x.Promotion = &f, renamable(s.g, c.C.ID, l.Fact)
 				told = append(told, f)
 			}
 			out.Lines = append(out.Lines, x)
 		}
-		out.Names = factNames(s.g, c.C.ID, told...)
+		out.Names = factNames(s.g, c.C.ID, c.Server, told...)
 		reply(w, http.StatusOK, out)
 	})
 }
@@ -671,9 +673,10 @@ func (s *Server) promotionRecap(w http.ResponseWriter, r *http.Request, id strin
 				}
 			}
 			x, _ := seen(s.g, c.C.ID, apiFact(f))
+			x = maskFact(s.g, c.Server, x)
 			line.Fact = &x
 			out.Lines = append(out.Lines, line)
-			out.Names = factNames(s.g, c.C.ID, x)
+			out.Names = factNames(s.g, c.C.ID, c.Server, x)
 		}
 		reply(w, http.StatusOK, out)
 	})
@@ -770,7 +773,7 @@ func (s *Server) mapHandler(w http.ResponseWriter, r *http.Request) {
 			if known {
 				t := tileView(g, h)
 				out.Tiles = append(out.Tiles, t)
-				b := g.Rules().Gen.Baseline(h)
+				b := g.World.Baseline(h)
 				mt.Terrain, mt.River, mt.Road, mt.Site, mt.Weather, mt.Region = t.Terrain, b.River, t.Road, t.Site, t.Weather, t.Region
 				mt.Danger = g.World.Past(h, "ambush")
 				mt.Corrupted = g.World.Past(h, "corrupted-nodes")
