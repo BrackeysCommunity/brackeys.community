@@ -35,7 +35,7 @@
     {
       "id": "top-kinds-near-median",
       "text": "Per tier and slot, the best kind a search finds is within 1.3 times the top decile of sampled kinds, by the sum of the two strongest axes",
-      "runs": "craft",
+      "runs": "craft, search",
       "holdsFrom": "MM2"
     },
     {
@@ -179,7 +179,7 @@
     {
       "id": "replay-matches",
       "text": "A snapshot plus recorded actions replays to the same digest",
-      "runs": "world",
+      "runs": "world, replay",
       "holdsFrom": "MM1"
     },
     {
@@ -505,6 +505,18 @@
       "text": "A world day's last-seen writes and sight pass follow movement, not map size: at 20,000 discovered tiles within 1.5x of 1,000",
       "runs": "map",
       "holdsFrom": "MM13"
+    },
+    {
+      "id": "richest-loop-band",
+      "text": "The richest loop a search finds, played by a tenth of the players at 1,000 for 120 days, keeps coin per active character inside 350–450 over days 78–120 and mints no goods or coin",
+      "runs": "search",
+      "holdsFrom": "MM14"
+    },
+    {
+      "id": "load-tick-inside",
+      "text": "At ten times the closed test's peak presses a minute, every tick finishes inside one tick",
+      "runs": "load",
+      "holdsFrom": "MM14"
     }
   ]
 }
