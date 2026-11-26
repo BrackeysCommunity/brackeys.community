@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/harness/agent"
 	"jams.team/mmo-world/service"
 	"jams.team/mmo-world/sim/faucet"
@@ -314,6 +315,9 @@ type population struct {
 	stealers func(agent.Policy) agent.Policy
 	// watch reads the soak as it plays; nil for none.
 	watch soakWatch
+	// opts are what openSoak adds to the population; the zero value adds
+	// nothing.
+	opts soakOptions
 }
 
 // soakWatch reads a soak beyond what the Economy run reads: the client
@@ -406,6 +410,11 @@ func openSoak(b *sheets.Book, k keys.Set, pop population) (*soakWorld, error) {
 		// so a third stays unplayed.
 		g.World.OpenSettlement()
 	}
+	if pop.opts.EmptyServer {
+		// The empty server's guild takes one more, so one still stays
+		// unplayed.
+		g.World.OpenSettlement()
+	}
 	local := service.NewLocal(g)
 	bands := agent.Bands(b)
 	players := earners(pop, pop.plan, pop.size-pop.quiet.size, 0, 0, bands)
@@ -414,6 +423,9 @@ func openSoak(b *sheets.Book, k keys.Set, pop population) (*soakWorld, error) {
 		p.Server, p.Admin = pop.server, i < pop.admins
 		if pop.stealers != nil && i%stealEvery == stealEvery-1 {
 			p.Policy = pop.stealers(p.Policy)
+		}
+		if e, ok := p.Policy.(*agent.Earner); ok && !pop.opts.Adversary.Zero() && i%stealEvery == mixAt && !p.Admin {
+			p.Policy = agent.NewMixed(b, e, pop.opts.Adversary)
 		}
 	}
 	arrive := make([]int64, 0, pop.size)
@@ -430,6 +442,10 @@ func openSoak(b *sheets.Book, k keys.Set, pop population) (*soakWorld, error) {
 			arrive = append(arrive, sheets.TicksPerDay+int64(j)*sheets.TicksPerDay/int64(len(quiet)))
 		}
 		players = append(players, quiet...)
+	}
+	if pop.opts.EmptyServer {
+		players = append(players, &agent.Player{Discord: emptyName + "-admin", Start: "hook", Server: emptyName, Admin: true, Policy: &agent.HouseKeeper{Settings: emptySettings()}})
+		arrive = append(arrive, emptyArrives*sheets.TicksPerDay)
 	}
 	var client agent.Client = local
 	if pop.plan == nil {
@@ -549,6 +565,8 @@ func earnerOf(p agent.Policy) (*agent.Earner, bool) {
 		return earnerOf(e.Unwrap())
 	case *agent.Resting:
 		return earnerOf(e.Unwrap())
+	case *agent.Mixed:
+		return e.Base, true
 	}
 	return nil, false
 }
@@ -588,3 +606,485 @@ func dayOf(g *game.Game) economyDay {
 	}
 	return d
 }
+
+// agentMix is a weight per agent activity: the loop climb's policy.
+type agentMix = agent.Mix
+
+// soakOptions is what a soak turns on beside the Economy population; the
+// zero value is the Economy run's soak, digest for digest. An option off
+// adds no player, settlement or draw.
+type soakOptions struct {
+	Thieves     bool     // a tenth of mains steal (crime's plan)
+	Staging     bool     // the staging adversary at the main server (ECONOMY_STAGING's twin)
+	Emergence   bool     // emergence-start at day 0
+	Season      bool     // season-start at day 0
+	EmptyServer bool     // a server with a house and settings and no players
+	Adversary   agentMix // a tenth of mains on this activity mix (the loop climb)
+}
+
+func (o soakOptions) String() string {
+	var on []string
+	for _, x := range []struct {
+		on   bool
+		name string
+	}{{o.Thieves, "thieves"}, {o.Staging, "staging"}, {o.Emergence, "emergence"}, {o.Season, "season"}, {o.EmptyServer, "an empty server"}} {
+		if x.on {
+			on = append(on, x.name)
+		}
+	}
+	if !o.Adversary.Zero() {
+		on = append(on, "the mix "+o.Adversary.String())
+	}
+	return either(len(on) == 0, "nothing", strings.Join(on, ", "))
+}
+
+// structural: which main player in stealEvery plays the adversary's mix,
+// and the empty server: its name, the world day its admin arrives (after
+// the quiet server's) and the settings it saves.
+const (
+	mixAt          = 4
+	emptyName      = "empty"
+	emptyArrives   = 2
+	emptyChronicle = "900000000000000001"
+	emptyEvents    = "900000000000000002"
+	emptyStaff     = "900000000000000003"
+	emptyQuietFrom = 1320 // 22:00 UTC
+	emptyQuietTo   = 420  // 07:00 UTC
+)
+
+func emptySettings() api.HouseSettings {
+	return api.HouseSettings{
+		Channels:   []api.Channel{{Kind: "chronicle", ID: emptyChronicle}, {Kind: "events", ID: emptyEvents}},
+		StaffRoles: []string{emptyStaff},
+		QuietFrom:  emptyQuietFrom,
+		QuietTo:    emptyQuietTo,
+	}
+}
+
+// stealersOf turns a main Earner to theft under the sheets' rules.
+func stealersOf(b *sheets.Book) func(agent.Policy) agent.Policy {
+	return func(p agent.Policy) agent.Policy {
+		if e, ok := p.(*agent.Earner); ok {
+			return agent.NewThief(b, e)
+		}
+		return p
+	}
+}
+
+// soakResult is one soak with options: the Economy run's result and what
+// each option read.
+type soakResult struct {
+	economyResult
+	opts    soakOptions
+	crime   *crimeWatch   // thieves, or a mix that steals; nil for neither
+	staging *stagingWatch // nil without staging
+	read    *optsWatch
+}
+
+// soakWith soaks the Economy population at a size for days with what o
+// turns on, keyed as the Economy run is (ECONOMY_SEED).
+func soakWith(b *sheets.Book, size int, days int64, o soakOptions) (*soakResult, error) {
+	pop := soakers(b, size)
+	pop.opts = o
+	res := &soakResult{opts: o, read: newOptsWatch(b, o, pop.server)}
+	var ws soakWatches
+	if o.Thieves {
+		pop.stealers = stealersOf(b)
+	}
+	if o.Thieves || o.Adversary.Weight(agent.Theft) > 0 {
+		res.crime = &crimeWatch{}
+		ws = append(ws, res.crime)
+	}
+	if o.Staging {
+		if pop.server == "" {
+			return nil, fmt.Errorf("staging needs the main server: ECONOMY_GUILDS=off leaves none")
+		}
+		res.staging = newStagingWatch(b, strongestSeed(), true, pop.server)
+		res.staging.full = true
+		ws = append(ws, res.staging)
+	}
+	pop.watch = append(ws, res.read)
+	pop.until = func(*game.Game) bool { return res.read.err != nil }
+	r, err := soak(b, pop, days)
+	if err == nil {
+		err = res.read.err
+	}
+	if err != nil {
+		return nil, fmt.Errorf("soak at %d with %s: %w", size, o, err)
+	}
+	res.economyResult = r
+	if res.crime != nil {
+		res.crime.close(r.audit)
+	}
+	if res.staging != nil {
+		res.staging.closeWith(r.audit)
+	}
+	res.read.close()
+	return res, nil
+}
+
+// clean reports whether nothing was minted: the end's conservation check
+// and every day's, theft's sources and the fences' slices, and the
+// staging gate.
+func (r *soakResult) clean() bool {
+	return len(r.audit) == 0 && r.read.dirty == 0 && (r.crime == nil || r.crime.mints()) && (r.staging == nil || r.staging.leaks == 0)
+}
+
+// band is the soak read against the economy band, or for drift below
+// bandFrom.
+func (r *soakResult) band(b *sheets.Book) verdict {
+	fp := faucet.ParamsOf(b.EconomyParams)
+	return bandVerdict(r.days, r.size, fp.Low, fp.High)
+}
+
+// soakReadings are the targets soaks with options read, over all of them:
+// the band and drift (with the daily conservation check), the band with
+// thieves and theft's sources, the staging gate, the guild works and the
+// spoils pools.
+func soakReadings(b *sheets.Book, rs []*soakResult) []Measured {
+	var out []Measured
+	var held, drifted, thieved, mintNotes, staged, guilds []string
+	band, drift, thieves, mints, gate, works, spoils := true, true, true, true, true, true, true
+	anyThieves, anyCrime, anyStaging := false, false, false
+	problems, finds := 0, 0
+	for _, r := range rs {
+		v := r.band(b)
+		name := fmt.Sprintf("%s players (%s)", comma(int64(r.size)), r.opts)
+		ok := v.ok && r.clean()
+		if v.drifts {
+			drift = drift && ok
+			drifted = append(drifted, name)
+		} else {
+			band = band && ok
+			held = append(held, name)
+		}
+		if r.opts.Thieves {
+			anyThieves = true
+			thieves = thieves && ok
+			thieved = append(thieved, fmt.Sprintf("%s %d to %d coin", comma(int64(r.size)), v.readLo, v.readHi))
+		}
+		if r.crime != nil {
+			anyCrime = true
+			mints = mints && r.crime.mints() && r.read.dirty == 0
+			mintNotes = append(mintNotes, fmt.Sprintf("%s players: %d thefts, %d source legs", comma(int64(r.size)), r.crime.thefts, r.crime.legs))
+		}
+		if r.staging != nil {
+			anyStaging = true
+			gate = gate && r.staging.leaks == 0
+			problems += r.staging.leaks
+			staged = append(staged, comma(int64(r.size)))
+		}
+		guilds = append(guilds, comma(int64(r.guild.members)))
+		for _, w := range r.guild.works {
+			works = works && w.gave <= w.used
+		}
+		spoils = spoils && r.read.spoils.holds()
+		finds += r.read.spoils.finds
+	}
+	if len(held) > 0 {
+		out = append(out, Measured{Target: "coin-band", Value: fmt.Sprintf("soak, %s, days %d–%d", strings.Join(held, "; "), economyWarmup, len(rs[0].days)), Holds: band})
+	}
+	if len(drifted) > 0 {
+		out = append(out, Measured{Target: "coin-drift", Value: fmt.Sprintf("soak, %s", strings.Join(drifted, "; ")), Holds: drift})
+	}
+	if anyThieves {
+		out = append(out, Measured{Target: "thieves-hold-band", Value: "soak, " + strings.Join(thieved, "; "), Holds: thieves})
+	}
+	if anyCrime {
+		out = append(out, Measured{Target: "theft-never-mints", Value: "soak, " + strings.Join(mintNotes, "; ") + "; every day's conservation check", Holds: mints})
+	}
+	if anyStaging {
+		out = append(out, Measured{Target: "staged-goods-local", Value: fmt.Sprintf("soak at %s: %s", strings.Join(staged, ", "), gateValue(gate, problems)), Holds: gate})
+	}
+	if len(rs) > 0 {
+		out = append(out,
+			Measured{Target: "guild-works-sink", Value: "soak, guilds of " + strings.Join(guilds, ", ") + ": " + either(works, "no work gave back more than it consumed", "a work gave back more than it consumed"), Holds: works},
+			Measured{Target: "spoils-conserved", Value: fmt.Sprintf("soak, %d finds from pools", finds), Holds: spoils})
+	}
+	return out
+}
+
+// soakWatches are several watches read as one, each opening on the
+// client the one before it handed out.
+type soakWatches []soakWatch
+
+func (ws soakWatches) open(w *soakWorld) agent.Client {
+	for _, x := range ws {
+		w.client = x.open(w)
+	}
+	return w.client
+}
+
+func (ws soakWatches) tick(g *game.Game, txns []ledger.Txn) {
+	for _, x := range ws {
+		x.tick(g, txns)
+	}
+}
+
+func (ws soakWatches) ticked(g *game.Game, txns []ledger.Txn) {
+	for _, x := range ws {
+		if tw, ok := x.(tickWatch); ok {
+			tw.ticked(g, txns)
+		}
+	}
+}
+
+func (ws soakWatches) day(g *game.Game) {
+	for _, x := range ws {
+		x.day(g)
+	}
+}
+
+// optsWatch reads what a soak's options turn on, and what every soak with
+// options reports: each world day's wall time and conservation check, the
+// spoils pools, the season clock, emergence's traces, the empty server
+// and the adversary's wealth against the other main players'.
+type optsWatch struct {
+	b       *sheets.Book
+	opts    soakOptions
+	server  string
+	g       *game.Game
+	started []string // the recorded starts sent at day 0
+	err     error    // a start the world refused, which ends the soak
+	last    time.Time
+	cost    []time.Duration
+	dirty   int      // world days whose conservation check found something
+	audits  []string // the first leaksKept of what they found
+	spoils  spoilsTally
+	seasons []seasonMark
+	emerge  []emergeMark
+	empty   quietResult
+	house   bool // the empty server's house holds its settings
+	players []*agent.Player
+	mixed   []*agent.Player
+	control []*agent.Player
+	worth   map[string]*worthLine
+	loop    loopReading
+	others  loopReading
+}
+
+func newOptsWatch(b *sheets.Book, o soakOptions, server string) *optsWatch {
+	return &optsWatch{b: b, opts: o, server: server, empty: quietResult{server: emptyName}, worth: map[string]*worthLine{}, spoils: spoilsTally{ok: true}}
+}
+
+// seasonMark is the season clock as a world day opened.
+type seasonMark struct {
+	day, season, of, days int64
+}
+
+// emergeMark is emergence's state as a world day opened: the tiles with
+// traces, the styles traced and the promotions so far.
+type emergeMark struct {
+	day, spots, styles, promotions int64
+}
+
+// worthLine is one character's worth at the first and last world day
+// read: coin and everything it carries at reference value.
+type worthLine struct {
+	firstDay, lastDay, first, last int64
+}
+
+// loopReading is a group of characters' worth gained per character-day,
+// and the turns the mixed among them gave each activity.
+type loopReading struct {
+	players  int
+	charDays int64
+	gained   int64
+	played   agent.Mix
+}
+
+// perDay is coin plus goods value gained per character-day.
+func (l loopReading) perDay() int64 {
+	if l.charDays == 0 {
+		return 0
+	}
+	return l.gained / l.charDays
+}
+
+func (w *optsWatch) open(sw *soakWorld) agent.Client {
+	w.g, w.last, w.players = sw.g, time.Now(), sw.players
+	w.started, w.err = startClocks(sw.g, w.opts)
+	for _, p := range sw.players[:sw.main] {
+		switch pol := p.Policy; {
+		case mixedOf(pol) != nil:
+			w.mixed = append(w.mixed, p)
+		case p.Server == w.server && !p.Admin && plays(pol):
+			w.control = append(w.control, p)
+		}
+	}
+	return sw.client
+}
+
+// plays reports whether a policy is a main player's earning one, a thief
+// or a beneficiary of one included, rather than a stager.
+func plays(p agent.Policy) bool {
+	_, ok := earnerOf(p)
+	return ok
+}
+
+// mixedOf is the Mixed a policy plays, through any wrapper.
+func mixedOf(p agent.Policy) *agent.Mixed {
+	switch e := p.(type) {
+	case *agent.Mixed:
+		return e
+	case *agent.Beneficiary:
+		return mixedOf(e.Unwrap())
+	case *agent.Resting:
+		return mixedOf(e.Unwrap())
+	}
+	return nil
+}
+
+// startClocks sends the recorded season and emergence starts the options
+// ask for to a world that keeps neither, as the service does at open
+// (season first, so the traces carry its stamp). A world from game.New
+// keeps both from tick 0, and is sent nothing.
+func startClocks(g *game.Game, o soakOptions) ([]string, error) {
+	var sent []string
+	for _, x := range []struct {
+		on   bool
+		need bool
+		kind string
+	}{{o.Season, g.Story == nil, game.SeasonStart}, {o.Emergence, g.Emergence == nil, game.EmergenceStart}} {
+		if !x.on || !x.need {
+			continue
+		}
+		if _, err := g.Act(game.Command{Key: x.kind, Kind: x.kind}); err != nil {
+			return sent, fmt.Errorf("sending %s: %w", x.kind, err)
+		}
+		sent = append(sent, x.kind)
+	}
+	return sent, nil
+}
+
+func (w *optsWatch) tick(_ *game.Game, txns []ledger.Txn)   { w.spoils.read(txns) }
+func (w *optsWatch) ticked(_ *game.Game, txns []ledger.Txn) { w.spoils.read(txns) }
+
+func (w *optsWatch) day(g *game.Game) {
+	now := time.Now()
+	w.cost, w.last = append(w.cost, now.Sub(w.last)), now
+	if found := ledger.Audit(g.Ledger.Balances(), g.Holdings()); len(found) > 0 {
+		w.dirty++
+		for _, a := range found {
+			if len(w.audits) < leaksKept {
+				w.audits = append(w.audits, fmt.Sprintf("day %d: %s", g.World.Day, a))
+			}
+		}
+	}
+	if w.opts.Season {
+		if c, _, ok := g.Season(); ok {
+			w.seasons = append(w.seasons, seasonMark{day: g.World.Day, season: c.N, of: c.Day(g.World.Day), days: c.Days})
+		}
+	}
+	if e := g.Emergence; w.opts.Emergence && e != nil {
+		w.emerge = append(w.emerge, emergeMark{day: g.World.Day, spots: int64(len(e.Passage) + len(e.Clearing) + len(e.Loss)), styles: int64(len(e.Styles)), promotions: int64(len(e.Promotions))})
+	}
+	if w.opts.EmptyServer {
+		w.empty.day(g)
+	}
+	for _, p := range slices.Concat(w.mixed, w.control) {
+		c := g.Char(p.Character)
+		if c == nil {
+			continue
+		}
+		v := worthOf(g, c)
+		l, ok := w.worth[c.C.ID]
+		if !ok {
+			l = &worthLine{firstDay: g.World.Day, first: v}
+			w.worth[c.C.ID] = l
+		}
+		l.lastDay, l.last = g.World.Day, v
+	}
+}
+
+// close reads the soak's end: the empty server's house, and the mixed
+// players' and the other main players' worth gained.
+func (w *optsWatch) close() {
+	if h := w.g.House(emptyName); h != nil {
+		w.house = len(h.Settings.Channels) > 0
+	}
+	read := func(players []*agent.Player) loopReading {
+		var l loopReading
+		for _, p := range players {
+			line, ok := w.worth[p.Character]
+			if !ok {
+				continue
+			}
+			l.players++
+			l.charDays += line.lastDay - line.firstDay
+			l.gained += line.last - line.first
+			if m := mixedOf(p.Policy); m != nil {
+				for i, n := range m.Played(p.Character) {
+					l.played[i] += n
+				}
+			}
+		}
+		return l
+	}
+	w.loop, w.others = read(w.mixed), read(w.control)
+}
+
+// worthOf is a character's coin and what it carries at reference value:
+// provisions, clean goods and items. Staged goods are its server's, not
+// its own.
+func worthOf(g *game.Game, c *game.Char) int64 {
+	v := g.Rules().Values
+	n := c.C.Coin + c.C.Provisions*v.Asset(ledger.Provisions)
+	for _, s := range c.C.Goods {
+		n += s.Qty * v.Asset(s.Material)
+	}
+	for _, in := range c.C.Pack {
+		n += g.ItemValue(in)
+	}
+	return n
+}
+
+// spoilsTally checks every transaction against the spoils pools, as the
+// Social run's spoils world does: a find only moves goods out of a pool,
+// and no pool gives more than it took in.
+type spoilsTally struct {
+	finds         int
+	found, pooled int64
+	ok            bool
+	in, gave      map[string]int64
+}
+
+func (s *spoilsTally) read(txns []ledger.Txn) {
+	if s.in == nil {
+		s.in, s.gave = map[string]int64{}, map[string]int64{}
+	}
+	for _, t := range txns {
+		for _, leg := range t.Legs {
+			pool := strings.HasPrefix(leg.Account, ledger.Pool+"tile:")
+			switch {
+			case t.Kind == txnFind && leg.Units < 0 && !pool:
+				s.ok = false
+			case t.Kind == txnFind && leg.Units < 0:
+				s.gave[leg.Account+" "+leg.Asset] -= leg.Units
+				s.found -= leg.Units
+			case pool && leg.Units > 0:
+				s.in[leg.Account+" "+leg.Asset] += leg.Units
+				s.pooled += leg.Units
+			}
+		}
+		if t.Kind == txnFind {
+			s.finds++
+		}
+	}
+}
+
+// holds reports whether the pools were conserved.
+func (s *spoilsTally) holds() bool {
+	if !s.ok {
+		return false
+	}
+	for k, n := range s.gave {
+		if n > s.in[k] {
+			return false
+		}
+	}
+	return true
+}
+
+// structural: a find's transaction kind.
+const txnFind = "find"

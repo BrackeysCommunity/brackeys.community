@@ -1,6 +1,7 @@
 package harness
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
 	"slices"
@@ -159,8 +160,10 @@ type quietPlace struct {
 	audit      []string // ledger discrepancies
 }
 
-// quietResult is the quiet server's guild over a soak.
+// quietResult is the quiet server's guild over a soak, or another
+// server's that nobody plays.
 type quietResult struct {
+	server  string // "" for the quiet server
 	members int
 	founded int64
 	places  []quietPlace
@@ -169,7 +172,8 @@ type quietResult struct {
 }
 
 func (q *quietResult) day(g *game.Game) {
-	gd := g.ServerGuild(quietName)
+	server := cmp.Or(q.server, quietName)
+	gd := g.ServerGuild(server)
 	if gd == nil {
 		return
 	}
@@ -179,7 +183,7 @@ func (q *quietResult) day(g *game.Game) {
 		}
 	}
 	if q.founded == 0 {
-		q.founded = foundedDay(g, quietName)
+		q.founded = foundedDay(g, server)
 	}
 	q.troubles(g)
 	pool := g.Ledger.Of(gd.Pool(), ledger.Coin)

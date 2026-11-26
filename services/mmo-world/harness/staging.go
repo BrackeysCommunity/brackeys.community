@@ -407,7 +407,11 @@ type stagingWatch struct {
 	// rest makes every restEvery-th main player rest one tick in
 	// restTicks from staging's first day: the staging-free twin, reported
 	// beside the control.
-	rest   bool
+	rest bool
+	// full keeps every page of the in-process client it wraps, a thief's
+	// locks included: a soak with every system on. Off, the players read
+	// only their guild and classes pages, as the staging twins always have.
+	full   bool
 	server string
 	g      *game.Game
 	board  *stagingBoard
@@ -481,6 +485,13 @@ func (w *stagingWatch) open(sw *soakWorld) agent.Client {
 	sw.arrive = slices.Concat(sw.arrive[:sw.main], arrive, sw.arrive[sw.main:])
 	sw.main += len(stagers)
 	c := &stagingClient{Client: sw.client, w: w}
+	if l := localOf(sw.client); w.full && l != nil {
+		sl := stagingLocal{Local: l, c: c}
+		if locks, ok := sw.client.(agent.Locks); ok {
+			return stagingLocks{stagingLocal: sl, locks: locks}
+		}
+		return sl
+	}
 	if pages, ok := sw.client.(agent.Pages); ok {
 		return stagingPages{stagingClient: c, Pages: pages}
 	}
@@ -772,6 +783,39 @@ type stagingClient struct {
 type stagingPages struct {
 	*stagingClient
 	agent.Pages
+}
+
+// stagingLocal is a stagingClient over the game in process that serves
+// every page the game does.
+type stagingLocal struct {
+	*service.Local
+	c *stagingClient
+}
+
+func (s stagingLocal) Act(ctx context.Context, req api.ActionRequest) (api.ActionReply, *api.Refusal, error) {
+	return s.c.Act(ctx, req)
+}
+
+// stagingLocks is a stagingLocal that also works a thief's locks.
+type stagingLocks struct {
+	stagingLocal
+	locks agent.Locks
+}
+
+func (s stagingLocks) Pick(ctx context.Context, id string, version int64, interaction string, d *agent.Dice) (bool, error) {
+	return s.locks.Pick(ctx, id, version, interaction, d)
+}
+
+// localOf is the game in process a soak's client plays, nil for a client
+// that hides it.
+func localOf(c agent.Client) *service.Local {
+	switch l := c.(type) {
+	case *service.Local:
+		return l
+	case crimeLocal:
+		return l.Local
+	}
+	return nil
 }
 
 func (c *stagingClient) Act(ctx context.Context, req api.ActionRequest) (api.ActionReply, *api.Refusal, error) {

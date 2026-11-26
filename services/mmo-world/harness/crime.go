@@ -123,12 +123,7 @@ func soakCrime(b *sheets.Book, size int, days int64, thieves bool) (crimeSoak, e
 	w := &crimeWatch{}
 	pop.watch = w
 	if thieves {
-		pop.stealers = func(p agent.Policy) agent.Policy {
-			if e, ok := p.(*agent.Earner); ok {
-				return agent.NewThief(b, e)
-			}
-			return p
-		}
+		pop.stealers = stealersOf(b)
 	}
 	r, err := soak(b, pop, days)
 	if err != nil {
@@ -339,11 +334,26 @@ func (w *crimeWatch) thiefOf(id string) bool {
 	}
 	if _, ok := w.thief[id]; !ok {
 		w.thief[id] = slices.ContainsFunc(w.players, func(p *agent.Player) bool {
-			_, steals := p.Policy.(*agent.Thief)
-			return steals && p.Character == id
+			return steals(p.Policy) && p.Character == id
 		})
 	}
 	return w.thief[id]
+}
+
+// steals reports whether a policy steals: a thief, a mix that weighs
+// theft, or a beneficiary of either.
+func steals(p agent.Policy) bool {
+	switch e := p.(type) {
+	case *agent.Thief:
+		return true
+	case *agent.Mixed:
+		return e.Steals()
+	case *agent.Beneficiary:
+		return steals(e.Unwrap())
+	case *agent.Resting:
+		return steals(e.Unwrap())
+	}
+	return false
 }
 
 // crimeKind is a command only theft and the watch send.
@@ -491,7 +501,7 @@ func (w *crimeWatch) day(g *game.Game) {
 func (w *crimeWatch) thieves() []*agent.Player {
 	var out []*agent.Player
 	for _, p := range w.players {
-		if _, ok := p.Policy.(*agent.Thief); ok && p.Character != "" {
+		if steals(p.Policy) && p.Character != "" {
 			out = append(out, p)
 		}
 	}
