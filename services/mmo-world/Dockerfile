@@ -2,7 +2,9 @@
 # root, with its sheets, packs and the Activity's build beside it.
 # The default target is the service; `--target replay` builds the nightly
 # replay (scripts/nightly-replay.sh): the operator CLI beside pg_dump and
-# psql.
+# psql; `--target backup` builds the backups (scripts/backup.sh, and
+# scripts/restore.sh for a restore): the operator CLI and the sheets op
+# verify reads, beside pg_dump, pg_restore and psql.
 FROM golang:1.27 AS build
 WORKDIR /src
 COPY services/mmo-world/go.mod services/mmo-world/go.sum ./
@@ -37,6 +39,15 @@ COPY --from=assets /app /app
 COPY services/mmo-world/scripts/nightly-replay.sh /usr/local/bin/nightly-replay
 ENV MMO_SHEETS_ROOT=/app
 ENTRYPOINT ["nightly-replay"]
+
+FROM postgres:16-alpine AS backup
+WORKDIR /app
+COPY --from=build /out/op /usr/local/bin/op
+COPY --from=assets /app /app
+COPY services/mmo-world/scripts/backup.sh /usr/local/bin/backup
+COPY services/mmo-world/scripts/restore.sh /usr/local/bin/restore
+ENV MMO_SHEETS_ROOT=/app
+ENTRYPOINT ["backup"]
 
 FROM gcr.io/distroless/static-debian12:nonroot AS world
 WORKDIR /app

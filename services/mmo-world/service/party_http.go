@@ -53,25 +53,9 @@ type discords interface {
 }
 
 // discordOf reads the Discord users of characters; one the store has no
-// user for is left out.
+// user for, or whose player was forgotten, is left out.
 func (s *Server) discordOf(ctx context.Context, ids []string) (map[string]string, error) {
-	out := map[string]string{}
-	if len(ids) == 0 {
-		return out, nil
-	}
-	rows, err := s.pool.Query(ctx, `SELECT id, discord_id FROM mmo.character WHERE world_id = $1 AND id = ANY($2)`, s.cfg.World, ids)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var id, discord string
-		if err := rows.Scan(&id, &discord); err != nil {
-			return nil, err
-		}
-		out[id] = discord
-	}
-	return out, rows.Err()
+	return s.st.DiscordsOf(ctx, ids)
 }
 
 func (m memory) discordOf(_ context.Context, ids []string) (map[string]string, error) {
@@ -94,7 +78,9 @@ func partyState(g *game.Game, c *game.Char) (out api.PartyState, thread []string
 	p := g.PartyOf(c)
 	if p != nil {
 		out.Party = partyView(g, c, p)
-		thread = p.IDs()
+		// A member asked to be forgotten stays until its sweep, but its
+		// Discord user is never handed out again (GDD 14.9).
+		thread = slices.DeleteFunc(slices.Clone(p.IDs()), g.IsForgotten)
 	}
 	if x := huntInReach(g, c); x != nil {
 		out.Hunt = huntView(g, c, x)
@@ -270,12 +256,29 @@ func threadOf(ctx context.Context, d discords, st *api.PartyState, ids []string)
 	return nil
 }
 
-// boardUsers fills in the Discord users of the board's members.
-func boardUsers(ctx context.Context, d discords, out *api.Parties) error {
+// forgottenOn are the board's members whose players asked to be
+// forgotten, read under the world's lock.
+func forgottenOn(g *game.Game, out api.Parties) map[string]bool {
+	hide := map[string]bool{}
+	for _, p := range out.Parties {
+		for _, m := range p.Members {
+			if g.IsForgotten(m.CharacterID) {
+				hide[m.CharacterID] = true
+			}
+		}
+	}
+	return hide
+}
+
+// boardUsers fills in the Discord users of the board's members, but for
+// those in hide.
+func boardUsers(ctx context.Context, d discords, out *api.Parties, hide map[string]bool) error {
 	var ids []string
 	for _, p := range out.Parties {
 		for _, m := range p.Members {
-			ids = append(ids, m.CharacterID)
+			if !hide[m.CharacterID] {
+				ids = append(ids, m.CharacterID)
+			}
 		}
 	}
 	users, err := d.discordOf(ctx, ids)
@@ -310,8 +313,9 @@ func (s *Server) parties(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := partyBoards(s.g, s.ended)
+	hide := forgottenOn(s.g, out)
 	unlock()
-	if err := boardUsers(r.Context(), s, &out); err != nil {
+	if err := boardUsers(r.Context(), s, &out, hide); err != nil {
 		s.internal(w, err)
 		return
 	}
@@ -356,7 +360,7 @@ func (l *Local) Parties(ctx context.Context) (api.Parties, error) {
 		return api.Parties{}, err
 	}
 	out := partyBoards(l.G, l.ended)
-	return out, boardUsers(ctx, l.mem, &out)
+	return out, boardUsers(ctx, l.mem, &out, forgottenOn(l.G, out))
 }
 
 // Hunts is every hunt, as GET /v1/hunts gives them.

@@ -1,11 +1,13 @@
 // Command op is the operator CLI: inspect, correct, grant, ban, audit, economy,
 // stand a character before a machine, pin content, start a season, cast an
-// arc, rename for everyone, close escalated cases, read the story, the
-// emergence dashboard and the house log, reset, replay and export a world.
+// arc, rename for everyone, close escalated cases, forget a player, read
+// the story, the emergence dashboard and the house log, reset, replay,
+// export, back up and verify a world.
 //
 // Writes go through the running service's operator API, so the service
-// stays the only writer and every correction replays. replay reads the
-// database directly with the world's keys; export reads it with none.
+// stays the only writer and every correction replays. replay and verify
+// read the database directly with the world's keys; export and
+// backup-manifest read it with none.
 package main
 
 import (
@@ -69,6 +71,16 @@ const usage = `op [-id <interaction id>] <command>
   export -out DIR [-from-day N] [-to-day M]
                                   recorded play, pseudonymised, for the tuning pass (direct: DATABASE_URL,
                                   MMO_WORLD_ID and the world's sheets under MMO_SHEETS_ROOT; no key)
+  forget <character> <note...>    forget a character for a player who asked by email (GDD 14.9); the note
+                                  says why, never who asked or how to reach them
+  backup-manifest [-out DIR | -seal DUMP | -check DUMP]
+                                  the world's backup manifest as JSON: tick, digest, sheets, key version, rules
+                                  epoch, row counts, commit (direct: DATABASE_URL, MMO_WORLD_ID; no key). -out
+                                  writes it into DIR and prints the path its dump takes, less .dump; -seal records
+                                  a dump's sha256 in the manifest beside it; -check refuses a dump that differs
+  verify [-manifest FILE]         a restored world, before its service starts: keys and sheets, the load's digest
+                                  and counts, the audit, the manifest's tick digest and row counts, and the last
+                                  world day replayed (direct: DATABASE_URL, the world's keys and MMO_SHEETS_ROOT)
   reset <world> [-direct]         wipe a disposable test world and found it again
   replay [-from N] [-to N]        re-run ticks against their recorded digests, inside one rules epoch`
 
@@ -278,6 +290,12 @@ func run(args []string) error {
 		return replayCmd(rest)
 	case "export":
 		return exportCmd(rest)
+	case api.ActForget:
+		return forgetCmd(*id, rest)
+	case "backup-manifest":
+		return backupManifest(rest)
+	case "verify":
+		return verifyCmd(rest)
 	}
 	return errors.New(usage)
 }
@@ -379,26 +397,49 @@ func replayCmd(args []string) error {
 	if *from < 0 {
 		*from = max(0, *to-sheets.TicksPerDay)
 	}
-	epochs, err := epochFacts(ctx, st)
+	rep, err := replayed(ctx, st, rules, *from, *to, false)
 	if err != nil {
 		return err
-	}
-	// The replay starts from the snapshot at or before -from, which a world
-	// takes at each day's turn.
-	start := *from - *from%sheets.TicksPerDay
-	if e, ok := crossed(epochs, start, *to); ok {
-		return crossesEpoch(e, start, *to)
-	}
-	rep, err := replay.Run(ctx, st, rules, *from, *to)
-	if err != nil {
-		return err
-	}
-	if e, ok := crossed(epochs, rep.From, *to); ok {
-		return crossesEpoch(e, rep.From, *to)
 	}
 	if err := show(rep); err != nil {
 		return err
 	}
+	return mismatched(rep)
+}
+
+// replayed re-runs st's world from the snapshot at or before from to tick
+// to, inside one rules epoch: a range across an epoch is refused or, with
+// fromEpoch, replayed from the last epoch it crosses.
+func replayed(ctx context.Context, st *store.Store, rules *game.Rules, from, to int64, fromEpoch bool) (replay.Report, error) {
+	epochs, err := epochFacts(ctx, st)
+	if err != nil {
+		return replay.Report{}, err
+	}
+	// The replay starts from the snapshot at or before from, which a world
+	// takes at each day's turn.
+	start := from - from%sheets.TicksPerDay
+	if fromEpoch {
+		for _, e := range epochs {
+			if start < e.Tick && e.Tick <= to {
+				from, start = e.Tick, e.Tick-e.Tick%sheets.TicksPerDay
+			}
+		}
+	}
+	if e, ok := crossed(epochs, start, to); ok {
+		return replay.Report{}, crossesEpoch(e, start, to)
+	}
+	rep, err := replay.Run(ctx, st, rules, from, to)
+	if err != nil {
+		return rep, err
+	}
+	if e, ok := crossed(epochs, rep.From, to); ok {
+		return rep, crossesEpoch(e, rep.From, to)
+	}
+	return rep, nil
+}
+
+// mismatched is a replay's first differing tick as an error.
+func mismatched(rep replay.Report) error {
 	if rep.Mismatch != nil {
 		return fmt.Errorf("tick %d replays to %s, recorded %s", rep.Mismatch.Tick, rep.Mismatch.Got, rep.Mismatch.Want)
 	}

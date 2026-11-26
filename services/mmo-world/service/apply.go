@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"jams.team/mmo-world/api"
+	"jams.team/mmo-world/export"
 	"jams.team/mmo-world/sim/arc"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/game"
@@ -126,10 +127,11 @@ func simMachine(m *api.MachineIntent) *game.MachineCmd {
 }
 
 // operatorCommand is an operator's request as a command; player kinds
-// take the player path. A world-level kind names no character, whatever
-// the request says, so it is recorded under none.
+// take the player path, except a forget, which an operator sends for a
+// player who asked by email (GDD 14.9). A world-level kind names no
+// character, whatever the request says, so it is recorded under none.
 func operatorCommand(req api.OperatorRequest) (game.Command, *api.Refusal, int) {
-	if !game.Operator(req.Kind) {
+	if !game.Operator(req.Kind) && req.Kind != game.Forget {
 		return game.Command{}, &api.Refusal{Code: api.CodeBadJSON, Message: "not an operator action"}, http.StatusBadRequest
 	}
 	cmd := game.Command{Key: req.InteractionID, Char: req.CharacterID, Kind: req.Kind, Asset: req.Asset, Units: req.Units, Note: req.Note, Target: req.Target}
@@ -219,6 +221,7 @@ func applyCommand(ctx context.Context, g *game.Game, rec records, subs *listener
 	if game.Timed(cmd.Kind) && !now.IsZero() {
 		cmd.Now = now.UnixMilli()
 	}
+	seen := export.Before(g, cmd)
 	res, ref, status, err := act(g, cmd, version, checkVersion)
 	if ref != nil || err != nil {
 		return applied{ref: ref, status: status}, err
@@ -234,7 +237,13 @@ func applyCommand(ctx context.Context, g *game.Game, rec records, subs *listener
 	if err != nil {
 		return applied{}, err
 	}
-	if err := rec.SaveAction(ctx, g, cmd, res.Char, discord, body, now); err != nil {
+	// What the character faced is kept for the recorded-play export only:
+	// a duplicate's stored reply is decoded as an ActionReply, which drops it.
+	kept, err := export.Stored(body, seen)
+	if err != nil {
+		return applied{}, err
+	}
+	if err := rec.SaveAction(ctx, g, cmd, res.Char, discord, kept, now); err != nil {
 		return applied{}, err
 	}
 	subs.tell(told(res))

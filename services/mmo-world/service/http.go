@@ -64,6 +64,7 @@ func (s *Server) Handler() http.Handler {
 	player("GET "+api.PathStoryPromotions, s.storyPromotions)
 	player("GET "+api.PathHouse, s.house)
 	player("GET "+api.PathHouseLog, s.houseLog)
+	mux.Handle("POST "+api.PathForget, s.guard(slices.Concat(Tokens(s.cfg.ForgetToken), Tokens(s.cfg.APIToken)), http.HandlerFunc(s.forget)))
 	maps := s.mapGuard(MapHandler(s), &mapCap{now: s.cfg.Now})
 	for _, path := range mapPaths {
 		mux.Handle("GET "+path, maps)

@@ -128,5 +128,12 @@ func (m memory) SaveAction(_ context.Context, g *game.Game, cmd game.Command, c 
 	if cmd.Kind == game.Create {
 		m.players[discord] = c.C.ID
 	}
+	if cmd.Kind == game.Forget && g.IsForgotten(cmd.Char) {
+		for d, id := range m.players {
+			if id == cmd.Char {
+				delete(m.players, d)
+			}
+		}
+	}
 	return nil
 }
