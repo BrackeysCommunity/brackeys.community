@@ -4,9 +4,9 @@ import {
   SELECT_LABEL_MAX,
 } from "../../../../packages/discord-kit/src/index.ts";
 import { mapAlt } from "../../../../packages/mmo-words/src/alt.ts";
-import { sideName } from "../../../../packages/mmo-words/src/index.ts";
+import { seenAgo, sideName } from "../../../../packages/mmo-words/src/index.ts";
 import type * as api from "../api.ts";
-import { WhyRoad } from "../api.ts";
+import { FogSeen, FogSight, WhyRoad } from "../api.ts";
 import type { Card } from "../card.ts";
 import { encodeId, target } from "../ids.ts";
 import type { Lexicon } from "../lexicon.ts";
@@ -35,11 +35,12 @@ export function travelCard(
   risk?: api.RouteRisk,
 ): Card {
   const v = o.version;
-  const tiles = new Map(map.tiles.map((t) => [target(",", t.hex.q, t.hex.r), t]));
+  const view = map.view ?? [];
+  const byHex = new Map(view.map((t) => [target(",", t.cell.q, t.cell.r), t]));
   const moves = DIRECTIONS.map((d, i) => {
     const m = o.moves.find((x) => x.dir === i);
     const label = m?.open
-      ? `${d.arrow} ${d.name} · ${plural(m.ticks, "tick")}${roadMark(m, tiles.get(target(",", m.to.q, m.to.r)))}`
+      ? `${d.arrow} ${d.name} · ${plural(m.ticks, "tick")}${roadMark(m, byHex.get(target(",", m.to.q, m.to.r)))}`
       : `${d.arrow} ${d.name}`;
     return btn(label, "step", String(i), v, {
       disabled: !m?.open || !!o.long || !!o.fight,
@@ -75,6 +76,7 @@ export function travelCard(
   if (o.long?.kind === "travel") tail.push(btn("Stop here", "cancel", "", v, { style: "danger" }));
   tail.push(back(v));
   rows.push({ buttons: tail });
+  const seen = view.filter((t) => t.fog === FogSeen);
   const fields: EmbedField[] = [
     {
       name: "Here",
@@ -82,7 +84,12 @@ export function travelCard(
       inline: true,
     },
     conditionsField(o),
-    { name: "Seen around you", value: amount(map.tiles.length, "tiles"), inline: true },
+    {
+      name: "In sight",
+      value: plural(view.filter((t) => t.fog === FogSight).length, "tile"),
+      inline: true,
+    },
+    { name: "Last seen", value: lastSeen(map, seen), inline: true },
   ];
   const road = roadLine(here.place.tile, lex);
   if (road) fields.push({ name: "The road", value: road });
@@ -121,6 +128,7 @@ export function travelCard(
         of: here.name,
         radius: map.radius,
         shaded: ["fog over what nobody has entered", "weather", "threat"],
+        seen: seen.length,
       }),
     },
     fields,
@@ -130,11 +138,19 @@ export function travelCard(
   };
 }
 
-/** What a step's button adds for a road: on it, tolled or cut. */
-function roadMark(m: api.Move, to: api.Tile | undefined): string {
+/** What a step's button adds for a road: on it, tolled or cut. A toll or a cut shows only in sight. */
+function roadMark(m: api.Move, to: api.MapTileView | undefined): string {
+  const live = to?.fog === FogSight ? to.live : undefined;
   if (m.why.parts.some((p) => p.label === WhyRoad))
-    return to?.toll ? ` · road, ${amount(to.toll, "coin")} toll` : " · road";
-  return to?.roadName && to.cut ? " · road cut" : "";
+    return live?.toll ? ` · road, ${amount(live.toll, "coin")} toll` : " · road";
+  return to?.cell.roadName && live?.cut ? " · road cut" : "";
+}
+
+/** How many tiles the crop draws as last seen, and how long ago the oldest left sight. */
+function lastSeen(map: api.MapView, seen: readonly api.MapTileView[]): string {
+  if (!seen.length) return plural(0, "tile");
+  const oldest = Math.min(...seen.map((t) => t.live?.left ?? map.tick));
+  return `${plural(seen.length, "tile")}, the oldest ${seenAgo(map.tick, oldest)}`;
 }
 
 /** A seen place as the go-to select names it: its slot, its kind once drawn, and its ground. */

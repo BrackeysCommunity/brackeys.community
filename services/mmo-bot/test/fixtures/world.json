@@ -1319,6 +1319,81 @@
         "region": "r-0",
         "road": 0,
         "found": 1
+      },
+      {
+        "hex": {
+          "q": -29,
+          "r": 0
+        },
+        "terrain": "plain",
+        "water": "none",
+        "region": "r-0",
+        "road": 0,
+        "found": 2
+      }
+    ],
+    "view": [
+      {
+        "cell": {
+          "q": -29,
+          "r": 0,
+          "terrain": "plain",
+          "region": "r-0",
+          "edge": 30,
+          "found": 2
+        },
+        "fog": "discovered"
+      },
+      {
+        "cell": {
+          "q": -28,
+          "r": 0,
+          "terrain": "plain",
+          "region": "r-0",
+          "edge": 39,
+          "place": "settlement",
+          "site": "starting-settlement",
+          "structures": [
+            "forge",
+            "bench",
+            "still",
+            "loom",
+            "market",
+            "notice-board",
+            "tinker-bench",
+            "stable",
+            "treasury"
+          ],
+          "found": 1
+        },
+        "fog": "sight",
+        "live": {
+          "q": -28,
+          "r": 0,
+          "fog": "sight",
+          "threat": 1,
+          "weather": "clear"
+        }
+      },
+      {
+        "cell": {
+          "q": -29,
+          "r": 1,
+          "terrain": "plain",
+          "region": "r-0",
+          "edge": 57,
+          "site": "dungeon",
+          "found": 1
+        },
+        "fog": "seen",
+        "live": {
+          "q": -29,
+          "r": 1,
+          "fog": "seen",
+          "left": 4,
+          "threat": 2,
+          "weather": "fog"
+        }
       }
     ],
     "image": "map-19bcb55ae5fa34f9d7c9ba2c"

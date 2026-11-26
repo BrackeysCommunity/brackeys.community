@@ -198,6 +198,25 @@ describe("mapAlt and sigilAlt", () => {
     expect(mapAlt({ of: "the board", radius: 1 })).toBe("Map of the board, 1 tile round");
   });
 
+  test("a map with tiles last seen names their dimming", () => {
+    expect(
+      mapAlt({
+        of: "Pylon Camp",
+        radius: 6,
+        shaded: ["fog over what nobody has entered", "weather", "threat"],
+        seen: 4,
+      }),
+    ).toBe(
+      "Map of Pylon Camp, 6 tiles round. Fog over what nobody has entered, weather, threat and last seen, dimmed, with its age shaded",
+    );
+    expect(mapAlt({ of: "Pylon Camp", seen: 1 })).toBe(
+      "Map of Pylon Camp. Last seen, dimmed, with its age shaded",
+    );
+    expect(mapAlt({ of: "Pylon Camp", shaded: ["weather"], seen: 0 })).toBe(
+      "Map of Pylon Camp. Weather shaded",
+    );
+  });
+
   test("a sigil", () => {
     expect(
       sigilAlt({ name: "Hook", slot: "hand", axes: ["edge", "reach"], level: 12, picks: 2 }),
@@ -242,6 +261,7 @@ describe("every alt", () => {
         band: [350, 450],
       }),
       mapAlt({ of: "Pylon Camp", radius: 6 }),
+      mapAlt({ of: "Pylon Camp", radius: 6, seen: 12 }),
       sigilAlt({ name: "Hook", level: 12, picks: 2 }),
     ];
     for (const a of shown) expect(bareNumbers(a, new Set(["chips"]))).toEqual([]);

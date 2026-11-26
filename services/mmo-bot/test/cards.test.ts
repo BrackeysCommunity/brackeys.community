@@ -85,6 +85,7 @@ import {
 import { chronicleCard, eventCard, factCard, stageCard } from "../src/screens/story.ts";
 import { choiceLabel, talkCard } from "../src/screens/talk.ts";
 import { travelCard } from "../src/screens/travel.ts";
+import { TICKS_PER_DAY } from "../src/units.ts";
 import * as mm8 from "./fixtures/mm8.ts";
 import * as mm8a from "./fixtures/mm8a.ts";
 import * as mm9 from "./fixtures/mm9.ts";
@@ -92,6 +93,9 @@ import * as mm10 from "./fixtures/mm10.ts";
 import * as mm11a from "./fixtures/mm11a.ts";
 import * as mm12 from "./fixtures/mm12.ts";
 import samples from "./fixtures/world.json";
+
+/** The road map three world days on: its camp and dungeon last seen, the road still in sight. */
+const lastSeenMap: api.MapView = { ...mm10.roadMap, tick: mm10.roadMap.tick + 3 * TICKS_PER_DAY };
 
 /** Every card the bot draws, from replies a scripted run recorded off a real world, keeps the card standard (card.ts problems()). */
 
@@ -1506,6 +1510,10 @@ function emergenceCards(): [string, () => Card][] {
       "travel, the road cut",
       () => travelCard(mm10.roadMoves, mm10.roadMap, mm10.onCut, lex, NUMBERS.ambushLine),
     ],
+    [
+      "travel, tiles last seen days ago",
+      () => travelCard(mm10.roadMoves, lastSeenMap, mm10.onTolled, lex, NUMBERS.ambushLine),
+    ],
     ["why each way costs, onto a road", () => whyCard(mm10.roadMoves, here, lex, "moves")],
     ["a beat against a variant", () => beatCard(mm10.onVariant, here, lex)],
     [
@@ -2127,6 +2135,47 @@ test("a site shows its kind, and a staged place who staged it and what staff spe
   const labels = select && "select" in select ? select.select.options.map((x) => x.label) : [];
   expect(labels).toContain("Site, battlefield ruin (Scrubland)");
   expect(labels).toContain("Site, scrap seam (Scrubland)");
+});
+
+test("the travel card counts tiles in sight and last seen, and marks a road only in sight", () => {
+  const field = (c: Card, name: string) => c.fields?.find((f) => f.name === name)?.value;
+  const labels = (c: Card) =>
+    c.rows.flatMap((r) => ("buttons" in r ? r.buttons : [])).map((b) => b.label);
+  const card = travelCard(mm10.roadMoves, lastSeenMap, mm10.onTolled, lex, NUMBERS.ambushLine);
+  expect(field(card, "Seen around you")).toBeUndefined();
+  expect(field(card, "In sight")).toBe("3 tiles");
+  expect(field(card, "Last seen")).toBe("2 tiles, the oldest seen 3 world days ago");
+  expect(card.picture !== "form" && card.picture.alt).toContain("last seen, dimmed, with its age");
+  expect(labels(card).some((l) => l.endsWith("· road, 2 coin toll"))).toBe(true);
+  expect(labels(card).some((l) => l.endsWith("· road cut"))).toBe(true);
+  expect(problems(card, names)).toEqual([]);
+
+  const base = w.map as api.MapView;
+  const fresh = travelCard(o, base, here, lex, NUMBERS.ambushLine);
+  expect(field(fresh, "In sight")).toBe("1 tile");
+  expect(field(fresh, "Last seen")).toBe("1 tile, the oldest seen less than a world day ago");
+
+  const unseen = travelCard(
+    o,
+    { ...base, view: base.view.filter((t) => t.fog !== "seen") },
+    here,
+    lex,
+    NUMBERS.ambushLine,
+  );
+  expect(field(unseen, "Last seen")).toBe("0 tiles");
+  expect(unseen.picture !== "form" && unseen.picture.alt).not.toContain("last seen");
+
+  const outOfSight: api.MapView = {
+    ...lastSeenMap,
+    view: lastSeenMap.view.map((t) =>
+      t.fog === "sight" && (t.live?.toll || t.live?.cut)
+        ? { ...t, fog: "seen", live: { ...t.live, fog: "seen", left: lastSeenMap.tick - 1 } }
+        : t,
+    ),
+  };
+  const dim = travelCard(mm10.roadMoves, outOfSight, mm10.onTolled, lex, NUMBERS.ambushLine);
+  expect(labels(dim).some((l) => l.includes("toll") || l.includes("cut"))).toBe(false);
+  expect(labels(dim).some((l) => l.endsWith("· road"))).toBe(true);
 });
 
 describe("every card keeps the card standard", () => {

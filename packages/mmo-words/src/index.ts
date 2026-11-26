@@ -1,5 +1,6 @@
 export * from "./bare-numbers.ts";
 export * from "./emergence.ts";
+export * from "./map.ts";
 export * from "./placed.ts";
 export * from "./risk.ts";
 export * from "./story.ts";

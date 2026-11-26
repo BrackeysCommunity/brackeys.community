@@ -43,8 +43,40 @@ export const placedEntrance: api.Here = {
   floor: { ...atEntrance.floor!, haunted: undefined, placed: byStaff },
 };
 
-/** The map with a drawn site and a placed one among the places seen. */
+/** A tile's base cell as the map's view carries it. */
+export function cellOf(t: api.Tile): api.MapCell {
+  return {
+    q: t.hex.q,
+    r: t.hex.r,
+    terrain: t.terrain,
+    water: t.water === "none" ? undefined : t.water,
+    region: t.region,
+    road: t.road || undefined,
+    site: t.site,
+    siteKind: t.siteKind,
+    landmark: t.landmark,
+    roadName: t.roadName,
+    structures: t.structures,
+    found: t.found,
+  };
+}
+
+/** A view sorted as the world sends it: by r, then q. */
+export function sortView(view: api.MapTileView[]): api.MapTileView[] {
+  return view.toSorted((a, b) => a.cell.r - b.cell.r || a.cell.q - b.cell.q);
+}
+
+/** The map with a drawn site and a placed one among the places seen: the admins' in sight, the native one found by others. */
 export const siteMap: api.MapView = {
   ...map,
   tiles: [...map.tiles, adminSite.place.tile, nativeSite.place.tile],
+  view: sortView([
+    ...map.view,
+    {
+      cell: cellOf(adminSite.place.tile),
+      fog: "sight",
+      live: { q: adminSite.place.tile.hex.q, r: adminSite.place.tile.hex.r, fog: "sight" },
+    },
+    { cell: cellOf(nativeSite.place.tile), fog: "discovered" },
+  ]),
 };

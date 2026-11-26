@@ -1,4 +1,5 @@
 import type * as api from "../../src/api.ts";
+import { cellOf, sortView } from "./mm8a.ts";
 import { here as mm9Here, o, siege, withSides } from "./mm9.ts";
 import samples from "./world.json";
 
@@ -464,15 +465,32 @@ export const atHaunt: api.Here = {
 
 const map = samples.map as api.MapView;
 
-/** The map with the road running east of the settlement, one tile of it tolled and one cut. */
+const tolledTile: api.Tile = { ...onRoad.place.tile, hex: { q: -27, r: 0 } };
+const cutTile: api.Tile = { ...onRoad.place.tile, hex: { q: -27, r: -1 } };
+const campTile: api.Tile = { ...atCamp.place.tile, camp: undefined };
+
+/** The map with the road running east of the settlement, one tile of it tolled and one cut in sight, the camp last seen. */
 export const roadMap: api.MapView = {
   ...map,
-  tiles: [
-    ...map.tiles,
-    { ...onRoad.place.tile, hex: { q: -27, r: 0 }, toll: 2 },
-    { ...onRoad.place.tile, hex: { q: -27, r: -1 }, cut: true },
-    { ...atCamp.place.tile },
-  ],
+  tiles: [...map.tiles, tolledTile, cutTile, campTile],
+  view: sortView([
+    ...map.view,
+    {
+      cell: cellOf(tolledTile),
+      fog: "sight",
+      live: { q: tolledTile.hex.q, r: tolledTile.hex.r, fog: "sight", toll: 2 },
+    },
+    {
+      cell: cellOf(cutTile),
+      fog: "sight",
+      live: { q: cutTile.hex.q, r: cutTile.hex.r, fog: "sight", cut: true },
+    },
+    {
+      cell: cellOf(campTile),
+      fog: "seen",
+      live: { q: campTile.hex.q, r: campTile.hex.r, fog: "seen", left: 2, camp: camp.name },
+    },
+  ]),
 };
 
 /** The moves off the settlement: east onto the tolled road, north-east onto the cut one. */

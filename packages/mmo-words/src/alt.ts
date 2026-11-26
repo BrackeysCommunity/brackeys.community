@@ -166,6 +166,8 @@ export interface MapLike {
   you?: string;
   /** It shades fog, weather and threat. */
   shaded?: readonly string[];
+  /** How many of its tiles are drawn as last seen. */
+  seen?: number;
 }
 
 /** A map: what it is of, how far it reaches, what it shows and where the viewer is. */
@@ -174,7 +176,8 @@ export function mapAlt(m: MapLike): string {
   if (m.radius) out += `, ${amount(m.radius, m.radius === 1 ? "tile" : "tiles")} round`;
   if (m.parts?.length) out += `: ${list([...m.parts])}`;
   if (m.you) out += `. You are at ${m.you}`;
-  if (m.shaded?.length) out += `. ${capital(list([...m.shaded]))} shaded`;
+  const shaded = [...(m.shaded ?? []), ...(m.seen ? ["last seen, dimmed, with its age"] : [])];
+  if (shaded.length) out += `. ${capital(list(shaded))} shaded`;
   return clampAlt(out);
 }
 
