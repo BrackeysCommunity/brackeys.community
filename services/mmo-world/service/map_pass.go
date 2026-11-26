@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 
-	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/mapview"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/game"
@@ -121,6 +121,7 @@ func viewHolders(characterID, guildID string) []mapview.Holder {
 // loadSight reads, under mu, every holder's stored key. A row that does not
 // read is left out, so its holder is keyed again with no records.
 func (s *Server) loadSight(ctx context.Context) error {
+	s.sightAhead, s.sightOwed = nil, nil
 	rows, err := s.st.Sights(ctx)
 	if err != nil {
 		s.sight = nil
@@ -147,9 +148,18 @@ func (s *Server) reloadSight(ctx context.Context) {
 	}
 }
 
+// owedPass is a computed pass whose write failed: written later as it was
+// computed, at its own tick.
+type owedPass struct {
+	tick    int64
+	changes []mapview.Change
+	gone    []mapview.Holder
+}
+
 // mapPass runs, under mu, the view pass for the holders named (nil: every
-// holder) and writes it. The keys move only once the write is saved: a
-// failure is logged and the next pass writes the same leaving tiles.
+// holder) and writes it. The saved keys move only once written: a failed
+// pass's records are owed and written first, in order, at the next pass,
+// with the values and tick they were computed at; a reload drops them.
 func (s *Server) mapPass(ctx context.Context, only []mapview.Holder) {
 	if s.sight == nil {
 		if err := s.loadSight(ctx); err != nil {
@@ -157,27 +167,34 @@ func (s *Server) mapPass(ctx context.Context, only []mapview.Holder) {
 			return
 		}
 	}
-	changes, gone := mapview.Pass(s.g, s.sight, only, mapview.ParamsOf(s.g.Rules().Book))
-	if len(changes) == 0 && len(gone) == 0 {
-		return
+	from := s.sight
+	if s.sightAhead != nil {
+		from = s.sightAhead
 	}
-	seen, keys, out, err := sightRows(s.g, changes, gone)
-	if err == nil {
-		err = s.st.SaveSight(ctx, s.g.Tick(), seen, keys, out)
+	changes, gone := mapview.Pass(s.g, from, only, mapview.ParamsOf(s.g.Rules().Book))
+	if len(changes) > 0 || len(gone) > 0 {
+		if s.sightAhead == nil {
+			// Keys are never mutated once built, so sharing them is safe.
+			s.sightAhead = maps.Clone(s.sight)
+		}
+		keep(s.sightAhead, changes, gone)
+		s.sightOwed = append(s.sightOwed, owedPass{s.g.Tick(), changes, gone})
 	}
-	if err != nil {
-		s.cfg.Log.Error("map pass failed; retried next pass", "world", s.cfg.World, "tick", s.g.Tick(), "err", err.Error())
-		return
+	for len(s.sightOwed) > 0 {
+		p := s.sightOwed[0]
+		seen, keys, out, err := sightRows(s.g, p.changes, p.gone)
+		if err == nil {
+			err = s.st.SaveSight(ctx, p.tick, seen, keys, out)
+		}
+		if err != nil {
+			s.cfg.Log.Error("map pass failed; retried next pass", "world", s.cfg.World, "tick", s.g.Tick(), "pass", p.tick,
+				"owed", len(s.sightOwed), "err", err.Error())
+			return
+		}
+		keep(s.sight, p.changes, p.gone)
+		s.sightOwed = s.sightOwed[1:]
 	}
-	keep(s.sight, changes, gone)
-}
-
-// mapAfter runs, under mu, the view pass after a saved command.
-func (s *Server) mapAfter(ctx context.Context, out applied) {
-	if out.ref != nil || out.dup {
-		return
-	}
-	s.mapPass(ctx, passHolders(s.g, out.res))
+	s.sightAhead, s.sightOwed = nil, nil
 }
 
 // mapSeen are a viewer's character's and guild's records in some chunks,
@@ -197,7 +214,6 @@ func (s *Server) mapSeen(ctx context.Context, characterID, guildID string, chunk
 		if err := json.Unmarshal(r.Live, &rec.Live); err != nil {
 			return nil, fmt.Errorf("service: a last-seen record of %s %s at %d,%d: %w", r.Kind, r.ID, r.Q, r.R, err)
 		}
-		rec.Live.Q, rec.Live.R, rec.Live.Fog, rec.Live.Left = r.Q, r.R, api.FogSeen, r.Left
 		out = append(out, rec)
 	}
 	return out, nil

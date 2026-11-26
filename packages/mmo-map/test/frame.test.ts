@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, test } from "vite-plus/test";
 
 import type { MapCell, MapChunk, MapLive, MapOverlay } from "../../mmo-api/src/index.ts";
-import { centreOn, worldToScreen } from "../src/camera.ts";
+import { centreOn, regionTiles, worldToScreen } from "../src/camera.ts";
 import { chunkKey } from "../src/chunks.ts";
 import {
   buildFrame,
@@ -16,7 +16,7 @@ import {
 } from "../src/frame.ts";
 import { type Axial, hexCentre, hexDistance, hexKey, type Point } from "../src/hex.ts";
 import { DEFAULT_LAYERS, type LayerId, LAYERS, LIVE_LAYERS } from "../src/layers.ts";
-import { ageDays, liveByHex, mergeTile } from "../src/merge.ts";
+import { liveByHex, mergeTile } from "../src/merge.ts";
 import { resolveStyle } from "../src/style.ts";
 import { packStyle, syntheticWorld } from "./support.ts";
 
@@ -228,7 +228,7 @@ describe("overlayOps", () => {
   test("an anonymous or player overlay draws nothing", () => {
     for (const viewer of ["anonymous", "player"]) {
       const o = overlay({ viewer });
-      expect(overlayOps(o, cells, style, DEFAULT_LAYERS, 144)).toEqual([]);
+      expect(overlayOps(o, cells, style, DEFAULT_LAYERS)).toEqual([]);
       const f = frameAt(14, { q: 0, r: 0 }, { overlay: o });
       expect(f.live).toEqual([]);
       expect(f.base.length).toBeGreaterThan(0);
@@ -241,8 +241,8 @@ describe("overlayOps", () => {
       tiles: [live(far.q, far.r, { threat: 300, danger: true, trouble: "raid", busy: "crowded" })],
       fronts: [{ kind: "storm", q: far.q, r: far.r, heading: "e" }],
     });
-    expect(overlayOps(o, cells, style, DEFAULT_LAYERS, 144)).toEqual([]);
-    expect(overlayOps(o, new Map(), style, DEFAULT_LAYERS, 144)).toEqual([]);
+    expect(overlayOps(o, cells, style, DEFAULT_LAYERS)).toEqual([]);
+    expect(overlayOps(o, new Map(), style, DEFAULT_LAYERS)).toEqual([]);
   });
 
   test("the own tile draws from Self's cell while nobody has found it", () => {
@@ -251,7 +251,7 @@ describe("overlayOps", () => {
       self: { character: "c1", q: 13, r: 0, cell: own },
       tiles: [live(13, 0, {})],
     });
-    const ops = overlayOps(o, cells, style, DEFAULT_LAYERS, 144);
+    const ops = overlayOps(o, cells, style, DEFAULT_LAYERS);
     const at = hexCentre(own, 1);
     expect(ops[0]).toEqual({
       kind: "hex",
@@ -273,7 +273,7 @@ describe("overlayOps", () => {
         live(4, 0, { fog: "seen", left: 700, trouble: "raid", threat: 400 }),
       ],
     });
-    const ops = overlayOps(o, cells, style, DEFAULT_LAYERS, 144);
+    const ops = overlayOps(o, cells, style, DEFAULT_LAYERS);
     const seenAt = hexCentre({ q: 4, r: 0 }, 1);
     expect(ops).toContainEqual({
       kind: "hex",
@@ -321,7 +321,7 @@ describe("overlayOps", () => {
       tiles: [live(0, 0, { weather: "storm" }), live(1, 0, { weather: "clear" })],
       fronts: [{ kind: "storm", q: 0, r: 0, heading: "ne" }],
     });
-    const all = overlayOps(o, cells, style, DEFAULT_LAYERS, 144);
+    const all = overlayOps(o, cells, style, DEFAULT_LAYERS);
     expect(
       all.filter((op) => op.kind === "hex" && op.fill === style.colour("weather:storm")),
     ).toHaveLength(1);
@@ -334,7 +334,7 @@ describe("overlayOps", () => {
     expect(all.some((op) => op.kind === "glyph" && op.colour === style.colour("layer:self"))).toBe(
       true,
     );
-    const none = overlayOps(o, cells, style, new Set<LayerId>(), 144);
+    const none = overlayOps(o, cells, style, new Set<LayerId>());
     expect(none.every((op) => op.kind === "edge" && op.colour === style.opaque("fog:sight"))).toBe(
       true,
     );
@@ -423,15 +423,27 @@ describe("merge", () => {
     expect(mergeTile(cell, seen)).toEqual({ cell, fog: "seen", live: seen });
   });
 
-  test("liveByHex and ageDays", () => {
+  test("regionTiles walks each row's discovered slots in order", () => {
+    const r = {
+      world: "w",
+      rev: "1",
+      regions: [],
+      places: [],
+      rows: [
+        { q: -2, r: 0, slots: [0, -1, 1] },
+        { q: 3, r: 1, slots: [-1, 2] },
+      ],
+    };
+    expect([...regionTiles(r)]).toEqual([
+      { h: { q: -2, r: 0 }, slot: 0 },
+      { h: { q: 0, r: 0 }, slot: 1 },
+      { h: { q: 4, r: 1 }, slot: 2 },
+    ]);
+  });
+
+  test("liveByHex", () => {
     const o = overlay({ tiles: [live(1, 2, {}), live(-3, 4, { fog: "seen", left: 1 })] });
     expect([...liveByHex(o).keys()]).toEqual(["1,2", "-3,4"]);
-    expect(ageDays(1000, 1000, 144)).toBe(0);
-    expect(ageDays(1000, 857, 144)).toBe(0);
-    expect(ageDays(1000, 856, 144)).toBe(1);
-    expect(ageDays(1000, 700, 144)).toBe(2);
-    expect(ageDays(1000, 1200, 144)).toBe(0);
-    expect(ageDays(1000, 0, 0)).toBe(0);
   });
 });
 

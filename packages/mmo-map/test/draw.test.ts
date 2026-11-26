@@ -82,6 +82,26 @@ describe("ChunkCache", () => {
     const b2 = cache.placed("b", ops, 4);
     expect(cache.placed("b", ops, 4)).toBe(b2);
   });
+
+  test("a frame with more lists than max keeps them all until it ends", () => {
+    const cache = new ChunkCache(2);
+    const camera = centreOn({ q: 0, r: 0 }, 4);
+    const view = { width: 100, height: 100 };
+    const three = { base: ["a", "b", "c"].map((key) => ({ key, ops })), live: [] } as never;
+    const ctx = recorder().ctx as unknown as CanvasRenderingContext2D;
+    const drawn = () => {
+      const { ctx: c, calls } = recorder();
+      paint(c as unknown as CanvasRenderingContext2D, three, camera, view, cache);
+      return calls.filter((x) => x.name === "drawImage").map((x) => x.args[0]);
+    };
+    const first = drawn();
+    expect(new Set(first).size).toBe(3);
+    expect(drawn()).toEqual(first);
+    const one = { base: [{ key: "d", ops }], live: [] } as never;
+    paint(ctx, one, camera, view, cache);
+    expect(cache.placed("c", ops, 4).image).toBe(first[2]);
+    expect(cache.placed("b", ops, 4).image).not.toBe(first[1]);
+  });
 });
 
 describe("paint", () => {

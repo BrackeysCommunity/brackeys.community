@@ -57,7 +57,7 @@ func TestPassLeaving(t *testing.T) {
 			r.Live.Q != r.Hex.Q || r.Live.R != r.Hex.R {
 			t.Errorf("record %+v", r)
 		}
-		if live := Live(s.g, r.Hex, s.p); live.Threat != r.Live.Threat || live.Weather != r.Live.Weather {
+		if live := Live(s.g, r.Hex, s.p, holderChars(s.g, r.Holder)); live.Threat != r.Live.Threat || live.Weather != r.Live.Weather {
 			t.Errorf("record %v holds %+v, the tile reads %+v", r.Hex, r.Live, live)
 		}
 	}
@@ -120,7 +120,7 @@ func TestPassIsPure(t *testing.T) {
 	Pass(s.g, prev, []Holder{{HolderCharacter, s.c.C.ID}, s.guild(), {HolderGuild, "g-none"}}, s.p)
 	Sights(s.g, s.c)
 	for _, h := range hex.DiscAt(s.home, 14) {
-		Live(s.g, h, s.p)
+		Live(s.g, h, s.p, nil)
 	}
 	var seen []Record
 	for _, c := range changes {

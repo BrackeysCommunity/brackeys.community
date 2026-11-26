@@ -8,6 +8,7 @@ import {
   chartMarks,
   clampAlt,
   mapAlt,
+  mapLayersAlt,
   markLabel,
   portraitAlt,
   sigilAlt,
@@ -265,5 +266,33 @@ describe("every alt", () => {
       sigilAlt({ name: "Hook", level: 12, picks: 2 }),
     ];
     for (const a of shown) expect(bareNumbers(a, new Set(["chips"]))).toEqual([]);
+  });
+});
+
+describe("mapLayersAlt", () => {
+  const layers = ["terrain", "roads", "threat", "busy", "self"] as const;
+  const liveLayers = ["threat", "busy", "self"] as const;
+  const on = new Set<string>(layers);
+  const base = { of: "the wasteland", layers, liveLayers, on, self: true, seen: 0 };
+
+  test("live off gives no shading and no ringed tile", () => {
+    const alt = mapLayersAlt({ ...base, live: false, seen: 4 });
+    expect(alt).toBe("Map of the wasteland: terrain and roads");
+  });
+
+  test("live on rings the viewer and leads shading with the rim", () => {
+    const alt = mapLayersAlt({ ...base, live: true });
+    expect(alt).toContain("You are at the ringed tile");
+    expect(alt).toContain(". What you have in sight, rimmed, threat and how busy shaded");
+  });
+
+  test("a turned-off base layer is left out", () => {
+    const alt = mapLayersAlt({ ...base, on: new Set(["terrain"]), live: false });
+    expect(alt).toBe("Map of the wasteland: terrain");
+  });
+
+  test("last-seen tiles are named only when live", () => {
+    expect(mapLayersAlt({ ...base, live: true, seen: 3 })).toContain("last seen, dimmed");
+    expect(mapLayersAlt({ ...base, live: false, seen: 3 })).not.toContain("last seen");
   });
 });

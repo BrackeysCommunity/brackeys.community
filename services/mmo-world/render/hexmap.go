@@ -54,10 +54,7 @@ func HexMap(w *gen.Area, size float64) *image.RGBA {
 	draw.Draw(img, img.Bounds(), &image.Uniform{paper}, image.Point{}, draw.Src)
 	cx, cy := float64(width)/2, float64(height)/2
 	at := func(px, py float64) int {
-		x, y := (px-cx)/size, (py-cy)/size
-		q := (math.Sqrt(3)/3*x - y/3)
-		rr := 2.0 / 3 * y
-		return w.Index(cubeRound(q, rr).Add(w.Centre))
+		return w.Index(PixelToHex(px-cx, py-cy, size).Add(w.Centre))
 	}
 	for py := range height {
 		for px := range width {
@@ -88,7 +85,7 @@ func HexMap(w *gen.Area, size float64) *image.RGBA {
 		}
 	}
 	centre := func(h gen.Hex) (float64, float64) {
-		p := hexCentre(h.Sub(w.Centre), size, Pt{cx, cy})
+		p := HexCentre(h.Sub(w.Centre), size, Pt{cx, cy})
 		return p.X, p.Y
 	}
 	mark := math.Max(size, 2.5)
@@ -122,6 +119,13 @@ var placeColour = map[string]color.RGBA{
 	"landmark": {0x20, 0x20, 0x20, 0xff},
 	"beacon":   {0xf2, 0xd0, 0x20, 0xff},
 	"dungeon":  {0x7a, 0x14, 0x1e, 0xff},
+}
+
+// PixelToHex is the hex under a point, as an offset from the hex drawn at the
+// origin, for hexes of size; packages/mmo-map's pixelToHex.
+func PixelToHex(x, y, size float64) gen.Hex {
+	x, y = x/size, y/size
+	return cubeRound(math.Sqrt(3)/3*x-y/3, 2.0/3*y)
 }
 
 func cubeRound(q, r float64) gen.Hex {

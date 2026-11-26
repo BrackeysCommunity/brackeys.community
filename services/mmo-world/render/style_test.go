@@ -12,7 +12,7 @@ import (
 
 func opaque(c color.RGBA) color.NRGBA { return Alpha(c, 0xff) }
 
-// The pack's map style carries today's picture colours unchanged.
+// The pack's map style carries the picture's built-in colours unchanged.
 func TestMapStyleOf(t *testing.T) {
 	b, err := sheetfs.LoadBook(sheetfs.ModuleRoot())
 	if err != nil {
@@ -47,7 +47,7 @@ func TestMapStyleOf(t *testing.T) {
 		}
 	}
 	for id, want := range map[string]color.NRGBA{
-		"fog:unknown":      opaque(fogColour),
+		"fog:unknown":      opaque(color.RGBA{0x2a, 0x29, 0x27, 0xff}),
 		"fog:seen":         Alpha(tar, 115),
 		"fog:sight":        opaque(hazard),
 		"layer:corruption": Alpha(corrupt, 0x60),
@@ -103,5 +103,13 @@ func TestMapStyleOfRefusesGaps(t *testing.T) {
 	cut.MapStyle[0].Colour = "#ABC"
 	if _, err := MapStyleOf(&cut); err == nil || !strings.Contains(err.Error(), "#rrggbb") {
 		t.Fatalf("a short colour: %v", err)
+	}
+}
+
+func TestAgeWords(t *testing.T) {
+	for days, want := range []string{"less than a world day ago", "1 world day ago", "2 world days ago"} {
+		if got := ageWords(int64(days)); got != want {
+			t.Errorf("ageWords(%d) = %q, want %q", days, got, want)
+		}
 	}
 }

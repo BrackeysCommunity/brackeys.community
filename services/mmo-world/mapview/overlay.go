@@ -51,8 +51,9 @@ func Overlay(g *game.Game, world string, v Viewer, chunks []gen.ChunkCoord, sigh
 	}
 	slices.SortFunc(lit, byRQ)
 	tiles := make(map[hex.Hex]api.MapLive, len(lit))
+	viewer := map[string]bool{c.C.ID: true}
 	for _, h := range lit {
-		tiles[h] = Live(g, h, p)
+		tiles[h] = Live(g, h, p, viewer)
 	}
 	mine, guild := Holder{HolderCharacter, c.C.ID}, Holder{HolderGuild, c.C.Guild}
 	for h, r := range newest(seen, mine, guild) {

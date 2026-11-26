@@ -1,5 +1,12 @@
 package api
 
+import (
+	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
+)
+
 // Paths of the live map (GDD 4.11). The world serves them to the site with
 // the map token; the Activity listener serves the same reads under
 // /api/activity/map/ with the session as the viewer.
@@ -257,4 +264,55 @@ type MapTileView struct {
 	Cell MapCell  `json:"cell"`
 	Fog  string   `json:"fog"` // sight, seen or discovered
 	Live *MapLive `json:"live,omitempty"`
+}
+
+// MapOverlayMaxChunks is the most chunks one overlay request names; the
+// clients ask for the nearest when more are in view.
+const MapOverlayMaxChunks = 64
+
+// MapOverlayRefusal is the answer to an overlay query of the wrong shape.
+func MapOverlayRefusal() *Refusal {
+	return &Refusal{Code: CodeBadJSON, Message: fmt.Sprintf("an overlay names up to %d chunks as chunks=a.b,…, or scope=sight", MapOverlayMaxChunks)}
+}
+
+// ParseMapOverlayQuery reads ?chunks=a.b,… or ?scope=sight: exactly one.
+func ParseMapOverlayQuery(v url.Values) (MapOverlayQuery, *Refusal) {
+	chunks, scope := v.Get("chunks"), v.Get("scope")
+	switch {
+	case chunks == "" && scope == "sight":
+		q := MapOverlayQuery{Sight: true}
+		if ref := q.Check(); ref != nil {
+			return MapOverlayQuery{}, ref
+		}
+		return q, nil
+	case chunks == "" || scope != "":
+		return MapOverlayQuery{}, MapOverlayRefusal()
+	}
+	parts := strings.Split(chunks, ",")
+	if len(parts) > MapOverlayMaxChunks {
+		return MapOverlayQuery{}, MapOverlayRefusal()
+	}
+	ids := make([]MapChunkID, len(parts))
+	for i, p := range parts {
+		sa, sb, ok := strings.Cut(p, ".")
+		a, errA := strconv.ParseInt(sa, 10, 64)
+		b, errB := strconv.ParseInt(sb, 10, 64)
+		if !ok || errA != nil || errB != nil {
+			return MapOverlayQuery{}, MapOverlayRefusal()
+		}
+		ids[i] = MapChunkID{A: a, B: b}
+	}
+	q := MapOverlayQuery{Chunks: ids}
+	if ref := q.Check(); ref != nil {
+		return MapOverlayQuery{}, ref
+	}
+	return q, nil
+}
+
+// Check refuses a query that names no chunk and no sight, both, or more chunks than one request may.
+func (q MapOverlayQuery) Check() *Refusal {
+	if q.Sight == (len(q.Chunks) > 0) || len(q.Chunks) > MapOverlayMaxChunks {
+		return MapOverlayRefusal()
+	}
+	return nil
 }

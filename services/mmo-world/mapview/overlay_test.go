@@ -162,3 +162,60 @@ func TestOverlayNewestWins(t *testing.T) {
 		t.Errorf("chunks far off gave %d tiles, want the own one", len(o.Tiles))
 	}
 }
+
+// Another guild's records never reach the viewer, and once the viewer's
+// character leaves its guild, the old guild's records stop showing.
+func TestOverlayOtherGuildKept(t *testing.T) {
+	s := newSighted(t, 14)
+	mine, guild, other := Holder{HolderCharacter, s.c.C.ID}, s.guild(), Holder{HolderGuild, "g-other"}
+	in := Sights(s.g, s.c)
+	var far []hex.Hex
+	for _, h := range hex.Ring(s.home, 11) {
+		if !in[h] && discovered(s.g, h) {
+			far = append(far, h)
+		}
+	}
+	if len(far) < 3 {
+		t.Fatal("too few tiles out of sight")
+	}
+	const otherThreat, guildThreat, mineThreat = 97, 98, 99
+	var seen []Record
+	for _, h := range far {
+		seen = append(seen, record(other, h, 90, otherThreat))
+	}
+	seen = append(seen, record(guild, far[1], 50, guildThreat), record(mine, far[2], 40, mineThreat))
+	chunks := s.chunksRound(14)
+	viewer := Viewer{Kind: api.ViewerCharacter, Char: s.c}
+
+	o := Overlay(s.g, "w", viewer, chunks, false, seen, s.p)
+	if !o.Guild {
+		t.Error("the guild's sight is not joined in")
+	}
+	for _, l := range o.Tiles {
+		if l.Threat == otherThreat || l.Left == 90 {
+			t.Errorf("another guild's record shown at (%d,%d): %+v", l.Q, l.R, l)
+		}
+	}
+	if l, ok := liveAt(o, far[0]); ok {
+		t.Errorf("a tile only another guild recorded reads %+v", l)
+	}
+	if l, ok := liveAt(o, far[1]); !ok || l.Threat != guildThreat {
+		t.Errorf("the guild's own record reads %+v", l)
+	}
+
+	was := s.c.C.Guild
+	s.c.C.Guild = "g-none"
+	defer func() { s.c.C.Guild = was }()
+	o = Overlay(s.g, "w", viewer, chunks, false, seen, s.p)
+	if o.Guild {
+		t.Error("a guild with no standing place is still joined in")
+	}
+	for _, l := range o.Tiles {
+		if l.Threat == otherThreat || l.Threat == guildThreat || l.Left == 90 || l.Left == 50 {
+			t.Errorf("a record of a guild the viewer is not in shown at (%d,%d): %+v", l.Q, l.R, l)
+		}
+	}
+	if l, ok := liveAt(o, far[2]); !ok || l.Threat != mineThreat {
+		t.Errorf("the character's own record reads %+v", l)
+	}
+}

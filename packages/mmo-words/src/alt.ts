@@ -1,3 +1,4 @@
+import { MAP_LAYER_NAMES } from "./map.ts";
 import type { Names } from "./story.ts";
 import { amount, capital, countWords, list, num, plural } from "./units.ts";
 
@@ -179,6 +180,40 @@ export function mapAlt(m: MapLike): string {
   const shaded = [...(m.shaded ?? []), ...(m.seen ? ["last seen, dimmed, with its age"] : [])];
   if (shaded.length) out += `. ${capital(list(shaded))} shaded`;
   return clampAlt(out);
+}
+
+export type LayerName = keyof typeof MAP_LAYER_NAMES;
+
+/** The live map's layer toggles, as the map picture reads them. */
+export interface MapLayersLike {
+  of: string;
+  layers: readonly LayerName[];
+  liveLayers: readonly LayerName[];
+  on: ReadonlySet<string>;
+  /** The viewer has a character, so live layers draw. */
+  live: boolean;
+  /** The overlay carries the viewer's own tile. */
+  self: boolean;
+  seen: number;
+}
+
+/** The live map's alt text from which layers are on and what the viewer can see. */
+export function mapLayersAlt(m: MapLayersLike): string {
+  const named = (l: LayerName) => MAP_LAYER_NAMES[l].toLowerCase();
+  const parts = m.layers.filter((l) => m.on.has(l) && !m.liveLayers.includes(l)).map(named);
+  const shaded = m.live
+    ? [
+        "what you have in sight, rimmed",
+        ...m.liveLayers.filter((l) => l !== "self" && m.on.has(l)).map(named),
+      ]
+    : [];
+  return mapAlt({
+    of: m.of,
+    parts,
+    you: m.live && m.self && m.on.has("self") ? "the ringed tile" : undefined,
+    shaded,
+    seen: m.live ? m.seen : 0,
+  });
 }
 
 /** An item's sigil, from what the item states. */

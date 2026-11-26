@@ -1,9 +1,7 @@
 package service
 
 import (
-	"cmp"
 	"context"
-	"errors"
 	"maps"
 	"slices"
 	"sync"
@@ -30,26 +28,34 @@ type mapCache struct {
 	rules  *game.Rules
 	style  api.MapStyle
 	params mapview.Params
+	// picture is the /map picture's look and pictureRev the key its crops carry.
+	picture    render.MapStyle
+	pictureRev string
 }
 
-// styled is the style for the rules g runs on; c.mu is held.
-func (c *mapCache) styled(g *game.Game) error {
-	r := g.Rules()
+// styled is the style for the rules r; c.mu is held.
+func (c *mapCache) styled(r *game.Rules) error {
 	if c.rules == r {
 		return nil
 	}
-	st, err := mapStyleOf(r.Book)
+	b := r.Book
+	st, err := mapStyleOf(b)
 	if err != nil {
 		return err
 	}
-	c.rules, c.style, c.params = r, st, mapview.ParamsOf(r.Book)
+	pic, err := render.MapStyleOf(b)
+	if err != nil {
+		return err
+	}
+	c.rules, c.style, c.params = r, st, mapview.ParamsOf(b)
+	c.picture, c.pictureRev = pic, mapview.Rev([]any{b.MapStyle, b.MapView})
 	return nil
 }
 
 // based is the base at g's tick, g held and c.mu held. Commands change the
 // base between ticks; their changes show at the next tick's first read.
 func (c *mapCache) based(g *game.Game, world string, tickSeconds int64) (*mapview.Base, error) {
-	if err := c.styled(g); err != nil {
+	if err := c.styled(g.Rules()); err != nil {
 		return nil, err
 	}
 	if c.base == nil || c.game != g || c.base.Tick != g.Tick() || c.base.Index.Style != c.style.Rev {
@@ -61,22 +67,12 @@ func (c *mapCache) based(g *game.Game, world string, tickSeconds int64) (*mapvie
 // mapStyleOf is the map's look as the clients draw it, from the setting
 // pack: each entry under the id the map draws by.
 func mapStyleOf(b *sheets.Book) (api.MapStyle, error) {
-	if p := render.MapStyleProblems(b); len(p) > 0 {
-		errs := make([]error, len(p))
-		for i, s := range p {
-			errs[i] = errors.New(s)
-		}
-		return api.MapStyle{}, errors.Join(errs...)
-	}
-	none := func(v string) string {
-		if v == "none" {
-			return ""
-		}
-		return v
+	if err := render.MapStyleErr(b); err != nil {
+		return api.MapStyle{}, err
 	}
 	out := api.MapStyle{Entries: make([]api.MapStyleEntry, len(b.MapStyle))}
 	for i, e := range b.MapStyle {
-		out.Entries[i] = api.MapStyleEntry{ID: e.MapID(), Colour: e.Colour, Alpha: e.Alpha, Glyph: none(e.Glyph), Pattern: none(e.Pattern)}
+		out.Entries[i] = api.MapStyleEntry{ID: e.MapID(), Colour: e.Colour, Alpha: e.Alpha, Glyph: render.Plain(e.Glyph), Pattern: render.Plain(e.Pattern)}
 	}
 	n := func(id string) int64 { return sheets.IntParam(b.MapView, id) }
 	out.View = api.MapViewNumbers{SeenDim: n("seen-dim"), ZoomArea: n("zoom-area"), ZoomTile: n("zoom-tile"), ZoomMin: n("zoom-min"),
@@ -138,7 +134,7 @@ func mapStyleIn(ctx context.Context, w mapSource) (api.MapStyle, error) {
 	c := w.mapCached()
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if err := c.styled(g); err != nil {
+	if err := c.styled(g.Rules()); err != nil {
 		return api.MapStyle{}, err
 	}
 	return c.style, nil
@@ -165,20 +161,11 @@ func mapChunkIn(ctx context.Context, w mapSource, a, b int64, level string) (api
 	return got.c, nil, nil
 }
 
-// checkOverlay refuses an overlay query that names no chunk and no sight,
-// both, or more chunks than one request may.
-func checkOverlay(q api.MapOverlayQuery) *api.Refusal {
-	if q.Sight == (len(q.Chunks) > 0) || len(q.Chunks) > maxMapChunks {
-		return &api.Refusal{Code: api.CodeBadJSON, Message: overlayShape}
-	}
-	return nil
-}
-
 // mapOverlayIn is a character's live layers, or an empty overlay for ""
 // (anonymous) and for a character who is gone (a player). The records are
 // read before the world is held, so the store is not read under its lock.
 func mapOverlayIn(ctx context.Context, w mapSource, characterID string, q api.MapOverlayQuery) (api.MapOverlay, *api.Refusal, error) {
-	if ref := checkOverlay(q); ref != nil {
+	if ref := q.Check(); ref != nil {
 		return api.MapOverlay{}, ref, nil
 	}
 	chunks := make([]gen.ChunkCoord, len(q.Chunks))
@@ -205,7 +192,7 @@ func mapOverlayIn(ctx context.Context, w mapSource, characterID string, q api.Ma
 	c := w.mapCached()
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if err := c.styled(g); err != nil {
+	if err := c.styled(g.Rules()); err != nil {
 		return api.MapOverlay{}, nil, err
 	}
 	v := mapview.Viewer{Kind: api.ViewerAnonymous}
@@ -225,7 +212,7 @@ func mapOverlayIn(ctx context.Context, w mapSource, characterID string, q api.Ma
 		out.Self.Cell = &cell
 	}
 	if server := v.Char.Server; server != "" && g.House(server) != nil {
-		// The asked chunks, and the own tile's or the sight's.
+		// Mask names in every chunk the overlay touches, not only the asked ones.
 		for _, t := range out.Tiles {
 			chunks = append(chunks, g.World.Gen().ChunkOf(hex.Hex{Q: t.Q, R: t.R}))
 		}
@@ -258,11 +245,7 @@ func overlayAsks(ctx context.Context, w mapSource, characterID string, chunks []
 	for h := range mapview.Sights(g, c) {
 		in[chunkOf(h)] = true
 	}
-	return c.C.Guild, slices.SortedFunc(maps.Keys(in), compareChunks), true, nil
-}
-
-func compareChunks(x, y gen.ChunkCoord) int {
-	return cmp.Or(cmp.Compare(x.A, y.A), cmp.Compare(x.B, y.B))
+	return c.C.Guild, slices.SortedFunc(maps.Keys(in), mapview.CompareChunks), true, nil
 }
 
 // maskedIn are the names a server masks among the refs the base's chunks
@@ -313,7 +296,7 @@ func focusOf(g *game.Game, server string) api.MapFocus {
 	var at []hex.Hex
 	var sumQ, sumR int64
 	for _, p := range g.Places {
-		if p.Guild == gd.G.ID && p.Ruined == 0 && p.Faction == nil {
+		if mapview.Standing(p) && p.Guild == gd.G.ID {
 			at = append(at, p.Hex)
 			sumQ, sumR = sumQ+p.Hex.Q, sumR+p.Hex.R
 		}

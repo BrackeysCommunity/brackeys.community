@@ -1,13 +1,23 @@
-import type { MapChunkRef, MapIndex } from "../../mmo-api/src/index.ts";
+import {
+  type MapChunkRef,
+  type MapIndex,
+  MapOverlayMaxChunks,
+  type MapOverlayQuery,
+} from "../../mmo-api/src/index.ts";
 import { type Camera, type Level, type View, viewBounds } from "./camera.ts";
 import { hexCentre } from "./hex.ts";
 
 /** The most chunks an overlay request names. */
-export const MAX_OVERLAY_CHUNKS = 64;
+export const MAX_OVERLAY_CHUNKS = MapOverlayMaxChunks;
 
 /** A chunk's id on the wire: "a.b". */
 export function chunkId(c: { a: number; b: number }): string {
   return `${c.a}.${c.b}`;
+}
+
+/** An overlay query on the wire: scope=sight, or the chunks by id. */
+export function overlayQueryString(q: MapOverlayQuery): string {
+  return q.sight ? "scope=sight" : `chunks=${(q.chunks ?? []).map(chunkId).join(",")}`;
 }
 
 /** Where a fetched chunk payload is kept: by level, chunk and rev. */

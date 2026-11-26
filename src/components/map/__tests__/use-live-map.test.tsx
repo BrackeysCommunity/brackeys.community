@@ -17,24 +17,25 @@ import {
   centreOn,
   hexCentre,
   MAX_OVERLAY_CHUNKS,
+  readLayers,
   resolveStyle,
+  writeLayers,
 } from "../../../../packages/mmo-map/src/index.ts";
+import { MapRequestError, mapRetryDelay, retryMapRead } from "../map-api";
 import {
   countInView,
   type LiveMapOptions,
   planView,
   pollMs,
   POLL_MIN_MS,
-  readLayers,
   SETTLE_MS,
   useLiveMap,
-  writeLayers,
 } from "../use-live-map";
 
 const toast = vi.hoisted(() => ({ warning: vi.fn(), error: vi.fn() }));
 vi.mock("@/lib/toast", () => ({ toast }));
 
-// The Activity's map fixtures: a 469-tile world read through the world's own filter.
+// The Activity's map fixtures: a small world read through the world's own filter.
 const FIXTURES = join(import.meta.dirname, "../../../../services/mmo-activity/test/fixtures/map");
 
 function fixture<T>(name: string): T {
@@ -127,16 +128,17 @@ describe("countInView", () => {
 });
 
 describe("layer toggles", () => {
+  const KEY = "mmo-map.layers-off";
   it("round-trips through storage and survives storage that throws", () => {
     const kept = new Map<string, string>();
     const store = {
       getItem: (k: string) => kept.get(k) ?? null,
       setItem: (k: string, v: string) => void kept.set(k, v),
     };
-    const on = readLayers(store);
+    const on = readLayers(store, KEY);
     on.delete("busy");
-    writeLayers(store, on);
-    expect(readLayers(store).has("busy")).toBe(false);
+    writeLayers(store, KEY, on);
+    expect(readLayers(store, KEY).has("busy")).toBe(false);
     const broken = {
       getItem: () => {
         throw new Error("blocked");
@@ -145,8 +147,32 @@ describe("layer toggles", () => {
         throw new Error("blocked");
       },
     };
-    expect(readLayers(broken).has("busy")).toBe(true);
-    expect(() => writeLayers(broken, on)).not.toThrow();
+    expect(readLayers(broken, KEY).has("busy")).toBe(true);
+    expect(() => writeLayers(broken, KEY, on)).not.toThrow();
+  });
+});
+
+describe("refused map reads", () => {
+  it("asks again only for a busy or unavailable world, under three failures", () => {
+    for (const status of [429, 503]) {
+      expect(retryMapRead(0, new MapRequestError(status))).toBe(true);
+      expect(retryMapRead(2, new MapRequestError(status))).toBe(true);
+      expect(retryMapRead(3, new MapRequestError(status))).toBe(false);
+    }
+    for (const status of [400, 404, 401, 502]) {
+      expect(retryMapRead(0, new MapRequestError(status))).toBe(false);
+    }
+    expect(retryMapRead(0, new Error("other"))).toBe(false);
+    expect(retryMapRead(0, new MapRequestError(429, "", 10))).toBe(true);
+    expect(retryMapRead(0, new MapRequestError(429, "", 11))).toBe(false);
+  });
+
+  it("waits the Retry-After, else doubles from a second up to eight", () => {
+    expect(mapRetryDelay(0, new MapRequestError(429, "", 4))).toBe(4000);
+    const err = new MapRequestError(503);
+    expect([0, 1, 2, 3, 4].map((n) => mapRetryDelay(n, err))).toEqual([
+      1000, 2000, 4000, 8000, 8000,
+    ]);
   });
 });
 

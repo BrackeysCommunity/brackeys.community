@@ -1,5 +1,6 @@
 import { ChunkCache, paint } from "../../../../packages/mmo-map/src/draw.ts";
 import {
+  backing,
   buildFrame,
   centreOn,
   chunkKey,
@@ -7,45 +8,48 @@ import {
   chunksInView,
   DEFAULT_LAYERS,
   fitRegions,
+  focusCamera,
   type Axial,
   type Camera,
   type Frame,
   hexCentre,
   hexKey,
+  keyMove,
   type LayerId,
   type Level,
   levelFor,
   MAX_OVERLAY_CHUNKS,
-  pan,
+  PointerTracker,
+  regionTiles,
   resolveStyle,
   screenToHex,
   type Style,
   type View,
   viewBounds,
+  wheelZoom,
   worldToScreen,
-  zoomAt,
 } from "../../../../packages/mmo-map/src/index.ts";
-import type {
-  MapChunk,
-  MapIndex,
-  MapOverlay,
-  MapOverlayQuery,
-  MapRegions,
-  MapTileView,
+import {
+  FogSeen,
+  FogSight,
+  type MapChunk,
+  type MapChunkRef,
+  type MapIndex,
+  type MapOverlay,
+  type MapOverlayQuery,
+  type MapRegions,
+  type MapTileView,
 } from "../api.ts";
-import { MapError, type MapSource } from "./source.ts";
+import { type ChunkLevel, MapError, type MapSource } from "./source.ts";
 
-// Polling as the site does it: the index every tick, never under 30 s; the
-// overlay when the tick moves and once a pan or zoom has settled.
+// Polling as the site does it: the index every tick, never more often than POLL_MIN_MS; the overlay when the tick moves and once a pan or zoom has settled.
 const POLL_MIN_MS = 30_000;
 const SETTLE_MS = 300;
-// structural: how a gesture moves the camera.
-const TAP_SLOP_PX = 8;
-const WHEEL_RATE = 0.0015;
-const KEY_PAN = 0.125; // of the view
-const KEY_ZOOM = 1.25;
-// structural: a character's own tile opens this far past tile zoom.
-const SELF_ZOOM = 1.25;
+// structural: chunk reads one window may send (under the listener's 20 a session, so an overlay still fits), the window, the wait before a busy read is asked again, and how many times a busy overlay is.
+const CHUNK_READS_A_SECOND = 16;
+const BUSY_RETRY_MS = 1000;
+const READ_WINDOW_MS = 1000;
+const OVERLAY_RETRIES = 2;
 // structural: bitmaps kept, and the view size before layout has run.
 const CACHE_BITMAPS = 96;
 const FALLBACK_VIEW: View = { width: 360, height: 360 };
@@ -101,8 +105,11 @@ export class MapCanvas {
   private readonly cache = new ChunkCache(CACHE_BITMAPS);
   private readonly missing = new Set<string>();
   private readonly fetching = new Set<string>();
-  private readonly pointers = new Map<number, { x: number; y: number }>();
-  private tap: { x: number; y: number; moved: boolean } | undefined;
+  private readonly queued = new Map<string, { ref: MapChunkRef; level: ChunkLevel }>();
+  private sentInWindow = 0;
+  private stopDrain: (() => void) | undefined;
+  private stopRetry: (() => void) | undefined;
+  private readonly pointers = new PointerTracker();
   private stopPoll: (() => void) | undefined;
   private stopSettle: (() => void) | undefined;
   private painting = false;
@@ -150,6 +157,11 @@ export class MapCanvas {
     this.stopPoll = undefined;
     this.stopSettle?.();
     this.stopSettle = undefined;
+    this.stopDrain?.();
+    this.stopDrain = undefined;
+    this.sentInWindow = 0;
+    this.stopRetry?.();
+    this.stopRetry = undefined;
   }
 
   setLayers(layers: ReadonlySet<LayerId>): void {
@@ -195,14 +207,13 @@ export class MapCanvas {
     const count = (h: Axial) => {
       if (!inside(h)) return;
       const f = fog.get(hexKey(h));
-      if (f === "sight") out.sight++;
-      else if (f === "seen") out.seen++;
+      if (f === FogSight) out.sight++;
+      else if (f === FogSeen) out.seen++;
       else out.never++;
     };
     const level = this.level();
     if (level === "region") {
-      for (const row of this.regions?.rows ?? [])
-        row.slots.forEach((slot, i) => slot >= 0 && count({ q: row.q + i, r: row.r }));
+      if (this.regions) for (const { h } of regionTiles(this.regions)) count(h);
     } else if (level) {
       for (const ref of chunksInView(this.index, this.camera, this.view(), Infinity)) {
         const ch = this.chunks.get(chunkKey(ref, level, chunkRev(ref, level)));
@@ -249,7 +260,7 @@ export class MapCanvas {
     await this.askOverlay({ sight: true });
     const self = this.overlay?.self;
     this.camera = self
-      ? centreOn(self, style.view.zoomTile * SELF_ZOOM)
+      ? focusCamera(self, style.view)
       : this.regions
         ? fitRegions(this.regions, this.view(), style.view)
         : centreOn(index.home, style.view.zoomMin);
@@ -266,20 +277,27 @@ export class MapCanvas {
     for (const k of this.chunks.keys()) if (!live.has(k)) this.chunks.delete(k);
   }
 
+  // The overlay is asked first, so a burst of chunk reads never crowds it out.
   private async refresh(): Promise<void> {
-    this.fetchChunks();
     const level = this.level();
-    if (!level || !this.index || !this.camera) return;
-    if (level === "region") {
-      await this.askOverlay({ sight: true });
-      return;
+    let ask: Promise<void> | undefined;
+    if (level && this.index && this.camera) {
+      if (level === "region") ask = this.askOverlay({ sight: true });
+      else {
+        const near = chunksInView(this.index, this.camera, this.view(), MAX_OVERLAY_CHUNKS)
+          .map(({ a, b }) => ({ a, b }))
+          .sort((x, y) => x.a - y.a || x.b - y.b);
+        if (near.length) ask = this.askOverlay({ chunks: near });
+      }
     }
-    const near = chunksInView(this.index, this.camera, this.view(), MAX_OVERLAY_CHUNKS);
-    if (near.length) await this.askOverlay({ chunks: near.map(({ a, b }) => ({ a, b })) });
+    this.fetchChunks();
+    await ask;
   }
 
-  private async askOverlay(q: MapOverlayQuery): Promise<void> {
+  private async askOverlay(q: MapOverlayQuery, retries = OVERLAY_RETRIES): Promise<void> {
     const n = ++this.asked;
+    this.stopRetry?.();
+    this.stopRetry = undefined;
     try {
       const o = await this.deps.source.overlay(q);
       if (n !== this.asked) return;
@@ -289,33 +307,81 @@ export class MapCanvas {
       if (n !== this.asked) return;
       this.liveProblem = problemOf(err);
       if (this.liveProblem === "signed-out") this.overlay = undefined;
+      if (this.liveProblem === "busy" && retries > 0 && this.polling)
+        this.stopRetry = this.deps.after(BUSY_RETRY_MS, () => {
+          this.stopRetry = undefined;
+          if (n === this.asked) void this.askOverlay(q, retries - 1);
+        });
     }
     this.repaint();
     this.deps.changed();
   }
 
+  private wanted(level: ChunkLevel): Map<string, MapChunkRef> {
+    const out = new Map<string, MapChunkRef>();
+    if (!this.index || !this.camera) return out;
+    for (const ref of chunksInView(this.index, this.camera, this.view(), Infinity))
+      out.set(chunkKey(ref, level, chunkRev(ref, level)), ref);
+    return out;
+  }
+
   private fetchChunks(): void {
     const level = this.level();
-    if (!this.index || !this.camera || !level || level === "region") return;
-    for (const ref of chunksInView(this.index, this.camera, this.view(), Infinity)) {
-      const key = chunkKey(ref, level, chunkRev(ref, level));
+    if (!level || level === "region") return;
+    for (const [key, ref] of this.wanted(level)) {
       if (this.chunks.has(key) || this.fetching.has(key) || this.missing.has(key)) continue;
-      this.fetching.add(key);
-      this.deps.source.chunk(level, ref.a, ref.b).then(
-        (ch) => {
-          this.fetching.delete(key);
-          this.chunks.set(key, ch);
-          this.repaint();
-          this.deps.changed();
-        },
-        (err: unknown) => {
-          this.fetching.delete(key);
-          if (err instanceof MapError && err.status === 404) this.missing.add(key);
-          else this.problem = problemOf(err);
-          this.deps.changed();
-        },
-      );
+      if (!this.queued.has(key)) this.queued.set(key, { ref, level });
     }
+    this.drain();
+  }
+
+  // Sends queued chunk reads, at most CHUNK_READS_A_SECOND in any one window;
+  // the window's end drains again while anything is left.
+  private drain(): void {
+    if (!this.queued.size) return;
+    const level = this.level();
+    const live = level && level !== "region" ? this.wanted(level) : new Map<string, MapChunkRef>();
+    for (const [key, q] of this.queued) {
+      if (this.sentInWindow >= CHUNK_READS_A_SECOND) break;
+      this.queued.delete(key);
+      if (q.level !== level || !live.has(key) || this.chunks.has(key) || this.fetching.has(key))
+        continue;
+      this.send(key, q.ref, q.level);
+    }
+  }
+
+  private openWindow(ms: number): void {
+    if (this.stopDrain) return;
+    this.stopDrain = this.deps.after(ms, () => {
+      this.stopDrain = undefined;
+      this.sentInWindow = 0;
+      this.drain();
+    });
+  }
+
+  private send(key: string, ref: MapChunkRef, level: ChunkLevel): void {
+    this.fetching.add(key);
+    this.sentInWindow++;
+    this.openWindow(READ_WINDOW_MS);
+    this.deps.source.chunk(level, ref.a, ref.b).then(
+      (ch) => {
+        this.fetching.delete(key);
+        this.chunks.set(key, ch);
+        if (this.problem === "busy") this.problem = "";
+        this.repaint();
+        this.deps.changed();
+      },
+      (err: unknown) => {
+        this.fetching.delete(key);
+        if (err instanceof MapError && err.status === 404) this.missing.add(key);
+        else if (err instanceof MapError && err.status === 429) {
+          this.problem = "busy";
+          if (!this.queued.has(key)) this.queued.set(key, { ref, level });
+          if (this.polling) this.openWindow(BUSY_RETRY_MS);
+        } else this.problem = problemOf(err);
+        this.deps.changed();
+      },
+    );
   }
 
   // The camera moved: draw now, and ask for what the new view needs once it rests.
@@ -357,12 +423,10 @@ export class MapCanvas {
     });
     const ctx = this.deps.context ? this.deps.context(this.canvas) : this.canvas.getContext("2d");
     if (!ctx) return;
-    const dpr = typeof devicePixelRatio === "number" && devicePixelRatio > 0 ? devicePixelRatio : 1;
-    const w = Math.max(1, Math.round(view.width * dpr));
-    const h = Math.max(1, Math.round(view.height * dpr));
-    if (this.canvas.width !== w) this.canvas.width = w;
-    if (this.canvas.height !== h) this.canvas.height = h;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const b = backing(view, typeof devicePixelRatio === "number" ? devicePixelRatio : 1);
+    if (this.canvas.width !== b.width) this.canvas.width = b.width;
+    if (this.canvas.height !== b.height) this.canvas.height = b.height;
+    ctx.setTransform(b.dpr, 0, 0, b.dpr, 0, 0);
     paint(ctx, this.frame, this.camera, view, this.cache);
   }
 
@@ -372,9 +436,7 @@ export class MapCanvas {
   }
 
   private down(e: PointerEvent): void {
-    const p = this.at(e);
-    this.pointers.set(e.pointerId, p);
-    this.tap = this.pointers.size === 1 ? { ...p, moved: false } : undefined;
+    this.pointers.down(e.pointerId, this.at(e));
     try {
       this.canvas.setPointerCapture?.(e.pointerId);
     } catch {
@@ -383,68 +445,33 @@ export class MapCanvas {
   }
 
   private move(e: PointerEvent): void {
-    const was = this.pointers.get(e.pointerId);
-    if (!was || !this.camera || !this.style) return;
-    const p = this.at(e);
-    if (this.tap && Math.hypot(p.x - this.tap.x, p.y - this.tap.y) > TAP_SLOP_PX)
-      this.tap.moved = true;
-    if (this.pointers.size === 1) {
-      this.pointers.set(e.pointerId, p);
-      this.moved(pan(this.camera, p.x - was.x, p.y - was.y));
-      return;
-    }
-    // Two fingers: zoom by how far they spread, round their midpoint, and follow it.
-    const other = [...this.pointers.entries()].find(([id]) => id !== e.pointerId)?.[1];
-    if (!other) return;
-    this.pointers.set(e.pointerId, p);
-    const before = Math.hypot(was.x - other.x, was.y - other.y);
-    const after = Math.hypot(p.x - other.x, p.y - other.y);
-    const mid = { x: (p.x + other.x) / 2, y: (p.y + other.y) / 2 };
-    const midWas = { x: (was.x + other.x) / 2, y: (was.y + other.y) / 2 };
-    let c = pan(this.camera, mid.x - midWas.x, mid.y - midWas.y);
-    if (before > 0 && after > 0) c = zoomAt(c, after / before, mid, this.view(), this.style.view);
-    this.moved(c);
+    if (!this.camera || !this.style) return;
+    const next = this.pointers.move(
+      e.pointerId,
+      this.at(e),
+      this.camera,
+      this.view(),
+      this.style.view,
+    );
+    if (next) this.moved(next);
   }
 
   private up(e: PointerEvent, cancelled = false): void {
-    if (!this.pointers.delete(e.pointerId)) return;
-    const tap = this.tap;
-    this.tap = undefined;
-    if (!cancelled && tap && !tap.moved && this.pointers.size === 0) this.pick(this.at(e));
+    if (this.pointers.up(e.pointerId, cancelled)) this.pick(this.at(e));
   }
 
   private wheel(e: WheelEvent): void {
     if (!this.camera || !this.style) return;
     e.preventDefault();
-    this.moved(
-      zoomAt(
-        this.camera,
-        Math.exp(-e.deltaY * WHEEL_RATE),
-        this.at(e),
-        this.view(),
-        this.style.view,
-      ),
-    );
+    this.moved(wheelZoom(this.camera, e.deltaY, this.at(e), this.view(), this.style.view));
   }
 
   private key(e: KeyboardEvent): void {
     if (!this.camera || !this.style) return;
-    const v = this.view();
-    const centre = { x: v.width / 2, y: v.height / 2 };
-    const step = { x: v.width * KEY_PAN, y: v.height * KEY_PAN };
-    const moves: Record<string, () => Camera> = {
-      ArrowLeft: () => pan(this.camera!, step.x, 0),
-      ArrowRight: () => pan(this.camera!, -step.x, 0),
-      ArrowUp: () => pan(this.camera!, 0, step.y),
-      ArrowDown: () => pan(this.camera!, 0, -step.y),
-      "+": () => zoomAt(this.camera!, KEY_ZOOM, centre, v, this.style!.view),
-      "=": () => zoomAt(this.camera!, KEY_ZOOM, centre, v, this.style!.view),
-      "-": () => zoomAt(this.camera!, 1 / KEY_ZOOM, centre, v, this.style!.view),
-    };
-    const go = moves[e.key];
-    if (!go) return;
+    const next = keyMove(this.camera, e.key, this.view(), this.style.view);
+    if (!next) return;
     e.preventDefault();
-    this.moved(go());
+    this.moved(next);
   }
 
   /** Picks the tile under a point in CSS px of the canvas; blank ground is picked as nothing known. */
@@ -458,7 +485,6 @@ export class MapCanvas {
   home(): void {
     const self = this.overlay?.self;
     if (!self || !this.style) return;
-    const size = Math.max(this.camera?.size ?? 0, this.style.view.zoomTile * SELF_ZOOM);
-    this.moved(centreOn(self, size));
+    this.moved(focusCamera(self, this.style.view, this.camera));
   }
 }

@@ -2,16 +2,29 @@
 // paint scales them. Nothing here decides what a viewer may see: an op is
 // made only for a hex the inputs carry.
 
-import type {
-  MapCell,
-  MapChunk,
-  MapIndex,
-  MapLive,
-  MapOverlay,
-  MapRegions,
-  MapTileView,
+import {
+  BusyBusy,
+  BusyCrowded,
+  BusyLight,
+  FogSeen,
+  type MapCell,
+  type MapChunk,
+  type MapIndex,
+  type MapLive,
+  type MapOverlay,
+  type MapRegions,
+  type MapTileView,
+  PlaceCity,
+  PlaceCityTile,
 } from "../../mmo-api/src/index.ts";
-import { type Camera, type Level, levelFor, screenToHex, type View } from "./camera.ts";
+import {
+  type Camera,
+  type Level,
+  levelFor,
+  regionTiles,
+  screenToHex,
+  type View,
+} from "./camera.ts";
 import { chunkKey, chunkRev, chunksInView } from "./chunks.ts";
 import {
   type Axial,
@@ -98,7 +111,7 @@ const MARK_SLOTS: readonly Point[] = [
 ];
 const PIP_ROW = 0.5;
 const PIP_GAP = 0.22;
-const BUSY_PIPS: Record<string, number> = { light: 1, busy: 2, crowded: 3 };
+const BUSY_PIPS: Record<string, number> = { [BusyLight]: 1, [BusyBusy]: 2, [BusyCrowded]: 3 };
 
 const STANDING_WATER = new Set(["lake", "sea", "bog"]);
 const FLOWING_WATER = new Set(["river", "stream", "ford"]);
@@ -134,7 +147,7 @@ function placeMarks(out: DrawOp[], p: Point, place: string, s: Style, region: bo
   const id = `place:${place}`;
   const glyph = s.glyph(id);
   if (!glyph) return;
-  const city = place === "city";
+  const city = place === PlaceCity;
   const ink = region ? REGION_INK : city ? CITY_INK : SETTLEMENT_INK;
   const mark = region ? REGION_MARK : city ? CITY_MARK : SETTLEMENT_MARK;
   out.push({ kind: "glyph", x: p.x, y: p.y, glyph, colour: s.opaque("ink"), size: ink });
@@ -144,11 +157,7 @@ function placeMarks(out: DrawOp[], p: Point, place: string, s: Style, region: bo
 /** The widest level: each discovered tile in its region's biome, borders, names and places. */
 export function regionOps(r: MapRegions, s: Style, layers: ReadonlySet<LayerId>): DrawOp[] {
   const slots = new Map<string, number>();
-  for (const row of r.rows) {
-    row.slots.forEach((slot, i) => {
-      if (slot >= 0) slots.set(hexKey({ q: row.q + i, r: row.r }), slot);
-    });
-  }
+  for (const { h, slot } of regionTiles(r)) slots.set(hexKey(h), slot);
   const fills = r.regions.map((g) =>
     layers.has("terrain") ? s.terrainFill({ terrain: g.terrain }) : s.opaque("paper"),
   );
@@ -158,27 +167,23 @@ export function regionOps(r: MapRegions, s: Style, layers: ReadonlySet<LayerId>)
   const spans = r.regions.map(() => ({ l: Infinity, t: Infinity, r: -Infinity, b: -Infinity }));
   const ground: DrawOp[] = [];
   const lines: DrawOp[] = [];
-  for (const row of r.rows) {
-    row.slots.forEach((slot, i) => {
-      if (slot < 0) return;
-      const h = { q: row.q + i, r: row.r };
-      const p = centre(h);
-      ground.push({ kind: "hex", x: p.x, y: p.y, size: 1, fill: fills[slot] ?? paper });
-      const span = spans[slot];
-      if (span) {
-        span.l = Math.min(span.l, p.x);
-        span.r = Math.max(span.r, p.x);
-        span.t = Math.min(span.t, p.y);
-        span.b = Math.max(span.b, p.y);
+  for (const { h, slot } of regionTiles(r)) {
+    const p = centre(h);
+    ground.push({ kind: "hex", x: p.x, y: p.y, size: 1, fill: fills[slot] ?? paper });
+    const span = spans[slot];
+    if (span) {
+      span.l = Math.min(span.l, p.x);
+      span.r = Math.max(span.r, p.x);
+      span.t = Math.min(span.t, p.y);
+      span.b = Math.max(span.b, p.y);
+    }
+    for (let d = 0; d < DIRECTIONS.length; d++) {
+      const n = slots.get(hexKey(neighbour(h, d)));
+      if (n === undefined) lines.push(edgeOp(p, d, frontier, REGION_FRONTIER_WIDTH));
+      else if (d < 3 && n !== slot && layers.has("regions")) {
+        lines.push(edgeOp(p, d, border, REGION_BORDER_WIDTH));
       }
-      for (let d = 0; d < DIRECTIONS.length; d++) {
-        const n = slots.get(hexKey(neighbour(h, d)));
-        if (n === undefined) lines.push(edgeOp(p, d, frontier, REGION_FRONTIER_WIDTH));
-        else if (d < 3 && n !== slot && layers.has("regions")) {
-          lines.push(edgeOp(p, d, border, REGION_BORDER_WIDTH));
-        }
-      }
-    });
+    }
   }
   const out = ground.concat(lines);
   if (layers.has("places")) {
@@ -238,7 +243,7 @@ export function chunkOps(
         width: w,
       });
     }
-    if (layers.has("places") && cell.place === "city-tile") {
+    if (layers.has("places") && cell.place === PlaceCityTile) {
       ground.push({ kind: "hex", x: p.x, y: p.y, size: 1, fill: s.colour("place:city-tile") });
     }
     for (let d = 0; d < DIRECTIONS.length; d++) {
@@ -268,7 +273,7 @@ export function chunkOps(
       }
     }
     if (!layers.has("places")) continue;
-    if (cell.place && cell.place !== "city-tile") {
+    if (cell.place && cell.place !== PlaceCityTile) {
       placeMarks(marks, p, cell.place, s, false);
       const name = cell.placeRef ? ch.names?.[cell.placeRef] : undefined;
       if (tile && name) {
@@ -328,7 +333,6 @@ export function overlayOps(
   cells: Map<string, MapCell>,
   s: Style,
   layers: ReadonlySet<LayerId>,
-  _ticksPerDay: number,
 ): DrawOp[] {
   const self = o.self;
   const selfKey = self ? hexKey(self) : "";
@@ -354,7 +358,7 @@ export function overlayOps(
     const cell = cellAt(t);
     if (!cell) continue;
     const p = centre(t);
-    const seen = t.fog === "seen";
+    const seen = t.fog === FogSeen;
     if (!seen) sight.add(hexKey(t));
     const tint = (fill: string, own: string) =>
       out.push({ kind: "hex", x: p.x, y: p.y, size: 1, fill, ...pat(seen ? seenPattern : own) });
@@ -534,15 +538,11 @@ function memo<T>(m: Memo<T>, owner: object, key: string, style: Style, make: () 
 const opsMemo: Memo<DrawOp[]> = new WeakMap();
 const cellsMemo: Memo<Map<string, MapCell>> = new WeakMap();
 
-function regionCells(r: MapRegions): Map<string, MapCell> {
+export function regionCells(r: MapRegions): Map<string, MapCell> {
   const out = new Map<string, MapCell>();
-  for (const row of r.rows) {
-    row.slots.forEach((slot, i) => {
-      const g = r.regions[slot];
-      if (slot < 0 || !g) return;
-      const h = { q: row.q + i, r: row.r };
-      out.set(hexKey(h), { q: h.q, r: h.r, terrain: g.terrain, region: g.ref });
-    });
+  for (const { h, slot } of regionTiles(r)) {
+    const g = r.regions[slot];
+    if (g) out.set(hexKey(h), { q: h.q, r: h.r, terrain: g.terrain, region: g.ref });
   }
   return out;
 }
@@ -588,7 +588,7 @@ export function buildFrame(i: FrameInput): Frame {
   if (names && Object.keys(names).length > 0) {
     for (const b of base) b.ops = renamed(b.ops, names);
   }
-  const live = o ? overlayOps(o, cells, style, layers, i.index.ticksPerDay) : [];
+  const live = o ? overlayOps(o, cells, style, layers) : [];
   const lives = o ? liveByHex(o) : new Map<string, MapLive>();
   const self = o?.self;
   return {

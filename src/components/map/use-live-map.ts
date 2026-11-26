@@ -16,7 +16,15 @@ import type {
   MapTileView,
 } from "../../../packages/mmo-api/src/index.ts";
 import {
+  FogSeen,
+  FogSight,
+  ViewerAnonymous,
+  ViewerCharacter,
+  ViewerPlayer,
+} from "../../../packages/mmo-api/src/index.ts";
+import {
   type Axial,
+  browserStore,
   type Camera,
   centreOn,
   chunkKey,
@@ -25,28 +33,37 @@ import {
   clampSize,
   DEFAULT_LAYERS,
   fitRegions,
+  FOCUS_ZOOM,
+  focusCamera,
   hexCentre,
   hexKey,
-  isLayer,
-  LAYERS,
   type LayerId,
   type Level,
   levelFor,
   MAX_OVERLAY_CHUNKS,
   mergeTile,
+  readLayers,
+  regionCells,
+  regionTiles,
   resolveStyle,
   type Style,
   type View,
   viewBounds,
+  writeLayers,
 } from "../../../packages/mmo-map/src/index.ts";
-import { MAP_ROUTES, mapGet, MapRequestError, TICK_KEY } from "./map-api";
+import {
+  MAP_ROUTES,
+  mapGet,
+  MapRequestError,
+  mapRetryDelay,
+  retryMapRead,
+  TICK_KEY,
+} from "./map-api";
 
 /** The index is asked for every tick, and never more often than this. */
 export const POLL_MIN_MS = 30_000;
 /** A pan or zoom has settled once the camera has rested this long. */
 export const SETTLE_MS = 300;
-// structural: a character's own tile, or a server's, opens this far past tile zoom.
-const FOCUS_ZOOM = 1.25;
 const LAYERS_KEY = "mmo-map.layers-off";
 
 export function pollMs(index: Pick<MapIndex, "tickSeconds"> | undefined): number {
@@ -72,7 +89,7 @@ export interface MapPlan {
 
 /**
  * The requests a settled view makes: at area and tile level every chunk in
- * view at its rev, and the overlay for the nearest 64; at region level the
+ * view at its rev, and the overlay for the nearest MAX_OVERLAY_CHUNKS; at region level the
  * one regions payload, and the overlay for the viewer's own sight.
  */
 export function planView(index: MapIndex, style: Style, camera: Camera, view: View): MapPlan {
@@ -92,6 +109,7 @@ export function planView(index: MapIndex, style: Style, camera: Camera, view: Vi
   const ids = refs
     .slice(0, MAX_OVERLAY_CHUNKS)
     .map(({ a, b }) => ({ a, b }))
+    // Sorted, so a view asking for the same chunks keys one overlay read a tick.
     .sort((x, y) => x.a - y.a || x.b - y.b);
   return ids.length ? { level, chunks, overlay: { chunks: ids } } : { level, chunks };
 }
@@ -128,10 +146,11 @@ export function startCamera(
   },
 ): Camera {
   const v = ctx.style.view;
-  const close = v.zoomTile * FOCUS_ZOOM;
-  if (start.kind === "at") return centreOn(start.hex, clampSize(start.size ?? close, v));
-  if (start.kind === "server" && ctx.focus) return centreOn(ctx.focus.centre, close);
-  if (start.kind === "self" && ctx.self) return centreOn(ctx.self, close);
+  if (start.kind === "at") {
+    return centreOn(start.hex, clampSize(start.size ?? v.zoomTile * FOCUS_ZOOM, v));
+  }
+  if (start.kind === "server" && ctx.focus) return focusCamera(ctx.focus.centre, v);
+  if (start.kind === "self" && ctx.self) return focusCamera(ctx.self, v);
   if (ctx.regions) return fitRegions(ctx.regions, ctx.view, v);
   return centreOn(ctx.index.home, v.zoomMin);
 }
@@ -170,17 +189,13 @@ export function countInView(
     const p = hexCentre(h, 1);
     if (p.x < b.left || p.x > b.right || p.y < b.top || p.y > b.bottom) return;
     const f = fog.get(hexKey(h));
-    if (f === "sight") out.sight++;
-    else if (f === "seen") out.seen++;
+    if (f === FogSight) out.sight++;
+    else if (f === FogSeen) out.seen++;
     else out.never++;
   };
   const level = levelFor(camera.size, data.style.view);
   if (level === "region") {
-    for (const row of data.regions?.rows ?? []) {
-      row.slots.forEach((slot, i) => {
-        if (slot >= 0) count({ q: row.q + i, r: row.r });
-      });
-    }
+    if (data.regions) for (const { h } of regionTiles(data.regions)) count(h);
     return out;
   }
   for (const ref of chunksInView(data.index, camera, view, Infinity)) {
@@ -195,15 +210,7 @@ export function cellIndex(
   chunks: ReadonlyMap<string, MapChunk>,
   regions: MapRegions | undefined,
 ): Map<string, MapCell> {
-  const out = new Map<string, MapCell>();
-  for (const row of regions?.rows ?? []) {
-    row.slots.forEach((slot, i) => {
-      const g = regions?.regions[slot];
-      if (slot < 0 || !g) return;
-      const h = { q: row.q + i, r: row.r };
-      out.set(hexKey(h), { q: h.q, r: h.r, terrain: g.terrain, region: g.ref });
-    });
-  }
+  const out = new Map<string, MapCell>(regions ? regionCells(regions) : []);
   const tile: MapChunk[] = [];
   for (const ch of chunks.values()) {
     if (ch.level === "tile") tile.push(ch);
@@ -241,37 +248,6 @@ export function mapNames(
   return Object.assign(out, overlay?.names ?? {});
 }
 
-/** The layers a visitor turned off, kept in this browser only. */
-export function readLayers(store: Pick<Storage, "getItem"> | undefined): Set<LayerId> {
-  const on = new Set<LayerId>(DEFAULT_LAYERS);
-  try {
-    const off: unknown = JSON.parse(store?.getItem(LAYERS_KEY) ?? "[]");
-    if (Array.isArray(off)) for (const id of off) if (isLayer(String(id))) on.delete(id);
-  } catch {
-    // Unreadable storage leaves every layer on.
-  }
-  return on;
-}
-
-export function writeLayers(
-  store: Pick<Storage, "setItem"> | undefined,
-  on: ReadonlySet<LayerId>,
-): void {
-  try {
-    store?.setItem(LAYERS_KEY, JSON.stringify(LAYERS.filter((l) => !on.has(l))));
-  } catch {
-    // A private window keeps the toggles for this visit only.
-  }
-}
-
-function browserStore(): Storage | undefined {
-  try {
-    return typeof localStorage === "undefined" ? undefined : localStorage;
-  } catch {
-    return undefined;
-  }
-}
-
 export type MapProblem = "" | "busy" | "down";
 
 function problemOf(err: unknown): MapProblem {
@@ -284,7 +260,9 @@ function problemOf(err: unknown): MapProblem {
 /** Tells the visitor once per failure, under one id so a poll never stacks toasts. */
 function announce(problem: MapProblem): void {
   if (problem === "busy") {
-    toast.warning("The map is busy. It asks again in a moment.", { id: "mmo-map-busy" });
+    toast.warning("The map is busy, so some of it may be missing for now.", {
+      id: "mmo-map-busy",
+    });
   } else if (problem === "down") {
     toast.error("The world is not answering. The map shows what it last sent.", {
       id: "mmo-map-down",
@@ -292,7 +270,7 @@ function announce(problem: MapProblem): void {
   }
 }
 
-export type MapViewer = "anonymous" | "player" | "character";
+export type MapViewer = typeof ViewerAnonymous | typeof ViewerPlayer | typeof ViewerCharacter;
 
 interface ChunkReads {
   data: (MapChunk | undefined)[];
@@ -363,7 +341,8 @@ export function useLiveMap({ search, userId }: LiveMapOptions): LiveMap {
     queryFn: ({ signal }) => mapGet<MapStyle>(MAP_ROUTES.style(index!.style), signal),
     enabled: Boolean(index?.style),
     staleTime: Infinity,
-    retry: false,
+    retry: retryMapRead,
+    retryDelay: mapRetryDelay,
   });
   const style = useMemo(() => (styleQ.data ? resolveStyle(styleQ.data) : undefined), [styleQ.data]);
 
@@ -372,7 +351,8 @@ export function useLiveMap({ search, userId }: LiveMapOptions): LiveMap {
     queryFn: ({ signal }) => mapGet<MapRegions>(MAP_ROUTES.regions(index!.regions), signal),
     enabled: Boolean(index?.regions),
     staleTime: Infinity,
-    retry: false,
+    retry: retryMapRead,
+    retryDelay: mapRetryDelay,
     placeholderData: keepPreviousData,
   });
   const regions = regionsQ.data;
@@ -444,7 +424,6 @@ export function useLiveMap({ search, userId }: LiveMapOptions): LiveMap {
     : start?.kind === "self"
       ? { sight: true }
       : undefined;
-  // Ids are sorted, so a view that asks for the same chunks asks once a tick.
   const overlayUrl = overlayAsk && MAP_ROUTES.overlay(overlayAsk);
   const overlayQ = useQuery({
     queryKey: [KEY, "overlay", userId ?? "", index?.tick, overlayUrl],
@@ -452,7 +431,8 @@ export function useLiveMap({ search, userId }: LiveMapOptions): LiveMap {
     enabled: signedIn && Boolean(index) && Boolean(overlayUrl),
     staleTime: Infinity,
     gcTime: 60_000,
-    retry: false,
+    retry: retryMapRead,
+    retryDelay: mapRetryDelay,
     placeholderData: keepPreviousData,
   });
   const overlayGone = overlayQ.error instanceof MapRequestError && overlayQ.error.status === 401;
@@ -494,7 +474,8 @@ export function useLiveMap({ search, userId }: LiveMapOptions): LiveMap {
       queryKey: [KEY, "chunk", ask.level, ask.ref.a, ask.ref.b, ask.rev],
       queryFn: ({ signal }: { signal: AbortSignal }) => mapGet<MapChunk>(ask.url, signal),
       staleTime: Infinity,
-      retry: false,
+      retry: retryMapRead,
+      retryDelay: mapRetryDelay,
     })),
     combine: combineChunks,
   });
@@ -529,10 +510,10 @@ export function useLiveMap({ search, userId }: LiveMapOptions): LiveMap {
   }, [index]);
 
   const [layers, setLayerState] = useState<ReadonlySet<LayerId>>(DEFAULT_LAYERS);
-  useEffect(() => setLayerState(readLayers(browserStore())), []);
+  useEffect(() => setLayerState(readLayers(browserStore(), LAYERS_KEY)), []);
   const setLayers = useCallback((next: ReadonlySet<LayerId>) => {
     setLayerState(new Set(next));
-    writeLayers(browserStore(), next);
+    writeLayers(browserStore(), LAYERS_KEY, next);
   }, []);
 
   const problem =
@@ -556,10 +537,10 @@ export function useLiveMap({ search, userId }: LiveMapOptions): LiveMap {
   }, [problem, failedAt]);
 
   const viewer: MapViewer = !signedIn
-    ? "anonymous"
-    : overlay?.viewer === "character"
-      ? "character"
-      : "player";
+    ? ViewerAnonymous
+    : overlay?.viewer === ViewerCharacter
+      ? ViewerCharacter
+      : ViewerPlayer;
 
   return {
     index,

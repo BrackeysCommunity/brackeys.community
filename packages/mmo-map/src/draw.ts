@@ -77,6 +77,9 @@ function bounds(ops: DrawOp[]): { l: number; t: number; r: number; b: number } {
 export class ChunkCache {
   private readonly max: number;
   private readonly entries = new Map<string, Placed>();
+  // Ids placed since begin(): eviction waits for end() so a frame with more
+  // chunks than max never evicts the bitmaps it is about to draw.
+  private frame: Set<string> | null = null;
 
   constructor(max: number) {
     this.max = Math.max(1, max);
@@ -89,6 +92,7 @@ export class ChunkCache {
 
   placed(key: string, ops: DrawOp[], size: number): Placed {
     const id = `${key}@${size}`;
+    this.frame?.add(id);
     const hit = this.entries.get(id);
     if (hit) {
       this.entries.delete(id);
@@ -110,12 +114,26 @@ export class ChunkCache {
     }
     const placed = { image, left: box.l, top: box.t, width, height };
     this.entries.set(id, placed);
-    while (this.entries.size > this.max) {
+    if (!this.frame) this.trim(this.max);
+    return placed;
+  }
+
+  begin(): void {
+    this.frame = new Set();
+  }
+
+  end(): void {
+    const used = this.frame?.size ?? 0;
+    this.frame = null;
+    this.trim(Math.max(this.max, used));
+  }
+
+  private trim(keep: number): void {
+    while (this.entries.size > keep) {
       const oldest = this.entries.keys().next().value;
       if (oldest === undefined) break;
       this.entries.delete(oldest);
     }
-    return placed;
   }
 
   clear(): void {
@@ -338,13 +356,18 @@ export function paint(
   ctx.translate(view.width / 2, view.height / 2);
   ctx.scale(c.size, c.size);
   ctx.translate(-c.x, -c.y);
-  for (const b of f.base) {
-    if (q > MAX_BITMAP_SCALE) {
-      drawOps(ctx, b.ops, scale, c.size, font, false);
-      continue;
+  cache.begin();
+  try {
+    for (const b of f.base) {
+      if (q > MAX_BITMAP_SCALE) {
+        drawOps(ctx, b.ops, scale, c.size, font, false);
+        continue;
+      }
+      const p = cache.placed(b.key, b.ops, q);
+      if (p.width > 0 && p.height > 0) ctx.drawImage(p.image, p.left, p.top, p.width, p.height);
     }
-    const p = cache.placed(b.key, b.ops, q);
-    if (p.width > 0 && p.height > 0) ctx.drawImage(p.image, p.left, p.top, p.width, p.height);
+  } finally {
+    cache.end();
   }
   for (const b of f.base) {
     drawOps(ctx, labelsOf(b.ops), scale, c.size, font, true);

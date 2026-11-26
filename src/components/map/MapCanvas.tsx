@@ -8,30 +8,27 @@ import type { MapTileView } from "../../../packages/mmo-api/src/index.ts";
 import { ChunkCache, paint } from "../../../packages/mmo-map/src/draw.ts";
 import {
   type Axial,
+  backing,
   buildFrame,
   type Camera,
-  centreOn,
   fitRegions,
+  focusCamera,
   type Frame,
   hexCentre,
   hexCorners,
   hexKey,
-  pan,
+  keyMove,
+  PointerTracker,
   screenToHex,
   type View,
+  wheelZoom,
   worldToScreen,
   zoomAt,
 } from "../../../packages/mmo-map/src/index.ts";
 import { type TileContext, tileWords } from "./TilePanel";
 import type { LiveMap } from "./use-live-map";
 
-// structural: how gestures move the camera, and the backing store's limits.
-const TAP_SLOP_PX = 8;
-const WHEEL_RATE = 0.0015;
-const KEY_PAN = 0.125;
-const KEY_ZOOM = 1.25;
-const FOCUS_ZOOM = 1.25;
-const MAX_DPR = 2;
+// structural: the bitmaps kept, and the hover's place.
 const CACHE_BITMAPS = 96;
 const PICK_RIM_PX = 2;
 const HOVER_OFFSET_PX = 14;
@@ -81,8 +78,7 @@ export function MapCanvas({
   const frame = useRef<Frame | undefined>(undefined);
   const cache = useRef<ChunkCache | undefined>(undefined);
   const raf = useRef<number | undefined>(undefined);
-  const pointers = useRef(new Map<number, { x: number; y: number }>());
-  const tap = useRef<{ x: number; y: number; moved: boolean } | undefined>(undefined);
+  const tracker = useRef(new PointerTracker());
   const visible = usePageVisible();
   const [hover, setHover] = useState<Hover | undefined>(undefined);
 
@@ -109,12 +105,10 @@ export function MapCanvas({
     });
     const ctx = el.getContext("2d");
     if (!ctx) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
-    const w = Math.max(1, Math.round(v.width * dpr));
-    const h = Math.max(1, Math.round(v.height * dpr));
-    if (el.width !== w) el.width = w;
-    if (el.height !== h) el.height = h;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const b = backing(v, window.devicePixelRatio);
+    if (el.width !== b.width) el.width = b.width;
+    if (el.height !== b.height) el.height = b.height;
+    ctx.setTransform(b.dpr, 0, 0, b.dpr, 0, 0);
     cache.current ??= new ChunkCache(CACHE_BITMAPS);
     paint(ctx, frame.current, c, v, cache.current);
     if (p) {
@@ -204,7 +198,7 @@ export function MapCanvas({
       e.preventDefault();
       const r = el.getBoundingClientRect();
       const p = { x: e.clientX - r.left, y: e.clientY - r.top };
-      move(zoomAt(c, Math.exp(-e.deltaY * WHEEL_RATE), p, view.current, style.view));
+      move(wheelZoom(c, e.deltaY, p, view.current, style.view));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
@@ -228,7 +222,7 @@ export function MapCanvas({
       goTo(h) {
         const style = latest.current.map.style;
         if (!style) return;
-        move(centreOn(h, Math.max(camera.current?.size ?? 0, style.view.zoomTile * FOCUS_ZOOM)));
+        move(focusCamera(h, style.view, camera.current));
       },
     }),
     [move],
@@ -248,9 +242,7 @@ export function MapCanvas({
   };
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const p = pointAt(e);
-    pointers.current.set(e.pointerId, p);
-    tap.current = pointers.current.size === 1 ? { ...p, moved: false } : undefined;
+    tracker.current.down(e.pointerId, pointAt(e));
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {
@@ -260,39 +252,19 @@ export function MapCanvas({
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const p = pointAt(e);
-    const was = pointers.current.get(e.pointerId);
     const c = camera.current;
     const style = latest.current.map.style;
-    if (!was || !c || !style) {
+    if (!tracker.current.has(e.pointerId) || !c || !style) {
       if (e.pointerType === "mouse") hoverAt(p);
       return;
     }
-    const t = tap.current;
-    if (t && Math.hypot(p.x - t.x, p.y - t.y) > TAP_SLOP_PX) t.moved = true;
-    if (pointers.current.size === 1) {
-      pointers.current.set(e.pointerId, p);
-      move(pan(c, p.x - was.x, p.y - was.y));
-      return;
-    }
-    // Two fingers: zoom by how far they spread, round their midpoint, and follow it.
-    const other = [...pointers.current.entries()].find(([id]) => id !== e.pointerId)?.[1];
-    if (!other) return;
-    pointers.current.set(e.pointerId, p);
-    const before = Math.hypot(was.x - other.x, was.y - other.y);
-    const after = Math.hypot(p.x - other.x, p.y - other.y);
-    const mid = { x: (p.x + other.x) / 2, y: (p.y + other.y) / 2 };
-    const midWas = { x: (was.x + other.x) / 2, y: (was.y + other.y) / 2 };
-    let next = pan(c, mid.x - midWas.x, mid.y - midWas.y);
-    if (before > 0 && after > 0) next = zoomAt(next, after / before, mid, view.current, style.view);
-    move(next);
+    const next = tracker.current.move(e.pointerId, p, c, view.current, style.view);
+    if (next) move(next);
   };
 
   const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>, cancelled = false) => {
-    if (!pointers.current.delete(e.pointerId)) return;
-    const t = tap.current;
-    tap.current = undefined;
     const c = camera.current;
-    if (cancelled || !t || t.moved || pointers.current.size > 0 || !c) return;
+    if (!tracker.current.up(e.pointerId, cancelled) || !c) return;
     const p = pointAt(e);
     const h = screenToHex(c, view.current, p.x, p.y);
     onPick(frame.current?.hit(p.x, p.y) ? h : undefined);
@@ -304,20 +276,10 @@ export function MapCanvas({
     if (!c || !style) return;
     const v = view.current;
     const centre = { x: v.width / 2, y: v.height / 2 };
-    const step = { x: v.width * KEY_PAN, y: v.height * KEY_PAN };
-    const moves: Record<string, () => Camera> = {
-      ArrowLeft: () => pan(c, step.x, 0),
-      ArrowRight: () => pan(c, -step.x, 0),
-      ArrowUp: () => pan(c, 0, step.y),
-      ArrowDown: () => pan(c, 0, -step.y),
-      "+": () => zoomAt(c, KEY_ZOOM, centre, v, style.view),
-      "=": () => zoomAt(c, KEY_ZOOM, centre, v, style.view),
-      "-": () => zoomAt(c, 1 / KEY_ZOOM, centre, v, style.view),
-    };
-    const go = moves[e.key];
-    if (go) {
+    const next = keyMove(c, e.key, v, style.view);
+    if (next) {
       e.preventDefault();
-      move(go());
+      move(next);
       return;
     }
     if (e.key === "Enter" || e.key === " ") {

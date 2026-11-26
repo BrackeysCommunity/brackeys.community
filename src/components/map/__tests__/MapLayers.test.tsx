@@ -2,13 +2,17 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { DEFAULT_LAYERS, LIVE_LAYERS } from "../../../../packages/mmo-map/src/index.ts";
+import {
+  DEFAULT_LAYERS,
+  LIVE_LAYERS,
+  type LayerId,
+} from "../../../../packages/mmo-map/src/index.ts";
 import { MAP_LAYER_NAMES } from "../../../../packages/mmo-words/src/index.ts";
 import { MapLayers } from "../MapLayers";
 
 afterEach(cleanup);
 
-const toggle = (id: string) => screen.getByRole("button", { name: MAP_LAYER_NAMES[id] });
+const toggle = (id: LayerId) => screen.getByRole("button", { name: MAP_LAYER_NAMES[id] });
 const isDisabled = (el: HTMLElement) =>
   el.hasAttribute("disabled") || el.getAttribute("aria-disabled") === "true";
 

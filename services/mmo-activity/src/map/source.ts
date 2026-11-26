@@ -1,4 +1,4 @@
-import { chunkId, hexDistance } from "../../../../packages/mmo-map/src/index.ts";
+import { hexDistance, overlayQueryString } from "../../../../packages/mmo-map/src/index.ts";
 import type {
   MapChunk,
   MapIndex,
@@ -35,7 +35,7 @@ export class MapError extends Error {
   }
 }
 
-/** The signed-in session an overlay is asked as. */
+/** The signed-in session every map read is asked as. */
 export interface MapSession {
   /** The session token, "" before sign-in. */
   bearer(): string;
@@ -43,15 +43,11 @@ export interface MapSession {
 
 type Fetch = (url: string, init?: RequestInit) => Promise<Response>;
 
-export function overlayParams(q: MapOverlayQuery): string {
-  if (q.sight) return "scope=sight";
-  return `chunks=${(q.chunks ?? []).map(chunkId).join(",")}`;
-}
-
 /**
- * The world's own reads, through Discord's proxy when inside it. The base
- * is the same for everyone and goes unsigned; the overlay carries the
- * session, and the world filters it to that character's sight.
+ * The world's own reads, through Discord's proxy when inside it. Every read
+ * carries the session: the base is the same for everyone but counts against
+ * the session's caps, and the world filters the overlay to that
+ * character's sight.
  */
 export function liveSource(
   session: MapSession,
@@ -78,18 +74,17 @@ export function liveSource(
     }
     throw new MapError(res.status, code, message);
   }
+  function signed<T>(url: string): Promise<T> {
+    const bearer = session.bearer();
+    if (!bearer) return Promise.reject(new MapError(401, "forbidden", "not signed in yet"));
+    return read<T>(url, { headers: { Authorization: `Bearer ${bearer}` } });
+  }
   return {
-    tick: () => read(r.tick),
-    style: () => read(r.style),
-    regions: () => read(r.regions),
-    chunk: (level, a, b) => read(`${r.chunk}?a=${a}&b=${b}&level=${level}`),
-    overlay(q) {
-      const bearer = session.bearer();
-      if (!bearer) return Promise.reject(new MapError(401, "forbidden", "not signed in yet"));
-      return read(`${r.overlay}?${overlayParams(q)}`, {
-        headers: { Authorization: `Bearer ${bearer}` },
-      });
-    },
+    tick: () => signed(r.tick),
+    style: () => signed(r.style),
+    regions: () => signed(r.regions),
+    chunk: (level, a, b) => signed(`${r.chunk}?a=${a}&b=${b}&level=${level}`),
+    overlay: (q) => signed(`${r.overlay}?${overlayQueryString(q)}`),
   };
 }
 

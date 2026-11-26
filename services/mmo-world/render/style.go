@@ -63,6 +63,19 @@ func MapStyleProblems(b *sheets.Book) []string {
 	return p
 }
 
+// MapStyleErr joins MapStyleProblems into one error; nil when there are none.
+func MapStyleErr(b *sheets.Book) error {
+	p := MapStyleProblems(b)
+	if len(p) == 0 {
+		return nil
+	}
+	errs := make([]error, len(p))
+	for i, s := range p {
+		errs[i] = errors.New(s)
+	}
+	return errors.Join(errs...)
+}
+
 // MapStyle is the map's look, from the pack.
 type MapStyle struct {
 	entries map[string]sheets.MapStyle
@@ -73,12 +86,8 @@ type MapStyle struct {
 // MapStyleOf reads the map's look from a book; it refuses a pack that
 // lacks an entry the map draws by.
 func MapStyleOf(b *sheets.Book) (MapStyle, error) {
-	if p := MapStyleProblems(b); len(p) > 0 {
-		errs := make([]error, len(p))
-		for i, s := range p {
-			errs[i] = errors.New(s)
-		}
-		return MapStyle{}, errors.Join(errs...)
+	if err := MapStyleErr(b); err != nil {
+		return MapStyle{}, err
 	}
 	s := MapStyle{
 		entries: make(map[string]sheets.MapStyle, len(b.MapStyle)),
@@ -103,12 +112,13 @@ func (s MapStyle) Colour(id string) color.NRGBA {
 }
 
 // Glyph is an entry's glyph; "" draws none.
-func (s MapStyle) Glyph(id string) string { return orNone(s.entries[id].Glyph) }
+func (s MapStyle) Glyph(id string) string { return Plain(s.entries[id].Glyph) }
 
 // Pattern is an entry's pattern; "" draws none.
-func (s MapStyle) Pattern(id string) string { return orNone(s.entries[id].Pattern) }
+func (s MapStyle) Pattern(id string) string { return Plain(s.entries[id].Pattern) }
 
-func orNone(v string) string {
+// Plain is a glyph or pattern cell as drawn: none is empty.
+func Plain(v string) string {
 	if v == "none" {
 		return ""
 	}

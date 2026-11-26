@@ -2548,6 +2548,11 @@ export interface MapTileView {
   fog: string; // sight, seen or discovered
   live?: MapLive;
 }
+/**
+ * MapOverlayMaxChunks is the most chunks one overlay request names; the
+ * clients ask for the nearest when more are in view.
+ */
+export const MapOverlayMaxChunks = 64;
 
 //////////
 // source: market.go

@@ -1,11 +1,10 @@
 import { createFileRoute, notFound, useRouterState } from "@tanstack/react-router";
 
-import { loadTick, TICK_KEY } from "@/components/map/map-api";
+import { loadTick, MapRequestError, TICK_KEY } from "@/components/map/map-api";
 import { MapPage } from "@/components/map/MapPage";
 import type { MapSearch } from "@/components/map/use-live-map";
+import { DISCORD_SNOWFLAKE } from "@/lib/discord-snowflake";
 import { buildMeta } from "@/lib/site-meta";
-
-const SNOWFLAKE = /^\d{1,20}$/;
 
 function int(v: unknown): number | undefined {
   const n = typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v) : NaN;
@@ -26,7 +25,7 @@ export function validateMapSearch(raw: Record<string, unknown>): MapSearch {
       : typeof raw.server === "number" && Number.isSafeInteger(raw.server)
         ? String(raw.server)
         : undefined;
-  if (server && SNOWFLAKE.test(server)) out.server = server;
+  if (server && DISCORD_SNOWFLAKE.test(server)) out.server = server;
   const q = int(raw.q);
   const r = int(raw.r);
   if (q !== undefined && r !== undefined) {
@@ -44,19 +43,23 @@ export function validateMapSearch(raw: Record<string, unknown>): MapSearch {
  */
 export function serverFromSearch(searchStr: string): string | undefined {
   const server = new URLSearchParams(searchStr).get("server") ?? "";
-  return SNOWFLAKE.test(server) ? server : undefined;
+  return DISCORD_SNOWFLAKE.test(server) ? server : undefined;
 }
 
-/** The live map. It exists only where the site knows a world: the tick route's answer is the gate. */
+/**
+ * The live map. It is a 404 only when the site knows no world (the tick route
+ * answers 404); any other failure opens the page and its tick query reports it.
+ */
 export const Route = createFileRoute("/map")({
   staticData: { shell: "takeover" },
   validateSearch: validateMapSearch,
   loader: async ({ context: { queryClient } }) => {
     if (queryClient.getQueryData(TICK_KEY)) return;
-    const index = await loadTick().catch(() => {
-      throw notFound();
-    });
-    queryClient.setQueryData(TICK_KEY, index);
+    try {
+      queryClient.setQueryData(TICK_KEY, await loadTick());
+    } catch (err) {
+      if (err instanceof MapRequestError && err.status === 404) throw notFound();
+    }
   },
   head: () =>
     buildMeta({

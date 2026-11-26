@@ -2,7 +2,14 @@ import { describe, expect, test } from "vite-plus/test";
 
 import type { MapIndex } from "../../mmo-api/src/index.ts";
 import { viewBounds } from "../src/camera.ts";
-import { chunkId, chunkKey, chunkRev, chunksInView, MAX_OVERLAY_CHUNKS } from "../src/chunks.ts";
+import {
+  chunkId,
+  chunkKey,
+  chunkRev,
+  chunksInView,
+  MAX_OVERLAY_CHUNKS,
+  overlayQueryString,
+} from "../src/chunks.ts";
 import { hexCentre, hexDistance } from "../src/hex.ts";
 import { chunkCentre, chunkOf, syntheticWorld } from "./support.ts";
 
@@ -95,5 +102,21 @@ describe("keys", () => {
     expect(chunkKey(ref, "tile", "ttt")).toBe("tile/3.-2/ttt");
     expect(chunkRev(ref, "area")).toBe("aaa");
     expect(chunkRev(ref, "tile")).toBe("ttt");
+  });
+});
+
+describe("overlayQueryString", () => {
+  test("names sight, or the chunks by id", () => {
+    expect(overlayQueryString({ sight: true })).toBe("scope=sight");
+    expect(
+      overlayQueryString({
+        chunks: [
+          { a: 3, b: -2 },
+          { a: 0, b: 1 },
+        ],
+      }),
+    ).toBe("chunks=3.-2,0.1");
+    expect(overlayQueryString({ chunks: [] })).toBe("chunks=");
+    expect(overlayQueryString({})).toBe("chunks=");
   });
 });

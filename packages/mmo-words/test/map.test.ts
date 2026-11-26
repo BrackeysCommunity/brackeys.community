@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 
+import type { MapCell, MapTileView } from "../../mmo-api/src/index.ts";
 import {
   bareNumbers,
   busyWords,
@@ -7,6 +8,7 @@ import {
   MAP_LAYER_NAMES,
   seenAgo,
   TICKS_PER_DAY,
+  tileWords,
 } from "../src/index.ts";
 
 describe("the live map's words", () => {
@@ -53,7 +55,7 @@ describe("the live map's words", () => {
       "troubles",
       "busy",
       "self",
-    ])
+    ] as const)
       expect(MAP_LAYER_NAMES[id]).toBeTruthy();
     expect(MAP_LAYER_NAMES.places).toBe("Settlements and cities");
     expect(MAP_LAYER_NAMES.busy).toBe("How busy");
@@ -62,5 +64,98 @@ describe("the live map's words", () => {
   test("no number goes out bare", () => {
     for (const days of [0, 1, 2, 30, 1200])
       expect(bareNumbers(seenAgo(days * TICKS_PER_DAY, 0))).toEqual([]);
+  });
+});
+
+describe("a tile in words", () => {
+  const cell: MapCell = {
+    q: 1,
+    r: 2,
+    terrain: "ash-flats",
+    region: "region-1",
+    road: 3,
+    place: "ruin",
+    placeRef: "ruin-1",
+  };
+  const at = {
+    tick: 10 * TICKS_PER_DAY,
+    names: { "region-1": "the Cinder Reach", "ruin-1": "Old Pylon" },
+  };
+
+  test("ground nobody has found says only that", () => {
+    expect(tileWords(undefined, at)).toEqual({
+      title: "Unknown ground",
+      fog: "unknown",
+      fogLine: "Nobody has been here.",
+      base: [],
+      live: [],
+    });
+  });
+
+  test("a tile in sight has its base and its live values now", () => {
+    const t: MapTileView = {
+      cell,
+      fog: "sight",
+      live: { q: 1, r: 2, fog: "sight", threat: 5, fire: true, busy: "light" },
+    };
+    const w = tileWords(t, { ...at, self: { q: 1, r: 2 } });
+    expect(w.title).toBe("Old Pylon");
+    expect(w.fogLine).toBe("In sight.");
+    expect(w.age).toBeUndefined();
+    expect(w.base).toEqual([
+      "Ash flats",
+      "In the Cinder Reach",
+      "A ruin",
+      "A road at level 3",
+      "You are here.",
+    ]);
+    expect(w.live).toEqual([
+      "5 threat in its region",
+      "A fire is burning",
+      "How busy: a few through lately",
+    ]);
+  });
+
+  test("a last-seen tile carries its age", () => {
+    const t: MapTileView = {
+      cell,
+      fog: "seen",
+      live: { q: 1, r: 2, fog: "seen", left: 7 * TICKS_PER_DAY },
+    };
+    const w = tileWords(t, at);
+    expect(w.fogLine).toBe("Last seen.");
+    expect(w.age).toBe("Seen 3 world days ago.");
+    expect(w.live).toEqual(["How busy: quiet"]);
+  });
+
+  test("an ecotone edges into its second ground", () => {
+    const t: MapTileView = {
+      cell: { ...cell, secondary: "rust-dunes", blend: 2 },
+      fog: "discovered",
+    };
+    expect(tileWords(t, at).base).toContain("Edging into rust dunes");
+    const none: MapTileView = {
+      cell: { ...cell, secondary: "rust-dunes", blend: 0 },
+      fog: "discovered",
+    };
+    expect(tileWords(none, at).base.join(" ")).not.toMatch(/Edging/);
+  });
+
+  test("a camp keeps the name the world sent", () => {
+    const t: MapTileView = {
+      cell,
+      fog: "sight",
+      live: { q: 1, r: 2, fog: "sight", camp: "Rust-Eaters" },
+    };
+    expect(tileWords(t, at).live).toContain("Camp: Rust-Eaters");
+  });
+
+  test("the terrain namer names the ground", () => {
+    const t: MapTileView = { cell: { q: 0, r: 0, terrain: "ash-flats" }, fog: "discovered" };
+    expect(tileWords(t, at).title).toBe("Ash flats");
+    expect(tileWords(t, at, (id) => `The ${id}`).title).toBe("The ash-flats");
+    const w = tileWords(t, at);
+    expect(w.live).toEqual([]);
+    for (const l of [...w.base, w.fogLine]) expect(bareNumbers(l)).toEqual([]);
   });
 });

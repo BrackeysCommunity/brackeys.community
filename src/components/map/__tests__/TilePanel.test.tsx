@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { MapCell, MapTileView } from "../../../../packages/mmo-api/src/index.ts";
+import { TICKS_PER_DAY } from "../../../../packages/mmo-words/src/units.ts";
 import { TilePanel, tileWords } from "../TilePanel";
 
 const CELL: MapCell = {
@@ -21,8 +22,7 @@ const NAMES = {
   "settlement-7": "Rustwater",
   "guild-1": "the Lamplighters",
 };
-// structural: a world day is 144 ticks.
-const DAY = 144;
+const DAY = TICKS_PER_DAY;
 const AT = { tick: 10 * DAY, names: NAMES };
 
 const sight: MapTileView = {

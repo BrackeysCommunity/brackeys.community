@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"net/http"
-	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -17,7 +16,6 @@ const (
 	maxMapReads    = 20  // map reads one Discord user may make
 	maxMapOverlays = 2   // overlays one Discord user may ask for
 	maxMapAll      = 400 // map reads from everyone
-	maxMapChunks   = 64  // chunks one overlay may name
 )
 
 // mapLimits are the map's windows: everyone's, and each signed-in user's.
@@ -65,15 +63,15 @@ func (g *Gateway) mapRegions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (g *Gateway) mapChunk(w http.ResponseWriter, r *http.Request) {
-	if !g.mapRead(w, r) {
-		return
-	}
 	q := r.URL.Query()
 	a, errA := strconv.ParseInt(q.Get("a"), 10, 64)
 	b, errB := strconv.ParseInt(q.Get("b"), 10, 64)
 	level := q.Get("level")
 	if errA != nil || errB != nil || level != api.LevelArea && level != api.LevelTile {
 		refuse(w, http.StatusBadRequest, api.CodeBadJSON, "a chunk is ?a=&b= and a level of area or tile")
+		return
+	}
+	if !g.mapRead(w, r) {
 		return
 	}
 	v, ref, err := g.cfg.Host.MapChunk(r.Context(), a, b, level)
@@ -88,13 +86,13 @@ func (g *Gateway) mapOverlay(w http.ResponseWriter, r *http.Request) {
 		refuse(w, http.StatusUnauthorized, api.CodeForbidden, "sign in to see the map's live layers")
 		return
 	}
-	if !g.maps.admit(g.clock.Now(), discord, true) {
-		refuse(w, http.StatusTooManyRequests, api.CodeBusy, "too many map reads")
-		return
-	}
-	q, ref := overlayQuery(r.URL.Query())
+	q, ref := api.ParseMapOverlayQuery(r.URL.Query())
 	if ref != nil {
 		refuse(w, http.StatusBadRequest, ref.Code, ref.Message)
+		return
+	}
+	if !g.maps.admit(g.clock.Now(), discord, true) {
+		refuse(w, http.StatusTooManyRequests, api.CodeBusy, "too many map reads")
 		return
 	}
 	id, err := g.cfg.Host.CharacterOf(r.Context(), discord)
@@ -109,11 +107,15 @@ func (g *Gateway) mapOverlay(w http.ResponseWriter, r *http.Request) {
 	g.mapReply(w, v, ref, err)
 }
 
-// mapRead admits one read of the shared base, or refuses it. A valid
-// session counts against its user's window too; one that is past still
-// reads the base, which is the same for everyone.
+// mapRead admits one read of the shared base by a signed-in session, or
+// refuses it. An unsigned read counts in no window, since the Activity
+// signs in before its map draws.
 func (g *Gateway) mapRead(w http.ResponseWriter, r *http.Request) bool {
-	discord, _ := g.bearer(r)
+	discord, ok := g.bearer(r)
+	if !ok || discord == "" {
+		refuse(w, http.StatusUnauthorized, api.CodeForbidden, "sign in to read the map")
+		return false
+	}
 	if !g.maps.admit(g.clock.Now(), discord, false) {
 		refuse(w, http.StatusTooManyRequests, api.CodeBusy, "too many map reads")
 		return false
@@ -164,39 +166,8 @@ func refusalStatus(code string) int {
 	}
 }
 
-// overlayQuery reads ?chunks=a.b,… or ?scope=sight: exactly one of them.
-func overlayQuery(v url.Values) (api.MapOverlayQuery, *api.Refusal) {
-	bad := &api.Refusal{Code: api.CodeBadJSON, Message: "an overlay names up to 64 chunks as a.b, or scope=sight"}
-	chunks, scope := v.Get("chunks"), v.Get("scope")
-	if (chunks == "") == (scope == "") {
-		return api.MapOverlayQuery{}, bad
-	}
-	if scope != "" {
-		if scope != "sight" {
-			return api.MapOverlayQuery{}, bad
-		}
-		return api.MapOverlayQuery{Sight: true}, nil
-	}
-	parts := strings.Split(chunks, ",")
-	if len(parts) > maxMapChunks {
-		return api.MapOverlayQuery{}, bad
-	}
-	ids := make([]api.MapChunkID, 0, len(parts))
-	for _, p := range parts {
-		sa, sb, ok := strings.Cut(p, ".")
-		a, errA := strconv.ParseInt(sa, 10, 64)
-		b, errB := strconv.ParseInt(sb, 10, 64)
-		if !ok || errA != nil || errB != nil {
-			return api.MapOverlayQuery{}, bad
-		}
-		ids = append(ids, api.MapChunkID{A: a, B: b})
-	}
-	return api.MapOverlayQuery{Chunks: ids}, nil
-}
-
 // admit counts one map read now, and an overlay when overlay is set,
-// unless a window it counts in is full; then it counts nothing. discord
-// "" counts in everyone's window only.
+// unless a window it counts in is full; then it counts nothing.
 func (m *mapLimits) admit(now time.Time, discord string, overlay bool) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()

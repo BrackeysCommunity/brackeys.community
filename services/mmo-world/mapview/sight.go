@@ -52,9 +52,9 @@ func charKey(g *game.Game, c *game.Char) Key {
 	return Key{{Q: at.Q, R: at.R, Radius: g.Sight(at)}}
 }
 
-// standing reports whether a place gives its guild sight: run by a guild,
+// Standing reports whether a place gives its guild sight: run by a guild,
 // not ruined, and no faction's city.
-func standing(p *game.Place) bool { return p.Guild != "" && p.Ruined == 0 && p.Faction == nil }
+func Standing(p *game.Place) bool { return p.Guild != "" && p.Ruined == 0 && p.Faction == nil }
 
 // placeDiscs are a standing place's discs: its tile and, for a city, each
 // of its other tiles, each with the sight a character there would have.
@@ -72,7 +72,7 @@ func placeDiscs(g *game.Game, p *game.Place) []Disc {
 func guildKeys(g *game.Game) map[string]Key {
 	out := map[string]Key{}
 	for _, p := range g.Places {
-		if standing(p) {
+		if Standing(p) {
 			out[p.Guild] = append(out[p.Guild], placeDiscs(g, p)...)
 		}
 	}
@@ -115,7 +115,7 @@ func KeyOf(g *game.Game, h Holder) (Key, bool) {
 		}
 		k := Key{}
 		for _, p := range g.Places {
-			if p.Guild == h.ID && standing(p) {
+			if p.Guild == h.ID && Standing(p) {
 				k = append(k, placeDiscs(g, p)...)
 			}
 		}

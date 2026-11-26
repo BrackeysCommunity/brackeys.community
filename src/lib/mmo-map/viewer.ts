@@ -5,18 +5,18 @@ import { account } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { isActiveBan } from "@/lib/ban-state";
 
-export type MapViewer =
+export type MapIdentity =
   | { kind: "anonymous" }
   | { kind: "user"; userId: string; discordId?: string };
 
-const ANONYMOUS: MapViewer = { kind: "anonymous" };
+const ANONYMOUS: MapIdentity = { kind: "anonymous" };
 
 /**
  * Who is looking at the map, from the session alone (GDD 4.12): characters
  * are keyed by Discord id, so a user with no Discord link sees no live layer.
  * An unreadable session or a banned user is anonymous.
  */
-export async function mapViewer(request: Request): Promise<MapViewer> {
+export async function mapViewer(request: Request): Promise<MapIdentity> {
   const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
   if (!session || isActiveBan(session.user)) return ANONYMOUS;
   const userId = session.user.id;

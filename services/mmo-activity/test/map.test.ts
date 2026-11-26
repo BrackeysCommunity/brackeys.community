@@ -12,7 +12,9 @@ import {
   hexKey,
   LIVE_LAYERS,
   mergeTile,
+  readLayers,
   resolveStyle,
+  writeLayers,
 } from "../../../packages/mmo-map/src/index.ts";
 import { FOG_WORDS, seenAgo } from "../../../packages/mmo-words/src/map.ts";
 import { capital } from "../../../packages/mmo-words/src/units.ts";
@@ -30,7 +32,7 @@ import {
 import { mapFixtures, mockScene, MockGateway } from "../src/mock.ts";
 import { Session } from "../src/session.ts";
 import { bareNumbers } from "../src/units.ts";
-import { MapScreen, readLayers, tileWords, writeLayers } from "../src/views/map.ts";
+import { LAYERS_KEY, MapScreen, tileWords } from "../src/views/map.ts";
 import { FakeClock } from "./fakes.ts";
 
 const FIXTURES = `${import.meta.dirname}/fixtures`;
@@ -138,7 +140,7 @@ test("the map's routes are the listener's, through Discord's proxy inside it", (
   );
 });
 
-test("the live source signs only the overlay, and reads a refusal as one", async () => {
+test("the live source signs every read, and reads a refusal as one", async () => {
   const asked: { url: string; auth: string }[] = [];
   let status = 200;
   const get = async (url: string, init?: RequestInit) => {
@@ -152,10 +154,13 @@ test("the live source signs only the overlay, and reads a refusal as one", async
     { search: "?frame_id=x", origin: "https://d" },
     get,
   );
+  await expect(src.tick()).rejects.toMatchObject({ status: 401 });
+  await expect(src.chunk("tile", 3, -2)).rejects.toMatchObject({ status: 401 });
+  await expect(src.overlay({ sight: true })).rejects.toMatchObject({ status: 401 });
+  expect(asked).toEqual([]);
+  bearer = "tok";
   await src.tick();
   await src.chunk("tile", 3, -2);
-  await expect(src.overlay({ sight: true })).rejects.toMatchObject({ status: 401 });
-  bearer = "tok";
   await src.overlay({
     chunks: [
       { a: 3, b: -2 },
@@ -164,8 +169,8 @@ test("the live source signs only the overlay, and reads a refusal as one", async
   });
   await src.overlay({ sight: true });
   expect(asked).toEqual([
-    { url: "https://d/.proxy/api/activity/map/tick", auth: "" },
-    { url: "https://d/.proxy/api/activity/map/chunk?a=3&b=-2&level=tile", auth: "" },
+    { url: "https://d/.proxy/api/activity/map/tick", auth: "Bearer tok" },
+    { url: "https://d/.proxy/api/activity/map/chunk?a=3&b=-2&level=tile", auth: "Bearer tok" },
     { url: "https://d/.proxy/api/activity/map/overlay?chunks=3.-2,0.1", auth: "Bearer tok" },
     { url: "https://d/.proxy/api/activity/map/overlay?scope=sight", auth: "Bearer tok" },
   ]);
@@ -173,7 +178,7 @@ test("the live source signs only the overlay, and reads a refusal as one", async
   const err = await src.tick().catch((e: unknown) => e);
   expect(err).toBeInstanceOf(MapError);
   expect(err).toMatchObject({ status: 429, code: "busy" });
-  const down = liveSource({ bearer: () => "" }, { search: "", origin: "http://x" }, async () => {
+  const down = liveSource({ bearer: () => "tok" }, { search: "", origin: "http://x" }, async () => {
     throw new TypeError("no route");
   });
   await expect(down.tick()).rejects.toMatchObject({ status: 0, code: "down" });
@@ -327,11 +332,11 @@ test("a picked tile shows in the panel, and the layer toggles keep to this brows
   expect(panel.textContent).toContain("In sight.");
 
   const store = memory();
-  const on = readLayers(store);
+  const on = readLayers(store, LAYERS_KEY);
   on.delete("weather");
-  writeLayers(store, on);
-  expect(readLayers(store).has("weather")).toBe(false);
-  expect(readLayers(store).has("terrain")).toBe(true);
+  writeLayers(store, LAYERS_KEY, on);
+  expect(readLayers(store, LAYERS_KEY).has("weather")).toBe(false);
+  expect(readLayers(store, LAYERS_KEY).has("terrain")).toBe(true);
   const broken = {
     getItem: () => {
       throw new Error("blocked");
@@ -340,8 +345,8 @@ test("a picked tile shows in the panel, and the layer toggles keep to this brows
       throw new Error("blocked");
     },
   };
-  expect(readLayers(broken).size).toBe(10);
-  expect(() => writeLayers(broken, on)).not.toThrow();
+  expect(readLayers(broken, LAYERS_KEY).size).toBe(10);
+  expect(() => writeLayers(broken, LAYERS_KEY, on)).not.toThrow();
 });
 
 test("?mock=map loads: the idle state, opened on the map, drawn from the fixtures", async () => {
@@ -412,5 +417,25 @@ test("a page given no map source says the map is not answering, and still names 
     "The world's map is not answering yet.",
   );
   expect(s.map.canvas.getAttribute("aria-label")).toBe("Map of the wasteland, not drawn yet");
+  s.map.stop();
+});
+
+test("a page whose map reads are refused for want of a sign-in says so", async () => {
+  const refused = () => Promise.reject(new MapError(401, "forbidden", "not signed in yet"));
+  const source: MapSource = {
+    tick: refused,
+    style: refused,
+    regions: refused,
+    chunk: refused,
+    overlay: refused,
+  };
+  const root = document.createElement("div");
+  document.body.append(root);
+  const s = new MapScreen({ source, store: memory() });
+  root.append(s.root);
+  await s.wake();
+  expect(s.root.querySelector("[role=status]")!.textContent).toBe(
+    "The map waits for you to be signed in.",
+  );
   s.map.stop();
 });

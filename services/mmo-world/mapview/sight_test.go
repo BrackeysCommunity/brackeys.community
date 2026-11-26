@@ -256,4 +256,70 @@ func TestSightsFloorAndGuild(t *testing.T) {
 	}
 }
 
+// A standing place lends sight to its own guild's members only, and a
+// character who leaves a guild keeps none of its places' sight.
+func TestSightsGuildBounded(t *testing.T) {
+	s := newSighted(t, 14)
+	res, err := s.g.Act(game.Command{Key: "b", Kind: game.Create, Server: "srv-2", Note: "Rivals"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	theirs := res.Char
+	b := theirs.C.Guild
+	if b == "" || b == s.c.C.Guild || s.g.GuildOf(b) == nil {
+		t.Fatalf("the second server's guild is %q beside %q", b, s.c.C.Guild)
+	}
+	s.c.C.At = s.find(t, 14, func(h hex.Hex) bool { return hex.Distance(h, s.home) == 6 })
+	at := s.find(t, 14, func(h hex.Hex) bool { return hex.Distance(h, s.home) >= 10 && hex.Distance(h, s.c.C.At) >= 10 })
+	s.g.Places = append(s.g.Places, &game.Place{N: len(s.g.Places), Hex: at, Lattice: -1, Guild: b, Founded: s.g.Tick()})
+
+	own := map[hex.Hex]bool{}
+	cover(s.g, charKey(s.g, s.c), own)
+	own[s.c.C.At] = true
+	gk, _ := KeyOf(s.g, s.guild())
+	ours := map[hex.Hex]bool{}
+	cover(s.g, gk, ours)
+	if ours[at] {
+		t.Fatal("the rival place sits in the guild's own sight; the test needs it apart")
+	}
+
+	in := Sights(s.g, s.c)
+	if in[at] {
+		t.Error("another guild's place lent its tile to a member of this one")
+	}
+	for h := range in {
+		if !own[h] && !ours[h] {
+			t.Errorf("%v in sight from neither the character nor its guild", h)
+		}
+	}
+	if !Sights(s.g, theirs)[at] {
+		t.Error("a guild's place lent no sight to its own member")
+	}
+
+	was := s.c.C.Guild
+	s.c.C.Guild = b
+	defer func() { s.c.C.Guild = was }()
+	in = Sights(s.g, s.c)
+	if !in[at] {
+		t.Error("joining the rival guild gave none of its place's sight")
+	}
+	bk, _ := KeyOf(s.g, Holder{HolderGuild, b})
+	rival := map[hex.Hex]bool{}
+	cover(s.g, bk, rival)
+	for h := range in {
+		if !own[h] && !rival[h] {
+			t.Errorf("%v of the old guild's sight kept after leaving it", h)
+		}
+	}
+	gone := 0
+	for h := range ours {
+		if !own[h] && !in[h] {
+			gone++
+		}
+	}
+	if gone == 0 {
+		t.Error("leaving the guild took no tile out of sight")
+	}
+}
+
 func sightKeys() keys.Set { return keys.Throwaway("mapview-sight") }

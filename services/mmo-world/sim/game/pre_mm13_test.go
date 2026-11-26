@@ -17,9 +17,9 @@ import (
 // five characters from the first settlement, two of them in the guild a
 // server installed there, and three walkers who went their own ways on the
 // first day, so most of the tiles found lie out of everyone's sight. It was
-// played at the base by a throwaway test: create the five with
-// keys.Throwaway("pre-mm13"), step each walker away from home for 48
-// ticks, run to tick 433, and write json.Marshal(g) and g.Digest().
+// made by a throwaway test: create the five with keys.Throwaway("pre-mm13"),
+// step each walker away from home for 48 ticks, run to tick 433, and write
+// json.Marshal(g) and g.Digest().
 const preMM13Dir = "testdata/pre-mm13/"
 
 // A world saved before the live map attaches at its digest and plays a

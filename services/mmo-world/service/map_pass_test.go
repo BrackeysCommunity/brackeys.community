@@ -419,13 +419,60 @@ func TestMapPassSurvivesReload(t *testing.T) {
 	if n, err := r.srv.MapCount(ctx); err != nil || int(n) != len(w.rows) {
 		t.Fatalf("failed passes left %d records, not %d (%v)", n, len(w.rows), err)
 	}
+	failed := r.srv.Tick()
+	unlock := r.srv.Hold()
+	before, _ := mapview.KeyOf(r.srv.Game(), me)
+	unlock()
 	if _, err := pool.Exec(ctx, "ALTER TABLE mmo.map_sight_away RENAME TO map_sight"); err != nil {
 		t.Fatal(err)
 	}
-	advance(t, ctx, r, r.srv.Tick()+1)
-	if p := w.check("the pass after the failures"); !slices.Contains(p.changed, me) || p.wrote < leaving {
-		t.Fatalf("the retried pass changed %v and wrote %d of the %d tiles left behind", p.changed, p.wrote, leaving)
+	advance(t, ctx, r, failed+1)
+
+	unlock = r.srv.Hold()
+	g := r.srv.Game()
+	held := r.srv.MapKeys()
+	for h, k := range held {
+		if now, ok := mapview.KeyOf(g, h); !ok || !slices.Equal(now, k) {
+			unlock()
+			t.Fatalf("after the failures %+v is kept as %v, while its key is %v (%v)", h, k, now, ok)
+		}
 	}
+	after := held[me]
+	inAfter := map[hex.Hex]bool{}
+	for _, x := range mapview.Set(g, after) {
+		inAfter[x] = true
+	}
+	var owed []hex.Hex
+	for _, x := range mapview.Set(g, kept) {
+		if !inAfter[x] {
+			owed = append(owed, x)
+		}
+	}
+	leftNow := map[hex.Hex]bool{}
+	for _, x := range mapview.Set(g, before) {
+		if !inAfter[x] {
+			leftNow[x] = true
+		}
+	}
+	unlock()
+	if stored := w.storedKeys(); !maps.EqualFunc(stored, held, slices.Equal) {
+		t.Fatalf("after the failures map_sight holds %v, the world %v", stored, held)
+	}
+	rows := w.stored()
+	for _, x := range owed {
+		if _, ok := rows[seenAt{me, x}]; !ok {
+			t.Fatalf("tile %v left sight during the failures and has no record", x)
+		}
+	}
+	for at, left := range rows {
+		if prev, ok := w.rows[at]; at.h != me || ok && prev == left {
+			continue
+		}
+		if left > failed && (left != failed+1 || !leftNow[at.x]) {
+			t.Fatalf("record %+v left at %d: the owed pass took the recovery tick, not the last failed step %d", at, left, failed)
+		}
+	}
+	w.keys, w.rows = held, rows
 }
 
 // stepAway steps a character away from from and runs ticks until it

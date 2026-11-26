@@ -131,11 +131,11 @@ func TestActivityMapFilter(t *testing.T) {
 		t.Fatalf("an index of nothing: %+v", index)
 	}
 	hexes = append(hexes, hex.Hex{Q: index.Home.Q, R: index.Home.R})
-	if proxied := mapRead[api.MapIndex](t, base+api.ActivityProxyPrefix+api.PathActivityMapTick, "", http.StatusOK); proxied.Tick != index.Tick {
+	if proxied := mapRead[api.MapIndex](t, base+api.ActivityProxyPrefix+api.PathActivityMapTick, session, http.StatusOK); proxied.Tick != index.Tick {
 		t.Errorf("the index through the proxy's prefix is at %d, not %d", proxied.Tick, index.Tick)
 	}
 
-	style := mapRead[api.MapStyle](t, base+api.PathActivityMapStyle, "", http.StatusOK)
+	style := mapRead[api.MapStyle](t, base+api.PathActivityMapStyle, session, http.StatusOK)
 	if style.Rev != index.Style || len(style.Entries) == 0 {
 		t.Errorf("style %s with %d entries, the index names %s", style.Rev, len(style.Entries), index.Style)
 	}
@@ -164,9 +164,10 @@ func TestActivityMapFilter(t *testing.T) {
 		id := chunkID(ref.A, ref.B)
 		known[id] = true
 		asked = append(asked, id)
+		w.clock.Advance(time.Second)
 		for _, level := range []string{api.LevelArea, api.LevelTile} {
 			url := fmt.Sprintf("%s%s?a=%d&b=%d&level=%s", base, api.PathActivityMapChunk, ref.A, ref.B, level)
-			ch := mapRead[api.MapChunk](t, url, "", http.StatusOK)
+			ch := mapRead[api.MapChunk](t, url, session, http.StatusOK)
 			if ch.A != ref.A || ch.B != ref.B || ch.Level != level {
 				t.Errorf("%s: chunk %d.%d at %s", url, ch.A, ch.B, ch.Level)
 			}
@@ -189,9 +190,10 @@ func TestActivityMapFilter(t *testing.T) {
 					continue
 				}
 				unfound++
+				w.clock.Advance(time.Second)
 				for _, level := range []string{api.LevelArea, api.LevelTile} {
 					url := fmt.Sprintf("%s%s?a=%d&b=%d&level=%s", base, api.PathActivityMapChunk, a, b, level)
-					status, body := mapGet(t, url, "")
+					status, body := mapGet(t, url, session)
 					if status != http.StatusNotFound || !strings.Contains(string(body), api.CodeNotFound) {
 						t.Errorf("%s: %d %s", url, status, body)
 					}
@@ -300,7 +302,8 @@ func mustJSON(t *testing.T, v any) []byte {
 }
 
 // TestActivityMapLimits refuses map reads past a user's caps and past
-// everyone's, a second at a time.
+// everyone's, a second at a time. An unsigned or forged read is refused
+// and counts in no window.
 func TestActivityMapLimits(t *testing.T) {
 	h := &fakeHost{players: map[string]string{"lim-1": "c1", "lim-2": "c2"}, states: map[string]api.ActivityState{}}
 	w := faked(t, h, nil)
@@ -320,6 +323,25 @@ func TestActivityMapLimits(t *testing.T) {
 			t.Fatalf("%s: %d %s", name, status, body)
 		}
 	}
+	unsigned := func(name, header string) {
+		t.Helper()
+		req, err := http.NewRequest(http.MethodGet, tick, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if header != "" {
+			req.Header.Set("Authorization", header)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusUnauthorized || !strings.Contains(string(body), api.CodeForbidden) {
+			t.Fatalf("%s: %d %s", name, resp.StatusCode, body)
+		}
+	}
 
 	for i := range gateway.MaxMapReads {
 		ok(fmt.Sprintf("read %d", i+1), tick, one)
@@ -327,7 +349,8 @@ func TestActivityMapLimits(t *testing.T) {
 	busy("one read past a user's cap", tick, one)
 	busy("an overlay past a user's read cap", overlay, one)
 	ok("another user's read", tick, two)
-	ok("a read with no session", tick, "")
+	unsigned("a read with no session", "")
+	unsigned("a read with a forged session", "Bearer not-a-token")
 	w.clock.Advance(time.Second)
 	ok("a read a second later", tick, one)
 
@@ -343,22 +366,66 @@ func TestActivityMapLimits(t *testing.T) {
 	}
 	busy("a read past the overlays and reads", tick, one)
 
+	// Unsigned reads cannot crowd signed-in users out.
 	w.clock.Advance(time.Second)
-	for i := range gateway.MaxMapAll {
-		ok(fmt.Sprintf("read %d from everyone", i+1), tick, "")
+	for i := range gateway.MaxMapAll + 1 {
+		unsigned(fmt.Sprintf("unsigned read %d", i+1), "")
 	}
-	busy("one read past everyone's cap", tick, "")
+	ok("a user's read after the unsigned ones", tick, two)
+
+	w.clock.Advance(time.Second)
+	users := make([]string, gateway.MaxMapAll/gateway.MaxMapReads)
+	for i := range users {
+		users[i] = w.signIn(fmt.Sprintf("lim-all-%d", i)).Session
+	}
+	for i, s := range users {
+		for j := range gateway.MaxMapReads {
+			ok(fmt.Sprintf("user %d's read %d", i+1, j+1), tick, s)
+		}
+	}
+	busy("one read past everyone's cap", tick, users[0])
 	busy("a user's first read past everyone's cap", tick, two)
 	busy("a user's first overlay past everyone's cap", overlay, two)
 	w.clock.Advance(time.Second)
-	ok("a read a second later", tick, "")
-
-	// A user who stopped reading is forgotten.
-	if n := w.gw.MapUsers(); n != 0 {
-		t.Errorf("%d users still counted a second after their last read", n)
+	// Users who stopped reading are forgotten; only the reader now is held.
+	ok("a read a second later", tick, users[0])
+	if n := w.gw.MapUsers(); n != 1 {
+		t.Errorf("%d users still counted a second after their last read, want 1", n)
 	}
-	ok("a user's read", tick, one)
+	w.clock.Advance(time.Second)
+	ok("another user's read a second later", tick, one)
 	if n := w.gw.MapUsers(); n != 1 {
 		t.Errorf("%d users counted, want 1", n)
+	}
+}
+
+// TestActivityMapMalformed counts a malformed overlay or chunk read in no
+// window.
+func TestActivityMapMalformed(t *testing.T) {
+	h := &fakeHost{players: map[string]string{"bad-1": "c1"}, states: map[string]api.ActivityState{}}
+	w := faked(t, h, nil)
+	one := w.signIn("bad-1").Session
+	base := w.srv.URL + api.PathActivityMapOverlay
+
+	for i := range gateway.MaxMapOverlays {
+		status, body := mapGet(t, base+"?scope=everything", one)
+		if status != http.StatusBadRequest || !strings.Contains(string(body), api.MapOverlayRefusal().Message) {
+			t.Fatalf("malformed overlay %d: %d %s", i+1, status, body)
+		}
+	}
+	for i := range gateway.MaxMapOverlays {
+		if status, body := mapGet(t, base+"?scope=sight", one); status != http.StatusOK {
+			t.Fatalf("overlay %d after the malformed ones: %d %s", i+1, status, body)
+		}
+	}
+
+	w.clock.Advance(time.Second)
+	if status, body := mapGet(t, w.srv.URL+api.PathActivityMapChunk+"?a=x&b=0&level=tile", one); status != http.StatusBadRequest {
+		t.Fatalf("malformed chunk read: %d %s", status, body)
+	}
+	for i := range gateway.MaxMapReads {
+		if status, body := mapGet(t, w.srv.URL+api.PathActivityMapTick, one); status != http.StatusOK {
+			t.Fatalf("read %d after a malformed chunk read: %d %s", i+1, status, body)
+		}
 	}
 }

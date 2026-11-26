@@ -77,12 +77,13 @@ func Pass(g *game.Game, prev map[Holder]Key, only []Holder, p Params) (changes [
 func leaving(g *game.Game, h Holder, old, k Key, tick int64, p Params) []Record {
 	stay := map[hex.Hex]bool{}
 	cover(g, k, stay)
+	besides := holderChars(g, h)
 	var out []Record
 	for _, x := range Set(g, old) {
 		if stay[x] {
 			continue
 		}
-		live := Live(g, x, p)
+		live := Live(g, x, p, besides)
 		live.Fog, live.Left = api.FogSeen, tick
 		out = append(out, Record{Holder: h, Hex: x, Left: tick, Live: live})
 	}

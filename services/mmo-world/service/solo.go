@@ -763,14 +763,14 @@ func (s *Server) mapHandler(w http.ResponseWriter, r *http.Request) {
 		radius = mapRadius
 	}
 	radius = min(max(radius, 1), mapRadiusMax)
-	book := s.rules.Load().Book
-	style, err := render.MapStyleOf(book)
+	s.maps.mu.Lock()
+	err := s.maps.styled(s.rules.Load())
+	style, params, styleRev := s.maps.picture, s.maps.params, s.maps.pictureRev
+	s.maps.mu.Unlock()
 	if err != nil {
 		s.internal(w, err)
 		return
 	}
-	params := mapview.ParamsOf(book)
-	styleRev := mapview.Rev([]any{book.MapStyle, book.MapView})
 	var chunks []gen.ChunkCoord
 	var guild string
 	if !s.withChar(w, r, func(c *game.Char) { chunks, guild = discChunks(s.g, c.C.At, radius), c.C.Guild }) {
@@ -816,7 +816,7 @@ func discChunks(g *game.Game, at hex.Hex, radius int64) []gen.ChunkCoord {
 	for _, h := range hex.DiscAt(at, radius) {
 		out = append(out, chunkOf(h))
 	}
-	slices.SortFunc(out, func(a, b gen.ChunkCoord) int { return cmp.Or(cmp.Compare(a.A, b.A), cmp.Compare(a.B, b.B)) })
+	slices.SortFunc(out, mapview.CompareChunks)
 	return slices.Compact(out)
 }
 
@@ -839,8 +839,9 @@ func mapCrop(g *game.Game, world string, c *game.Char, radius int64, seen []mapv
 			crop.Route = append(crop.Route, hex.Hex{Q: x.Q, R: x.R})
 		}
 	}
+	cellOf := mapview.Cells(g)
 	for _, h := range hex.DiscAt(at, radius) {
-		cell, found := mapview.Cell(g, h, api.LevelTile)
+		cell, found := cellOf(h, api.LevelTile)
 		switch {
 		case h == at:
 			if !found {

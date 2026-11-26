@@ -1,3 +1,5 @@
+import { DISCORD_SNOWFLAKE } from "@/lib/discord-snowflake";
+
 import {
   CodeBadJSON,
   CodeNotFound,
@@ -18,7 +20,6 @@ const PASSED_THROUGH = new Set([400, 404, 429, 503]);
 export const REV_PATTERN = /^[0-9a-f]{16}$/;
 export const CHUNK_COORD = /^-?\d{1,6}$/;
 export const CHUNK_LEVELS: ReadonlySet<string> = new Set([LevelArea, LevelTile]);
-const SNOWFLAKE = /^\d{1,20}$/;
 const MAX_CHUNKS_PARAM = 2048;
 
 export function refusal(status: number, code: string, message: string): Response {
@@ -106,7 +107,7 @@ export async function publicRead(
 export function focusParams(request: Request): Params | Response {
   const server = new URL(request.url).searchParams.get("server");
   if (server === null || server === "") return {};
-  if (!SNOWFLAKE.test(server)) return badRequest("server is a Discord server id.");
+  if (!DISCORD_SNOWFLAKE.test(server)) return badRequest("server is a Discord server id.");
   return { server };
 }
 

@@ -12,8 +12,7 @@ import (
 // two payloads of one world never share a URL.
 const revLen = 16
 
-// Rev is a payload's rev: the first 16 hex of the sha256 of its JSON with
-// Rev itself empty.
+// Rev is a payload's rev: its JSON's sha256, with Rev itself empty, cut to revLen hex.
 func Rev(v any) string {
 	switch x := v.(type) {
 	case api.MapChunk:

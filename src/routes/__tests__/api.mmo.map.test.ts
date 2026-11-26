@@ -108,7 +108,12 @@ function expectNoStore(response: Response) {
 /** Every route, as a browser would call it, with a query that tries to name a viewer. */
 const ROUTES = [
   { name: "tick", route: TickRoute, path: "/api/public/mmo/map/tick", params: {} },
-  { name: "focus", route: FocusRoute, path: "/api/public/mmo/map/focus?server=42", params: {} },
+  {
+    name: "focus",
+    route: FocusRoute,
+    path: "/api/public/mmo/map/focus?server=123456789012345678",
+    params: {},
+  },
   {
     name: "style",
     route: StyleRoute,
@@ -138,10 +143,10 @@ describe("the public map routes", () => {
     [
       "focus",
       FocusRoute,
-      "/api/public/mmo/map/focus?server=42",
+      "/api/public/mmo/map/focus?server=123456789012345678",
       {},
       "/v1/map/focus",
-      { server: "42" },
+      { server: "123456789012345678" },
     ],
     ["style", StyleRoute, `/api/public/mmo/map/style/${REV}`, { rev: REV }, "/v1/map/style", {}],
     [
@@ -235,6 +240,12 @@ describe("the public map routes", () => {
     const response = await get(ChunkRoute, "/api/public/mmo/map/chunk/x", params);
     expect(response.status).toBe(400);
     expectNoStore(response);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("refuses a focus server too short to be a Discord id", async () => {
+    const response = await get(FocusRoute, "/api/public/mmo/map/focus?server=42");
+    expect(response.status).toBe(400);
     expect(calls).toHaveLength(0);
   });
 

@@ -17,7 +17,7 @@ function Figure({ label, value }: { label: string; value: string }) {
 }
 
 const PROBLEM_WORDS: Record<Exclude<MapProblem, "">, string> = {
-  busy: "Busy, asking again shortly",
+  busy: "Busy, some of the map is missing",
   down: "The world is not answering",
 };
 

@@ -19,6 +19,7 @@ import (
 
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/mapview"
+	"jams.team/mmo-world/render"
 	"jams.team/mmo-world/service"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/game"
@@ -55,19 +56,20 @@ type mapScenario struct {
 	day     int64 // ticks the walkers walk
 }
 
-// mapFull is the scenario the targets name: 20,419 tiles, a core of 1,027.
+// mapFull is the scenario the targets name: at least 20,000 discovered tiles
+// round a core of radius 18.
 var mapFull = mapScenario{disc: 82, least: 20000, chars: 200, guilds: 12, ring: 40, walk: 12, ticks: sheets.TicksPerDay,
 	reads: 100, core: 18, reach: 12, walkers: 50, leg: 4, day: sheets.TicksPerDay}
 
-// The budget the live map loads in (GDD 4.11), for a 1440×900 CSS-px view
-// at DPR 1; bytes are gzip.
+// The budget the live map loads in (GDD 4.11), for the view below at DPR 1;
+// bytes are gzip.
 const (
 	kB              = 1000
 	mapViewWidth    = 1440
 	mapViewHeight   = 900
 	mapTileSize     = 14 // the tile view's hex corner radius, CSS px
-	mapAsked        = 64 // the most chunks one overlay names
-	coldRequests    = 4  // style, index, regions and an overlay
+	mapAsked        = api.MapOverlayMaxChunks
+	coldRequests    = 4 // style, index, regions and an overlay
 	coldBytes       = 150 * kB
 	styleBytes      = 4 * kB
 	indexBytes      = 16 * kB
@@ -84,14 +86,14 @@ const (
 	warmRead        = 5 * time.Millisecond
 	overlayRead     = 30 * time.Millisecond
 	// The modelled first draw: the cold build, the first draw's bytes over
-	// a 1.25 MB/s link, three round trips, and the client's first frame,
-	// whose own bound the client test holds.
+	// the link, the round trips, and the client's first frame (bounded by
+	// the client test).
 	linkBytesPerSecond = 1_250_000
 	roundTrips         = 3
 	roundTrip          = 80 * time.Millisecond
 	clientFrame        = 120 * time.Millisecond
 	firstDraw          = 1500 * time.Millisecond
-	// The seen cost at 20,000 tiles against 1,000.
+	// The seen cost on the whole disc against the core alone.
 	seenRatio = 1.5
 	passTries = 5 // each pass is timed this often, the fastest kept
 )
@@ -194,22 +196,7 @@ func spread(centre hex.Hex, i, n int, radius int64) hex.Hex {
 	golden := math.Pi * (3 - math.Sqrt(5))
 	d := float64(radius) * math.Sqrt((float64(i)+0.5)/float64(n)) * math.Sqrt(3)
 	a := float64(i) * golden
-	return centre.Add(pixelHex(d*math.Cos(a), d*math.Sin(a)))
-}
-
-// pixelHex is the hex under a point at size 1, as P/mmo-map's pixelToHex.
-func pixelHex(x, y float64) hex.Hex {
-	q, r := math.Sqrt(3)/3*x-y/3, 2.0/3*y
-	s := -q - r
-	rq, rr, rs := math.Round(q), math.Round(r), math.Round(s)
-	dq, dr, ds := math.Abs(rq-q), math.Abs(rr-r), math.Abs(rs-s)
-	switch {
-	case dq > dr && dq > ds:
-		rq = -rr - rs
-	case dr > ds:
-		rr = -rq - rs
-	}
-	return hex.Hex{Q: int64(rq), R: int64(rr)}
+	return centre.Add(render.PixelToHex(d*math.Cos(a), d*math.Sin(a), 1))
 }
 
 func newMapWorld(b *sheets.Book, label string, sc mapScenario) (*mapWorld, error) {
@@ -348,7 +335,7 @@ func (w *mapWorld) setOut(ctx context.Context, sc mapScenario) error {
 	return nil
 }
 
-// The client's camera, ported from P/mmo-map so the run asks for the
+// The client's camera, ported from packages/mmo-map so the run asks for the
 // chunks a browser would.
 
 type mapCamera struct {
@@ -364,13 +351,9 @@ type mapViewport struct {
 
 var mapScreen = mapViewport{Width: mapViewWidth, Height: mapViewHeight}
 
-func hexCentre(h api.Hex) (x, y float64) {
-	return math.Sqrt(3) * (float64(h.Q) + float64(h.R)/2), 1.5 * float64(h.R)
-}
-
 func centreOn(h hex.Hex, size float64) mapCamera {
-	x, y := hexCentre(api.Hex{Q: h.Q, R: h.R})
-	return mapCamera{X: x, Y: y, Size: size}
+	p := render.HexCentre(h, 1, render.Pt{})
+	return mapCamera{X: p.X, Y: p.Y, Size: size}
 }
 
 func clampSize(size float64, v api.MapViewNumbers) float64 {
@@ -392,7 +375,8 @@ func mapLevel(size float64, v api.MapViewNumbers) string {
 func fitRegions(r api.MapRegions, view mapViewport, v api.MapViewNumbers) mapCamera {
 	left, top, right, bottom := math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)
 	take := func(h api.Hex) {
-		x, y := hexCentre(h)
+		p := render.HexCentre(hex.Hex{Q: h.Q, R: h.R}, 1, render.Pt{})
+		x, y := p.X, p.Y
 		left, right = math.Min(left, x), math.Max(right, x)
 		top, bottom = math.Min(top, y), math.Max(bottom, y)
 	}
@@ -424,8 +408,8 @@ func fitRegions(r api.MapRegions, view mapViewport, v api.MapViewNumbers) mapCam
 	return mapCamera{X: (left + right) / 2, Y: (top + bottom) / 2, Size: size}
 }
 
-// chunksInView are the chunks a view touches, nearest its centre first, at
-// most most (all when most < 0): a chunk lies inside a circle of
+// chunksInView are the chunks a view touches, nearest its centre first,
+// capped at most (no cap when negative): a chunk lies inside a circle of
 // √3·radius + 1 world px round its centre.
 func chunksInView(index api.MapIndex, c mapCamera, view mapViewport, most int) []api.MapChunkRef {
 	hw, hh := view.Width/2/c.Size, view.Height/2/c.Size
@@ -437,7 +421,8 @@ func chunksInView(index api.MapIndex, c mapCamera, view mapViewport, most int) [
 	}
 	var hits []hit
 	for _, ref := range index.Chunks {
-		x, y := hexCentre(ref.Centre)
+		p := render.HexCentre(hex.Hex{Q: ref.Centre.Q, R: ref.Centre.R}, 1, render.Pt{})
+		x, y := p.X, p.Y
 		ox, oy := x-math.Min(math.Max(x, left), right), y-math.Min(math.Max(y, top), bottom)
 		if ox*ox+oy*oy > reach*reach {
 			continue
@@ -713,7 +698,7 @@ func (w *mapWorld) measure(res *mapResult, sc mapScenario, dump string) error {
 }
 
 // dumpView is the cameras the run asked for chunks by, for the client test
-// to ask again with P/mmo-map's own chunksInView.
+// to ask again with packages/mmo-map's own chunksInView.
 type dumpView struct {
 	View   mapViewport `json:"view"`
 	Region dumpCamera  `json:"region"`
@@ -724,7 +709,7 @@ type dumpCamera struct {
 	Character string    `json:"character"`
 	Camera    mapCamera `json:"camera"`
 	Chunks    []string  `json:"chunks"`          // in view, nearest first
-	Asked     []string  `json:"asked,omitempty"` // the overlay's, at most 64
+	Asked     []string  `json:"asked,omitempty"` // the overlay's, at most api.MapOverlayMaxChunks
 }
 
 func writeDump(dir string, files map[string]payload) error {
@@ -944,8 +929,8 @@ func (w *seenWorld) free(paths [][]hex.Hex, i int) bool {
 	return c.Long == nil && c.Fight == nil && len(paths[i]) >= 2 && c.C.At == paths[i][w.beat[i]]
 }
 
-// step sends each walker may allows on to the next tile of its beat, there
-// and back, and runs the tick.
+// step moves each walker for which may(i) holds one tile along its beat,
+// there and back, then advances the tick.
 func (w *seenWorld) step(paths [][]hex.Hex, t int64, may func(i int) bool) (int, error) {
 	moves := 0
 	for i, id := range w.walkers {
@@ -1064,8 +1049,8 @@ func measureSeen(b *sheets.Book, label string, sc mapScenario) (passCost, error)
 	return out, nil
 }
 
-// mapNumbers is map.json: each seed, and the worst modelled first draw
-// before the client's frame, which the proof adds.
+// mapJSON is map.json: each seed, and the worst modelled first draw before
+// the client's frame, which the proof adds.
 type mapJSON struct {
 	Seeds          []mapResult `json:"seeds"`
 	ModelledMs     float64     `json:"modelledMs"`

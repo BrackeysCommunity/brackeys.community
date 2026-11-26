@@ -4,17 +4,9 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
-	"strings"
 
 	"jams.team/mmo-world/api"
 )
-
-// structural: the most chunks one overlay request names (the clients ask
-// for the nearest when more are in view).
-const maxMapChunks = 64
-
-const overlayShape = "an overlay names up to 64 chunks as chunks=a.b,…, or scope=sight"
 
 // MapHost is what the map's routes read: the same functions for the
 // world's HTTP, the Activity's gateway and the harness.
@@ -48,29 +40,6 @@ func MapHandler(h MapHost) http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 		mux.ServeHTTP(w, r)
 	})
-}
-
-// ParseChunks reads "a.b,a.b": at most 64, each two integers.
-func ParseChunks(s string) ([]api.MapChunkID, *api.Refusal) {
-	bad := &api.Refusal{Code: api.CodeBadJSON, Message: overlayShape}
-	if s == "" {
-		return nil, bad
-	}
-	parts := strings.Split(s, ",")
-	if len(parts) > maxMapChunks {
-		return nil, bad
-	}
-	out := make([]api.MapChunkID, len(parts))
-	for i, p := range parts {
-		sa, sb, ok := strings.Cut(p, ".")
-		a, errA := strconv.ParseInt(sa, 10, 64)
-		b, errB := strconv.ParseInt(sb, 10, 64)
-		if !ok || errA != nil || errB != nil {
-			return nil, bad
-		}
-		out[i] = api.MapChunkID{A: a, B: b}
-	}
-	return out, nil
 }
 
 type mapRoutes struct{ h MapHost }
@@ -127,19 +96,9 @@ func (m mapRoutes) chunk(w http.ResponseWriter, r *http.Request) {
 // player, who is shown no live layer either.
 func (m mapRoutes) overlay(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	var oq api.MapOverlayQuery
-	switch chunks, scope := q.Get("chunks"), q.Get("scope"); {
-	case chunks != "" && scope == "":
-		ids, ref := ParseChunks(chunks)
-		if ref != nil {
-			refuse(w, http.StatusBadRequest, *ref)
-			return
-		}
-		oq.Chunks = ids
-	case chunks == "" && scope == "sight":
-		oq.Sight = true
-	default:
-		refuse(w, http.StatusBadRequest, api.Refusal{Code: api.CodeBadJSON, Message: overlayShape})
+	oq, ref := api.ParseMapOverlayQuery(q)
+	if ref != nil {
+		refuse(w, http.StatusBadRequest, *ref)
 		return
 	}
 	discord, id := q.Get("discordId"), ""

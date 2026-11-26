@@ -1,7 +1,13 @@
-import type { MapRegions, MapViewNumbers } from "../../mmo-api/src/index.ts";
+import {
+  LevelArea,
+  LevelRegion,
+  LevelTile,
+  type MapRegions,
+  type MapViewNumbers,
+} from "../../mmo-api/src/index.ts";
 import { type Axial, hexCentre, pixelToHex, type Point } from "./hex.ts";
 
-export type Level = "region" | "area" | "tile";
+export type Level = typeof LevelRegion | typeof LevelArea | typeof LevelTile;
 
 /** x and y: the view's centre in world px at size 1; size: the hex corner radius in CSS px. */
 export interface Camera {
@@ -25,9 +31,9 @@ export interface Bounds {
 }
 
 export function levelFor(size: number, v: MapViewNumbers): Level {
-  if (size < v.zoomArea) return "region";
-  if (size < v.zoomTile) return "area";
-  return "tile";
+  if (size < v.zoomArea) return LevelRegion;
+  if (size < v.zoomTile) return LevelArea;
+  return LevelTile;
 }
 
 export function clampSize(size: number, v: MapViewNumbers): number {
@@ -75,6 +81,24 @@ export function centreOn(h: Axial, size: number): Camera {
   return { x: p.x, y: p.y, size };
 }
 
+// structural: a focused tile opens this far past tile zoom.
+export const FOCUS_ZOOM = 1.25;
+
+/** The camera centred on h at least this close: past tile zoom, or nearer if current already is. */
+export function focusCamera(h: Axial, v: MapViewNumbers, current?: Camera): Camera {
+  return centreOn(h, Math.max(current?.size ?? 0, v.zoomTile * FOCUS_ZOOM));
+}
+
+/** Every discovered tile of the regions payload, row by row, with its region slot. */
+export function* regionTiles(r: MapRegions): Generator<{ h: Axial; slot: number }> {
+  for (const row of r.rows) {
+    for (let i = 0; i < row.slots.length; i++) {
+      const slot = row.slots[i]!;
+      if (slot >= 0) yield { h: { q: row.q + i, r: row.r }, slot };
+    }
+  }
+}
+
 /** The camera that fits every discovered tile of the regions payload in the view. */
 export function fitRegions(r: MapRegions, view: View, v: MapViewNumbers): Camera {
   let left = Infinity;
@@ -88,18 +112,7 @@ export function fitRegions(r: MapRegions, view: View, v: MapViewNumbers): Camera
     top = Math.min(top, p.y);
     bottom = Math.max(bottom, p.y);
   };
-  for (const row of r.rows) {
-    let first = -1;
-    let last = -1;
-    row.slots.forEach((slot, i) => {
-      if (slot < 0) return;
-      if (first < 0) first = i;
-      last = i;
-    });
-    if (first < 0) continue;
-    take({ q: row.q + first, r: row.r });
-    take({ q: row.q + last, r: row.r });
-  }
+  for (const { h } of regionTiles(r)) take(h);
   for (const p of r.places) take(p);
   if (left > right) return { x: 0, y: 0, size: clampSize(v.zoomMin, v) };
   // A pointy-top hex reaches √3/2 across and 1 up and down from its centre.

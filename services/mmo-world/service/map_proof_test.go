@@ -29,9 +29,9 @@ var updateAgree = flag.Bool("update", false, "rewrite packages/mmo-map/test/fixt
 
 const agreeGolden = "../../../packages/mmo-map/test/fixtures/agree.json"
 
-// structural: how far a walk may go before a test gives it up, the ticks
-// of slack an arrival may take past its move, and how many map reads a
-// test sends inside a second, under the world's cap of 200.
+// structural: walk and arrival limits, how many map reads a test sends
+// inside a second (under maxMapReads), the tiles found out of a walker's
+// sight, and the steps a walker takes out to the frontier.
 const (
 	proofWalkMax   = 40
 	proofArrive    = 1
@@ -242,11 +242,12 @@ func inSight(r *running, id string, h hex.Hex) bool {
 	return mapview.Sights(g, g.Char(id))[h]
 }
 
-// liveNow is h's live layers as the world reads them now.
-func liveNow(r *running, h hex.Hex) api.MapLive {
+// liveNow is h's live layers as the world reads them now for the
+// character whose overlay or record it is compared with.
+func liveNow(r *running, characterID string, h hex.Hex) api.MapLive {
 	unlock := r.srv.Hold()
 	defer unlock()
-	return mapview.Live(r.srv.Game(), h, mapview.ParamsOf(r.book))
+	return mapview.Live(r.srv.Game(), h, mapview.ParamsOf(r.book), map[string]bool{characterID: true})
 }
 
 func chunkOfHex(r *running, h hex.Hex) gen.ChunkCoord {
@@ -496,7 +497,7 @@ func TestMapLastSeenKeepsOldThreat(t *testing.T) {
 	watch := func() {
 		now := inSight(r, a.ID, home)
 		if seen && !now {
-			left, was = r.srv.Tick(), liveNow(r, home)
+			left, was = r.srv.Tick(), liveNow(r, a.ID, home)
 		}
 		seen = now
 	}
@@ -525,7 +526,7 @@ func TestMapLastSeenKeepsOldThreat(t *testing.T) {
 		t.Helper()
 		o, _ := proofRead[api.MapOverlay](t, r, pace, overlayPath("u-b", cc))
 		got, ok := liveOf(o, home)
-		if now := liveNow(r, home); !ok || got != now {
+		if now := liveNow(r, b.ID, home); !ok || got != now {
 			t.Fatalf("%s: B's map holds home as %+v (%v), the world %+v", label, got, ok, now)
 		}
 		return got
@@ -544,7 +545,7 @@ func TestMapLastSeenKeepsOldThreat(t *testing.T) {
 			raised = tick
 		}
 	}
-	now := liveNow(r, home)
+	now := liveNow(r, b.ID, home)
 	if now.Threat <= want.Threat || raised == 0 {
 		t.Fatalf("home's threat stands at %d after the overrun, %d when A left", now.Threat, want.Threat)
 	}
@@ -563,7 +564,7 @@ func TestMapLastSeenKeepsOldThreat(t *testing.T) {
 	}
 	back, _ := proofRead[api.MapOverlay](t, r, pace, overlayPath("u-a", cc))
 	got, ok := liveOf(back, home)
-	if now := liveNow(r, home); !ok || got.Fog != api.FogSight || got.Left != 0 || got != now || got.Threat == want.Threat {
+	if now := liveNow(r, a.ID, home); !ok || got.Fog != api.FogSight || got.Left != 0 || got != now || got.Threat == want.Threat {
 		t.Fatalf("back in sight, A's map holds home as %+v (%v), the world %+v", got, ok, now)
 	}
 	readB("A back")
@@ -913,11 +914,11 @@ func TestMapCropAgreesWithSite(t *testing.T) {
 	t.Logf("%d cases agree", cases)
 }
 
-// TestMapBusyNoPosition has B walk alone, then with A, over a tile next to
-// home in A's sight: B alone leaves it quiet however often it passes, no
-// reply to A names B or puts A's self where B stands, and once both have
-// walked it the tile reads light or busier; out of A's sight, A's map
-// keeps the band it last saw.
+// TestMapBusyNoPosition has A walk a tile next to home once, then B walk it
+// alone in A's sight: B alone leaves it quiet to A however often it passes,
+// A's own track not counting, and no reply to A names B or puts A's self
+// where B stands; once a third walker has walked it the tile reads light or
+// busier; out of A's sight, A's map keeps the band it last saw.
 func TestMapBusyNoPosition(t *testing.T) {
 	ctx := t.Context()
 	r := start(t, io.Discard)
@@ -988,9 +989,12 @@ func TestMapBusyNoPosition(t *testing.T) {
 		return first
 	}
 
-	trips := 0
+	proofStep(t, r, a, "a-first-out", onto(path), nil)
+	proofStep(t, r, a, "a-first-back", onto(home), nil)
+
+	trips, withA := 0, 0
 	// However often B passes alone, enough for a busy band, the path stays
-	// quiet: one walker never lights a tile.
+	// quiet to A: one walker besides A never lights a tile A walked too.
 	for visits, _ := tileOf(); visits < params.BusyBusy; visits, _ = tileOf() {
 		if trips >= proofWalkMax {
 			t.Fatalf("%d trips left the path with %d visits", trips, visits)
@@ -1003,21 +1007,35 @@ func TestMapBusyNoPosition(t *testing.T) {
 		if l, ok := liveOf(ov, path); !ok || l.Fog != api.FogSight || l.Busy != "" {
 			t.Fatalf("B alone on the path: A's map holds it as %+v (%v)", l, ok)
 		}
+		if visits, walkers := tileOf(); visits >= params.BusyLight && slices.Contains(walkers, a.ID) {
+			withA++
+		}
 		proofStep(t, r, b, fmt.Sprintf("b-back-%d", trips), onto(home), nil)
 		trips++
 	}
+	if withA == 0 {
+		t.Fatal("no trip of B's left A's own track on a path busy enough to light")
+	}
 	visits, walkers := tileOf()
-	t.Logf("B alone walked the path %d times: %d visits, tracks of %v, quiet to A", trips, visits, walkers)
+	t.Logf("B alone walked the path %d times, %d of them with A's track kept: %d visits, tracks of %v, quiet to A", trips, withA, visits, walkers)
 
-	proofStep(t, r, a, "a-out", onto(path), nil)
-	proofStep(t, r, a, "a-back", onto(home), nil)
+	c := mapCreate(t, r, "map-c", "u-c", "")
+	proofStep(t, r, c, "c-out", onto(path), nil)
+	proofStep(t, r, c, "c-back", onto(home), nil)
 	visits, walkers = tileOf()
-	ov, _ := proofRead[api.MapOverlay](t, r, pace, overlayPath("u-a", cc))
+	body := proofBody(t, r, pace, overlayPath("u-a", cc), http.StatusOK)
+	if names.Match(body) {
+		t.Fatalf("after C's trip: A's overlay names %s: %s", b.ID, body)
+	}
+	var ov api.MapOverlay
+	if err := json.Unmarshal(body, &ov); err != nil {
+		t.Fatal(err)
+	}
 	l, ok := liveOf(ov, path)
 	if !ok || l.Fog != api.FogSight || !slices.Contains([]string{api.BusyLight, api.BusyBusy, api.BusyCrowded}, l.Busy) {
-		t.Fatalf("after both walked it (%d visits, tracks of %v): A's map holds the path as %+v (%v)", visits, walkers, l, ok)
+		t.Fatalf("after B and C walked it (%d visits, tracks of %v): A's map holds the path as %+v (%v)", visits, walkers, l, ok)
 	}
-	t.Logf("both walked the path: %d visits, tracks of %v, reads %q", visits, walkers, l.Busy)
+	t.Logf("B and C walked the path: %d visits, tracks of %v, reads %q", visits, walkers, l.Busy)
 
 	var left int64
 	var was api.MapLive
@@ -1025,7 +1043,7 @@ func TestMapBusyNoPosition(t *testing.T) {
 	watch := func() {
 		now := inSight(r, a.ID, path)
 		if seen && !now {
-			left, was = r.srv.Tick(), liveNow(r, path)
+			left, was = r.srv.Tick(), liveNow(r, a.ID, path)
 		}
 		seen = now
 	}

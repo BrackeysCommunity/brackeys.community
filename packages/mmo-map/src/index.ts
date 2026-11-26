@@ -4,6 +4,7 @@
 export * from "./camera.ts";
 export * from "./chunks.ts";
 export * from "./frame.ts";
+export * from "./gesture.ts";
 export * from "./hex.ts";
 export * from "./layers.ts";
 export * from "./merge.ts";

@@ -22,8 +22,8 @@ import { useIsMobile } from "@/lib/hooks/use-mobile";
 import { SITE } from "@/lib/legal-meta";
 
 import { type Axial, LAYERS, LIVE_LAYERS } from "../../../packages/mmo-map/src/index.ts";
-import { mapAlt } from "../../../packages/mmo-words/src/alt.ts";
-import { MAP_LAYER_NAMES, plural } from "../../../packages/mmo-words/src/index.ts";
+import { mapAlt, mapLayersAlt } from "../../../packages/mmo-words/src/alt.ts";
+import { plural } from "../../../packages/mmo-words/src/index.ts";
 import { MapCanvas, type MapCanvasHandle } from "./MapCanvas";
 import { MapLayers } from "./MapLayers";
 import { MapStatus } from "./MapStatus";
@@ -133,24 +133,14 @@ function ZoomButtons({ canvas }: { canvas: React.RefObject<MapCanvasHandle | nul
 /** The canvas's text alternative: what it shows, and where the viewer stands. */
 function altOf(map: LiveMap, seen: number): string {
   if (!map.index) return mapAlt({ of: "the wasteland, not drawn yet" });
-  const parts = LAYERS.filter((l) => map.layers.has(l) && !LIVE_LAYERS.includes(l)).map((l) =>
-    (MAP_LAYER_NAMES[l] ?? l).toLowerCase(),
-  );
-  const live = map.viewer === "character";
-  const shaded = live
-    ? [
-        "what you have in sight, rimmed",
-        ...LIVE_LAYERS.filter((l) => l !== "self" && map.layers.has(l)).map((l) =>
-          (MAP_LAYER_NAMES[l] ?? l).toLowerCase(),
-        ),
-      ]
-    : [];
-  return mapAlt({
+  return mapLayersAlt({
     of: `the wasteland as it has been found, ${plural(map.index.tiles, "tile")}`,
-    parts,
-    you: live && map.overlay?.self && map.layers.has("self") ? "the ringed tile" : undefined,
-    shaded,
-    seen: live ? seen : 0,
+    layers: LAYERS,
+    liveLayers: LIVE_LAYERS,
+    on: map.layers,
+    live: map.viewer === "character",
+    self: Boolean(map.overlay?.self),
+    seen,
   });
 }
 

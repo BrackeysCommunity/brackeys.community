@@ -97,7 +97,12 @@ type Server struct {
 	// sight is each holder's sight key as last saved, under mu; nil until
 	// the stored keys are read.
 	sight map[mapview.Holder]mapview.Key
-	maps  mapCache
+	// sightAhead are the keys the passes not yet written imply, and
+	// sightOwed those passes in order, under mu; both nil when every pass
+	// is written.
+	sightAhead map[mapview.Holder]mapview.Key
+	sightOwed  []owedPass
+	maps       mapCache
 }
 
 // Open takes the world's lock (waiting while another service holds it),

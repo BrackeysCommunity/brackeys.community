@@ -12,7 +12,7 @@ import (
 	"jams.team/mmo-world/sim/hex"
 )
 
-// mapQuick is a world of 2,107 tiles, small enough for a test.
+// mapQuick is a small world (at least 2,000 discovered tiles), quick enough for a test.
 var mapQuick = mapScenario{disc: 26, least: 2000, chars: 24, guilds: 3, ring: 12, walk: 5, ticks: 24, reads: 20,
 	core: 9, reach: 5, walkers: 8, leg: 3, day: 36}
 

@@ -112,7 +112,7 @@ const (
 	MaxMapAll      = maxMapAll
 )
 
-// MapUsers counts the users whose map reads are being counted.
+// MapUsers is how many users' map windows the gateway still holds.
 func (g *Gateway) MapUsers() int {
 	g.maps.mu.Lock()
 	defer g.maps.mu.Unlock()

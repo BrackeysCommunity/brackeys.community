@@ -122,8 +122,7 @@ var mapPaths = []string{api.PathMapIndex, api.PathMapStyle, api.PathMapRegions, 
 
 // mapGuard admits a map read that carries the map token or the API token
 // (either, where set; any read where neither is) while the world-wide cap
-// has room. No map reply is kept by a cache: the site sets the edge's
-// headers itself.
+// has room.
 func (s *Server) mapGuard(h http.Handler, c *mapCap) http.Handler {
 	var tokens [][]byte
 	for _, t := range []string{s.cfg.MapToken, s.cfg.APIToken} {
@@ -305,7 +304,7 @@ func (s *Server) do(ctx context.Context, cmd game.Command, discord string, versi
 	}
 	if out.ref == nil && !out.dup {
 		s.ended.note(out.res.Facts, s.g.Tick())
-		s.mapAfter(ctx, out)
+		s.mapPass(ctx, passHolders(s.g, out.res))
 		distinct := s.cfg.World
 		if out.res.Char != nil {
 			distinct = out.res.Char.C.ID

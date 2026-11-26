@@ -20,12 +20,11 @@ import (
 // the digest of its input and never drawn per press.
 
 var (
-	tar       = Hex("#1d1c1a")
-	ash       = Hex("#c9c4b8")
-	fogColour = color.RGBA{0x2a, 0x29, 0x27, 0xff}
-	hazard    = Hex("#e0b424")
-	rust      = Hex("#a4482a")
-	corrupt   = Hex("#b8358c")
+	tar     = Hex("#1d1c1a")
+	ash     = Hex("#c9c4b8")
+	hazard  = Hex("#e0b424")
+	rust    = Hex("#a4482a")
+	corrupt = Hex("#b8358c")
 )
 
 var weatherTint = map[string]color.RGBA{
@@ -103,15 +102,15 @@ const (
 // a hex, in the order the live map places them.
 var markSlots = [...]Pt{{-0.42, -0.38}, {0.42, -0.38}, {-0.5, 0.12}, {0.5, 0.12}, {0, -0.62}, {0, 0.62}}
 
-var busyPips = map[string]int{"light": 1, "busy": 2, "crowded": 3}
+var busyPips = map[string]int{api.BusyLight: 1, api.BusyBusy: 2, api.BusyCrowded: 3}
 
 func (m MapCrop) centreOf(h simhex.Hex, origin Pt) Pt {
-	return hexCentre(h.Sub(m.Centre), hexSize, origin)
+	return HexCentre(h.Sub(m.Centre), hexSize, origin)
 }
 
-// hexCentre is where a pointy-top hex, as an offset from the one drawn at
+// HexCentre is where a pointy-top hex, as an offset from the one drawn at
 // origin, is drawn.
-func hexCentre(d simhex.Hex, size float64, origin Pt) Pt {
+func HexCentre(d simhex.Hex, size float64, origin Pt) Pt {
 	return Pt{origin.X + size*math.Sqrt(3)*(float64(d.Q)+float64(d.R)/2), origin.Y + size*1.5*float64(d.R)}
 }
 
@@ -210,11 +209,11 @@ func Map(m MapCrop, s MapStyle) *Canvas {
 }
 
 // ageWords is how long ago a last-seen tile left sight, in whole world
-// days, as the live map words it.
+// days: mmo-words' seenAgo without its leading "seen ".
 func ageWords(days int64) string {
 	switch {
 	case days <= 0:
-		return "under a world day ago"
+		return "less than a world day ago"
 	case days == 1:
 		return "1 world day ago"
 	}

@@ -9,9 +9,9 @@ import { mapEnabled } from "@/lib/mmo-map/world";
 import { PathMapOverlay } from "../../packages/mmo-api/src/index.ts";
 
 /**
- * One viewer's live layers. Outside `/api/public/` so the edge never holds
+ * One viewer's live layers, outside `/api/public/` so the edge never holds
  * it. The identity is the session's Discord link; the browser's query names
- * only the chunks.
+ * only the chunks or scope=sight.
  */
 export const Route = createFileRoute("/api/mmo/map/overlay")({
   server: {

@@ -3,7 +3,6 @@ package render
 import (
 	"encoding/json"
 	"flag"
-	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -65,7 +64,7 @@ func hexFixtureNow() hexFixtureFile {
 	for _, size := range []float64{1, 4, 12.5, 26} {
 		for q := int64(-3); q <= 3; q++ {
 			for r := int64(-3); r <= 3; r++ {
-				p := hexCentre(simhex.Hex{Q: q, R: r}, size, Pt{})
+				p := HexCentre(simhex.Hex{Q: q, R: r}, size, Pt{})
 				f.Centres = append(f.Centres, hexCentreCase{q, r, size, p.X, p.Y})
 			}
 		}
@@ -81,9 +80,7 @@ func hexFixtureNow() hexFixtureFile {
 		for i := -6; i <= 6; i++ {
 			for j := -6; j <= 6; j++ {
 				x, y := float64(i)*0.37*size, float64(j)*0.41*size
-				q := math.Sqrt(3)/3*(x/size) - (y/size)/3
-				rr := 2.0 / 3 * (y / size)
-				h := cubeRound(q, rr)
+				h := PixelToHex(x, y, size)
 				f.Pixels = append(f.Pixels, hexPixelCase{x, y, size, h.Q, h.R})
 			}
 		}
@@ -115,6 +112,6 @@ func TestHexCentreFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("%s differs from render.hexCentre; run with -update-hex if the layout was meant to change", hexFixture)
+		t.Fatalf("%s differs from render.HexCentre; run with -update-hex if the layout was meant to change", hexFixture)
 	}
 }

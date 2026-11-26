@@ -117,7 +117,7 @@ services/mmo-bot/scripts/local-world.sh wipe
 | `src/app.ts`           | Which screen is open, and the machine in hand                                                                                        |
 | `src/views/`           | The beat (a party's too) with its creature panel, the floor's rooms, the hunt, the party, why, pouches, the bench, idle, the pattern |
 | `src/views/map.ts`     | The Map screen: the canvas, the layer toggles, the counts in view and the picked tile's panel                                        |
-| `src/map/source.ts`    | Where the map's payloads come from: the listener's map routes (the overlay signed with the session), or the `?mock=` fixtures        |
+| `src/map/source.ts`    | Where the map's payloads come from: the listener's map routes (every read signed with the session), or the `?mock=` fixtures         |
 | `src/map/canvas.ts`    | The live map on a canvas: pan, wheel and pinch zoom, polling, painted with `packages/mmo-map`                                        |
 | `src/units.ts`         | Every number with its unit (GDD 2); nothing else formats one                                                                         |
 | `src/words.ts`         | Pack names, the lines made from facts and refusals, the beat's encounter line, and every picture's words                             |
@@ -147,10 +147,10 @@ The beat view's opening line is `encounterLine` from
 with the creature and place chat's beat card uses, so both show the same
 line. It is display only: a hash of the fight, never a draw.
 
-The Map screen's canvas is named with `mapAlt` from
-`packages/mmo-words/src/alt.ts`, the words `/map`'s picture uses, from the
-layers it draws; its tile panel's fog states, ages and busy bands are
-`FOG_WORDS`, `seenAgo` and `busyWords` from `packages/mmo-words/src/map.ts`.
+The Map screen's canvas is named with `mapLayersAlt` from
+`packages/mmo-words/src/alt.ts`, which writes `mapAlt`'s words (the ones
+`/map`'s picture uses) from the layers it draws. Its tile panel's words are
+`tileWords` from `packages/mmo-words/src/map.ts`, the same as the site's.
 The map holds no fog rule (GDD 4.11): the world filters the overlay to what
 this character and their guild may see before it is sent, and the screen
 draws what arrives with `packages/mmo-map`. Layer toggles are kept in

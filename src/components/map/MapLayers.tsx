@@ -51,7 +51,7 @@ function LayerGroup({
     >
       {ids.map((id) => (
         <ToggleGroupItem key={id} value={id} size="sm" className="justify-start rounded-md px-2">
-          {MAP_LAYER_NAMES[id] ?? id}
+          {MAP_LAYER_NAMES[id]}
         </ToggleGroupItem>
       ))}
     </ToggleGroup>

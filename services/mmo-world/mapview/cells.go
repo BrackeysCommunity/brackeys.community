@@ -1,6 +1,8 @@
 package mapview
 
 import (
+	"cmp"
+
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/gen"
@@ -51,10 +53,7 @@ func newReader(g *game.Game) *reader {
 	return r
 }
 
-func (r *reader) discovered(h hex.Hex) bool {
-	st := r.g.World.Tile(h)
-	return st != nil && st.Discovered != nil
-}
+func (r *reader) discovered(h hex.Hex) bool { return discovered(r.g, h) }
 
 // edge is the frontier mask: bit d is set when the neighbour in direction
 // d is undiscovered.
@@ -121,11 +120,23 @@ func guildRef(id string) string { return game.RefGuild + ":" + id }
 
 // Cell is a discovered tile's base at a level; false when nobody found it.
 func Cell(g *game.Game, h hex.Hex, level string) (api.MapCell, bool) {
+	return Cells(g)(h, level)
+}
+
+// Cells reads many tiles' base with one reader: false for a tile nobody found.
+func Cells(g *game.Game) func(h hex.Hex, level string) (api.MapCell, bool) {
 	r := newReader(g)
-	if !r.discovered(h) {
-		return api.MapCell{}, false
+	return func(h hex.Hex, level string) (api.MapCell, bool) {
+		if !r.discovered(h) {
+			return api.MapCell{}, false
+		}
+		return r.cell(h, level), true
 	}
-	return r.cell(h, level), true
+}
+
+// CompareChunks orders chunks by a, then b.
+func CompareChunks(x, y gen.ChunkCoord) int {
+	return cmp.Or(cmp.Compare(x.A, y.A), cmp.Compare(x.B, y.B))
 }
 
 // CellAt is a tile's base whether or not anybody found it: only for the

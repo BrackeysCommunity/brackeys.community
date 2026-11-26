@@ -2,9 +2,17 @@ import { QueryClient } from "@tanstack/react-query";
 import { isNotFound } from "@tanstack/react-router";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const api = vi.hoisted(() => ({ loadTick: vi.fn() }));
+const api = vi.hoisted(() => {
+  class MapRequestError extends Error {
+    constructor(readonly status: number) {
+      super(`map read failed: ${status}`);
+    }
+  }
+  return { loadTick: vi.fn(), MapRequestError };
+});
 vi.mock("@/components/map/map-api", () => ({
   loadTick: api.loadTick,
+  MapRequestError: api.MapRequestError,
   TICK_KEY: ["mmo-map", "tick"],
 }));
 vi.mock("@/components/map/MapPage", () => ({ MapPage: () => null }));
@@ -47,17 +55,32 @@ describe("/map", () => {
     expect(queryClient.getQueryData(["mmo-map", "tick"])).toBe(index);
   });
 
-  it("is a 404 when the tick route does not answer 200", async () => {
-    api.loadTick.mockRejectedValue(new Error("map read failed: 404"));
+  it("is a 404 when the tick route answers 404", async () => {
+    api.loadTick.mockRejectedValue(new api.MapRequestError(404));
     const thrown = await load().catch((e: unknown) => e);
     expect(isNotFound(thrown)).toBe(true);
+  });
+
+  it.each([
+    ["a 502", new api.MapRequestError(502)],
+    ["a 503", new api.MapRequestError(503)],
+    ["a 429", new api.MapRequestError(429)],
+    ["a plain error", new Error("network down")],
+  ])("opens without a tick on %s", async (_, err) => {
+    api.loadTick.mockRejectedValue(err);
+    const queryClient = new QueryClient();
+    await expect(load(queryClient)).resolves.toBeUndefined();
+    expect(queryClient.getQueryData(["mmo-map", "tick"])).toBeUndefined();
   });
 
   it("keeps a link's camera and drops anything else", () => {
     expect(validateMapSearch({ q: 3, r: "-2", z: "14" })).toEqual({ q: 3, r: -2, z: 14 });
     expect(validateMapSearch({ q: 3 })).toEqual({});
     expect(validateMapSearch({ q: "x", r: 1, z: -1, server: "guild" })).toEqual({});
-    expect(validateMapSearch({ server: "1234" })).toEqual({ server: "1234" });
+    expect(validateMapSearch({ server: "1234" })).toEqual({});
+    expect(validateMapSearch({ server: "123456789012345678" })).toEqual({
+      server: "123456789012345678",
+    });
   });
 
   it("reads a Discord server id as written, past a double's precision", () => {

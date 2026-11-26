@@ -1,15 +1,8 @@
 #!/bin/sh
-# Proves the live map (GDD 4.11): the read model's sight keys, fog and busy
-# bands and the map style; a world saved before the live map reopening at
-# its digest, in the sim and through the store, with no earlier draw moved;
-# over HTTP, nothing of a tile nobody found on any layer, last-seen values
-# kept until the viewer returns, no live layer to an anonymous viewer,
-# /map's crop agreeing with the site's view tile for tile, busy bands that
-# never place a character, writes that follow sight changes and the read
-# caps; the Activity's map routes on the same filter; the map run at 1,
-# which must hold map-load-budget and map-seen-cost, with the client's
-# frames timed on its payloads and added to the modelled first draw; and
-# no sim file modified.
+# Proves the live map (GDD 4.11): the mapview, sim, store, service and
+# gateway map tests, the harness map run (map-load-budget, map-seen-cost)
+# with the client frame added to the modelled first draw, and no sim file
+# modified.
 #
 #   sh scripts/mm13-proof.sh <out dir>
 #
@@ -25,8 +18,7 @@ OUT="$(cd "$OUT" && pwd)"
 SPIKE_WORKERS="${SPIKE_WORKERS:-6}"
 export SPIKE_WORKERS
 
-# The base MM13 builds on, and the tip the sim is frozen at: the base plus
-# the owner's two ledger commits, which are not the map's.
+# The sim must match FROZEN, which is BASE plus only the OWNER_SIM commits.
 BASE=08bd89192dc4f0247c5f086b4468f1f49de80177
 FROZEN=e5d1914d9b8cb32cb309c493a5bd00f6a79ccff6
 OWNER_SIM='491708b361105bd2a616d25d03c14c3956937c77 7a9f611e85d5f6985e89a2a01b0929a507c07806'
