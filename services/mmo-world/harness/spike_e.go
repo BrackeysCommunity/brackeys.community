@@ -76,7 +76,18 @@ type worldStats struct {
 	pic, close *image.RGBA
 }
 
-func spikeE(b *sheets.Book, out string, n int) error {
+// structural: the bounds the spike's five targets name (meta.targets):
+// 1 region in 3 holds something new, a 300-tile patch, 10% to 20% ecotones.
+const (
+	spikeENovelOneIn   = 3
+	spikeEPatchLeast   = 300
+	spikeEEcotoneLeast = 10
+	spikeEEcotoneMost  = 20
+)
+
+// SpikeERun is spike E: n endless worlds (1,000 unless n is given), and
+// the readings of the five targets it measures.
+func SpikeERun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	if n == 0 {
 		n = 1000
 	}
@@ -86,16 +97,63 @@ func spikeE(b *sheets.Book, out string, n int) error {
 		stats[i] = s
 		return err
 	}); err != nil {
-		return err
+		return nil, err
 	}
 	cold, err := coldChunks(b)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return writeSpikeE(b, out, stats, cold)
+	return spikeEDoc(b, out, stats, cold)
+}
+
+// spikeEReadings reads the five targets from the spike's totals.
+func spikeEReadings(n, points, homes, unreachable, badWorlds, orderChecked, orderBad int, novelty map[int64][2]int, bandNovel map[int64][]int,
+	patchTileMed []int, ecoTiles, landTiles int) []Measured {
+	seeds := comma(int64(n)) + " seeds"
+	out := []Measured{
+		{Target: "structures-reachable", Value: fmt.Sprintf("%d of %s pattern points and %s starting settlements unreachable from the first settlement, in %d worlds, %s, out to %d tiles",
+			unreachable, comma(int64(points)), comma(int64(homes)), badWorlds, seeds, spikeEOut), Holds: unreachable == 0 && points > 0},
+		{Target: "chunk-order", Value: fmt.Sprintf("%s chunks generated out of order, %d different, %s", comma(int64(orderChecked)), orderBad, seeds),
+			Holds: orderBad == 0 && orderChecked > 0},
+	}
+	bands := slices.Sorted(maps.Keys(novelty))
+	novel := Measured{Target: "novelty-share", Holds: len(bands) > 0}
+	worstBand, worstShare, bestShare, worstWorld := int64(0), 101.0, -1.0, 1000
+	for _, band := range bands {
+		v := novelty[band]
+		share := pct(v[1], v[0])
+		novel.Holds = novel.Holds && v[1]*spikeENovelOneIn >= v[0]
+		if share < worstShare {
+			worstBand, worstShare = band, share
+		}
+		bestShare = max(bestShare, share)
+		if len(bandNovel[band]) > 0 {
+			worstWorld = min(worstWorld, slices.Min(bandNovel[band]))
+		}
+	}
+	if len(bands) > 0 {
+		novel.Value = fmt.Sprintf("%.0f%% to %.0f%% of regions in every %d-tile band out to %d tiles, the least %d–%d tiles; the worst single world %.0f%%, %s",
+			worstShare, bestShare, spikeEBand, spikeEOut, worstBand*spikeEBand, (worstBand+1)*spikeEBand, float64(worstWorld)/10, seeds)
+	} else {
+		novel.Value = unmeasured + "no land region was generated"
+	}
+	slices.Sort(patchTileMed)
+	med := q(patchTileMed, 0.5)
+	out = append(out, novel,
+		Measured{Target: "biome-patches", Value: fmt.Sprintf("the median land tile's patch: %s tiles in the median world, %s in the p10 world, %s",
+			comma(int64(med)), comma(int64(q(patchTileMed, 0.1))), seeds), Holds: med >= spikeEPatchLeast},
+		Measured{Target: "ecotone-share", Value: fmt.Sprintf("%.1f%% of %s land tiles, %s", pct(ecoTiles, landTiles), comma(int64(landTiles)), seeds),
+			Holds: landTiles > 0 && ecoTiles*100 >= spikeEEcotoneLeast*landTiles && ecoTiles*100 <= spikeEEcotoneMost*landTiles})
+	return out
 }
 
 func writeSpikeE(b *sheets.Book, out string, stats []worldStats, colds []time.Duration) error {
+	_, err := spikeEDoc(b, out, stats, colds)
+	return err
+}
+
+// spikeEDoc writes spike E's report and pictures, and returns its readings.
+func spikeEDoc(b *sheets.Book, out string, stats []worldStats, colds []time.Duration) ([]Measured, error) {
 	n := len(stats)
 	minT, maxT := sheets.IntParam(b.MapParams, "region-min-tiles"), sheets.IntParam(b.MapParams, "region-max-tiles")
 	var (
@@ -209,6 +267,7 @@ func writeSpikeE(b *sheets.Book, out string, stats []worldStats, colds []time.Du
 	slices.Sort(sizes)
 	slices.Sort(sweeps)
 	slices.Sort(colds)
+	readings := spikeEReadings(n, points, homes, unreachable, badWorlds, orderChecked, orderBad, novelty, bandNovel, slices.Clone(patchTileMed), ecoTiles, landTiles)
 
 	var doc lineDoc
 	p := doc.p
@@ -390,19 +449,19 @@ func writeSpikeE(b *sheets.Book, out string, stats []worldStats, colds []time.Du
 	for i := range min(n, spikeEPictures) {
 		if i < 4 {
 			if err := writePNG(filepath.Join(out, fmt.Sprintf("world-%03d.png", i)), stats[i].pic); err != nil {
-				return err
+				return nil, err
 			}
 			if err := writePNG(filepath.Join(out, fmt.Sprintf("near-%03d.png", i)), stats[i].close); err != nil {
-				return err
+				return nil, err
 			}
 		}
 		thumbs = append(thumbs, stats[i].pic)
 	}
 	if err := writePNG(filepath.Join(out, "contact-sheet.png"), render.Sheet(thumbs, 6, 300)); err != nil {
-		return err
+		return nil, err
 	}
 	p("Pictures: `world-000.png` to `world-003.png` are the %d-tile disc round the origin; `near-000.png` to `near-003.png` the %d tiles nearest it; `contact-sheet.png` worlds 0 to %d. White discs are starting settlements; dark red relays and dungeons; orange pylons; violet vaults; yellow beacons; black landmarks; small dots sites. Pale blue-sand tiles are fords where a corridor wades across water; the islands along a crossing and the passes it cuts are drawn as their terrain; blue lines carry rivers, purple-tinted tiles are biome variants, blended colours are ecotones, thin lines are region borders.", spikeEOut, spikeENear-30, spikeEPictures-1)
-	return doc.save(out, "spike-e.md")
+	return readings, doc.save(out, "spike-e.md")
 }
 
 func oneWorld(b *sheets.Book, seed int) (worldStats, error) {

@@ -21,9 +21,11 @@ var Runs = map[string]Run{
 	"activity":  ActivityRun,
 	"season":    SeasonRun,
 	"emergence": EmergenceRun,
+	"soak":      SoakRun,
+	"replay":    ReplayRun,
 	"spike-a":   spike(spikeA),
 	"spike-b":   spike(spikeB),
-	"spike-e":   spike(spikeE),
+	"spike-e":   SpikeERun,
 }
 
 func spike(f func(*sheets.Book, string, int) error) Run {

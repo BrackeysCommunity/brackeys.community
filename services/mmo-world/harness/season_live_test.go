@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"jams.team/mmo-world/api/client"
 	"jams.team/mmo-world/internal/testkit"
 	"jams.team/mmo-world/service"
+	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/store/pgtest"
 )
@@ -149,4 +152,87 @@ func TestSeasonLiveOnAService(t *testing.T) {
 		t.Fatalf("report: %v", err)
 	}
 	t.Logf("%d actions, %d refused, %d offered sides; %s", r.actions, r.refuse, r.offered, m.Value)
+}
+
+// TestSeasonLiveServers plays a four-day season zero on a disposable world
+// with its players across two servers and one world day after the close:
+// each server's players found a guild of their own and its keeper saves
+// the house's channels, season one begins, and the run plays into it.
+func TestSeasonLiveServers(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs a world service through a season")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sec, _ := testkit.Secrets(t, "mmo/season-live-servers-test", "w-season-live-servers")
+	b := testkit.Book(t)
+	const zeroDays = 4
+	i := slices.IndexFunc(b.StoryParams, func(p sheets.Param) bool { return p.ID == "season-zero-days" })
+	if i < 0 {
+		t.Fatal("no season-zero-days")
+	}
+	b.StoryParams[i].Value = fixed.FromInt(zeroDays)
+	srv, err := service.Open(ctx, pgtest.Pool(t), service.Config{Secrets: sec, TickSeconds: 600, Book: b, OperatorToken: "op", ManualClock: true,
+		Disposable: true, Poll: time.Millisecond, Log: slog.New(slog.NewJSONHandler(io.Discard, nil))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hs := httptest.NewServer(srv.Handler())
+	done := make(chan error, 1)
+	go func() { done <- srv.Run(ctx) }()
+	defer func() {
+		cancel()
+		if err := <-done; err != nil && !errors.Is(err, context.Canceled) {
+			t.Errorf("the world stopped: %v", err)
+		}
+		hs.Close()
+		srv.Close(context.Background())
+	}()
+	op, cli := client.New(hs.URL, "op"), client.New(hs.URL, "")
+	op.Poll, cli.Poll = time.Millisecond, time.Millisecond
+	w := liveSeason{api: cli, op: op, LiveOptions: LiveOptions{Servers: 2, On: 1}, pace: func(ctx context.Context, n int64) (int64, error) {
+		wait, stop := context.WithTimeout(ctx, 30*time.Second)
+		defer stop()
+		return n, op.Advance(wait, n)
+	}}
+	r, err := playLive(ctx, b, w)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.closed || r.closedTick != zeroDays*sheets.TicksPerDay {
+		t.Fatalf("closed %v at %d, want at %d", r.closed, r.closedTick, zeroDays*sheets.TicksPerDay)
+	}
+	if r.end != r.closedTick+sheets.TicksPerDay {
+		t.Errorf("played to tick %d, want a world day past the close at %d", r.end, r.closedTick)
+	}
+	if got, ok := r.began[1]; !ok || got != r.closedTick {
+		t.Errorf("season.began for season 1: %v at %d, want at the close %d", ok, got, r.closedTick)
+	}
+	if r.failed != 0 || len(r.audit) > 0 {
+		t.Errorf("%d turns failed; ledger %v", r.failed, r.audit)
+	}
+	if len(r.houses) != 2 || r.houses[0].Server != "live-a" || r.houses[1].Server != "live-b" {
+		t.Fatalf("houses %+v", r.houses)
+	}
+	for _, h := range r.houses {
+		if h.Channels != 2 || h.Players == 0 || h.Arrival < 0 {
+			t.Errorf("house %+v: want its keeper's two channels, its players, and a settlement it arrived at", h)
+		}
+	}
+	if r.houses[0].Arrival == r.houses[1].Arrival {
+		t.Errorf("both servers arrived at settlement %d", r.houses[0].Arrival)
+	}
+	dir := t.TempDir()
+	m := liveReading(r)
+	if err := liveDoc(b, hs.URL, r, m).save(dir, "season-live.md"); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(filepath.Join(dir, "season-live.json"), r.summary()); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "season-live.md"))
+	if err != nil || !strings.Contains(string(raw), "## Servers") || !strings.Contains(string(raw), "`season.began` for season 1") {
+		t.Errorf("report: %v\n%s", err, raw)
+	}
+	t.Logf("%d actions, %d refused; houses %+v; %s", r.actions, r.refuse, r.houses, m.Value)
 }

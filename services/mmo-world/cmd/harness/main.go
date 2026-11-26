@@ -23,10 +23,22 @@
 //	                         (MMO_URL, MMO_ACTIVITY_URL, MMO_OPERATOR_TOKEN; the world's keys from MMO_MASTER_SECRET or the local world's)
 //	harness content -out DIR the content run: four histories, content from history, pins, the pin sweep and the busy world (-n seeds per history)
 //	harness season -out DIR  season zero headless: 20 scripted players over 15 world days (-n seeds)
-//	harness season -live URL -out DIR
-//	                         season zero over HTTP on a live disposable world at URL (MMO_OPERATOR_TOKEN; -n ignored)
-//	harness search -out DIR  the Search run aimed at staging: a climb over staging policies against an unstaged twin,
-//	                         the best confirmed at -n; staging-stays-local, staged-goods-local and staged-xp-cap
+//	harness season -live URL -out DIR [-servers N] [-on D]
+//	                         season zero over HTTP on a live world at URL (MMO_API_TOKEN, MMO_OPERATOR_TOKEN; -n ignored):
+//	                         -servers splits the players across N servers (live-a, live-b, ...), -on keeps playing D
+//	                         world days after the close
+//	harness soak -out DIR    the Economy plan with every system on: thieves, staging, emergence, the season clock and
+//	                         an empty server (-n for one size, ECONOMY_SEED), each world day audited and timed
+//	harness replay -out DIR  ten players for ten world days, each day replayed from its snapshot (replay-matches)
+//	harness all -out DIR [-jobs 3] [-only label,...] [-soak] [-live URL] [-against FILE] [-write FILE] [-commit SHA]
+//	                         every label of harness.Suite as a subprocess under a watchdog, then DIR/suite.json,
+//	                         DIR/report.md and DIR/report.json; exits 1 when a label failed
+//	harness search -out DIR  the Search run's climbs (SEARCH_ONLY=build,loop,staging picks): the strongest loadout,
+//	                         kinds and party puzzle policy; the richest activity mix played for the Economy plan's
+//	                         days; staging policies against an unstaged twin; each best confirmed at -n
+//	harness load -out DIR    the load run against the live world at LOAD_URL (else MMO_URL): -n characters (200)
+//	                         pressing LOAD_PPM a minute for LOAD_MINUTES over LOAD_SERVERS servers; LOAD_RAMP=1
+//	                         then doubles the rate in stages (load-tick-inside)
 //	harness terrain -out DIR the terrain sweep: random terrain pins on -n seeds, refusals by code, and what
 //	                         every accepted pin keeps (terrain-pins-hold)
 //	harness seen -out DIR    the per-server seen record over the content run's histories, and its four verdict
@@ -43,6 +55,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -50,10 +63,12 @@ import (
 	"maps"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime/pprof"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 
 	"jams.team/mmo-world/harness"
@@ -80,6 +95,11 @@ func main() {
 	serve := fs.String("serve", "", "map: serve the map's world on this address instead of measuring it")
 	label := fs.String("label", "", "the readings' label (default the run's name)")
 	alone := fs.Bool("alone", false, "the run was read alone: its readings supersede the others for its targets")
+	servers := fs.Int("servers", 0, "season -live: split the players across this many servers")
+	on := fs.Int64("on", 0, "season -live: keep playing this many world days after the close")
+	jobs := fs.Int("jobs", 3, "all: labels run at once")
+	only := fs.String("only", "", "all: these labels alone, comma-separated")
+	soak := fs.Bool("soak", false, "all: add the soak labels")
 	var ro reportOptions
 	fs.StringVar(&ro.against, "against", "", "report: the epoch file to read against (default the last epoch)")
 	fs.StringVar(&ro.write, "write", "", "report: write the merged readings as this epoch file")
@@ -122,6 +142,17 @@ func main() {
 			stopProfile()
 			os.Exit(1)
 		}
+	case "all":
+		b, err := sheetfs.LoadBook(root)
+		exitOn(err)
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		ok, err := runAll(ctx, os.Stdout, os.Stderr, root, b, allOptions{out: *out, jobs: *jobs, only: splitList(*only), soak: *soak, live: *live, report: ro})
+		stop()
+		exitOn(err)
+		if !ok {
+			stopProfile()
+			os.Exit(1)
+		}
 	case "schema":
 		exitOn(harness.WriteSchemas(root))
 	case "proposals":
@@ -157,7 +188,7 @@ func main() {
 		exitOn(os.MkdirAll(*out, 0o755))
 		if cmd == "season" && *live != "" {
 			run = func(b *sheets.Book, out string, _ int) ([]harness.Measured, error) {
-				return harness.SeasonLive(b, *live, out)
+				return harness.SeasonLive(b, *live, out, harness.LiveOptions{Servers: *servers, On: *on})
 			}
 		}
 		start := time.Now()
@@ -179,16 +210,13 @@ func main() {
 	}
 }
 
-// switchPrefixes are the env names that change what a run measures.
-var switchPrefixes = []string{"BATTLE_", "ECONOMY_", "EMERGENCE_", "SEARCH_", "LOAD_", "SOAK_", "SPIKE_A_", "SPIKE_B_"}
-
 // switches are the run's switches that are set; a name that could hold a
 // secret is never kept.
 func switches() map[string]string {
 	out := map[string]string{}
 	for _, kv := range os.Environ() {
 		k, v, _ := strings.Cut(kv, "=")
-		if v == "" || !slices.ContainsFunc(switchPrefixes, func(p string) bool { return strings.HasPrefix(k, p) }) {
+		if v == "" || !slices.ContainsFunc(harness.SwitchPrefixes, func(p string) bool { return strings.HasPrefix(k, p) }) {
 			continue
 		}
 		if slices.ContainsFunc([]string{"TOKEN", "SECRET", "KEY", "PASSWORD"}, func(s string) bool { return strings.Contains(k, s) }) {
@@ -217,6 +245,9 @@ func commitOf(root string) string {
 type reportOptions struct {
 	in, against, write, commit, note, sheetsFrom string
 	strict, check                                bool
+	// header is written under the report's title: the suite's check and
+	// failed labels.
+	header string
 }
 
 // report runs the report command; ok is false when -check or -strict fails.
@@ -286,6 +317,10 @@ func report(w io.Writer, root string, b *sheets.Book, o reportOptions) (bool, er
 
 	var md bytes.Buffer
 	harness.ReportDiff(&md, b, before, after)
+	if o.header != "" {
+		title, rest, _ := bytes.Cut(md.Bytes(), []byte("\n\n"))
+		md = *bytes.NewBuffer(slices.Concat(title, []byte("\n\n"+o.header+"\n\n"), rest))
+	}
 	if o.sheetsFrom != "" {
 		from, err := sheetfs.LoadBook(o.sheetsFrom)
 		if err != nil {
@@ -336,8 +371,96 @@ func report(w io.Writer, root string, b *sheets.Book, o reportOptions) (bool, er
 	return true, nil
 }
 
+// allOptions are the all command's flags.
+type allOptions struct {
+	out    string
+	exe    string // the harness binary each label runs; this one when empty
+	jobs   int
+	only   []string
+	soak   bool
+	live   string
+	report reportOptions
+}
+
+// runAll runs the suite's labels into out, then the report over them
+// against the last epoch (or -against), with the check's pass or fail
+// and any failed label under its title. ok is false when a label failed.
+func runAll(ctx context.Context, w, log io.Writer, root string, b *sheets.Book, o allOptions) (bool, error) {
+	if o.out == "" {
+		return false, fmt.Errorf("-out is required")
+	}
+	runs, err := harness.SelectSuite(o.only, o.soak, o.live)
+	if err != nil {
+		return false, err
+	}
+	out, err := filepath.Abs(o.out)
+	if err != nil {
+		return false, err
+	}
+	digest, err := b.Digest()
+	if err != nil {
+		return false, err
+	}
+	commit := o.report.commit
+	if commit == "" {
+		commit = commitOf(root)
+	}
+	res, err := harness.RunSuite(ctx, runs, digest, harness.SuiteOptions{Out: out, Exe: o.exe, Root: root, Jobs: o.jobs, Live: o.live, Commit: commit, Log: log})
+	if err != nil {
+		return false, err
+	}
+	ro := o.report
+	ro.in, ro.commit, ro.strict, ro.check = out, commit, false, false
+	ro.header = suiteHeader(res)
+	ok, err := report(w, root, b, ro)
+	if err != nil {
+		return false, err
+	}
+	if failed := res.Failed(); len(failed) > 0 {
+		fmt.Fprintf(log, "labels that did not exit 0: %s\n", strings.Join(failed, ", "))
+		return false, nil
+	}
+	return ok, nil
+}
+
+// suiteHeader is the suite's lines in the report: the check, the labels
+// run and any that failed or met the watchdog.
+func suiteHeader(r harness.SuiteResult) string {
+	check := "not run"
+	switch r.Check() {
+	case "pass":
+		check = "pass"
+	case "fail":
+		check = "**fail** (`check/stdout.txt`)"
+	}
+	lines := []string{fmt.Sprintf("Check: %s.", check), fmt.Sprintf("Suite: %d labels at commit `%s`, %d at once, %s to %s.", len(r.Labels), r.Commit, r.Jobs, r.Started, r.Finished)}
+	if failed := r.Failed(); len(failed) > 0 {
+		lines = append(lines, fmt.Sprintf("Labels that did not exit 0: **%s**.", strings.Join(failed, ", ")))
+	}
+	var capped []string
+	for _, l := range r.Labels {
+		if l.Watchdog {
+			capped = append(capped, l.Label)
+		}
+	}
+	if len(capped) > 0 {
+		lines = append(lines, fmt.Sprintf("Killed at their caps: **%s**.", strings.Join(capped, ", ")))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func splitList(s string) []string {
+	var out []string
+	for part := range strings.SplitSeq(s, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
 func usage() {
-	cmds := append([]string{"check", "digest", "report", "schema", "proposals"}, slices.Sorted(maps.Keys(harness.Runs))...)
+	cmds := append([]string{"all", "check", "digest", "report", "schema", "proposals"}, slices.Sorted(maps.Keys(harness.Runs))...)
 	fmt.Fprintf(os.Stderr, "usage: harness %s [-out DIR] [-n N] [-label L] [-alone] [-live URL] [-in FILE] [-serve ADDR]\n", strings.Join(cmds, "|"))
 	os.Exit(2)
 }
