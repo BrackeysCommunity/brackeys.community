@@ -17,7 +17,8 @@ const (
 	// the season its goals already count in. The service sends it once.
 	SeasonStart = "season-start"
 	// SeasonEpoch records a rules epoch taken at a season boundary: Epoch
-	// carries both sheets digests and the count of sheets changed.
+	// carries both sheets digests, the count of sheets changed and the roll
+	// epoch when it steps one.
 	SeasonEpoch = "season-epoch"
 	// ArcCast casts a template with its cast bound by hand.
 	ArcCast = "arc-cast"
@@ -103,17 +104,24 @@ func (g *Game) seasonEpoch(cmd Command) error {
 		return refuse(NotAtBoundary, "an epoch is taken only right after a season closes")
 	}
 	e := cmd.Epoch
-	if e == nil || e.To == "" || e.From == "" || e.Sheets < 0 {
+	if e == nil || e.To == "" || e.From == "" || e.Sheets < 0 || e.Roll != nil && *e.Roll < 0 {
 		return refuse(BadArgs, "an epoch names the sheets digests it runs from and to")
 	}
-	if c.Epoch == e.To {
+	if c.Same(*e) {
 		return refuse(BadArgs, "the season already runs on %s", e.To)
 	}
-	if _, err := g.regionFact("", "season.epoch", nil, nil, fact.N("season", c.N), fact.S("from", e.From), fact.S("to", e.To),
-		fact.N("sheets", e.Sheets)); err != nil {
+	data := []fact.Datum{fact.N("season", c.N), fact.S("from", e.From), fact.S("to", e.To), fact.N("sheets", e.Sheets)}
+	if e.Roll != nil {
+		data = append(data, fact.N("roll", *e.Roll))
+	}
+	if _, err := g.regionFact("", "season.epoch", nil, nil, data...); err != nil {
 		return err
 	}
 	g.Story.Clock.Epoch = e.To
+	if e.Roll != nil {
+		n := *e.Roll
+		g.Story.Clock.Roll = &n
+	}
 	return nil
 }
 

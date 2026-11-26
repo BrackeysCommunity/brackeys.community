@@ -879,8 +879,12 @@ func (g *Game) consent(c *Char, cmd Command) error {
 const travellerName = "a traveller"
 
 // NameFor is how an NPC names subject to viewer: by name where subject
-// allows it, else as a traveller from their guild.
+// allows it, else as a traveller from their guild. A player who asked to
+// be forgotten is a traveller to everyone (GDD 14.9).
 func NameFor(viewer, subject *Char, name, guild string) string {
+	if subject.Forget > 0 {
+		return travellerName
+	}
 	same := viewer.Server != "" && viewer.Server == subject.Server
 	if (same && !subject.HideSame) || (!same && subject.NameOther) || viewer == subject {
 		return name

@@ -127,7 +127,7 @@ func (g *Game) memoryView(c *Char, e npc.Entry, names map[string]string) MemoryV
 		switch name := NameFor(c, subject, subject.C.ID, guild); {
 		case name == subject.C.ID:
 			v.Who = name
-		case guild == "":
+		case guild == "", name == travellerName:
 			v.Who = travellerName
 		default:
 			v.Who = name

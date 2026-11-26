@@ -37,6 +37,8 @@ const (
 	Grant   = "grant"
 	Ban     = "ban"
 	Unban   = "unban"
+	// Forget is a player's asking to be forgotten (GDD 14.9).
+	Forget = "forget"
 )
 
 // Command is one thing done to the game between ticks. Key is the
@@ -144,6 +146,9 @@ const (
 	NoFight    = "no-encounter"
 	InActivity = "needs-activity"
 	DownCode   = "down"
+	// ForgottenCode refuses every command on or to a character its player
+	// asked to be forgotten.
+	ForgottenCode = "forgotten"
 )
 
 // Result is what a command did.
@@ -212,6 +217,12 @@ func (g *Game) Act(cmd Command) (Result, error) {
 	} else {
 		if c = g.Char(cmd.Char); c == nil {
 			return Result{}, refuse(NoSuchChar, "no character %q", cmd.Char)
+		}
+		if err := g.forgottenGuard(c, cmd); err != nil {
+			return Result{}, err
+		}
+		if cmd.Kind == Forget {
+			return g.forgetAsked(c), nil
 		}
 		if c.Banned && !Operator(cmd.Kind) {
 			return Result{}, refuse(BannedCode, "character %s is banned", c.C.ID)

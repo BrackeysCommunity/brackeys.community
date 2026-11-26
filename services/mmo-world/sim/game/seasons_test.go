@@ -289,6 +289,77 @@ func TestSeasonEpochAtTheBoundary(t *testing.T) {
 	}
 }
 
+// An epoch that steps the roll epoch records it in the fact and the clock;
+// a roll-only epoch keeps the digest, and either is refused once taken.
+// One without a roll writes the fact and clock it always has.
+func TestSeasonEpochStepsTheRoll(t *testing.T) {
+	g, err := game.New(rules(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := clockOf(t, g)
+	advanceDays(t, g, c.Start+c.Days)
+	one, two, neg := int64(1), int64(2), int64(-1)
+	ep := func(key, to string, roll *int64) game.Command {
+		return game.Command{Key: key, Kind: game.SeasonEpoch, Epoch: &season.Epoch{From: "old", To: to, Sheets: 0, Roll: roll}}
+	}
+	refusedWith(t, g, "a negative roll epoch", game.BadArgs, ep("r0", "old", &neg))
+	res, err := g.Act(ep("r1", "old", &one))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d, ok := res.Facts[0].Get("roll"); !ok || d != fact.N("roll", 1) {
+		t.Fatalf("season.epoch roll is %+v", d)
+	}
+	if c := clockOf(t, g); c.Epoch != "old" || c.Roll == nil || *c.Roll != 1 {
+		t.Fatalf("the clock after a roll-only epoch: %+v", c)
+	}
+	one = 9
+	if c := clockOf(t, g); *c.Roll != 1 {
+		t.Fatal("the clock shares the command's roll")
+	}
+	refusedWith(t, g, "the same roll epoch twice", game.BadArgs, ep("r2", "old", ptr(1)))
+	refusedWith(t, g, "the digest it runs on, without a roll", game.BadArgs, ep("r3", "old", nil))
+	if _, err := g.Act(ep("r4", "new", ptr(1))); err != nil {
+		t.Fatalf("a new digest on the same roll: %v", err)
+	}
+	if _, err := g.Act(ep("r5", "new", &two)); err != nil {
+		t.Fatalf("a new roll on the same digest: %v", err)
+	}
+	refusedWith(t, g, "the same digest and roll twice", game.BadArgs, ep("r6", "new", ptr(2)))
+	out, err := json.Marshal(g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := preLoad(t, g.Rules(), out)
+	if c := clockOf(t, h); c.Epoch != "new" || c.Roll == nil || *c.Roll != 2 {
+		t.Fatalf("the roll did not survive a save: %+v", c)
+	}
+	d, _ := g.Digest()
+	if d2, _ := h.Digest(); d2 != d {
+		t.Fatalf("saved and loaded the game digests %s, %s before", d2, d)
+	}
+
+	g2, err := game.New(rules(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	advanceDays(t, g2, c.Start+c.Days)
+	res, err = g2.Act(ep("p1", "new", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := res.Facts[0].Get("roll"); ok || clockOf(t, g2).Roll != nil {
+		t.Fatal("an epoch without a roll recorded one")
+	}
+	body, _ := json.Marshal(clockOf(t, g2))
+	if strings.Contains(string(body), "roll") {
+		t.Fatalf("a clock never stepped encodes %s", body)
+	}
+}
+
+func ptr(n int64) *int64 { return &n }
+
 // In season zero the opening, eligible from the first rising day, jumps
 // the world queue; its stages end on the band ends, the last on the
 // finale's first day, so the finale is cast then and closes with the

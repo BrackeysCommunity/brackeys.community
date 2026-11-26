@@ -217,6 +217,10 @@ type Char struct {
 	BackWorth tally.Tally `json:"backWorth,omitempty"`
 	BackGiven tally.Tally `json:"backGiven,omitempty"`
 	Callers   []Caller    `json:"callers,omitempty"`
+	// Forget is the tick its player asked to be forgotten, Forgotten the
+	// tick its holdings left it (GDD 14.9).
+	Forget    int64 `json:"forget,omitempty"`
+	Forgotten int64 `json:"forgotten,omitempty"`
 }
 
 // Fight is an encounter and the measures it was assembled under. An

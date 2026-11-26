@@ -159,3 +159,42 @@ func TestLargest(t *testing.T) {
 		t.Fatalf("a negative tie should wrap, got %v", p)
 	}
 }
+
+// The next season runs on the roll epoch its clock had, on a pointer of
+// its own; a clock never stepped carries none.
+func TestNextCarriesTheRoll(t *testing.T) {
+	roll := int64(3)
+	c := season.Clock{N: 1, Start: 14, Days: 42, Epoch: "abc", Roll: &roll}
+	next := c.Next(56, 42)
+	if next.Roll == nil || *next.Roll != 3 || next.Roll == c.Roll || next.Epoch != "abc" {
+		t.Fatalf("next %+v", next)
+	}
+	if (season.Clock{N: 1}).Next(14, 42).Roll != nil {
+		t.Fatal("a clock never stepped gained a roll")
+	}
+}
+
+// An epoch is the same as the clock only on its digest and, when it steps
+// one, its roll.
+func TestEpochSame(t *testing.T) {
+	one, two := int64(1), int64(2)
+	plain := season.Clock{Epoch: "a"}
+	rolled := season.Clock{Epoch: "a", Roll: &one}
+	for _, c := range []struct {
+		clock season.Clock
+		e     season.Epoch
+		same  bool
+	}{
+		{plain, season.Epoch{To: "a"}, true},
+		{plain, season.Epoch{To: "b"}, false},
+		{plain, season.Epoch{To: "a", Roll: &one}, false},
+		{rolled, season.Epoch{To: "a"}, true},
+		{rolled, season.Epoch{To: "a", Roll: &one}, true},
+		{rolled, season.Epoch{To: "a", Roll: &two}, false},
+		{rolled, season.Epoch{To: "b", Roll: &one}, false},
+	} {
+		if got := c.clock.Same(c.e); got != c.same {
+			t.Errorf("%+v against %+v: same %v", c.clock, c.e, got)
+		}
+	}
+}

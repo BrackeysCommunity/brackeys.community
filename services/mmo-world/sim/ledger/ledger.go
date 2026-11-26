@@ -62,6 +62,7 @@ const (
 	ToSyndicate  = Sink + "syndicate" // what fences bought, emptied at each world day
 	FromStaged   = Source + "staged"  // a server's staging; mints only staged assets and items
 	ToStaged     = Sink + "staged"    // staged goods destroyed by forget-me or an operator
+	ToForgotten  = Sink + "forgotten" // coin a forgotten character held (GDD 14.9)
 )
 
 // Material, Item and Char name a material asset, an item asset and a

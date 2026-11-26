@@ -26,6 +26,8 @@ type Clock struct {
 	Days   int64  `json:"days"`
 	Legacy bool   `json:"legacy,omitempty"`
 	Epoch  string `json:"epoch,omitempty"` // the sheets digest taken at its start
+	// Roll is the roll epoch the season runs on, once an epoch stepped it.
+	Roll *int64 `json:"roll,omitempty"`
 }
 
 // Day is the 1-based season day of a world day.
@@ -41,9 +43,27 @@ func (c Clock) Turned(tick int64) bool {
 }
 
 // Next is the season that starts on worldDay and lasts days. The sheets
-// digest carries over until an epoch is taken.
+// digest and the roll epoch carry over until an epoch is taken.
 func (c Clock) Next(worldDay, days int64) Clock {
-	return Clock{N: c.N + 1, Start: worldDay, Days: days, Epoch: c.Epoch}
+	return Clock{N: c.N + 1, Start: worldDay, Days: days, Epoch: c.Epoch, Roll: c.RollCopy()}
+}
+
+// RollCopy is the roll epoch the clock runs on, as a pointer of its own.
+func (c Clock) RollCopy() *int64 {
+	if c.Roll == nil {
+		return nil
+	}
+	n := *c.Roll
+	return &n
+}
+
+// Same reports whether an epoch would leave the clock as it is: the same
+// sheets digest and no roll step, or the roll it already runs on.
+func (c Clock) Same(e Epoch) bool {
+	if c.Epoch != e.To {
+		return false
+	}
+	return e.Roll == nil || c.Roll != nil && *c.Roll == *e.Roll
 }
 
 // Span is a run of season days in one band; a rising band split by its
@@ -184,9 +204,11 @@ func LargestAt(ps []Pressure, tie func(n int) int) (int, bool) {
 }
 
 // Epoch is a rules epoch taken at a season boundary (GDD 18.5): the sheets
-// digests before and after, and how many sheets changed.
+// digests before and after, how many sheets changed, and the roll epoch
+// it steps to, when it steps one.
 type Epoch struct {
 	From   string `json:"from"`
 	To     string `json:"to"`
 	Sheets int64  `json:"sheets"`
+	Roll   *int64 `json:"roll,omitempty"`
 }
