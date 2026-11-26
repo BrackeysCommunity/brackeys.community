@@ -8,8 +8,9 @@ import { promotionCard } from "./screens/emergence.ts";
 
 /**
  * Promotions in the chronicle channel (GDD 12.7, 17.2): each thing play
- * made part of the world, a legend laid, a custom held and what a season
- * added, posted once as it happens, in the order the world wrote it. The
+ * made part of the world, a legend laid, a custom held, what a season
+ * added and the rules a season runs on (GDD 17.6), posted once to each
+ * server as it happens, in the order the world wrote it. The
  * mark is kept apart from the events channel's, so either channel may be
  * set alone.
  */

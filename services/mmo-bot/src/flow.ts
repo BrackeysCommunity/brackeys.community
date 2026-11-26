@@ -32,6 +32,7 @@ import {
 } from "./screens/dungeon.ts";
 import { NAME_INPUT } from "./screens/emergence.ts";
 import { beatCard, downCard, fieldCard, resolvedCard, whyCard } from "./screens/fight.ts";
+import { forgetAskCard, forgetDoneCard } from "./screens/forget.ts";
 import {
   boardCard,
   fromSpec,
@@ -279,6 +280,8 @@ export interface Ctx {
   names?: NameOffers;
   /** What a house write tells the bot's house cache and the narration switch, and the held names. */
   house?: HouseHooks;
+  /** Removes what the bot itself keeps of a user, after the world has forgotten them (GDD 14.9). */
+  forget?: (user: string) => Promise<void>;
 }
 
 const clocks = new WeakMap<Ctx, DayClock>();
@@ -306,6 +309,9 @@ export async function answer(ctx: Ctx, press: Press): Promise<Answer> {
   const id = await world.player(press.user);
   if (!id) {
     if (press.id?.action === "start") return start(ctx, press, press.id.target);
+    // The world holds nothing of theirs, or forgot it already: the bot's own notes still go.
+    if (press.command === "forget-me" || press.id?.action === "forget")
+      return { card: forgetDoneCard(false, await forgetBot(ctx, press.user)) };
     return { card: startCard(ctx.lex) };
   }
   const s = new Session(ctx, press, id);
@@ -438,6 +444,8 @@ class Session {
         return this.console(undefined, "staff");
       case REPORT:
         return this.report();
+      case "forget-me":
+        return this.forgetAsk();
       case "play":
       default:
         return this.open();
@@ -1242,6 +1250,20 @@ class Session {
     );
   }
 
+  /** /forget-me's question, at the character's version. */
+  private async forgetAsk(notice?: string, version?: number): Promise<Answer> {
+    const v = version ?? (await this.world.options(this.character)).version;
+    return this.done(forgetAskCard(v, notice));
+  }
+
+  /** The confirmed forget: the world first, then the bot's own notes. */
+  private async forgetMe(v: number): Promise<Answer> {
+    const res = await this.act(api.ActForget, v, { discordId: this.press.user });
+    if (!res.ok && res.refusal.code !== api.CodeForgotten)
+      return this.forgetAsk(capitalise(refusalText(res.refusal)), res.refusal.version);
+    return { card: forgetDoneCard(true, await forgetBot(this.ctx, this.press.user)) };
+  }
+
   async where(notice?: string): Promise<Answer> {
     const { o, here } = await this.load();
     return this.retitled(this.done(whereCard(o, here, this.lex)), notice);
@@ -1304,6 +1326,8 @@ class Session {
     switch (id.action) {
       case "hub":
         return this.hub();
+      case "forget":
+        return id.target === "yes" ? this.forgetMe(v) : this.forgetAsk();
       case "where":
         return this.where();
       case "travel":
@@ -2258,6 +2282,17 @@ function nearest(at: api.Hex, markets: readonly api.Hex[]): api.Hex | undefined 
 
 function peopleOf(here: api.Here): Map<string, string> {
   return new Map(here.people.map((p) => [p.id, p.name]));
+}
+
+/** The bot's own forget; false when it failed, so the player is asked to run it again. */
+async function forgetBot(ctx: Ctx, user: string): Promise<boolean> {
+  if (!ctx.forget) return true;
+  try {
+    await ctx.forget(user);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** The text a refusal shows: a stale card is drawn again as it stands. */

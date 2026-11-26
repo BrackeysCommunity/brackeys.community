@@ -9,12 +9,19 @@ import { decodeId, encodeId, type Id } from "../src/ids.ts";
 import { Lexicon } from "../src/lexicon.ts";
 import { PromotionsPoster, type PromotionsWorld } from "../src/promotions.ts";
 import { LexiconRefresher } from "../src/refresh.ts";
-import { NAME_INPUT, promotionCard } from "../src/screens/emergence.ts";
+import {
+  EPOCH_NOTES_MOST,
+  epochNotesCard,
+  NAME_INPUT,
+  noteLine,
+  promotionCard,
+} from "../src/screens/emergence.ts";
 import { recapCard } from "../src/screens/hub.ts";
 import { eventCard, stageCard } from "../src/screens/story.ts";
 import type { World } from "../src/world.ts";
 import * as mm9 from "./fixtures/mm9.ts";
 import * as mm10 from "./fixtures/mm10.ts";
+import * as mm14 from "./fixtures/mm14.ts";
 import samples from "./fixtures/world.json";
 
 const NUMBERS: api.Numbers = {
@@ -392,4 +399,121 @@ test("a rename the world refuses shows why on the recap, and an empty name write
   expect((await stale.press(id, { [NAME_INPUT]: "Ember-edge" })).card.title).toBe(
     "The world moved on: here is the card as it stands.",
   );
+});
+
+const bullets = (c: Card) => (c.description ?? "").split("\n").filter((l) => l.startsWith("• "));
+const unseenOf = (c: Card) => c.fields?.find((f) => f.name === "Not shown")?.value;
+
+test("the rules epoch card lists what a player may see, counts the rest and keeps the card standard", () => {
+  const lex = new Lexicon(after());
+  const names = lex.goodsNames();
+  const none = epochNotesCard(mm14.epoch(1, 0, 5), lex)!;
+  expect(none.title).toBe("Season 1 runs on new rules");
+  expect(bullets(none)).toEqual([]);
+  expect(none.description).toContain("none of the changes is one you can see");
+  expect(unseenOf(none)).toStartWith("and 5 changes you will not see");
+
+  const three = epochNotesCard(mm14.epoch(2, 3, 0), lex)!;
+  expect(bullets(three)).toEqual([
+    "• Cinder ore (materials), tier: tier 1 to tier 2",
+    "• Market fee (economy rules): 5% to 6%",
+    "• Long shot (odds bands), chance: 25% to 30%",
+  ]);
+  expect(three.description).not.toContain("more");
+  expect(unseenOf(three)).toBeUndefined();
+  expect(unseenOf(epochNotesCard(mm14.epoch(3, 3, 1), lex)!)).toStartWith(
+    "and 1 change you will not see",
+  );
+
+  const fourteen = epochNotesCard(mm14.epoch(4, 14, 23, 2), lex)!;
+  expect(fourteen.title).toBe("Season 2 runs on new rules");
+  expect(bullets(fourteen)).toHaveLength(EPOCH_NOTES_MOST);
+  expect(fourteen.description).toEndWith("\nand 4 more");
+  expect(unseenOf(fourteen)).toStartWith("and 23 changes you will not see");
+
+  for (const c of [none, three, fourteen]) {
+    expect(problems(c, names)).toEqual([]);
+    expect(c.rows).toEqual([]);
+    expect(c.picture).toEqual({ media: mm14.ART.key, alt: expect.stringContaining(c.title) });
+    // The books' digests are the world's business, not the card's.
+    expect(JSON.stringify(c)).not.toContain(mm14.FROM.slice(0, 12));
+    expect(JSON.stringify(c)).not.toContain(mm14.TO.slice(0, 12));
+  }
+  expect(promotionCard(mm14.epoch(5, 3, 0), lex)).toEqual(three);
+});
+
+test("a roll-key step alone is never told, and notes the world did not keep still name the season", () => {
+  const lex = new Lexicon(after());
+  expect(promotionCard(mm14.rollOnly, lex)).toBeNull();
+  const bare = promotionCard(mm14.epochs.find(([n]) => n.includes("did not store"))![1], lex)!;
+  expect(bare.title).toBe("Season 1 runs on new rules");
+  expect(bullets(bare)).toEqual([]);
+  expect(problems(bare, lex.goodsNames())).toEqual([]);
+});
+
+test("every note reads in player words with a unit on each number", () => {
+  const lex = new Lexicon(after());
+  const lines = [...mm14.NOTES, ...mm14.MORE_NOTES].map((n) => noteLine(n, lex));
+  for (const l of lines) expect(bareNumbers(l), l).toEqual([]);
+  expect(lines).toContain("Blade (item slots), edge: 1.2 to 1.25 times");
+  expect(lines).toContain("Stilt rig (mounts), load: 40 to 45 load");
+  expect(lines).toContain("Boiler room (machines), countdown: 90 to 80 s");
+  expect(lines).toContain("Drop #1 (staged events), crates: 3 to 4 crates");
+  expect(lines).toContain("Steal (alignment acts), move: value −5 to value −16");
+  expect(lines).toContain("A long shot (route risk), threat: 600 to 1,250 threat");
+  expect(lines).toContain("Stilt rig (mounts), road only: no to yes");
+  expect(lines).toContain("Keen (traits), favours: reworded");
+  expect(lines).toContain("New in materials: Glass shard");
+  expect(lines).toContain("Gone from structures: Watchtower");
+  expect(lines).toContain("Cinder hound (hunts), spoils: 1,200 to 1,500 goods");
+  expect(lines).toContain("Craft (xp by deed), xp: 10 to 12 xp");
+  expect(lines).toContain("Smelter (guild works), uses: changed");
+  expect(lines).toContain("Haul week (staged events), most: value 20 to value 25");
+  expect(lines).toContain("Repair days (wear): 3 to 1 day");
+  expect(lines.find((l) => l.includes("tags"))).toContain("ember, heavy to ember, heavy, keen");
+});
+
+test("each server's poster posts the epoch card once, and a second poll or a restart posts it again nowhere", async () => {
+  const store = memoryStore();
+  const state: { events: api.StoryEvent[] } = { events: [] };
+  const world: PromotionsWorld = {
+    async storyPromotions(after) {
+      const events = state.events.filter((e) => e.fact.id > after);
+      return { events, last: Math.max(after, ...events.map((e) => e.fact.id)) };
+    },
+  };
+  const lex = new Lexicon(after());
+  const servers = ["guild-a", "guild-b"].map((guild) => {
+    const { sink, posts } = memoryChannel();
+    const poster = () =>
+      new PromotionsPoster(
+        world,
+        lex,
+        store,
+        sink,
+        undefined,
+        `mmo-bot:promotions:${guild}:chronicle:`,
+        quiet,
+      );
+    return { guild, posts, poster };
+  });
+  for (const s of servers) expect(await s.poster().poll()).toBe(0);
+  state.events = [mm14.epoch(1601, 14, 23)];
+  for (const s of servers) {
+    const p = s.poster();
+    expect(await p.poll()).toBe(1);
+    expect(await p.poll()).toBe(0);
+    expect(await s.poster().poll()).toBe(0);
+  }
+  for (const s of servers) {
+    expect(s.posts.map((c) => c.title)).toEqual(["Season 1 runs on new rules"]);
+    expect(problems(s.posts[0]!, lex.goodsNames())).toEqual([]);
+  }
+  // A roll-only epoch moves the mark and posts nothing.
+  state.events = [...state.events, { ...mm14.rollOnly, fact: { ...mm14.rollOnly.fact, id: 1602 } }];
+  for (const s of servers) {
+    expect(await s.poster().poll()).toBe(0);
+    expect(s.posts).toHaveLength(1);
+    expect(await store.get(`mmo-bot:promotions:${s.guild}:chronicle:last`)).toBe("1602");
+  }
 });

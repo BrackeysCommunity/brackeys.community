@@ -92,6 +92,7 @@ import * as mm9 from "./fixtures/mm9.ts";
 import * as mm10 from "./fixtures/mm10.ts";
 import * as mm11a from "./fixtures/mm11a.ts";
 import * as mm12 from "./fixtures/mm12.ts";
+import * as mm14 from "./fixtures/mm14.ts";
 import samples from "./fixtures/world.json";
 
 /** The road map three world days on: its camp and dungeon last seen, the road still in sight. */
@@ -1355,6 +1356,7 @@ const cards: [string, () => Card][] = [
   ...emergenceCards(),
   ...theftCards(),
   ...houseCards(),
+  ...mm14.mm14Cards(lex),
 ];
 
 /** The consoles of a server's staff and admins, each page and state, and the report and log row cards. */

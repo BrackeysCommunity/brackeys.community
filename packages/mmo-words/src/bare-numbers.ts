@@ -155,6 +155,8 @@ export const UNITS = new Set([
   "pins",
   "action",
   "actions",
+  "change",
+  "changes",
   "%",
 ]);
 const CONNECTORS = new Set(["to", "of", "and", "or", "–", "-", "×", "+"]);

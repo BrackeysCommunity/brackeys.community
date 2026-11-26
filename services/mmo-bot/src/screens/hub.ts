@@ -31,9 +31,9 @@ import { dungeonName, floorOf } from "./dungeon.ts";
 import { roadLine } from "./emergence.ts";
 import { refsOf } from "./story.ts";
 
-/** What testers are told before they start. */
+/** What testers are told before they start: the closed test's world is kept. */
 export const TESTER_NOTE =
-  "This is a test world. It stores your Discord user id, your character and what it does, and nothing else about you. Test worlds are wiped when the rules change; nothing here carries over. Full terms come before launch.";
+  "Season zero is the closed test. This world is kept: what you do now carries into season one. It stores your Discord user id, your character and what it does, and the words you type to the bot. /forget-me removes you.";
 
 /** /play before a character exists: one paragraph of arrival and the choice of three (GDD 3.1). */
 export function startCard(lex: Lexicon): Card {

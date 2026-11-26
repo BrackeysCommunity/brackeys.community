@@ -12,10 +12,10 @@ export const REPORT = "Report";
 /**
  * The guild commands (GDD 17.1): the solo loop's four, the market, goals,
  * the guild, the party and the chronicle; the consoles of a server's staff
- * and admins (GDD 14.1); and Report on any message. The Activity's launch
- * entry point is the application's own global command; registering guild
- * commands leaves it in place, and the adapter answers it with the
- * launch-activity response.
+ * and admins (GDD 14.1); /forget-me (GDD 14.9); and Report on any message.
+ * The Activity's launch entry point is the application's own global
+ * command; registering guild commands leaves it in place, and the adapter
+ * answers it with the launch-activity response.
  */
 export const MANIFEST = [
   { type: SLASH, name: "play", description: "Open your hub in Wirelands" },
@@ -58,6 +58,12 @@ export const MANIFEST = [
     name: "admin",
     description: "The admin console: staging, musters, server settings, pins and the log",
     default_member_permissions: ADMINISTRATOR,
+  },
+  {
+    type: SLASH,
+    name: "forget-me",
+    description:
+      "Leave the world for good: your id and holdings go, your deeds stay as a traveller's",
   },
   { type: MESSAGE, name: REPORT, description: "" },
 ] as const;

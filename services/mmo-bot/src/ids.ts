@@ -49,6 +49,7 @@ const ACTIONS = [
   "flee",
   "follow",
   "forage",
+  "forget",
   "g-amount",
   "g-cap",
   "g-deliver",
