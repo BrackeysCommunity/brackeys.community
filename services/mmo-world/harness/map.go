@@ -1142,7 +1142,7 @@ func writeMap(p func(string, ...any), rs []mapResult, sc mapScenario) []Measured
 	p("")
 	p("## The last-seen pass against map size")
 	p("")
-	p("The same %d walkers on the same paths (each a beat of up to %d tiles within %d of settlement 0, stepped whenever free) inside a core of radius %d, over %d ticks, on a world with just the core discovered and on one with the whole radius-%d disc; after each tick the pass runs over every holder, timed %d times and the fastest kept, the two worlds interleaved.",
+	p("The same %d walkers on the same paths (each a beat of up to %d tiles within %d of settlement 0, stepped whenever free on both worlds) inside a core of radius %d, over %d ticks, on a world with just the core discovered and on one with the whole radius-%d disc; after each tick the pass runs over every holder, timed %d times and the fastest kept, the two worlds interleaved.",
 		sc.walkers, sc.leg, sc.reach, sc.core, sc.day, sc.disc, passTries)
 	p("")
 	p("| Seed | Tiles, core / disc | Records written | Pass ms | Tiles walked | Keys written | Paths apart |")
