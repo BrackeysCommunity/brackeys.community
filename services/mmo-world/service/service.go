@@ -18,7 +18,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"jams.team/mmo-world/mapview"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/ledger"
@@ -94,15 +93,10 @@ type Server struct {
 	// parties that ended lately, under mu.
 	pool  *pgxpool.Pool
 	ended endings
-	// sight is each holder's sight key as last saved, under mu; nil until
-	// the stored keys are read.
-	sight map[mapview.Holder]mapview.Key
-	// sightAhead are the keys the passes not yet written imply, and
-	// sightOwed those passes in order, under mu; both nil when every pass
-	// is written.
-	sightAhead map[mapview.Holder]mapview.Key
-	sightOwed  []owedPass
-	maps       mapCache
+	// sight is each holder's sight key as last saved and the passes not
+	// yet written, under mu.
+	sight serverSight
+	maps  mapCache
 }
 
 // Open takes the world's lock (waiting while another service holds it),

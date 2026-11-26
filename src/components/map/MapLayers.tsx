@@ -7,6 +7,11 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { MicroLabel } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
 
+import {
+  ViewerAnonymous,
+  ViewerCharacter,
+  ViewerPlayer,
+} from "../../../packages/mmo-api/src/index.ts";
 import { isLayer, LAYERS, LIVE_LAYERS, type LayerId } from "../../../packages/mmo-map/src/index.ts";
 import { MAP_LAYER_NAMES } from "../../../packages/mmo-words/src/index.ts";
 import type { MapViewer } from "./use-live-map";
@@ -14,10 +19,10 @@ import type { MapViewer } from "./use-live-map";
 const BASE_LAYERS = LAYERS.filter((l) => !LIVE_LAYERS.includes(l));
 
 /** Why a viewer without a character has no live layer to turn on. */
-export const LIVE_OFF_WHY: Record<Exclude<MapViewer, "character">, string> = {
-  anonymous:
+export const LIVE_OFF_WHY: Record<Exclude<MapViewer, typeof ViewerCharacter>, string> = {
+  [ViewerAnonymous]:
     "Live layers show what your character and your guild can see right now. Sign in with Discord to see them.",
-  player:
+  [ViewerPlayer]:
     "Live layers show what your character and your guild can see right now. You have no character in the world yet.",
 };
 
@@ -74,7 +79,7 @@ export function MapLayers({
   viewer: MapViewer;
   className?: string;
 }) {
-  const live = viewer === "character";
+  const live = viewer === ViewerCharacter;
   return (
     <Island
       aria-label="Layers"

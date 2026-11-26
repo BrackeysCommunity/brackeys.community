@@ -98,8 +98,8 @@ func (h LocalHost) mapSeen(ctx context.Context, characterID, guildID string, chu
 	return h.l.mapSeen(ctx, characterID, guildID, chunks)
 }
 
-// onBase runs f on the base at the world's tick, held.
-func onBase[T any](ctx context.Context, w mapSource, f func(*mapview.Base) T) (T, error) {
+// onStyled runs f on the held game and its styled map cache.
+func onStyled[T any](ctx context.Context, w mapSource, f func(g *game.Game, c *mapCache) (T, error)) (T, error) {
 	var zero T
 	g, _, release, err := w.holdGame(ctx)
 	if err != nil {
@@ -109,12 +109,23 @@ func onBase[T any](ctx context.Context, w mapSource, f func(*mapview.Base) T) (T
 	c := w.mapCached()
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	id, secs := w.mapWorld()
-	b, err := c.based(g, id, secs)
-	if err != nil {
+	if err := c.styled(g.Rules()); err != nil {
 		return zero, err
 	}
-	return f(b), nil
+	return f(g, c)
+}
+
+// onBase runs f on the base at the world's tick, held.
+func onBase[T any](ctx context.Context, w mapSource, f func(*mapview.Base) T) (T, error) {
+	return onStyled(ctx, w, func(g *game.Game, c *mapCache) (T, error) {
+		id, secs := w.mapWorld()
+		b, err := c.based(g, id, secs)
+		if err != nil {
+			var zero T
+			return zero, err
+		}
+		return f(b), nil
+	})
 }
 
 func mapIndexIn(ctx context.Context, w mapSource) (api.MapIndex, error) {
@@ -126,18 +137,7 @@ func mapRegionsIn(ctx context.Context, w mapSource) (api.MapRegions, error) {
 }
 
 func mapStyleIn(ctx context.Context, w mapSource) (api.MapStyle, error) {
-	g, _, release, err := w.holdGame(ctx)
-	if err != nil {
-		return api.MapStyle{}, err
-	}
-	defer release()
-	c := w.mapCached()
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if err := c.styled(g.Rules()); err != nil {
-		return api.MapStyle{}, err
-	}
-	return c.style, nil
+	return onStyled(ctx, w, func(_ *game.Game, c *mapCache) (api.MapStyle, error) { return c.style, nil })
 }
 
 func mapChunkIn(ctx context.Context, w mapSource, a, b int64, level string) (api.MapChunk, *api.Refusal, error) {
@@ -184,43 +184,38 @@ func mapOverlayIn(ctx context.Context, w mapSource, characterID string, q api.Ma
 			}
 		}
 	}
-	g, _, release, err := w.holdGame(ctx)
+	out, err := onStyled(ctx, w, func(g *game.Game, c *mapCache) (api.MapOverlay, error) {
+		v := mapview.Viewer{Kind: api.ViewerAnonymous}
+		if characterID != "" {
+			v.Kind = api.ViewerPlayer
+			if ch := g.Char(characterID); ch != nil {
+				v = mapview.Viewer{Kind: api.ViewerCharacter, Char: ch}
+			}
+		}
+		id, secs := w.mapWorld()
+		out := mapview.Overlay(g, id, v, chunks, q.Sight, seen, c.params)
+		if v.Char == nil {
+			return out, nil
+		}
+		if at := v.Char.C.At; out.Self != nil && !found(g, at) {
+			cell := mapview.CellAt(g, at, api.LevelTile)
+			out.Self.Cell = &cell
+		}
+		if server := v.Char.Server; server != "" && g.House(server) != nil {
+			// Mask names in every chunk the overlay touches, not only the asked ones.
+			for _, t := range out.Tiles {
+				chunks = append(chunks, g.World.Gen().ChunkOf(hex.Hex{Q: t.Q, R: t.R}))
+			}
+			b, err := c.based(g, id, secs)
+			if err != nil {
+				return api.MapOverlay{}, err
+			}
+			out.Names = maskedIn(g, b, server, chunks)
+		}
+		return out, nil
+	})
 	if err != nil {
 		return api.MapOverlay{}, nil, err
-	}
-	defer release()
-	c := w.mapCached()
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if err := c.styled(g.Rules()); err != nil {
-		return api.MapOverlay{}, nil, err
-	}
-	v := mapview.Viewer{Kind: api.ViewerAnonymous}
-	if characterID != "" {
-		v.Kind = api.ViewerPlayer
-		if ch := g.Char(characterID); ch != nil {
-			v = mapview.Viewer{Kind: api.ViewerCharacter, Char: ch}
-		}
-	}
-	id, secs := w.mapWorld()
-	out := mapview.Overlay(g, id, v, chunks, q.Sight, seen, c.params)
-	if v.Char == nil {
-		return out, nil, nil
-	}
-	if at := v.Char.C.At; out.Self != nil && !found(g, at) {
-		cell := mapview.CellAt(g, at, api.LevelTile)
-		out.Self.Cell = &cell
-	}
-	if server := v.Char.Server; server != "" && g.House(server) != nil {
-		// Mask names in every chunk the overlay touches, not only the asked ones.
-		for _, t := range out.Tiles {
-			chunks = append(chunks, g.World.Gen().ChunkOf(hex.Hex{Q: t.Q, R: t.R}))
-		}
-		b, err := c.based(g, id, secs)
-		if err != nil {
-			return api.MapOverlay{}, nil, err
-		}
-		out.Names = maskedIn(g, b, server, chunks)
 	}
 	return out, nil, nil
 }

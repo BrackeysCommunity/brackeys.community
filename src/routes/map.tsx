@@ -16,16 +16,9 @@ function positive(v: unknown): number | undefined {
   return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
-/** A link's camera: a Discord server's view, or a tile and a zoom. Anything else is dropped. */
+/** A link's camera: a tile and a zoom. Anything else is dropped; ?server= is read by serverFromSearch. */
 export function validateMapSearch(raw: Record<string, unknown>): MapSearch {
   const out: MapSearch = {};
-  const server =
-    typeof raw.server === "string"
-      ? raw.server
-      : typeof raw.server === "number" && Number.isSafeInteger(raw.server)
-        ? String(raw.server)
-        : undefined;
-  if (server && DISCORD_SNOWFLAKE.test(server)) out.server = server;
   const q = int(raw.q);
   const r = int(raw.r);
   if (q !== undefined && r !== undefined) {
@@ -39,10 +32,13 @@ export function validateMapSearch(raw: Record<string, unknown>): MapSearch {
 
 /**
  * The router reads `?server=` as JSON, and a Discord id is past a double's
- * precision, so the id is taken from the address as written.
+ * precision, so the id is taken from the address as written, or as the router
+ * quotes it.
  */
 export function serverFromSearch(searchStr: string): string | undefined {
-  const server = new URLSearchParams(searchStr).get("server") ?? "";
+  const raw = new URLSearchParams(searchStr).get("server") ?? "";
+  const server =
+    raw.length > 1 && raw.startsWith('"') && raw.endsWith('"') ? raw.slice(1, -1) : raw;
   return DISCORD_SNOWFLAKE.test(server) ? server : undefined;
 }
 

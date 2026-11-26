@@ -87,6 +87,7 @@ describe("a tile in words", () => {
       title: "Unknown ground",
       fog: "unknown",
       fogLine: "Nobody has been here.",
+      liveHeading: "In sight now",
       base: [],
       live: [],
     });
@@ -125,6 +126,8 @@ describe("a tile in words", () => {
     const w = tileWords(t, at);
     expect(w.fogLine).toBe("Last seen.");
     expect(w.age).toBe("Seen 3 world days ago.");
+    expect(w.ageLine).toMatch(/As it was then:$/);
+    expect(w.liveHeading).toBe("Last seen");
     expect(w.live).toEqual(["How busy: quiet"]);
   });
 

@@ -116,7 +116,7 @@ async function live(compact: boolean): Promise<Boot> {
     document.querySelector<HTMLMetaElement>('meta[name="discord-client-id"]')?.content ?? "";
   const l = await launch(location, clientId);
   beacon("ready", { instance: l.instance, platform: l.platform, inDiscord: l.inDiscord });
-  // The map's overlay is asked as the newest session the sign-in gave.
+  // Every map read is asked as the newest session the sign-in gave.
   let bearer = "";
   return {
     deps: {

@@ -8,12 +8,6 @@ import { Heading, MicroLabel, Text } from "@/components/ui/typography";
 import { FogSeen, type MapTileView } from "../../../packages/mmo-api/src/index.ts";
 import { type TileContext, tileWords } from "../../../packages/mmo-words/src/index.ts";
 
-export {
-  tileWords,
-  type TileContext,
-  type TileWords,
-} from "../../../packages/mmo-words/src/index.ts";
-
 /** The picked tile: its base, its fog state in words, and what is live on it. */
 export function TilePanel({
   tile,
@@ -60,12 +54,12 @@ export function TilePanel({
       ) : null}
       {w.age ? (
         <Text as="p" size="sm" variant="muted">
-          {w.age} As it was then:
+          {w.ageLine}
         </Text>
       ) : null}
       {w.live.length > 0 ? (
         <div className="flex flex-col gap-0.5">
-          <MicroLabel as="div">{w.fog === FogSeen ? "Last seen" : "In sight now"}</MicroLabel>
+          <MicroLabel as="div">{w.liveHeading}</MicroLabel>
           {w.live.map((line) => (
             <Text as="p" size="sm" key={line} className={w.fog === FogSeen ? "italic" : undefined}>
               {line}

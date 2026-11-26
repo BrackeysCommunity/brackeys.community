@@ -278,31 +278,26 @@ func MapOverlayRefusal() *Refusal {
 // ParseMapOverlayQuery reads ?chunks=a.b,… or ?scope=sight: exactly one.
 func ParseMapOverlayQuery(v url.Values) (MapOverlayQuery, *Refusal) {
 	chunks, scope := v.Get("chunks"), v.Get("scope")
+	var q MapOverlayQuery
 	switch {
-	case chunks == "" && scope == "sight":
-		q := MapOverlayQuery{Sight: true}
-		if ref := q.Check(); ref != nil {
-			return MapOverlayQuery{}, ref
-		}
-		return q, nil
-	case chunks == "" || scope != "":
+	case scope == "sight":
+		q.Sight = true
+	case scope != "":
 		return MapOverlayQuery{}, MapOverlayRefusal()
 	}
-	parts := strings.Split(chunks, ",")
-	if len(parts) > MapOverlayMaxChunks {
-		return MapOverlayQuery{}, MapOverlayRefusal()
-	}
-	ids := make([]MapChunkID, len(parts))
-	for i, p := range parts {
-		sa, sb, ok := strings.Cut(p, ".")
-		a, errA := strconv.ParseInt(sa, 10, 64)
-		b, errB := strconv.ParseInt(sb, 10, 64)
-		if !ok || errA != nil || errB != nil {
-			return MapOverlayQuery{}, MapOverlayRefusal()
+	if chunks != "" {
+		parts := strings.SplitN(chunks, ",", MapOverlayMaxChunks+1)
+		q.Chunks = make([]MapChunkID, len(parts))
+		for i, p := range parts {
+			sa, sb, ok := strings.Cut(p, ".")
+			a, errA := strconv.ParseInt(sa, 10, 64)
+			b, errB := strconv.ParseInt(sb, 10, 64)
+			if !ok || errA != nil || errB != nil {
+				return MapOverlayQuery{}, MapOverlayRefusal()
+			}
+			q.Chunks[i] = MapChunkID{A: a, B: b}
 		}
-		ids[i] = MapChunkID{A: a, B: b}
 	}
-	q := MapOverlayQuery{Chunks: ids}
 	if ref := q.Check(); ref != nil {
 		return MapOverlayQuery{}, ref
 	}

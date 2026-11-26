@@ -43,6 +43,8 @@ func Overlay(g *game.Game, world string, v Viewer, chunks []gen.ChunkCoord, sigh
 		}
 	}
 	own := c.C.At
+	mine, guild := Holder{HolderCharacter, c.C.ID}, Holder{HolderGuild, c.C.Guild}
+	besides := holderChars(g, mine)
 	var lit []hex.Hex
 	for h := range in {
 		if h == own || (want[chunkOf(h)] && discovered(g, h)) {
@@ -51,11 +53,9 @@ func Overlay(g *game.Game, world string, v Viewer, chunks []gen.ChunkCoord, sigh
 	}
 	slices.SortFunc(lit, byRQ)
 	tiles := make(map[hex.Hex]api.MapLive, len(lit))
-	viewer := map[string]bool{c.C.ID: true}
 	for _, h := range lit {
-		tiles[h] = Live(g, h, p, viewer)
+		tiles[h] = Live(g, h, p, besides)
 	}
-	mine, guild := Holder{HolderCharacter, c.C.ID}, Holder{HolderGuild, c.C.Guild}
 	for h, r := range newest(seen, mine, guild) {
 		if in[h] || !want[chunkOf(h)] || !discovered(g, h) {
 			continue

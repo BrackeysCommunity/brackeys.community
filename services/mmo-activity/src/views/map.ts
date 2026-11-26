@@ -8,11 +8,12 @@ import {
 } from "../../../../packages/mmo-map/src/index.ts";
 import { mapAlt, mapLayersAlt } from "../../../../packages/mmo-words/src/alt.ts";
 import {
+  FOG_WORDS,
   MAP_LAYER_NAMES,
-  tileWords as shared,
   type TileContext,
+  tileWords,
 } from "../../../../packages/mmo-words/src/map.ts";
-import { type MapTileView, ViewerCharacter } from "../api.ts";
+import { FogDiscovered, FogSeen, FogSight, type MapTileView, ViewerCharacter } from "../api.ts";
 import { button, el, lines } from "../dom.ts";
 import { MapCanvas } from "../map/canvas.ts";
 import type { MapSource } from "../map/source.ts";
@@ -26,17 +27,17 @@ export const LAYERS_KEY = "mmo-activity.map-layers-off";
 export type LayerStore = Pick<Storage, "getItem" | "setItem">;
 
 /** What the tile panel says about a picked tile, as the viewer may see it. */
-export interface TileWords {
+export interface PanelLines {
   title: string;
   lines: string[];
 }
 
 /** A tile in words, in the panel's order: its base, its fog state, its age, then what is live. */
-export function tileWords(t: MapTileView | undefined, at: TileContext): TileWords {
-  const w = shared(t, at, (id) => name("map.terrain", id));
+export function panelLines(t: MapTileView | undefined, at: TileContext): PanelLines {
+  const w = tileWords(t, at, (id) => name("map.terrain", id));
   return {
     title: w.title,
-    lines: [...w.base, w.fogLine, ...(w.age ? [`${w.age} As it was then:`] : []), ...w.live],
+    lines: [...w.base, w.fogLine, ...(w.ageLine ? [w.ageLine] : []), ...w.live],
   };
 }
 
@@ -133,9 +134,9 @@ export class MapScreen {
     else if (!m.index) this.status.textContent = "Reading the map.";
     else
       this.status.textContent = [
-        `${plural(counts.sight, "tile")} in sight`,
-        `${plural(counts.seen, "tile")} last seen`,
-        `${plural(counts.never, "tile")} not seen by you`,
+        `${plural(counts.sight, "tile")} ${FOG_WORDS[FogSight]}`,
+        `${plural(counts.seen, "tile")} ${FOG_WORDS[FogSeen]}`,
+        `${plural(counts.never, "tile")} ${FOG_WORDS[FogDiscovered]}`,
         m.liveProblem === "busy" ? "live layers busy, asked again shortly" : "",
         m.problem === "down" ? "the world is not answering, so this is what it last sent" : "",
         m.problem === "signed-out" ? "signed out, so this is what the map last sent" : "",
@@ -166,7 +167,7 @@ export class MapScreen {
       this.tile.hidden = true;
       return;
     }
-    const w = tileWords(m.pickedTile(), {
+    const w = panelLines(m.pickedTile(), {
       tick: m.overlay?.tick ?? m.index.tick,
       names: m.names(),
       self: this.hasLive() ? m.overlay?.self : undefined,

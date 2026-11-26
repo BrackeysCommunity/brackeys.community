@@ -763,14 +763,6 @@ func (s *Server) mapHandler(w http.ResponseWriter, r *http.Request) {
 		radius = mapRadius
 	}
 	radius = min(max(radius, 1), mapRadiusMax)
-	s.maps.mu.Lock()
-	err := s.maps.styled(s.rules.Load())
-	style, params, styleRev := s.maps.picture, s.maps.params, s.maps.pictureRev
-	s.maps.mu.Unlock()
-	if err != nil {
-		s.internal(w, err)
-		return
-	}
 	var chunks []gen.ChunkCoord
 	var guild string
 	if !s.withChar(w, r, func(c *game.Char) { chunks, guild = discChunks(s.g, c.C.At, radius), c.C.Guild }) {
@@ -779,6 +771,9 @@ func (s *Server) mapHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("characterId")
 	var out api.MapView
 	var crop render.MapCrop
+	var style render.MapStyle
+	var styleRev string
+	var styleErr error
 	for try := range mapReadTries {
 		seen, err := s.mapSeen(r.Context(), id, guild, chunks)
 		if err != nil {
@@ -791,8 +786,19 @@ func (s *Server) mapHandler(w http.ResponseWriter, r *http.Request) {
 				chunks, guild, moved = now, c.C.Guild, true
 				return
 			}
-			out, crop = mapCrop(s.g, s.cfg.World, c, radius, seen, params)
+			s.maps.mu.Lock()
+			styleErr = s.maps.styled(s.g.Rules())
+			var params mapview.Params
+			style, params, styleRev = s.maps.picture, s.maps.params, s.maps.pictureRev
+			s.maps.mu.Unlock()
+			if styleErr == nil {
+				out, crop = mapCrop(s.g, s.cfg.World, c, radius, seen, params)
+			}
 		}) {
+			return
+		}
+		if styleErr != nil {
+			s.internal(w, styleErr)
 			return
 		}
 		if !moved {

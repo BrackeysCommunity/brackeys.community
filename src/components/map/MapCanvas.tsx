@@ -5,7 +5,7 @@ import { MicroLabel, Text } from "@/components/ui/typography";
 import { usePageVisible } from "@/lib/hooks/use-page-visible";
 
 import type { MapTileView } from "../../../packages/mmo-api/src/index.ts";
-import { ChunkCache, paint } from "../../../packages/mmo-map/src/draw.ts";
+import { ChunkCache, paint, strokePick } from "../../../packages/mmo-map/src/draw.ts";
 import {
   type Axial,
   backing,
@@ -14,23 +14,19 @@ import {
   fitRegions,
   focusCamera,
   type Frame,
-  hexCentre,
-  hexCorners,
   hexKey,
   keyMove,
   PointerTracker,
   screenToHex,
   type View,
   wheelZoom,
-  worldToScreen,
   zoomAt,
 } from "../../../packages/mmo-map/src/index.ts";
-import { type TileContext, tileWords } from "./TilePanel";
+import { type TileContext, tileWords } from "../../../packages/mmo-words/src/index.ts";
 import type { LiveMap } from "./use-live-map";
 
-// structural: the bitmaps kept, and the hover's place.
+// structural: the bitmaps kept, and the hover card's offset and size.
 const CACHE_BITMAPS = 96;
-const PICK_RIM_PX = 2;
 const HOVER_OFFSET_PX = 14;
 const HOVER_WIDTH_PX = 264;
 const HOVER_HEIGHT_PX = 56;
@@ -111,17 +107,7 @@ export function MapCanvas({
     ctx.setTransform(b.dpr, 0, 0, b.dpr, 0, 0);
     cache.current ??= new ChunkCache(CACHE_BITMAPS);
     paint(ctx, frame.current, c, v, cache.current);
-    if (p) {
-      const w0 = hexCentre(p, 1);
-      const s = worldToScreen(c, v, w0.x, w0.y);
-      const corners = hexCorners(s, c.size);
-      ctx.beginPath();
-      corners.forEach((pt, i) => (i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y)));
-      ctx.closePath();
-      ctx.strokeStyle = m.style.opaque("ink");
-      ctx.lineWidth = PICK_RIM_PX;
-      ctx.stroke();
-    }
+    if (p) strokePick(ctx, p, c, v, m.style.opaque("ink"));
   }, []);
 
   const schedule = useCallback(() => {

@@ -1,4 +1,8 @@
-import { hexDistance, overlayQueryString } from "../../../../packages/mmo-map/src/index.ts";
+import {
+  type ChunkLevel,
+  hexDistance,
+  overlayQueryString,
+} from "../../../../packages/mmo-map/src/index.ts";
 import type {
   MapChunk,
   MapIndex,
@@ -8,8 +12,6 @@ import type {
   MapStyle,
 } from "../api.ts";
 import { mapRoutes } from "../discord.ts";
-
-export type ChunkLevel = "area" | "tile";
 
 /**
  * Where the map's payloads come from: the world's Activity listener, or

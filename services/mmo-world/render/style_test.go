@@ -12,7 +12,7 @@ import (
 
 func opaque(c color.RGBA) color.NRGBA { return Alpha(c, 0xff) }
 
-// The pack's map style carries the picture's built-in colours unchanged.
+// The pack's map style carries the colours the picture draws with, and fog:unknown its own pinned value.
 func TestMapStyleOf(t *testing.T) {
 	b, err := sheetfs.LoadBook(sheetfs.ModuleRoot())
 	if err != nil {

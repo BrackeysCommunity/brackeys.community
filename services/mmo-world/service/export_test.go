@@ -45,7 +45,14 @@ func (s *Server) MapCount(ctx context.Context) (int64, error) { return s.mapCoun
 
 // MapKeys are the sight keys the last saved pass kept; the caller holds
 // the world (Hold).
-func (s *Server) MapKeys() map[mapview.Holder]mapview.Key { return cloneKeys(s.sight) }
+func (s *Server) MapKeys() map[mapview.Holder]mapview.Key { return cloneKeys(s.sight.saved) }
+
+// MapOwed is how many passes wait to be written; the caller holds the
+// world (Hold).
+func (s *Server) MapOwed() int { return len(s.sight.owed) }
+
+// SightOwedMost is how many passes may be owed before they are dropped.
+const SightOwedMost = sightOwedMost
 
 // MapSeen are a viewer's records in some chunks, as the map reads them.
 func (s *Server) MapSeen(ctx context.Context, characterID, guildID string, chunks []gen.ChunkCoord) ([]mapview.Record, error) {

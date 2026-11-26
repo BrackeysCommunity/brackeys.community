@@ -32,7 +32,7 @@ import {
 import { mapFixtures, mockScene, MockGateway } from "../src/mock.ts";
 import { Session } from "../src/session.ts";
 import { bareNumbers } from "../src/units.ts";
-import { LAYERS_KEY, MapScreen, tileWords } from "../src/views/map.ts";
+import { LAYERS_KEY, MapScreen, panelLines } from "../src/views/map.ts";
 import { FakeClock } from "./fakes.ts";
 
 const FIXTURES = `${import.meta.dirname}/fixtures`;
@@ -261,7 +261,7 @@ test("the tile panel says each fog state in words, the age of a last-seen tile, 
   const lit = new Set(f.overlay.tiles.map(hexKey));
   const never = [...cells.values()].find((c) => !lit.has(hexKey(c)))!;
   const words = (live: MapLive | undefined, cell: MapCell) =>
-    tileWords(mergeTile(cell, live), { tick, names }).lines;
+    panelLines(mergeTile(cell, live), { tick, names }).lines;
 
   const inSight = words(sight, cells.get(hexKey(sight))!);
   expect(inSight).toContain("In sight.");
@@ -279,7 +279,7 @@ test("the tile panel says each fog state in words, the age of a last-seen tile, 
   expect(found).toContain("Found, not seen by you.");
   expect(found.join(" ")).not.toMatch(/threat|busy|seen \d/);
 
-  expect(tileWords(undefined, { tick, names })).toEqual({
+  expect(panelLines(undefined, { tick, names })).toEqual({
     title: "Unknown ground",
     lines: [`${capital(FOG_WORDS.unknown)}.`],
   });

@@ -88,6 +88,10 @@ export interface TileWords {
   fogLine: string;
   /** A last-seen tile's age. */
   age?: string;
+  /** The age as the panels print it, leading into the live lines. */
+  ageLine?: string;
+  /** What the live lines are headed with. */
+  liveHeading: string;
   /** The base: ground, region, place, road, site. */
   base: string[];
   /** The live layers as in sight now, or as last seen. */
@@ -109,6 +113,7 @@ export function tileWords(
       title: "Unknown ground",
       fog: FogUnknown,
       fogLine: `${capital(FOG_WORDS[FogUnknown])}.`,
+      liveHeading: "In sight now",
       base: [],
       live: [],
     };
@@ -151,11 +156,14 @@ export function tileWords(
     if (l.haunted) live.push("Haunted");
     live.push(`How busy: ${busyWords(l.busy ?? "")}`);
   }
+  const age = fog === FogSeen && l ? `${capital(seenAgo(at.tick, l.left ?? at.tick))}.` : undefined;
   return {
     title: placeName || ground,
     fog,
     fogLine: `${capital(FOG_WORDS[fog])}.`,
-    age: fog === FogSeen && l ? `${capital(seenAgo(at.tick, l.left ?? at.tick))}.` : undefined,
+    age,
+    ageLine: age ? `${age} As it was then:` : undefined,
+    liveHeading: fog === FogSeen ? "Last seen" : "In sight now",
     base,
     live,
   };

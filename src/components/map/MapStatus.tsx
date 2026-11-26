@@ -1,8 +1,13 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { MicroLabel, Text } from "@/components/ui/typography";
 
-import type { MapIndex } from "../../../packages/mmo-api/src/index.ts";
-import { num } from "../../../packages/mmo-words/src/index.ts";
+import {
+  FogDiscovered,
+  FogSeen,
+  FogSight,
+  type MapIndex,
+} from "../../../packages/mmo-api/src/index.ts";
+import { capital, FOG_WORDS, num } from "../../../packages/mmo-words/src/index.ts";
 import type { InView, MapProblem } from "./use-live-map";
 
 function Figure({ label, value }: { label: string; value: string }) {
@@ -45,9 +50,9 @@ export function MapStatus({
     <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
       <Figure label="Tick" value={num(index.tick)} />
       <Figure label="World day" value={num(day)} />
-      <Figure label="In sight" value={num(counts.sight)} />
-      <Figure label="Last seen" value={num(counts.seen)} />
-      <Figure label="Never seen" value={num(counts.never)} />
+      <Figure label={capital(FOG_WORDS[FogSight])} value={num(counts.sight)} />
+      <Figure label={capital(FOG_WORDS[FogSeen])} value={num(counts.seen)} />
+      <Figure label={capital(FOG_WORDS[FogDiscovered])} value={num(counts.never)} />
       {problem ? (
         <Text as="span" size="xs" className="text-warning">
           {PROBLEM_WORDS[problem]}

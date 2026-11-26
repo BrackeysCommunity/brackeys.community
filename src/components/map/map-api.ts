@@ -3,7 +3,7 @@ import { getRequest } from "@tanstack/react-start/server";
 
 import type { MapIndex, MapOverlayQuery } from "../../../packages/mmo-api/src/index.ts";
 import { PathMapIndex } from "../../../packages/mmo-api/src/index.ts";
-import type { Level } from "../../../packages/mmo-map/src/index.ts";
+import type { ChunkLevel } from "../../../packages/mmo-map/src/index.ts";
 import { overlayQueryString } from "../../../packages/mmo-map/src/index.ts";
 
 /** The site's map routes: the shared payloads under /api/public/, the viewer's overlay outside it. */
@@ -12,7 +12,7 @@ export const MAP_ROUTES = {
   focus: (server: string) => `/api/public/mmo/map/focus?${new URLSearchParams({ server })}`,
   style: (rev: string) => `/api/public/mmo/map/style/${encodeURIComponent(rev)}`,
   regions: (rev: string) => `/api/public/mmo/map/regions/${encodeURIComponent(rev)}`,
-  chunk: (level: Exclude<Level, "region">, a: number, b: number, rev: string) =>
+  chunk: (level: ChunkLevel, a: number, b: number, rev: string) =>
     `/api/public/mmo/map/chunk/${level}/${a}/${b}/${encodeURIComponent(rev)}`,
   overlay: (q: MapOverlayQuery) => `/api/mmo/map/overlay?${overlayQueryString(q)}`,
 } as const;
@@ -29,8 +29,8 @@ export class MapRequestError extends Error {
   }
 }
 
-// structural: how often a refused map read is asked again, and how long a
-// Retry-After it will wait for.
+// structural: how often a refused map read is asked again, the longest
+// Retry-After it waits for, and the doubling wait's start and cap.
 const MAP_RETRIES = 3;
 const MAP_RETRY_WAIT_MAX_S = 10;
 const MAP_RETRY_BASE_MS = 1000;

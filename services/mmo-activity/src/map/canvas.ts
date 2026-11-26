@@ -11,6 +11,7 @@ import {
   focusCamera,
   type Axial,
   type Camera,
+  type ChunkLevel,
   type Frame,
   hexCentre,
   hexKey,
@@ -40,12 +41,15 @@ import {
   type MapRegions,
   type MapTileView,
 } from "../api.ts";
-import { type ChunkLevel, MapError, type MapSource } from "./source.ts";
+import { MapError, type MapSource } from "./source.ts";
 
-// Polling as the site does it: the index every tick, never more often than POLL_MIN_MS; the overlay when the tick moves and once a pan or zoom has settled.
+// Polled as the site does: the index every tick but never more often than
+// POLL_MIN_MS; the overlay when the tick moves or a pan or zoom settles.
 const POLL_MIN_MS = 30_000;
 const SETTLE_MS = 300;
-// structural: chunk reads one window may send (under the listener's 20 a session, so an overlay still fits), the window, the wait before a busy read is asked again, and how many times a busy overlay is.
+// structural: chunk reads sent in one window (under the listener's per-session cap, so an overlay
+// still fits), the wait before a busy read is asked again, the window, and how many times a busy
+// overlay is asked again.
 const CHUNK_READS_A_SECOND = 16;
 const BUSY_RETRY_MS = 1000;
 const READ_WINDOW_MS = 1000;

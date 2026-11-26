@@ -121,10 +121,10 @@ func viewHolders(characterID, guildID string) []mapview.Holder {
 // loadSight reads, under mu, every holder's stored key. A row that does not
 // read is left out, so its holder is keyed again with no records.
 func (s *Server) loadSight(ctx context.Context) error {
-	s.sightAhead, s.sightOwed = nil, nil
+	s.sight.reset()
 	rows, err := s.st.Sights(ctx)
 	if err != nil {
-		s.sight = nil
+		s.sight.saved = nil
 		return fmt.Errorf("service: reading the map's sight keys: %w", err)
 	}
 	keys := make(map[mapview.Holder]mapview.Key, len(rows))
@@ -136,7 +136,7 @@ func (s *Server) loadSight(ctx context.Context) error {
 		}
 		keys[mapview.Holder{Kind: r.Kind, ID: r.ID}] = k
 	}
-	s.sight = keys
+	s.sight.saved = keys
 	return nil
 }
 
@@ -156,45 +156,77 @@ type owedPass struct {
 	gone    []mapview.Holder
 }
 
+// structural: passes owed before they are dropped and the stored keys read again.
+const sightOwedMost = 32
+
+// serverSight is the Server's view pass: the keys as last saved, and the
+// passes computed but not yet written, oldest first, with the keys they imply.
+type serverSight struct {
+	saved, ahead map[mapview.Holder]mapview.Key // ahead is nil exactly when owed is empty
+	owed         []owedPass
+}
+
+// from are the keys the next pass starts from.
+func (v *serverSight) from() map[mapview.Holder]mapview.Key {
+	if v.ahead != nil {
+		return v.ahead
+	}
+	return v.saved
+}
+
+// owe queues a computed pass behind those not yet written.
+func (v *serverSight) owe(tick int64, changes []mapview.Change, gone []mapview.Holder) {
+	if v.ahead == nil {
+		// Keys are never mutated once built, so sharing them is safe.
+		v.ahead = maps.Clone(v.saved)
+	}
+	keep(v.ahead, changes, gone)
+	v.owed = append(v.owed, owedPass{tick, changes, gone})
+}
+
+// written moves the saved keys onto the oldest owed pass, now stored.
+func (v *serverSight) written() {
+	keep(v.saved, v.owed[0].changes, v.owed[0].gone)
+	v.owed = v.owed[1:]
+	if len(v.owed) == 0 {
+		v.ahead, v.owed = nil, nil
+	}
+}
+
+func (v *serverSight) reset() { v.ahead, v.owed = nil, nil }
+
 // mapPass runs, under mu, the view pass for the holders named (nil: every
-// holder) and writes it. The saved keys move only once written: a failed
-// pass's records are owed and written first, in order, at the next pass,
-// with the values and tick they were computed at; a reload drops them.
+// holder) and writes it after any owed passes. The saved keys move only
+// once written; a reload drops what is still owed.
 func (s *Server) mapPass(ctx context.Context, only []mapview.Holder) {
-	if s.sight == nil {
+	if s.sight.saved == nil {
 		if err := s.loadSight(ctx); err != nil {
 			s.cfg.Log.Error("map pass", "err", err.Error())
 			return
 		}
 	}
-	from := s.sight
-	if s.sightAhead != nil {
-		from = s.sightAhead
-	}
-	changes, gone := mapview.Pass(s.g, from, only, mapview.ParamsOf(s.g.Rules().Book))
+	changes, gone := mapview.Pass(s.g, s.sight.from(), only, mapview.ParamsOf(s.g.Rules().Book))
 	if len(changes) > 0 || len(gone) > 0 {
-		if s.sightAhead == nil {
-			// Keys are never mutated once built, so sharing them is safe.
-			s.sightAhead = maps.Clone(s.sight)
+		s.sight.owe(s.g.Tick(), changes, gone)
+		if n := len(s.sight.owed); n > sightOwedMost {
+			s.cfg.Log.Error("map pass: owed passes dropped; keys read again", "world", s.cfg.World, "tick", s.g.Tick(), "owed", n)
+			s.reloadSight(ctx)
+			return
 		}
-		keep(s.sightAhead, changes, gone)
-		s.sightOwed = append(s.sightOwed, owedPass{s.g.Tick(), changes, gone})
 	}
-	for len(s.sightOwed) > 0 {
-		p := s.sightOwed[0]
+	for len(s.sight.owed) > 0 {
+		p := s.sight.owed[0]
 		seen, keys, out, err := sightRows(s.g, p.changes, p.gone)
 		if err == nil {
 			err = s.st.SaveSight(ctx, p.tick, seen, keys, out)
 		}
 		if err != nil {
 			s.cfg.Log.Error("map pass failed; retried next pass", "world", s.cfg.World, "tick", s.g.Tick(), "pass", p.tick,
-				"owed", len(s.sightOwed), "err", err.Error())
+				"owed", len(s.sight.owed), "err", err.Error())
 			return
 		}
-		keep(s.sight, p.changes, p.gone)
-		s.sightOwed = s.sightOwed[1:]
+		s.sight.written()
 	}
-	s.sightAhead, s.sightOwed = nil, nil
 }
 
 // mapSeen are a viewer's character's and guild's records in some chunks,

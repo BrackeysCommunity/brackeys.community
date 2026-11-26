@@ -56,8 +56,7 @@ type mapScenario struct {
 	day     int64 // ticks the walkers walk
 }
 
-// mapFull is the scenario the targets name: at least 20,000 discovered tiles
-// round a core of radius 18.
+// mapFull is the scenario the targets name.
 var mapFull = mapScenario{disc: 82, least: 20000, chars: 200, guilds: 12, ring: 40, walk: 12, ticks: sheets.TicksPerDay,
 	reads: 100, core: 18, reach: 12, walkers: 50, leg: 4, day: sheets.TicksPerDay}
 
@@ -409,7 +408,7 @@ func fitRegions(r api.MapRegions, view mapViewport, v api.MapViewNumbers) mapCam
 }
 
 // chunksInView are the chunks a view touches, nearest its centre first,
-// capped at most (no cap when negative): a chunk lies inside a circle of
+// the first most of them (all when most < 0): a chunk lies inside a circle of
 // √3·radius + 1 world px round its centre.
 func chunksInView(index api.MapIndex, c mapCamera, view mapViewport, most int) []api.MapChunkRef {
 	hw, hh := view.Width/2/c.Size, view.Height/2/c.Size

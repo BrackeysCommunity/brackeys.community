@@ -23,11 +23,11 @@ import { SITE } from "@/lib/legal-meta";
 
 import { type Axial, LAYERS, LIVE_LAYERS } from "../../../packages/mmo-map/src/index.ts";
 import { mapAlt, mapLayersAlt } from "../../../packages/mmo-words/src/alt.ts";
-import { plural } from "../../../packages/mmo-words/src/index.ts";
+import { plural, type TileContext } from "../../../packages/mmo-words/src/index.ts";
 import { MapCanvas, type MapCanvasHandle } from "./MapCanvas";
 import { MapLayers } from "./MapLayers";
 import { MapStatus } from "./MapStatus";
-import { type TileContext, TilePanel } from "./TilePanel";
+import { TilePanel } from "./TilePanel";
 import {
   cellIndex,
   countInView,

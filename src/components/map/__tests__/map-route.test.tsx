@@ -78,14 +78,14 @@ describe("/map", () => {
     expect(validateMapSearch({ q: 3 })).toEqual({});
     expect(validateMapSearch({ q: "x", r: 1, z: -1, server: "guild" })).toEqual({});
     expect(validateMapSearch({ server: "1234" })).toEqual({});
-    expect(validateMapSearch({ server: "123456789012345678" })).toEqual({
-      server: "123456789012345678",
-    });
+    expect(validateMapSearch({ server: "123456789012345678" })).toEqual({});
   });
 
   it("reads a Discord server id as written, past a double's precision", () => {
     expect(serverFromSearch("?server=123456789012345678")).toBe("123456789012345678");
+    expect(serverFromSearch("?server=%22123456789012345678%22")).toBe("123456789012345678");
     expect(serverFromSearch("?server=abc")).toBeUndefined();
+    expect(serverFromSearch("?server=%22abc%22")).toBeUndefined();
     expect(serverFromSearch("")).toBeUndefined();
   });
 });

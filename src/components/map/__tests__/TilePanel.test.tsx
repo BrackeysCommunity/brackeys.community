@@ -3,8 +3,9 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { MapCell, MapTileView } from "../../../../packages/mmo-api/src/index.ts";
+import { tileWords } from "../../../../packages/mmo-words/src/index.ts";
 import { TICKS_PER_DAY } from "../../../../packages/mmo-words/src/units.ts";
-import { TilePanel, tileWords } from "../TilePanel";
+import { TilePanel } from "../TilePanel";
 
 const CELL: MapCell = {
   q: 3,

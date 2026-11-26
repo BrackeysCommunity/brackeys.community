@@ -353,8 +353,9 @@ func TestMapPassAfterCommand(t *testing.T) {
 // TestMapPassSurvivesReload opens a world again after a stop that lost
 // its last passes, as a crash between a tick's save and its pass would: the
 // keys it reads back are the stored ones, so its first pass records what
-// left sight since. A pass whose write fails keeps its keys, and the next
-// pass writes the same leaving tiles.
+// left sight since. A pass whose write fails leaves the stored keys as they
+// were; the next pass writes its leaving tiles first, each at the tick it
+// left sight.
 func TestMapPassSurvivesReload(t *testing.T) {
 	ctx := t.Context()
 	pool := pgtest.Pool(t)
@@ -473,6 +474,46 @@ func TestMapPassSurvivesReload(t *testing.T) {
 		}
 	}
 	w.keys, w.rows = held, rows
+}
+
+// TestMapPassOwedBounded fails every write: the passes owed grow to the
+// bound and are then dropped, so a store that stays down holds no more
+// than that in memory.
+func TestMapPassOwedBounded(t *testing.T) {
+	ctx := t.Context()
+	pool := pgtest.Pool(t)
+	r := startOn(t, pool, io.Discard, nil)
+	advance(t, ctx, r, 1)
+	c := mapCreate(t, r, "map-c1", "u-map-1", "srv-map")
+	if _, err := pool.Exec(ctx, "ALTER TABLE mmo.map_sight RENAME TO map_sight_away"); err != nil {
+		t.Fatal(err)
+	}
+	owed := func() int {
+		unlock := r.srv.Hold()
+		defer unlock()
+		return r.srv.MapOwed()
+	}
+	dropped, most := false, 0
+	for n := 0; n < service.SightOwedMost+2; n++ {
+		was := owed()
+		stepAway(t, r, c, atOf(r, c.ID), fmt.Sprintf("map-owed-%d", n))
+		now := owed()
+		if now > service.SightOwedMost {
+			t.Fatalf("step %d left %d passes owed, over %d", n, now, service.SightOwedMost)
+		}
+		most = max(most, now)
+		dropped = dropped || now < was
+	}
+	if !dropped {
+		t.Fatalf("the owed passes were never dropped (at most %d owed)", most)
+	}
+	if _, err := pool.Exec(ctx, "ALTER TABLE mmo.map_sight_away RENAME TO map_sight"); err != nil {
+		t.Fatal(err)
+	}
+	advance(t, ctx, r, r.srv.Tick()+1)
+	if n := owed(); n != 0 {
+		t.Fatalf("with the store back %d passes are still owed", n)
+	}
 }
 
 // stepAway steps a character away from from and runs ticks until it

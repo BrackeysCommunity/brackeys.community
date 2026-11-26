@@ -30,10 +30,10 @@ import {
   chunkKey,
   chunkRev,
   chunksInView,
+  type ChunkLevel,
   clampSize,
   DEFAULT_LAYERS,
   fitRegions,
-  FOCUS_ZOOM,
   focusCamera,
   hexCentre,
   hexKey,
@@ -72,7 +72,7 @@ export function pollMs(index: Pick<MapIndex, "tickSeconds"> | undefined): number
 
 export interface ChunkAsk {
   ref: MapChunkRef;
-  level: Exclude<Level, "region">;
+  level: ChunkLevel;
   rev: string;
   /** Where the payload is kept for the visit: chunkKey(ref, level, rev). */
   key: string;
@@ -89,8 +89,9 @@ export interface MapPlan {
 
 /**
  * The requests a settled view makes: at area and tile level every chunk in
- * view at its rev, and the overlay for the nearest MAX_OVERLAY_CHUNKS; at region level the
- * one regions payload, and the overlay for the viewer's own sight.
+ * view at its rev, and the overlay for the nearest MAX_OVERLAY_CHUNKS; at
+ * region level the one regions payload, and the overlay for the viewer's
+ * own sight.
  */
 export function planView(index: MapIndex, style: Style, camera: Camera, view: View): MapPlan {
   const level = levelFor(camera.size, style.view);
@@ -147,7 +148,9 @@ export function startCamera(
 ): Camera {
   const v = ctx.style.view;
   if (start.kind === "at") {
-    return centreOn(start.hex, clampSize(start.size ?? v.zoomTile * FOCUS_ZOOM, v));
+    return start.size !== undefined
+      ? centreOn(start.hex, clampSize(start.size, v))
+      : focusCamera(start.hex, v);
   }
   if (start.kind === "server" && ctx.focus) return focusCamera(ctx.focus.centre, v);
   if (start.kind === "self" && ctx.self) return focusCamera(ctx.self, v);
@@ -435,8 +438,7 @@ export function useLiveMap({ search, userId }: LiveMapOptions): LiveMap {
     retryDelay: mapRetryDelay,
     placeholderData: keepPreviousData,
   });
-  const overlayGone = overlayQ.error instanceof MapRequestError && overlayQ.error.status === 401;
-  const overlay = signedIn && !overlayGone ? overlayQ.data : undefined;
+  const overlay = signedIn ? overlayQ.data : undefined;
 
   // Place the camera once the start's own read has answered, either way.
   const startReady =

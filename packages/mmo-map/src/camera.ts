@@ -8,6 +8,8 @@ import {
 import { type Axial, hexCentre, pixelToHex, type Point } from "./hex.ts";
 
 export type Level = typeof LevelRegion | typeof LevelArea | typeof LevelTile;
+/** The levels drawn from chunks. */
+export type ChunkLevel = typeof LevelArea | typeof LevelTile;
 
 /** x and y: the view's centre in world px at size 1; size: the hex corner radius in CSS px. */
 export interface Camera {
@@ -84,7 +86,7 @@ export function centreOn(h: Axial, size: number): Camera {
 // structural: a focused tile opens this far past tile zoom.
 export const FOCUS_ZOOM = 1.25;
 
-/** The camera centred on h at least this close: past tile zoom, or nearer if current already is. */
+/** The camera centred on h at FOCUS_ZOOM past tile zoom, or at current's zoom when that is closer. */
 export function focusCamera(h: Axial, v: MapViewNumbers, current?: Camera): Camera {
   return centreOn(h, Math.max(current?.size ?? 0, v.zoomTile * FOCUS_ZOOM));
 }

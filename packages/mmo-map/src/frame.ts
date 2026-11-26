@@ -322,8 +322,9 @@ function relative(v: number | undefined, max: number): number {
 }
 
 /**
- * One viewer's live layers: last-seen tiles veiled dim, base marks and all, live marks
- * (dotted when last seen), the rim of their sight, fronts and themselves.
+ * One viewer's live layers: last-seen tiles veiled dim, base marks and all,
+ * live marks (dotted when last seen), the rim of their sight, fronts and
+ * themselves.
  * cells are the base under the overlay; a tile with no cell draws nothing.
  * Threat and corruption tint by their share of the highest value the
  * overlay carries, so the hottest tile in view reads strongest.

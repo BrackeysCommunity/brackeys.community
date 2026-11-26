@@ -914,11 +914,10 @@ func TestMapCropAgreesWithSite(t *testing.T) {
 	t.Logf("%d cases agree", cases)
 }
 
-// TestMapBusyNoPosition has A walk a tile next to home once, then B walk it
-// alone in A's sight: B alone leaves it quiet to A however often it passes,
-// A's own track not counting, and no reply to A names B or puts A's self
-// where B stands; once a third walker has walked it the tile reads light or
-// busier; out of A's sight, A's map keeps the band it last saw.
+// TestMapBusyNoPosition: B walking a tile A walked once leaves it quiet to
+// A however often B passes, and no reply to A names B or puts A where B
+// stands; a third walker lights it; out of A's sight, A keeps the band it
+// last saw.
 func TestMapBusyNoPosition(t *testing.T) {
 	ctx := t.Context()
 	r := start(t, io.Discard)

@@ -1,5 +1,6 @@
-// Pointy-top axial hexes, laid out as Go's render.hexCentre lays them, so a
-// tile the site draws sits where /map draws it.
+// Pointy-top axial hexes, laid out as Go's render.HexCentre and
+// render.PixelToHex lay them, so a tile the site draws sits where /map
+// draws it.
 
 export interface Axial {
   q: number;

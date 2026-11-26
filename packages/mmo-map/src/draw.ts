@@ -1,9 +1,9 @@
 // The only file that touches the DOM: it rasterises a frame's shared draw
 // lists once per payload and scale, and paints a frame onto a canvas.
 
-import type { Camera, View } from "./camera.ts";
+import { type Camera, type View, worldToScreen } from "./camera.ts";
 import type { DrawOp, Frame } from "./frame.ts";
-import { hexCorners } from "./hex.ts";
+import { type Axial, hexCentre, hexCorners } from "./hex.ts";
 
 // structural: bitmap scales step by a quarter octave, and past the largest a
 // chunk is drawn as vectors, so a close zoom never holds huge bitmaps.
@@ -15,6 +15,8 @@ const LABEL_PX = 12;
 const PATTERN_GAP_PX = 5;
 const DOT_PX = 1.2;
 const MIN_LINE_PX = 1;
+// structural: the picked tile's rim, in CSS px.
+const PICK_RIM_PX = 2;
 
 type Raster = HTMLCanvasElement | OffscreenCanvas;
 type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
@@ -147,6 +149,16 @@ function hexPath(ctx: Ctx2D, x: number, y: number, size: number): void {
   ctx.moveTo(pts[0]!.x, pts[0]!.y);
   for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i]!.x, pts[i]!.y);
   ctx.closePath();
+}
+
+/** Rims the picked tile h. */
+export function strokePick(ctx: Ctx2D, h: Axial, c: Camera, view: View, colour: string): void {
+  const w = hexCentre(h, 1);
+  const s = worldToScreen(c, view, w.x, w.y);
+  hexPath(ctx, s.x, s.y, c.size);
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = PICK_RIM_PX;
+  ctx.stroke();
 }
 
 function patternFill(ctx: Ctx2D, op: Extract<DrawOp, { kind: "hex" }>, scale: number): void {

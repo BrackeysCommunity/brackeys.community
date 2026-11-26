@@ -33,6 +33,11 @@ export function inDiscord(where: Pick<Location, "search">): boolean {
   return new URLSearchParams(where.search).has("frame_id");
 }
 
+/** The listener's origin, with Discord's /.proxy in front when inside Discord. */
+function base(where: Pick<Location, "search" | "origin">): string {
+  return `${where.origin}${inDiscord(where) ? "/.proxy" : ""}`;
+}
+
 /**
  * The listener's routes, built from where the page is. Discord's proxy
  * puts /.proxy in front of everything an Activity fetches.
@@ -41,9 +46,9 @@ export function routes(where: Where): Routes {
   const prefix = inDiscord(where) ? "/.proxy" : "";
   const ws = where.protocol === "https:" ? "wss:" : "ws:";
   return {
-    token: `${where.origin}${prefix}${PathActivityToken}`,
+    token: base(where) + PathActivityToken,
     socket: `${ws}//${where.host}${prefix}${PathActivitySocket}`,
-    log: `${where.origin}${prefix}${PathActivityLog}`,
+    log: base(where) + PathActivityLog,
   };
 }
 
@@ -57,13 +62,13 @@ export interface MapRoutes {
 }
 
 export function mapRoutes(where: Pick<Location, "search" | "origin">): MapRoutes {
-  const base = `${where.origin}${inDiscord(where) ? "/.proxy" : ""}`;
+  const b = base(where);
   return {
-    tick: base + PathActivityMapTick,
-    style: base + PathActivityMapStyle,
-    regions: base + PathActivityMapRegions,
-    chunk: base + PathActivityMapChunk,
-    overlay: base + PathActivityMapOverlay,
+    tick: b + PathActivityMapTick,
+    style: b + PathActivityMapStyle,
+    regions: b + PathActivityMapRegions,
+    chunk: b + PathActivityMapChunk,
+    overlay: b + PathActivityMapOverlay,
   };
 }
 

@@ -18,7 +18,7 @@ const (
 	maxMapAll      = 400 // map reads from everyone
 )
 
-// mapLimits are the map's windows: everyone's, and each signed-in user's.
+// mapLimits are the map's windows: everyone's, and each user's.
 type mapLimits struct {
 	mu    sync.Mutex
 	all   window
@@ -81,18 +81,13 @@ func (g *Gateway) mapChunk(w http.ResponseWriter, r *http.Request) {
 // mapOverlay is the live layers the session's character may see. A
 // session with no character is a player, who is shown none.
 func (g *Gateway) mapOverlay(w http.ResponseWriter, r *http.Request) {
-	discord, ok := g.bearer(r)
-	if !ok || discord == "" {
-		refuse(w, http.StatusUnauthorized, api.CodeForbidden, "sign in to see the map's live layers")
-		return
-	}
 	q, ref := api.ParseMapOverlayQuery(r.URL.Query())
 	if ref != nil {
 		refuse(w, http.StatusBadRequest, ref.Code, ref.Message)
 		return
 	}
-	if !g.maps.admit(g.clock.Now(), discord, true) {
-		refuse(w, http.StatusTooManyRequests, api.CodeBusy, "too many map reads")
+	discord, ok := g.mapSession(w, r, true, "sign in to see the map's live layers")
+	if !ok {
 		return
 	}
 	id, err := g.cfg.Host.CharacterOf(r.Context(), discord)
@@ -108,34 +103,39 @@ func (g *Gateway) mapOverlay(w http.ResponseWriter, r *http.Request) {
 }
 
 // mapRead admits one read of the shared base by a signed-in session, or
-// refuses it. An unsigned read counts in no window, since the Activity
-// signs in before its map draws.
+// refuses it.
 func (g *Gateway) mapRead(w http.ResponseWriter, r *http.Request) bool {
-	discord, ok := g.bearer(r)
-	if !ok || discord == "" {
-		refuse(w, http.StatusUnauthorized, api.CodeForbidden, "sign in to read the map")
-		return false
-	}
-	if !g.maps.admit(g.clock.Now(), discord, false) {
-		refuse(w, http.StatusTooManyRequests, api.CodeBusy, "too many map reads")
-		return false
-	}
-	return true
+	_, ok := g.mapSession(w, r, false, "sign in to read the map")
+	return ok
 }
 
-// bearer is the Discord user a request's session names: "" and true when
-// it carries none, false when the one it carries is forged, malformed or
-// past.
-func (g *Gateway) bearer(r *http.Request) (string, bool) {
-	h := r.Header.Get("Authorization")
-	if h == "" {
-		return "", true
+// mapSession admits one map read, an overlay when overlay is set, by the
+// request's session, or refuses it: 401 without a valid session, 429 when
+// a window is full.
+func (g *Gateway) mapSession(w http.ResponseWriter, r *http.Request, overlay bool, why string) (string, bool) {
+	discord, ok := g.bearer(r)
+	if !ok {
+		refuse(w, http.StatusUnauthorized, api.CodeForbidden, why)
+		return "", false
 	}
-	scheme, token, found := strings.Cut(h, " ")
+	if !g.maps.admit(g.clock.Now(), discord, overlay) {
+		refuse(w, http.StatusTooManyRequests, api.CodeBusy, "too many map reads")
+		return "", false
+	}
+	return discord, true
+}
+
+// bearer is the Discord user a request's session names; ok is false when
+// it carries none or the one it carries is forged, malformed or past.
+func (g *Gateway) bearer(r *http.Request) (discord string, ok bool) {
+	scheme, token, found := strings.Cut(r.Header.Get("Authorization"), " ")
 	if !found || !strings.EqualFold(scheme, "Bearer") {
 		return "", false
 	}
-	discord, _, ok := g.verify(strings.TrimSpace(token))
+	discord, _, ok = g.verify(strings.TrimSpace(token))
+	if discord == "" {
+		return "", false
+	}
 	return discord, ok
 }
 
@@ -167,22 +167,20 @@ func refusalStatus(code string) int {
 }
 
 // admit counts one map read now, and an overlay when overlay is set,
-// unless a window it counts in is full; then it counts nothing.
+// unless a window it counts in is full; then it counts nothing. discord is
+// never empty: every map read is signed.
 func (m *mapLimits) admit(now time.Time, discord string, overlay bool) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.sweep(now)
 	u := m.users[discord]
-	if discord != "" && u == nil {
+	if u == nil {
 		u = &mapUser{}
 	}
-	if !m.all.room(now, maxMapAll) || u != nil && (!u.reads.room(now, maxMapReads) || overlay && !u.overlays.room(now, maxMapOverlays)) {
+	if !m.all.room(now, maxMapAll) || !u.reads.room(now, maxMapReads) || overlay && !u.overlays.room(now, maxMapOverlays) {
 		return false
 	}
 	m.all = append(m.all, now)
-	if u == nil {
-		return true
-	}
 	u.reads = append(u.reads, now)
 	if overlay {
 		u.overlays = append(u.overlays, now)
