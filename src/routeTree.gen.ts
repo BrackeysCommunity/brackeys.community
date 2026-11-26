@@ -19,6 +19,7 @@ import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as MembersRouteImport } from './routes/members'
+import { Route as MapRouteImport } from './routes/map'
 import { Route as JamsRouteImport } from './routes/jams'
 import { Route as GameRouteImport } from './routes/game'
 import { Route as ForumRouteImport } from './routes/forum'
@@ -133,6 +134,11 @@ const NotificationsRoute = NotificationsRouteImport.update({
 const MembersRoute = MembersRouteImport.update({
   id: '/members',
   path: '/members',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MapRoute = MapRouteImport.update({
+  id: '/map',
+  path: '/map',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JamsRoute = JamsRouteImport.update({
@@ -476,6 +482,7 @@ export interface FileRoutesByFullPath {
   '/forum': typeof ForumRouteWithChildren
   '/game': typeof GameRouteWithChildren
   '/jams': typeof JamsRouteWithChildren
+  '/map': typeof MapRoute
   '/members': typeof MembersRoute
   '/notifications': typeof NotificationsRoute
   '/privacy': typeof PrivacyRoute
@@ -547,6 +554,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/command-center': typeof CommandCenterRoute
   '/feed.xml': typeof FeedDotxmlRoute
+  '/map': typeof MapRoute
   '/members': typeof MembersRoute
   '/notifications': typeof NotificationsRoute
   '/privacy': typeof PrivacyRoute
@@ -622,6 +630,7 @@ export interface FileRoutesById {
   '/forum': typeof ForumRouteWithChildren
   '/game': typeof GameRouteWithChildren
   '/jams': typeof JamsRouteWithChildren
+  '/map': typeof MapRoute
   '/members': typeof MembersRoute
   '/notifications': typeof NotificationsRoute
   '/privacy': typeof PrivacyRoute
@@ -701,6 +710,7 @@ export interface FileRouteTypes {
     | '/forum'
     | '/game'
     | '/jams'
+    | '/map'
     | '/members'
     | '/notifications'
     | '/privacy'
@@ -772,6 +782,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/command-center'
     | '/feed.xml'
+    | '/map'
     | '/members'
     | '/notifications'
     | '/privacy'
@@ -846,6 +857,7 @@ export interface FileRouteTypes {
     | '/forum'
     | '/game'
     | '/jams'
+    | '/map'
     | '/members'
     | '/notifications'
     | '/privacy'
@@ -924,6 +936,7 @@ export interface RootRouteChildren {
   ForumRoute: typeof ForumRouteWithChildren
   GameRoute: typeof GameRouteWithChildren
   JamsRoute: typeof JamsRouteWithChildren
+  MapRoute: typeof MapRoute
   MembersRoute: typeof MembersRoute
   NotificationsRoute: typeof NotificationsRoute
   PrivacyRoute: typeof PrivacyRoute
@@ -1034,6 +1047,13 @@ declare module '@tanstack/react-router' {
       path: '/members'
       fullPath: '/members'
       preLoaderRoute: typeof MembersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/map': {
+      id: '/map'
+      path: '/map'
+      fullPath: '/map'
+      preLoaderRoute: typeof MapRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/jams': {
@@ -1637,6 +1657,7 @@ const rootRouteChildren: RootRouteChildren = {
   ForumRoute: ForumRouteWithChildren,
   GameRoute: GameRouteWithChildren,
   JamsRoute: JamsRouteWithChildren,
+  MapRoute: MapRoute,
   MembersRoute: MembersRoute,
   NotificationsRoute: NotificationsRoute,
   PrivacyRoute: PrivacyRoute,

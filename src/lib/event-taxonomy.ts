@@ -236,7 +236,8 @@ export type SigninSource =
   | "teams_discovery"
   | "canvases"
   | "members_discovery"
-  | "forum";
+  | "forum"
+  | "map";
 
 /** Where a `discord_invite_opened` came from. */
 export type DiscordInviteSource = "footer" | "command_palette" | "terms" | "privacy" | "forum_gate";
