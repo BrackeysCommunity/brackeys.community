@@ -58,7 +58,11 @@ func TestDossierReadOnly(t *testing.T) {
 	if again, _ := json.Marshal(n); string(again) != string(saved) {
 		t.Fatal("reading a dossier changed the NPC")
 	}
-	if d.Place == "" || d.Role == "" || len(d.Traits) != len(n.Stub.Traits) || d.Day != g.Tick()/sheets.TicksPerDay {
+	traits := len(n.Stub.Traits)
+	if d.Leaning != npc.LeaningNone {
+		traits++ // the dossier names the leaning among the traits
+	}
+	if d.Place == "" || d.Role == "" || len(d.Traits) != traits || d.Day != g.Tick()/sheets.TicksPerDay {
 		t.Fatalf("the dossier is %+v", d)
 	}
 	if d.Names[refKey(npc.Ref(n.Stub.ID))] != n.Stub.Name {
