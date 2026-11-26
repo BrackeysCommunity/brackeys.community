@@ -240,7 +240,7 @@ func TestPouches(t *testing.T) {
 	// Spoils are conserved: every find left a tile's pool, and the pools
 	// and pouches hold what the finders do not.
 	var pooled int64
-	for _, bal := range g.Ledger.Balances {
+	for _, bal := range g.Ledger.Balances() {
 		if strings.HasPrefix(bal.Account, ledger.Pool) && bal.Asset == ledger.Material(rare) {
 			pooled += bal.Units
 		}
@@ -249,7 +249,7 @@ func TestPouches(t *testing.T) {
 	if got := pooled + held(ledger.Char(finder.C.ID)) + held(ledger.Char(novice.C.ID)); got != dropped {
 		t.Fatalf("%d goods dropped; pools, pouches and finders hold %d", dropped, got)
 	}
-	if problems := ledger.Audit(g.Ledger.Balances, g.Holdings()); len(problems) > 0 {
+	if problems := ledger.Audit(g.Ledger.Balances(), g.Holdings()); len(problems) > 0 {
 		t.Fatal(problems)
 	}
 }

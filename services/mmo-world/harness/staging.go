@@ -711,7 +711,7 @@ func (w *stagingWatch) readStaged(g *game.Game) {
 			}
 		}
 	}
-	for _, x := range g.Ledger.Balances {
+	for _, x := range g.Ledger.Balances() {
 		n, m, ok := ledger.StagedOf(x.Asset)
 		if !ok || x.Units <= 0 || strings.HasPrefix(x.Account, ledger.Source) {
 			continue

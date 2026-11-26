@@ -118,7 +118,7 @@ func unstaged(g *game.Game) error {
 	if f := reflect.ValueOf(g.Market).Elem().FieldByName("Staged"); f.IsValid() && f.Len() > 0 {
 		return fmt.Errorf("the market holds %d staged books", f.Len())
 	}
-	for _, b := range g.Ledger.Balances {
+	for _, b := range g.Ledger.Balances() {
 		if strings.HasPrefix(b.Asset, "stg:") || strings.HasSuffix(b.Account, ":staged") {
 			return fmt.Errorf("the ledger books %d %s to %s", b.Units, b.Asset, b.Account)
 		}

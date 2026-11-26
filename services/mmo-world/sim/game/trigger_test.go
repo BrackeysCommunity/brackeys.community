@@ -102,7 +102,7 @@ func TestFindsNeverMint(t *testing.T) {
 	if g.Ledger.Of(ledger.Char(stranger.C.ID), ledger.Material(m)) == 0 || g.Ledger.Of(ledger.Char(owner.C.ID), ledger.Material(m)) == 0 {
 		t.Fatal("the stranger and the owner should each have found some")
 	}
-	if problems := ledger.Audit(g.Ledger.Balances, g.Holdings()); len(problems) > 0 {
+	if problems := ledger.Audit(g.Ledger.Balances(), g.Holdings()); len(problems) > 0 {
 		t.Fatal(problems)
 	}
 }

@@ -58,7 +58,7 @@ func TestPreMM12WorldLoads(t *testing.T) {
 	testkit.Ticks(t, ctx, st, old, int(sheets.TicksPerDay))
 	back := reloadsAt(t, ctx, pool, world, r, old, "a world day on")
 	nothingStaged(t, ctx, pool, world, back, "a world day on")
-	if problems := ledger.Audit(back.Ledger.Balances, back.Holdings()); len(problems) > 0 {
+	if problems := ledger.Audit(back.Ledger.Balances(), back.Holdings()); len(problems) > 0 {
 		t.Fatal(problems)
 	}
 	if bad, err := st.Audit(ctx); err != nil || len(bad) > 0 {
@@ -81,7 +81,7 @@ func nothingStaged(t *testing.T, ctx context.Context, pool *pgxpool.Pool, world 
 			t.Fatalf("%s: %s carries staged goods %+v from day %d", when, c.C.ID, c.C.Staged, c.C.StagedDay)
 		}
 	}
-	for _, b := range g.Ledger.Balances {
+	for _, b := range g.Ledger.Balances() {
 		if _, _, ok := ledger.StagedOf(b.Asset); ok || b.Account == ledger.FromStaged || b.Account == ledger.ToStaged {
 			t.Fatalf("%s: the ledger holds %+v", when, b)
 		}

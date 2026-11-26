@@ -57,7 +57,7 @@ func (s *Store) Import(ctx context.Context, m Meta, g *game.Game, discord func(c
 		var txns []ledger.Txn
 		if g.Ledger.Posted > 0 {
 			t := ledger.Txn{Key: "import", Tick: g.Tick(), Kind: "import.opening"}
-			for _, b := range g.Ledger.Balances {
+			for _, b := range g.Ledger.Balances() {
 				t.Legs = append(t.Legs, ledger.Leg(b))
 			}
 			txns = []ledger.Txn{t}

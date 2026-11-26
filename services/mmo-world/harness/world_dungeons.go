@@ -522,7 +522,7 @@ func playDelveWorld(b *sheets.Book, seed int) (delveWorld, error) {
 		}
 	}
 	out.dropped, out.lost, out.found, out.poolBad = pools.in, pools.lost, pools.out, pools.bad
-	for _, bal := range g.Ledger.Balances {
+	for _, bal := range g.Ledger.Balances() {
 		if _, _, ok := ledger.FloorOf(bal.Account); ok {
 			out.poolEnd += bal.Units
 			if bal.Units < 0 {
@@ -543,7 +543,7 @@ func playDelveWorld(b *sheets.Book, seed int) (delveWorld, error) {
 	}
 	readHaunting(b, g, h, hauntFacts, &out)
 	out.hunt = readHunt(g, hunters)
-	out.audit = ledger.Audit(g.Ledger.Balances, g.Holdings())
+	out.audit = ledger.Audit(g.Ledger.Balances(), g.Holdings())
 	return out, nil
 }
 

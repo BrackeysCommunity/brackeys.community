@@ -108,7 +108,7 @@ func TestThievesSteal(t *testing.T) {
 			w.day(g)
 		}
 	}
-	w.close(ledger.Audit(g.Ledger.Balances, g.Holdings()))
+	w.close(ledger.Audit(g.Ledger.Balances(), g.Holdings()))
 	if len(w.first) == 0 || w.begun() == 0 || w.thefts == 0 {
 		t.Fatalf("no theft: %d thieves stole, %d thefts, %d hauls; refused %v", len(w.first), w.begun(), w.thefts, w.refusals)
 	}

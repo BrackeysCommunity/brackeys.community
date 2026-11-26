@@ -317,7 +317,7 @@ func playEmergence(b *sheets.Book, seed string, size int, days int64, timed bool
 	}
 	res.end, res.measured = g.Measures()
 	res.kinds = len(g.Kinds.List)
-	res.audit = ledger.Audit(g.Ledger.Balances, g.Holdings())
+	res.audit = ledger.Audit(g.Ledger.Balances(), g.Holdings())
 	sum, err := g.Digest()
 	if err != nil {
 		return res, err

@@ -103,7 +103,7 @@ func TestPreMM11aWorldLoads(t *testing.T) {
 	}
 	testkit.Ticks(t, ctx, st, back, int(sheets.TicksPerDay))
 	again := reloadsAt(t, ctx, pool, world, r, back, "a world day on")
-	if problems := ledger.Audit(again.Ledger.Balances, again.Holdings()); len(problems) > 0 {
+	if problems := ledger.Audit(again.Ledger.Balances(), again.Holdings()); len(problems) > 0 {
 		t.Fatal(problems)
 	}
 	if bad, err := st.Audit(ctx); err != nil || len(bad) > 0 {

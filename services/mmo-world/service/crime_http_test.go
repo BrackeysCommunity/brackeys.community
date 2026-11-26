@@ -41,7 +41,7 @@ func crimeLocal(t *testing.T, label, discord string) (*service.Local, *game.Char
 
 func audited(t *testing.T, g *game.Game) {
 	t.Helper()
-	if bad := ledger.Audit(g.Ledger.Balances, g.Holdings()); len(bad) > 0 {
+	if bad := ledger.Audit(g.Ledger.Balances(), g.Holdings()); len(bad) > 0 {
 		t.Fatalf("audit: %v", bad)
 	}
 }

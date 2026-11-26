@@ -6,6 +6,7 @@ package ledger
 
 import (
 	"cmp"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strconv"
@@ -282,11 +283,23 @@ type Balance struct {
 }
 
 // Book holds every account's balance and the transactions not yet handed
-// to a store.
+// to a store. Balances are grouped by account so that one appearing or
+// reaching zero moves only its own account's few; Balances lays them out
+// as one sorted list when something reads them all.
 type Book struct {
-	Balances []Balance `json:"balances"` // sorted by account then asset; no zeros
-	Posted   int64     `json:"posted"`
-	pending  []Txn
+	Posted  int64
+	pending []Txn
+	accts   map[string]*account
+	order   []*account // every account that holds anything, in no order
+	used    bool       // a balance has existed: Balances is then empty, not nil
+}
+
+// account is one account's balances, sorted by asset, with no zeros, and
+// where it sits in Book.order.
+type account struct {
+	name string
+	held []Balance
+	at   int
 }
 
 // pair is an account and an asset.
@@ -296,23 +309,71 @@ func cmpBalance(b Balance, k pair) int {
 	return cmp.Or(strings.Compare(b.Account, k.account), strings.Compare(b.Asset, k.asset))
 }
 
+func cmpAsset(b Balance, asset string) int { return strings.Compare(b.Asset, asset) }
+
 // Of is an account's balance of one asset.
 func (b *Book) Of(account, asset string) int64 {
-	i, ok := slices.BinarySearchFunc(b.Balances, pair{account, asset}, cmpBalance)
+	a := b.accts[account]
+	if a == nil {
+		return 0
+	}
+	i, ok := slices.BinarySearchFunc(a.held, asset, cmpAsset)
 	if !ok {
 		return 0
 	}
-	return b.Balances[i].Units
+	return a.held[i].Units
 }
 
 // Held is every asset an account holds, by asset.
 func (b *Book) Held(account string) []Balance {
-	i, _ := slices.BinarySearchFunc(b.Balances, pair{account, ""}, cmpBalance)
-	j := i
-	for j < len(b.Balances) && b.Balances[j].Account == account {
-		j++
+	if a := b.accts[account]; a != nil {
+		return slices.Clone(a.held)
 	}
-	return slices.Clone(b.Balances[i:j])
+	if !b.used {
+		return nil
+	}
+	return []Balance{}
+}
+
+// Balances is every balance, sorted by account then asset, with no zeros:
+// the shape a digest, a snapshot and the audit read. It is nil until a
+// balance has existed, as a fresh book's always was.
+func (b *Book) Balances() []Balance {
+	if !b.used {
+		return nil
+	}
+	accts := slices.Clone(b.order)
+	slices.SortFunc(accts, func(x, y *account) int { return strings.Compare(x.name, y.name) })
+	n := 0
+	for _, a := range accts {
+		n += len(a.held)
+	}
+	out := make([]Balance, 0, n)
+	for _, a := range accts {
+		out = append(out, a.held...)
+	}
+	return out
+}
+
+// shape is how a book is encoded, as JSON and for a digest.
+type shape struct {
+	Balances []Balance `json:"balances"`
+	Posted   int64     `json:"posted"`
+}
+
+// Canonical is the book as canon digests it.
+func (b Book) Canonical() any { return shape{Balances: b.Balances(), Posted: b.Posted} }
+
+func (b Book) MarshalJSON() ([]byte, error) { return json.Marshal(b.Canonical()) }
+
+func (b *Book) UnmarshalJSON(data []byte) error {
+	var s shape
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	*b = Rebuild(s.Balances, s.Posted)
+	b.used = s.Balances != nil
+	return nil
 }
 
 // Check reports why a transaction cannot post against the balances.
@@ -391,15 +452,37 @@ func (b *Book) Post(t Txn) error {
 	return nil
 }
 
-func (b *Book) add(account, asset string, units int64) {
-	i, ok := slices.BinarySearchFunc(b.Balances, pair{account, asset}, cmpBalance)
+func (b *Book) add(acc, asset string, units int64) {
+	a := b.accts[acc]
+	if a == nil {
+		if units == 0 {
+			b.used = true
+			return
+		}
+		if b.accts == nil {
+			b.accts = map[string]*account{}
+		}
+		a = &account{name: acc, at: len(b.order)}
+		b.accts[acc] = a
+		b.order = append(b.order, a)
+	}
+	b.used = true
+	i, ok := slices.BinarySearchFunc(a.held, asset, cmpAsset)
 	if !ok {
-		b.Balances = slices.Insert(b.Balances, i, Balance{Account: account, Asset: asset})
+		a.held = slices.Insert(a.held, i, Balance{Account: acc, Asset: asset})
 	}
-	b.Balances[i].Units += units
-	if b.Balances[i].Units == 0 {
-		b.Balances = slices.Delete(b.Balances, i, i+1)
+	a.held[i].Units += units
+	if a.held[i].Units != 0 {
+		return
 	}
+	a.held = slices.Delete(a.held, i, i+1)
+	if len(a.held) > 0 {
+		return
+	}
+	last := b.order[len(b.order)-1]
+	b.order[a.at], last.at = last, a.at
+	b.order = b.order[:len(b.order)-1]
+	delete(b.accts, acc)
 }
 
 // Flush hands over the transactions posted since the last flush.
@@ -423,29 +506,55 @@ func Rebuild(bal []Balance, posted int64) Book {
 // exactly what the state says it holds. It returns each discrepancy found.
 func Audit(ledger, held []Balance) []string {
 	var out []string
-	sums := Rebuild(nil, 0)
-	for _, x := range ledger {
-		sums.add("", x.Asset, x.Units)
+	all := make([]Balance, len(ledger))
+	for i, x := range ledger {
+		all[i] = Balance{Asset: x.Asset, Units: x.Units}
 	}
-	for _, x := range sums.Balances {
+	for _, x := range summed(all) {
 		out = append(out, fmt.Sprintf("%s sums to %d over all accounts", x.Asset, x.Units))
 	}
-	want := Rebuild(held, 0)
-	got := Rebuild(nil, 0)
-	for _, x := range ledger {
-		if strings.HasPrefix(x.Account, Holder) || IsCaravan(x.Account) {
-			got.add(x.Account, x.Asset, x.Units)
-		}
-	}
-	for _, x := range got.Balances {
-		if w := want.Of(x.Account, x.Asset); w != x.Units {
+	want := summed(slices.Clone(held))
+	got := summed(slices.DeleteFunc(slices.Clone(ledger), func(x Balance) bool { return !strings.HasPrefix(x.Account, Holder) && !IsCaravan(x.Account) }))
+	for _, x := range got {
+		if w := unitsIn(want, x); w != x.Units {
 			out = append(out, fmt.Sprintf("%s: ledger %d %s, state %d", x.Account, x.Units, x.Asset, w))
 		}
 	}
-	for _, x := range want.Balances {
-		if got.Of(x.Account, x.Asset) == 0 {
+	for _, x := range want {
+		if unitsIn(got, x) == 0 {
 			out = append(out, fmt.Sprintf("%s: ledger 0 %s, state %d", x.Account, x.Asset, x.Units))
 		}
 	}
 	return out
+}
+
+// summed sorts balances by account then asset in place and sums those on
+// the same pair, dropping any that come to nothing.
+func summed(bal []Balance) []Balance {
+	slices.SortFunc(bal, func(x, y Balance) int { return cmpBalance(x, pair{y.Account, y.Asset}) })
+	out := bal[:0]
+	for _, x := range bal {
+		if n := len(out); n > 0 && out[n-1].Account == x.Account && out[n-1].Asset == x.Asset {
+			out[n-1].Units += x.Units
+			continue
+		}
+		if n := len(out); n > 0 && out[n-1].Units == 0 {
+			out[n-1] = x
+			continue
+		}
+		out = append(out, x)
+	}
+	if n := len(out); n > 0 && out[n-1].Units == 0 {
+		out = out[:n-1]
+	}
+	return out
+}
+
+// unitsIn is a pair's units in a summed list.
+func unitsIn(bal []Balance, x Balance) int64 {
+	i, ok := slices.BinarySearchFunc(bal, pair{x.Account, x.Asset}, cmpBalance)
+	if !ok {
+		return 0
+	}
+	return bal[i].Units
 }

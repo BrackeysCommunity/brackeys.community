@@ -417,7 +417,7 @@ func playMM9(t *testing.T, r *game.Rules) (*mm9Fixture, error) {
 	if err := mm9Shows(g, fx); err != nil {
 		return nil, err
 	}
-	if bad := ledger.Audit(g.Ledger.Balances, g.Holdings()); len(bad) > 0 {
+	if bad := ledger.Audit(g.Ledger.Balances(), g.Holdings()); len(bad) > 0 {
 		return nil, fmt.Errorf("audit: %v", bad)
 	}
 	return fx, nil

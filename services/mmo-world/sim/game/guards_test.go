@@ -42,7 +42,7 @@ func mustCreate(t *testing.T, g *Game, key, start string) *Char {
 
 func audit(t *testing.T, g *Game) {
 	t.Helper()
-	if problems := ledger.Audit(g.Ledger.Balances, g.Holdings()); len(problems) > 0 {
+	if problems := ledger.Audit(g.Ledger.Balances(), g.Holdings()); len(problems) > 0 {
 		t.Fatal(problems)
 	}
 }

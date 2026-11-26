@@ -100,7 +100,7 @@ func TestReplayFromSnapshot(t *testing.T) {
 	if got != want {
 		t.Fatalf("replay from snapshot: %s, want %s", got, want)
 	}
-	if bad := ledger.Audit(g.Ledger.Balances, g.Holdings()); len(bad) > 0 {
+	if bad := ledger.Audit(g.Ledger.Balances(), g.Holdings()); len(bad) > 0 {
 		t.Fatal(bad)
 	}
 	if len(g.Chars) == 0 || g.Ledger.Posted == 0 {

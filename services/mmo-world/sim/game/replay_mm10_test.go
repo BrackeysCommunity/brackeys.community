@@ -331,7 +331,7 @@ func playMM10(r *game.Rules) (*mm10Fixture, error) {
 	if err := mm10Shows(g, fx); err != nil {
 		return nil, err
 	}
-	if bad := ledger.Audit(g.Ledger.Balances, g.Holdings()); len(bad) > 0 {
+	if bad := ledger.Audit(g.Ledger.Balances(), g.Holdings()); len(bad) > 0 {
 		return nil, fmt.Errorf("audit: %v", bad)
 	}
 	return fx, nil

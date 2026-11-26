@@ -423,7 +423,7 @@ func TestSharedClosePaysTheHaul(t *testing.T) {
 			t.Fatalf("paid %d of %d %s", got, s.Qty, s.Material)
 		}
 	}
-	if bad := ledger.Audit(p.g.Ledger.Balances, p.g.Holdings()); len(bad) > 0 {
+	if bad := ledger.Audit(p.g.Ledger.Balances(), p.g.Holdings()); len(bad) > 0 {
 		t.Fatal(bad)
 	}
 }
@@ -473,7 +473,7 @@ func TestFollowLeader(t *testing.T) {
 	if f1.C.Provisions >= 10 {
 		t.Fatal("the follower paid no provisions")
 	}
-	if bad := ledger.Audit(p.g.Ledger.Balances, p.g.Holdings()); len(bad) > 0 {
+	if bad := ledger.Audit(p.g.Ledger.Balances(), p.g.Holdings()); len(bad) > 0 {
 		t.Fatal(bad)
 	}
 	p.act(f1, game.Command{Kind: game.Unfollow})

@@ -195,7 +195,7 @@ func (q *quietResult) day(g *game.Game) {
 		}
 		qp.ruined, qp.pool = dayOfTick(p.Ruined), [2]int64{q.pool, pool}
 		qp.left = ruinLeft(g, qp.n)
-		qp.audit = ledger.Audit(g.Ledger.Balances, g.Holdings())
+		qp.audit = ledger.Audit(g.Ledger.Balances(), g.Holdings())
 	}
 	q.pool = pool
 }

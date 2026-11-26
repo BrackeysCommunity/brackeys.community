@@ -166,3 +166,14 @@ func TestStructKeyedMap(t *testing.T) {
 		t.Fatalf("empty: %s %v", b, err)
 	}
 }
+
+type secret struct{ n int64 }
+
+func (s secret) Canonical() any { return struct{ N int64 }{s.n} }
+
+func TestCanonicalEncodesAsAnother(t *testing.T) {
+	got, err := Marshal(struct{ S secret }{secret{7}})
+	if err != nil || string(got) != `{"S":{"N":7}}` {
+		t.Fatalf("got %s, %v", got, err)
+	}
+}

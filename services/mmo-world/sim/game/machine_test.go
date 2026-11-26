@@ -99,7 +99,7 @@ func (b *bench) solving(rig game.Rig) *puzzle.Log {
 
 func (b *bench) audit() {
 	b.t.Helper()
-	if problems := ledger.Audit(b.g.Ledger.Balances, b.g.Holdings()); len(problems) > 0 {
+	if problems := ledger.Audit(b.g.Ledger.Balances(), b.g.Holdings()); len(problems) > 0 {
 		b.t.Fatal(problems)
 	}
 }

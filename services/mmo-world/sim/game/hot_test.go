@@ -264,7 +264,7 @@ func TestPayOffConservesEveryAsset(t *testing.T) {
 	hotRefused(t, g, ShortCode, "paying off short of coin", func() error { return g.payOff(c, n, "pay-0", g.Tick()) })
 	grantFor(t, g, c, ledger.Coin, need-c.C.Coin)
 	before := map[string]int64{}
-	for _, b := range g.Ledger.Balances {
+	for _, b := range g.Ledger.Balances() {
 		before[b.Account+"|"+b.Asset] = b.Units
 	}
 	if err := g.payOff(c, n, "pay", g.Tick()); err != nil {
@@ -288,7 +288,7 @@ func TestPayOffConservesEveryAsset(t *testing.T) {
 		t.Fatalf("the character gave back %d units, want 3", -got)
 	}
 	sums := map[string]int64{}
-	for _, b := range g.Ledger.Balances {
+	for _, b := range g.Ledger.Balances() {
 		sums[b.Asset] += b.Units - before[b.Account+"|"+b.Asset]
 		delete(before, b.Account+"|"+b.Asset)
 	}

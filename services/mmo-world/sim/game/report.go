@@ -87,7 +87,7 @@ func (g *Game) StagedLines() []StagedLine {
 		}
 		return &out[i]
 	}
-	for _, b := range g.Ledger.Balances {
+	for _, b := range g.Ledger.Balances() {
 		n, _, ok := ledger.StagedOf(b.Asset)
 		if !ok || b.Units == 0 {
 			continue
@@ -146,7 +146,7 @@ func (g *Game) coinHeld() (supply, active, n int64) {
 			owner[goalPool(x.ID)] = backer(x)
 		}
 	}
-	for _, b := range g.Ledger.Balances {
+	for _, b := range g.Ledger.Balances() {
 		if b.Asset != ledger.Coin {
 			continue
 		}
@@ -325,7 +325,7 @@ func (g *Game) report(day, supply, active, mean int64) error {
 	}
 	slices.SortStableFunc(r.Top, func(a, b Traded) int { return cmp.Compare(b.Units, a.Units) })
 	r.Top = r.Top[:min(len(r.Top), topTraded)]
-	r.Audit = len(ledger.Audit(g.Ledger.Balances, g.Holdings()))
+	r.Audit = len(ledger.Audit(g.Ledger.Balances(), g.Holdings()))
 	r.Staged = g.StagedLines()
 	data := []fact.Datum{fact.N("supply", supply), fact.N("active", active), fact.N("perActive", mean), fact.N("faucet", w.Faucet),
 		fact.N("between", w.Between), fact.N("fees", w.Fees)}

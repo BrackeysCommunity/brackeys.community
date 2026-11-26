@@ -52,12 +52,12 @@ func TestCheckRefuses(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			b := funded(t)
-			before := slices.Clone(b.Balances)
+			before := slices.Clone(b.Balances())
 			err := b.Post(c.tx)
 			if err == nil || !strings.Contains(err.Error(), c.want) {
 				t.Fatalf("got %v, want an error containing %q", err, c.want)
 			}
-			if !slices.Equal(b.Balances, before) || b.Posted != 2 {
+			if !slices.Equal(b.Balances(), before) || b.Posted != 2 {
 				t.Fatal("a refused transaction changed the book")
 			}
 		})
@@ -82,7 +82,7 @@ func TestCacheGivesGoods(t *testing.T) {
 		}
 	}
 	if b.Of(ann, ore) != 6 || b.Of(bob, ore) != 1 || b.Of(pool, ore) != 0 || b.Of(pool, ledger.Provisions) != 2 {
-		t.Fatalf("balances after a cache: %+v", b.Balances)
+		t.Fatalf("balances after a cache: %+v", b.Balances())
 	}
 }
 
@@ -96,7 +96,7 @@ func TestPostMultiLeg(t *testing.T) {
 		t.Fatal(err)
 	}
 	if b.Of(ann, ore) != 0 || b.Of(bob, ore) != 2 || b.Of(ledger.ToLost, ore) != 1 || b.Of(bob, ledger.Coin) != 5 {
-		t.Fatalf("balances after a split: %+v", b.Balances)
+		t.Fatalf("balances after a split: %+v", b.Balances())
 	}
 	if held := b.Held(ann); len(held) != 0 {
 		t.Fatalf("ann emptied still holds %+v", held)
@@ -126,8 +126,8 @@ func TestOfAndHeld(t *testing.T) {
 
 func TestRebuild(t *testing.T) {
 	b := funded(t)
-	r := ledger.Rebuild(slices.Clone(b.Balances), b.Posted)
-	if !slices.Equal(r.Balances, b.Balances) || r.Posted != b.Posted {
+	r := ledger.Rebuild(slices.Clone(b.Balances()), b.Posted)
+	if !slices.Equal(r.Balances(), b.Balances()) || r.Posted != b.Posted {
 		t.Fatalf("rebuilt %+v, want %+v", r, *b)
 	}
 }
@@ -135,7 +135,7 @@ func TestRebuild(t *testing.T) {
 func TestAudit(t *testing.T) {
 	b := funded(t)
 	held := []ledger.Balance{{ann, ledger.Coin, 5}, {ann, ore, 3}}
-	if bad := ledger.Audit(b.Balances, held); len(bad) != 0 {
+	if bad := ledger.Audit(b.Balances(), held); len(bad) != 0 {
 		t.Fatal(bad)
 	}
 	for _, c := range []struct {
@@ -144,10 +144,10 @@ func TestAudit(t *testing.T) {
 		held   []ledger.Balance
 		want   string
 	}{
-		{"asset does not sum", append(slices.Clone(b.Balances), ledger.Balance{bob, ore, 1}), held, "sums to"},
-		{"state holds less", b.Balances, held[:1], "state 0"},
-		{"state holds other", b.Balances, []ledger.Balance{{ann, ledger.Coin, 4}, {ann, ore, 3}}, "ledger 5 coin, state 4"},
-		{"state holds what the ledger does not", b.Balances, append(slices.Clone(held), ledger.Balance{bob, ore, 2}), "ledger 0"},
+		{"asset does not sum", append(slices.Clone(b.Balances()), ledger.Balance{bob, ore, 1}), held, "sums to"},
+		{"state holds less", b.Balances(), held[:1], "state 0"},
+		{"state holds other", b.Balances(), []ledger.Balance{{ann, ledger.Coin, 4}, {ann, ore, 3}}, "ledger 5 coin, state 4"},
+		{"state holds what the ledger does not", b.Balances(), append(slices.Clone(held), ledger.Balance{bob, ore, 2}), "ledger 0"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			bad := ledger.Audit(c.ledger, c.held)
@@ -171,20 +171,20 @@ func TestAuditCaravanPools(t *testing.T) {
 	}
 	held := []ledger.Balance{{ann, ledger.Coin, 5}, {ann, ore, 3}}
 	carried := append(slices.Clone(held), ledger.Balance{Account: cv, Asset: ore, Units: 15})
-	if bad := ledger.Audit(b.Balances, carried); len(bad) != 0 {
+	if bad := ledger.Audit(b.Balances(), carried); len(bad) != 0 {
 		t.Fatal(bad)
 	}
-	if bad := ledger.Audit(b.Balances, held); !slices.ContainsFunc(bad, func(s string) bool { return strings.Contains(s, cv) }) {
+	if bad := ledger.Audit(b.Balances(), held); !slices.ContainsFunc(bad, func(s string) bool { return strings.Contains(s, cv) }) {
 		t.Fatalf("a caravan the state does not hold went unseen: %q", bad)
 	}
 	wrong := append(slices.Clone(held), ledger.Balance{Account: cv, Asset: ore, Units: 30})
-	if bad := ledger.Audit(b.Balances, wrong); !slices.ContainsFunc(bad, func(s string) bool { return strings.Contains(s, "ledger 15") }) {
+	if bad := ledger.Audit(b.Balances(), wrong); !slices.ContainsFunc(bad, func(s string) bool { return strings.Contains(s, "ledger 15") }) {
 		t.Fatalf("a caravan's wrong manifest went unseen: %q", bad)
 	}
 	if err := b.Post(ledger.Move("arrive", "caravan", 3, cv, ledger.ToFaction, ore, 15)); err != nil {
 		t.Fatal(err)
 	}
-	if bad := ledger.Audit(b.Balances, held); len(bad) != 0 {
+	if bad := ledger.Audit(b.Balances(), held); len(bad) != 0 {
 		t.Fatal(bad)
 	}
 }

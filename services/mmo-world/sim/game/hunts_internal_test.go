@@ -211,7 +211,7 @@ func TestHuntLeftUnfinished(t *testing.T) {
 	if !slices.Equal(goods, c.C.Goods) || len(x.Rolled) > 0 || len(factsOf(g, "hunt.slain")) > 0 {
 		t.Fatalf("an unfinished hunt paid: %v then %v, rolled %v", goods, c.C.Goods, x.Rolled)
 	}
-	for _, b := range g.Ledger.Balances {
+	for _, b := range g.Ledger.Balances() {
 		if b.Account == ledger.FromHunt {
 			t.Fatalf("the hunt source moved: %+v", b)
 		}

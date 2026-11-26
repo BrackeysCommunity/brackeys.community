@@ -244,7 +244,7 @@ func emergenceHeld(t *testing.T, g *game.Game, mat string, caravan string, what 
 	if i < 0 {
 		t.Fatalf("%s: the caravan %s is not on the road", what, caravan)
 	}
-	if bad := ledger.Audit(g.Ledger.Balances, g.Holdings()); len(bad) > 0 {
+	if bad := ledger.Audit(g.Ledger.Balances(), g.Holdings()); len(bad) > 0 {
 		t.Fatalf("%s: %v", what, bad)
 	}
 	if !slices.ContainsFunc(g.Holdings(), func(b ledger.Balance) bool { return b.Account == ledger.CaravanPool(caravan) && b.Units > 0 }) {

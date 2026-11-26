@@ -243,7 +243,7 @@ func playSeason(b *sheets.Book, seed string) (seasonResult, error) {
 	slices.SortFunc(res.arcs, func(a, b *seasonArc) int { return int(a.n - b.n) })
 	res.troubles = troublesByPlace(g, res.arcs)
 	res.clock, _, _ = g.Season()
-	res.audit = ledger.Audit(g.Ledger.Balances, g.Holdings())
+	res.audit = ledger.Audit(g.Ledger.Balances(), g.Holdings())
 	sum, err := g.Digest()
 	if err != nil {
 		return res, err

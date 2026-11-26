@@ -25,10 +25,10 @@ func stagedGame(t *testing.T) (*Game, *Char, *Stage) {
 // mustRefuse posts t, expects staged-local and the ledger as it was.
 func mustRefuse(t *testing.T, g *Game, name string, txn ledger.Txn) {
 	t.Helper()
-	before := slices.Clone(g.Ledger.Balances)
+	before := slices.Clone(g.Ledger.Balances())
 	posted := g.Ledger.Posted
 	refusedWith(t, g.post(txn), StagedLocal)
-	if !slices.Equal(before, g.Ledger.Balances) || g.Ledger.Posted != posted {
+	if !slices.Equal(before, g.Ledger.Balances()) || g.Ledger.Posted != posted {
 		t.Fatalf("%s: a refused post moved the ledger", name)
 	}
 }

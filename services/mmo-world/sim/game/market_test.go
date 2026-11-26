@@ -70,7 +70,7 @@ func (tr *trader) grant(asset string, units int64) {
 
 func audit(t *testing.T, g *game.Game) {
 	t.Helper()
-	if bad := ledger.Audit(g.Ledger.Balances, g.Holdings()); len(bad) > 0 {
+	if bad := ledger.Audit(g.Ledger.Balances(), g.Holdings()); len(bad) > 0 {
 		t.Fatalf("audit: %v", bad)
 	}
 	if fault := g.OpenIndexFault(); fault != "" {

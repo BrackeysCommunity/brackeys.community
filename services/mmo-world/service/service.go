@@ -729,7 +729,7 @@ func (s *Server) Audit(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	bad := ledger.Audit(s.g.Ledger.Balances, s.g.Holdings())
+	bad := ledger.Audit(s.g.Ledger.Balances(), s.g.Holdings())
 	unlock()
 	stored, err := s.st.Audit(ctx)
 	return append(bad, stored...), err

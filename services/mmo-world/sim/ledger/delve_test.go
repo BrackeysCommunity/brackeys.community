@@ -21,7 +21,7 @@ func TestHuntAndFloorPools(t *testing.T) {
 		t.Fatal(err)
 	}
 	if b.Of(pool, ore) != 0 || b.Of(ann, ore) != 4 || b.Of(bob, ore) != 3 {
-		t.Fatalf("balances %+v", b.Balances)
+		t.Fatalf("balances %+v", b.Balances())
 	}
 	if err := b.Check(ledger.Move("coin", "hunt.slain", 1, ledger.FromHunt, pool, ledger.Coin, 1)); err == nil {
 		t.Fatal("a hunt minted coin")

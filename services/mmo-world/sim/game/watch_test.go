@@ -124,7 +124,7 @@ func TestPayFineConserved(t *testing.T) {
 	fund(t, g, acc, ledger.Coin, w.Coin+w.Worth)
 	hold(c.C, ledger.Coin, w.Coin+w.Worth)
 	before := map[string]int64{}
-	for _, b := range g.Ledger.Balances {
+	for _, b := range g.Ledger.Balances() {
 		before[b.Account+"|"+b.Asset] = b.Units
 	}
 	if _, err := g.Act(Command{Key: "pay", Char: c.C.ID, Kind: PayFine}); err != nil {
@@ -139,7 +139,7 @@ func TestPayFineConserved(t *testing.T) {
 	case delta(ledger.ToFees, ledger.Coin) != w.Worth:
 		t.Fatalf("the fees took %d, want %d", delta(ledger.ToFees, ledger.Coin), w.Worth)
 	}
-	for _, b := range g.Ledger.Balances {
+	for _, b := range g.Ledger.Balances() {
 		if strings.HasPrefix(b.Account, ledger.Source) && b.Units != before[b.Account+"|"+b.Asset] {
 			t.Fatalf("paying the fine drew on %s", b.Account)
 		}
