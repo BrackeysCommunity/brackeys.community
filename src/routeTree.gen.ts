@@ -78,6 +78,12 @@ import { Route as ApiDiscordMemberSyncRouteImport } from './routes/api.discord.m
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as OauthGitlabProviderIdCallbackRouteImport } from './routes/oauth.gitlab.$providerId.callback'
 import { Route as ApiPublicRpcSplatRouteImport } from './routes/api.public.rpc.$'
+import { Route as ApiMmoMapOverlayRouteImport } from './routes/api.mmo.map.overlay'
+import { Route as ApiPublicMmoMapTickRouteImport } from './routes/api.public.mmo.map.tick'
+import { Route as ApiPublicMmoMapFocusRouteImport } from './routes/api.public.mmo.map.focus'
+import { Route as ApiPublicMmoMapStyleRevRouteImport } from './routes/api.public.mmo.map.style.$rev'
+import { Route as ApiPublicMmoMapRegionsRevRouteImport } from './routes/api.public.mmo.map.regions.$rev'
+import { Route as ApiPublicMmoMapChunkLevelABRevRouteImport } from './routes/api.public.mmo.map.chunk.$level.$a.$b.$rev'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -425,6 +431,38 @@ const ApiPublicRpcSplatRoute = ApiPublicRpcSplatRouteImport.update({
   path: '/api/public/rpc/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMmoMapOverlayRoute = ApiMmoMapOverlayRouteImport.update({
+  id: '/api/mmo/map/overlay',
+  path: '/api/mmo/map/overlay',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicMmoMapTickRoute = ApiPublicMmoMapTickRouteImport.update({
+  id: '/api/public/mmo/map/tick',
+  path: '/api/public/mmo/map/tick',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicMmoMapFocusRoute = ApiPublicMmoMapFocusRouteImport.update({
+  id: '/api/public/mmo/map/focus',
+  path: '/api/public/mmo/map/focus',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicMmoMapStyleRevRoute = ApiPublicMmoMapStyleRevRouteImport.update({
+  id: '/api/public/mmo/map/style/$rev',
+  path: '/api/public/mmo/map/style/$rev',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicMmoMapRegionsRevRoute =
+  ApiPublicMmoMapRegionsRevRouteImport.update({
+    id: '/api/public/mmo/map/regions/$rev',
+    path: '/api/public/mmo/map/regions/$rev',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicMmoMapChunkLevelABRevRoute =
+  ApiPublicMmoMapChunkLevelABRevRouteImport.update({
+    id: '/api/public/mmo/map/chunk/$level/$a/$b/$rev',
+    path: '/api/public/mmo/map/chunk/$level/$a/$b/$rev',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -494,8 +532,14 @@ export interface FileRoutesByFullPath {
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
   '/projects/game/$gameId': typeof ProjectsGameGameIdRoute
   '/teams/$teamId/devlog.xml': typeof TeamsTeamIdDevlogDotxmlRoute
+  '/api/mmo/map/overlay': typeof ApiMmoMapOverlayRoute
   '/api/public/rpc/$': typeof ApiPublicRpcSplatRoute
   '/oauth/gitlab/$providerId/callback': typeof OauthGitlabProviderIdCallbackRoute
+  '/api/public/mmo/map/focus': typeof ApiPublicMmoMapFocusRoute
+  '/api/public/mmo/map/tick': typeof ApiPublicMmoMapTickRoute
+  '/api/public/mmo/map/regions/$rev': typeof ApiPublicMmoMapRegionsRevRoute
+  '/api/public/mmo/map/style/$rev': typeof ApiPublicMmoMapStyleRevRoute
+  '/api/public/mmo/map/chunk/$level/$a/$b/$rev': typeof ApiPublicMmoMapChunkLevelABRevRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -556,8 +600,14 @@ export interface FileRoutesByTo {
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
   '/projects/game/$gameId': typeof ProjectsGameGameIdRoute
   '/teams/$teamId/devlog.xml': typeof TeamsTeamIdDevlogDotxmlRoute
+  '/api/mmo/map/overlay': typeof ApiMmoMapOverlayRoute
   '/api/public/rpc/$': typeof ApiPublicRpcSplatRoute
   '/oauth/gitlab/$providerId/callback': typeof OauthGitlabProviderIdCallbackRoute
+  '/api/public/mmo/map/focus': typeof ApiPublicMmoMapFocusRoute
+  '/api/public/mmo/map/tick': typeof ApiPublicMmoMapTickRoute
+  '/api/public/mmo/map/regions/$rev': typeof ApiPublicMmoMapRegionsRevRoute
+  '/api/public/mmo/map/style/$rev': typeof ApiPublicMmoMapStyleRevRoute
+  '/api/public/mmo/map/chunk/$level/$a/$b/$rev': typeof ApiPublicMmoMapChunkLevelABRevRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -628,8 +678,14 @@ export interface FileRoutesById {
   '/oauth/itchio/callback': typeof OauthItchioCallbackRoute
   '/projects/game/$gameId': typeof ProjectsGameGameIdRoute
   '/teams_/$teamId/devlog.xml': typeof TeamsTeamIdDevlogDotxmlRoute
+  '/api/mmo/map/overlay': typeof ApiMmoMapOverlayRoute
   '/api/public/rpc/$': typeof ApiPublicRpcSplatRoute
   '/oauth/gitlab/$providerId/callback': typeof OauthGitlabProviderIdCallbackRoute
+  '/api/public/mmo/map/focus': typeof ApiPublicMmoMapFocusRoute
+  '/api/public/mmo/map/tick': typeof ApiPublicMmoMapTickRoute
+  '/api/public/mmo/map/regions/$rev': typeof ApiPublicMmoMapRegionsRevRoute
+  '/api/public/mmo/map/style/$rev': typeof ApiPublicMmoMapStyleRevRoute
+  '/api/public/mmo/map/chunk/$level/$a/$b/$rev': typeof ApiPublicMmoMapChunkLevelABRevRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -701,8 +757,14 @@ export interface FileRouteTypes {
     | '/oauth/itchio/callback'
     | '/projects/game/$gameId'
     | '/teams/$teamId/devlog.xml'
+    | '/api/mmo/map/overlay'
     | '/api/public/rpc/$'
     | '/oauth/gitlab/$providerId/callback'
+    | '/api/public/mmo/map/focus'
+    | '/api/public/mmo/map/tick'
+    | '/api/public/mmo/map/regions/$rev'
+    | '/api/public/mmo/map/style/$rev'
+    | '/api/public/mmo/map/chunk/$level/$a/$b/$rev'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -763,8 +825,14 @@ export interface FileRouteTypes {
     | '/oauth/itchio/callback'
     | '/projects/game/$gameId'
     | '/teams/$teamId/devlog.xml'
+    | '/api/mmo/map/overlay'
     | '/api/public/rpc/$'
     | '/oauth/gitlab/$providerId/callback'
+    | '/api/public/mmo/map/focus'
+    | '/api/public/mmo/map/tick'
+    | '/api/public/mmo/map/regions/$rev'
+    | '/api/public/mmo/map/style/$rev'
+    | '/api/public/mmo/map/chunk/$level/$a/$b/$rev'
   id:
     | '__root__'
     | '/'
@@ -834,8 +902,14 @@ export interface FileRouteTypes {
     | '/oauth/itchio/callback'
     | '/projects/game/$gameId'
     | '/teams_/$teamId/devlog.xml'
+    | '/api/mmo/map/overlay'
     | '/api/public/rpc/$'
     | '/oauth/gitlab/$providerId/callback'
+    | '/api/public/mmo/map/focus'
+    | '/api/public/mmo/map/tick'
+    | '/api/public/mmo/map/regions/$rev'
+    | '/api/public/mmo/map/style/$rev'
+    | '/api/public/mmo/map/chunk/$level/$a/$b/$rev'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -880,8 +954,14 @@ export interface RootRouteChildren {
   OauthItchioCallbackRoute: typeof OauthItchioCallbackRoute
   ProjectsGameGameIdRoute: typeof ProjectsGameGameIdRoute
   TeamsTeamIdDevlogDotxmlRoute: typeof TeamsTeamIdDevlogDotxmlRoute
+  ApiMmoMapOverlayRoute: typeof ApiMmoMapOverlayRoute
   ApiPublicRpcSplatRoute: typeof ApiPublicRpcSplatRoute
   OauthGitlabProviderIdCallbackRoute: typeof OauthGitlabProviderIdCallbackRoute
+  ApiPublicMmoMapFocusRoute: typeof ApiPublicMmoMapFocusRoute
+  ApiPublicMmoMapTickRoute: typeof ApiPublicMmoMapTickRoute
+  ApiPublicMmoMapRegionsRevRoute: typeof ApiPublicMmoMapRegionsRevRoute
+  ApiPublicMmoMapStyleRevRoute: typeof ApiPublicMmoMapStyleRevRoute
+  ApiPublicMmoMapChunkLevelABRevRoute: typeof ApiPublicMmoMapChunkLevelABRevRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1369,6 +1449,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicRpcSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mmo/map/overlay': {
+      id: '/api/mmo/map/overlay'
+      path: '/api/mmo/map/overlay'
+      fullPath: '/api/mmo/map/overlay'
+      preLoaderRoute: typeof ApiMmoMapOverlayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/mmo/map/tick': {
+      id: '/api/public/mmo/map/tick'
+      path: '/api/public/mmo/map/tick'
+      fullPath: '/api/public/mmo/map/tick'
+      preLoaderRoute: typeof ApiPublicMmoMapTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/mmo/map/focus': {
+      id: '/api/public/mmo/map/focus'
+      path: '/api/public/mmo/map/focus'
+      fullPath: '/api/public/mmo/map/focus'
+      preLoaderRoute: typeof ApiPublicMmoMapFocusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/mmo/map/style/$rev': {
+      id: '/api/public/mmo/map/style/$rev'
+      path: '/api/public/mmo/map/style/$rev'
+      fullPath: '/api/public/mmo/map/style/$rev'
+      preLoaderRoute: typeof ApiPublicMmoMapStyleRevRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/mmo/map/regions/$rev': {
+      id: '/api/public/mmo/map/regions/$rev'
+      path: '/api/public/mmo/map/regions/$rev'
+      fullPath: '/api/public/mmo/map/regions/$rev'
+      preLoaderRoute: typeof ApiPublicMmoMapRegionsRevRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/mmo/map/chunk/$level/$a/$b/$rev': {
+      id: '/api/public/mmo/map/chunk/$level/$a/$b/$rev'
+      path: '/api/public/mmo/map/chunk/$level/$a/$b/$rev'
+      fullPath: '/api/public/mmo/map/chunk/$level/$a/$b/$rev'
+      preLoaderRoute: typeof ApiPublicMmoMapChunkLevelABRevRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1545,8 +1667,14 @@ const rootRouteChildren: RootRouteChildren = {
   OauthItchioCallbackRoute: OauthItchioCallbackRoute,
   ProjectsGameGameIdRoute: ProjectsGameGameIdRoute,
   TeamsTeamIdDevlogDotxmlRoute: TeamsTeamIdDevlogDotxmlRoute,
+  ApiMmoMapOverlayRoute: ApiMmoMapOverlayRoute,
   ApiPublicRpcSplatRoute: ApiPublicRpcSplatRoute,
   OauthGitlabProviderIdCallbackRoute: OauthGitlabProviderIdCallbackRoute,
+  ApiPublicMmoMapFocusRoute: ApiPublicMmoMapFocusRoute,
+  ApiPublicMmoMapTickRoute: ApiPublicMmoMapTickRoute,
+  ApiPublicMmoMapRegionsRevRoute: ApiPublicMmoMapRegionsRevRoute,
+  ApiPublicMmoMapStyleRevRoute: ApiPublicMmoMapStyleRevRoute,
+  ApiPublicMmoMapChunkLevelABRevRoute: ApiPublicMmoMapChunkLevelABRevRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

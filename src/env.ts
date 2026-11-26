@@ -49,6 +49,10 @@ export const env = createEnv({
     // the editor stays on the solo save.
     CANVAS_SYNC_SECRET: z.string().min(16).optional(),
     CANVAS_SYNC_URL: z.url().optional(),
+    // The MMO world service behind the live map (`src/lib/mmo-map`). The token
+    // reads only the world's map paths. No URL means `/map` and its API are 404.
+    MMO_WORLD_URL: z.url().optional(),
+    MMO_MAP_TOKEN: z.string().min(1).optional(),
   },
 
   /**

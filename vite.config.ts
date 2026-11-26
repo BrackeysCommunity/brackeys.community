@@ -15,6 +15,7 @@ import wasm from "vite-plugin-wasm";
 import { createLogger, defineConfig } from "vite-plus";
 
 import pkg from "./package.json" with { type: "json" };
+import { mapCacheRouteRules } from "./src/lib/mmo-map/cache.ts";
 import { publicCacheRouteRules } from "./src/orpc/public-procedures.ts";
 
 // Railpack builds from a snapshot with no .git dir and `railway up` has no
@@ -420,6 +421,8 @@ const config = defineConfig({
         // file cannot drift from it. All `max-age=0`: the edge does the
         // caching, the browser always revalidates.
         ...publicCacheRouteRules(),
+        // The live map: content-addressed payloads at the edge, the overlay never.
+        ...mapCacheRouteRules(),
         // Stored-image proxy (src/routes/images.$.ts): keys are
         // nanoid-unique per upload and replacements mint a new key, so
         // responses are immutable. Deleted objects can outlive deletion at
