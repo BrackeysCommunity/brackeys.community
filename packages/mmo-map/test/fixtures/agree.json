@@ -1,0 +1,424 @@
+{
+  "character": "c-2",
+  "radius": 6,
+  "tick": 36,
+  "ticksPerDay": 144,
+  "base": [
+    {
+      "q": 32,
+      "r": -1,
+      "terrain": "marsh",
+      "water": "bog",
+      "region": "r-0",
+      "edge": 54,
+      "site": "site",
+      "siteKind": "scrap-seam",
+      "found": 7
+    },
+    {
+      "q": 33,
+      "r": -1,
+      "terrain": "marsh",
+      "water": "bog",
+      "region": "r-0",
+      "edge": 54,
+      "found": 9
+    },
+    {
+      "q": 34,
+      "r": -1,
+      "terrain": "marsh",
+      "water": "bog",
+      "region": "r-0",
+      "edge": 54,
+      "found": 11
+    },
+    {
+      "q": 35,
+      "r": -1,
+      "terrain": "marsh",
+      "water": "bog",
+      "region": "r-0",
+      "edge": 54,
+      "site": "site",
+      "siteKind": "ruin",
+      "found": 13
+    },
+    {
+      "q": 36,
+      "r": -1,
+      "terrain": "marsh",
+      "water": "bog",
+      "region": "r-0",
+      "edge": 54,
+      "found": 15
+    },
+    {
+      "q": 37,
+      "r": -1,
+      "terrain": "marsh",
+      "water": "bog",
+      "region": "r-6",
+      "edge": 54,
+      "found": 17
+    },
+    {
+      "q": 38,
+      "r": -1,
+      "terrain": "marsh",
+      "water": "bog",
+      "region": "r-6",
+      "edge": 55,
+      "found": 19
+    },
+    {
+      "q": 39,
+      "r": 2,
+      "terrain": "marsh",
+      "water": "bog",
+      "region": "r-6",
+      "edge": 47,
+      "found": 35
+    },
+    {
+      "q": 34,
+      "r": 3,
+      "terrain": "forest",
+      "region": "r-4",
+      "edge": 62,
+      "found": 35
+    },
+    {
+      "q": 35,
+      "r": 3,
+      "terrain": "forest",
+      "region": "r-4",
+      "edge": 54,
+      "found": 35
+    },
+    {
+      "q": 36,
+      "r": 3,
+      "terrain": "forest",
+      "region": "r-17",
+      "edge": 54,
+      "found": 35
+    },
+    {
+      "q": 37,
+      "r": 3,
+      "terrain": "forest",
+      "region": "r-17",
+      "edge": 54,
+      "found": 35
+    },
+    {
+      "q": 38,
+      "r": 3,
+      "terrain": "forest",
+      "region": "r-17",
+      "edge": 53,
+      "found": 35
+    }
+  ],
+  "overlay": {
+    "world": "w-proof",
+    "tick": 36,
+    "viewer": "character",
+    "self": {
+      "character": "c-2",
+      "q": 38,
+      "r": -1
+    },
+    "tiles": [
+      {
+        "q": 29,
+        "r": -1,
+        "fog": "seen",
+        "left": 7,
+        "threat": 192,
+        "corruption": 149
+      },
+      {
+        "q": 30,
+        "r": -1,
+        "fog": "seen",
+        "left": 9,
+        "threat": 192,
+        "corruption": 149
+      },
+      {
+        "q": 31,
+        "r": -1,
+        "fog": "seen",
+        "left": 11,
+        "threat": 192,
+        "corruption": 149
+      },
+      {
+        "q": 32,
+        "r": -1,
+        "fog": "seen",
+        "left": 13,
+        "threat": 192,
+        "corruption": 149
+      },
+      {
+        "q": 33,
+        "r": -1,
+        "fog": "seen",
+        "left": 15,
+        "threat": 192,
+        "corruption": 149
+      },
+      {
+        "q": 34,
+        "r": -1,
+        "fog": "seen",
+        "left": 17,
+        "threat": 192,
+        "corruption": 149
+      },
+      {
+        "q": 35,
+        "r": -1,
+        "fog": "seen",
+        "left": 19,
+        "threat": 192,
+        "corruption": 149
+      },
+      {
+        "q": 36,
+        "r": -1,
+        "fog": "sight",
+        "threat": 192,
+        "corruption": 149
+      },
+      {
+        "q": 37,
+        "r": -1,
+        "fog": "sight",
+        "threat": 436,
+        "corruption": 148
+      },
+      {
+        "q": 38,
+        "r": -1,
+        "fog": "sight",
+        "threat": 436,
+        "corruption": 148
+      }
+    ],
+    "fronts": []
+  },
+  "view": [
+    {
+      "cell": {
+        "q": 32,
+        "r": -1,
+        "terrain": "marsh",
+        "water": "bog",
+        "region": "r-0",
+        "edge": 54,
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 7
+      },
+      "fog": "seen",
+      "live": {
+        "q": 32,
+        "r": -1,
+        "fog": "seen",
+        "left": 13,
+        "threat": 192,
+        "corruption": 149
+      }
+    },
+    {
+      "cell": {
+        "q": 33,
+        "r": -1,
+        "terrain": "marsh",
+        "water": "bog",
+        "region": "r-0",
+        "edge": 54,
+        "found": 9
+      },
+      "fog": "seen",
+      "live": {
+        "q": 33,
+        "r": -1,
+        "fog": "seen",
+        "left": 15,
+        "threat": 192,
+        "corruption": 149
+      }
+    },
+    {
+      "cell": {
+        "q": 34,
+        "r": -1,
+        "terrain": "marsh",
+        "water": "bog",
+        "region": "r-0",
+        "edge": 54,
+        "found": 11
+      },
+      "fog": "seen",
+      "live": {
+        "q": 34,
+        "r": -1,
+        "fog": "seen",
+        "left": 17,
+        "threat": 192,
+        "corruption": 149
+      }
+    },
+    {
+      "cell": {
+        "q": 35,
+        "r": -1,
+        "terrain": "marsh",
+        "water": "bog",
+        "region": "r-0",
+        "edge": 54,
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 13
+      },
+      "fog": "seen",
+      "live": {
+        "q": 35,
+        "r": -1,
+        "fog": "seen",
+        "left": 19,
+        "threat": 192,
+        "corruption": 149
+      }
+    },
+    {
+      "cell": {
+        "q": 36,
+        "r": -1,
+        "terrain": "marsh",
+        "water": "bog",
+        "region": "r-0",
+        "edge": 54,
+        "found": 15
+      },
+      "fog": "sight",
+      "live": {
+        "q": 36,
+        "r": -1,
+        "fog": "sight",
+        "threat": 192,
+        "corruption": 149
+      }
+    },
+    {
+      "cell": {
+        "q": 37,
+        "r": -1,
+        "terrain": "marsh",
+        "water": "bog",
+        "region": "r-6",
+        "edge": 54,
+        "found": 17
+      },
+      "fog": "sight",
+      "live": {
+        "q": 37,
+        "r": -1,
+        "fog": "sight",
+        "threat": 436,
+        "corruption": 148
+      }
+    },
+    {
+      "cell": {
+        "q": 38,
+        "r": -1,
+        "terrain": "marsh",
+        "water": "bog",
+        "region": "r-6",
+        "edge": 55,
+        "found": 19
+      },
+      "fog": "sight",
+      "live": {
+        "q": 38,
+        "r": -1,
+        "fog": "sight",
+        "threat": 436,
+        "corruption": 148
+      }
+    },
+    {
+      "cell": {
+        "q": 39,
+        "r": 2,
+        "terrain": "marsh",
+        "water": "bog",
+        "region": "r-6",
+        "edge": 47,
+        "found": 35
+      },
+      "fog": "discovered"
+    },
+    {
+      "cell": {
+        "q": 34,
+        "r": 3,
+        "terrain": "forest",
+        "region": "r-4",
+        "edge": 62,
+        "found": 35
+      },
+      "fog": "discovered"
+    },
+    {
+      "cell": {
+        "q": 35,
+        "r": 3,
+        "terrain": "forest",
+        "region": "r-4",
+        "edge": 54,
+        "found": 35
+      },
+      "fog": "discovered"
+    },
+    {
+      "cell": {
+        "q": 36,
+        "r": 3,
+        "terrain": "forest",
+        "region": "r-17",
+        "edge": 54,
+        "found": 35
+      },
+      "fog": "discovered"
+    },
+    {
+      "cell": {
+        "q": 37,
+        "r": 3,
+        "terrain": "forest",
+        "region": "r-17",
+        "edge": 54,
+        "found": 35
+      },
+      "fog": "discovered"
+    },
+    {
+      "cell": {
+        "q": 38,
+        "r": 3,
+        "terrain": "forest",
+        "region": "r-17",
+        "edge": 53,
+        "found": 35
+      },
+      "fog": "discovered"
+    }
+  ]
+}

@@ -54,9 +54,8 @@ function expectNothingOn(ops: DrawOp[], absent: Axial[]): void {
   const points = ops.flatMap(anchors);
   for (const h of absent) {
     const c = hexCentre(h, 1);
-    for (const p of points) {
-      expect(Math.hypot(p.x - c.x, p.y - c.y), `an op on ${hexKey(h)}`).toBeGreaterThan(0.8);
-    }
+    const near = points.reduce((m, p) => Math.min(m, Math.hypot(p.x - c.x, p.y - c.y)), Infinity);
+    expect(near, `an op on ${hexKey(h)}`).toBeGreaterThan(0.8);
   }
 }
 

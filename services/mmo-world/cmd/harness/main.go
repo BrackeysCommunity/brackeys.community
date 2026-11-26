@@ -25,6 +25,9 @@
 //	                         every accepted pin keeps (terrain-pins-hold)
 //	harness seen -out DIR    the per-server seen record over the content run's histories, and its four verdict
 //	                         lines (-n seeds per history; measures no target)
+//	harness map -out DIR     the live map's load budget on a 20,000-tile world and the last-seen pass against map
+//	                         size (-n seeds); the first seed's payloads go to DIR/dump for the client's budget test
+//	harness map -serve ADDR  seed map-0's world, its map routes served on ADDR for a browser check of the site
 //	harness spike-a|b|e -out DIR
 //
 // -cpuprofile FILE writes a CPU profile of any of them.
@@ -57,6 +60,7 @@ func main() {
 	cpuProfile := fs.String("cpuprofile", "", "write a CPU profile to this file")
 	live := fs.String("live", "", "season: play season zero over HTTP on the live world at this URL")
 	in := fs.String("in", "", "proposals: a file or directory of candidate story.arcs rows")
+	serve := fs.String("serve", "", "map: serve the map's world on this address instead of measuring it")
 	_ = fs.Parse(args)
 	if *cpuProfile != "" {
 		f, err := os.Create(*cpuProfile)
@@ -99,6 +103,12 @@ func main() {
 		if !ok {
 			usage()
 		}
+		if cmd == "map" && *serve != "" {
+			b, err := sheetfs.LoadBook(root)
+			exitOn(err)
+			exitOn(harness.ServeMap(b, *serve))
+			return
+		}
 		if *out == "" {
 			fmt.Fprintln(os.Stderr, "-out is required")
 			os.Exit(2)
@@ -121,7 +131,7 @@ func main() {
 
 func usage() {
 	cmds := append([]string{"check", "report", "schema", "proposals"}, slices.Sorted(maps.Keys(harness.Runs))...)
-	fmt.Fprintf(os.Stderr, "usage: harness %s [-out DIR] [-n N] [-live URL] [-in FILE]\n", strings.Join(cmds, "|"))
+	fmt.Fprintf(os.Stderr, "usage: harness %s [-out DIR] [-n N] [-live URL] [-in FILE] [-serve ADDR]\n", strings.Join(cmds, "|"))
 	os.Exit(2)
 }
 
