@@ -258,7 +258,8 @@ func TestCrates(t *testing.T) {
 
 // TestContest: a staff contest is an Each goal with no coin, escrow or
 // fee; its first most winners each roll a staged prize, the stager's
-// work counts for nothing, and nobody's coin moves.
+// work counts for nothing, and nobody's coin, goals practice, goals met
+// or deeds move.
 func TestContest(t *testing.T) {
 	g, c, home := houseGame(t)
 	at := stageTile(t, g, home)
@@ -283,8 +284,13 @@ func TestContest(t *testing.T) {
 	stampedBy(t, res.Facts, "goal.posted", "a")
 	players := append([]*Char{c}, joinA(t, g, int(row.Most)+1)...)
 	coin := map[string]int64{}
+	clean := map[string][3]int64{}
+	cleanOf := func(p *Char) [3]int64 {
+		return [3]int64{p.C.PracticeOf(practiceGoals).Uses, p.C.Goals.Get("met"), p.C.Deeds.Get(DeedForOthers)}
+	}
 	for _, p := range players {
 		coin[p.C.ID] = p.C.Coin
+		clean[p.C.ID] = cleanOf(p)
 	}
 	first := fact.ID(g.Log.Len())
 	for _, p := range players {
@@ -314,6 +320,9 @@ func TestContest(t *testing.T) {
 	for _, p := range players {
 		if p.C.Coin != coin[p.C.ID] {
 			t.Fatalf("%s's coin moved from %d to %d", p.C.ID, coin[p.C.ID], p.C.Coin)
+		}
+		if got := cleanOf(p); got != clean[p.C.ID] {
+			t.Fatalf("%s's goals practice, met and deeds moved from %v to %v", p.C.ID, clean[p.C.ID], got)
 		}
 	}
 	audit(t, g)

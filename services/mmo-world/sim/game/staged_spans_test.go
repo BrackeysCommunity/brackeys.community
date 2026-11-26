@@ -85,18 +85,18 @@ func TestStagedCraftCreditsNoWorldGoal(t *testing.T) {
 	audit(t, g)
 }
 
-// TestStagedUnitsWeigh: staged units count toward being laden but pay no
-// hauling deed.
-func TestStagedUnitsWeigh(t *testing.T) {
+// TestStagedUnitsWeighNothing: staged units neither lade a character nor
+// count as goods carried.
+func TestStagedUnitsWeighNothing(t *testing.T) {
 	g, a, _, st, m := pathsGame(t)
 	clean := a.Carried()
-	room := g.Capacity(a) - a.Load()
+	room := g.Capacity(a) - clean
 	if room < 0 {
-		t.Fatalf("a starts laden: load %d over capacity %d", a.Load(), g.Capacity(a))
+		t.Fatalf("a starts laden: load %d over capacity %d", clean, g.Capacity(a))
 	}
 	a.C.Staged = char.AddStaged(a.C.Staged, st.Settlement, m, room+1)
-	if !g.Laden(a) {
-		t.Fatalf("load %d over capacity %d is not laden", a.Load(), g.Capacity(a))
+	if g.Laden(a) {
+		t.Fatalf("staged units laded a character: %d clean against capacity %d", a.Carried(), g.Capacity(a))
 	}
 	if a.Carried() != clean {
 		t.Fatal("staged units counted as clean goods carried")

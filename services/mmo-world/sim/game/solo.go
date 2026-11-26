@@ -924,18 +924,10 @@ func (g *Game) crawled(c *Char, t int64) error {
 	return err
 }
 
-// Carried is the clean goods a character carries, one per unit; hauling
-// deeds count only these.
+// Carried is the load a character carries: one per unit of clean goods.
+// Staged units weigh nothing, so an unasked staged prize never changes
+// how its holder travels (GDD 10.8).
 func (c *Char) Carried() int64 { return item.Total(c.C.Goods) }
-
-// Load is everything a character carries, staged units included.
-func (c *Char) Load() int64 {
-	n := c.Carried()
-	for _, s := range c.C.Staged {
-		n += s.Units
-	}
-	return n
-}
 
 // Capacity is what a character can carry before it is laden: an unfed
 // mount carries nothing.
@@ -948,4 +940,4 @@ func (g *Game) Capacity(c *Char) int64 {
 }
 
 // Laden reports whether a character carries over what it can.
-func (g *Game) Laden(c *Char) bool { return c.Load() > g.Capacity(c) }
+func (g *Game) Laden(c *Char) bool { return c.Carried() > g.Capacity(c) }

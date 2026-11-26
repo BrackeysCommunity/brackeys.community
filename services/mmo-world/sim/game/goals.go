@@ -1229,8 +1229,12 @@ func (g *Game) payClaims(x *Goal, claims []goal.Claim, key string) error {
 			}
 		}
 		if c := g.Char(cl.Who); c != nil {
-			c.C.Goals.Bump("met", 1)
-			if cl.Who != x.Poster {
+			// A staged contest pays its staged prize and nothing clean.
+			staged := x.Issuer.Kind == goal.ByStaged
+			if !staged {
+				c.C.Goals.Bump("met", 1)
+			}
+			if cl.Who != x.Poster && !staged {
 				c.C.Deeds.Bump(DeedForOthers, 1)
 				c.C.Practise(practiceGoals, 1, g.r.Growth.Params())
 			}
