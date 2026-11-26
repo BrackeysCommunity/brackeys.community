@@ -201,6 +201,36 @@ func (w *world) Seats(ctx context.Context, id string) (string, []string, error) 
 	return w.host.Seats(ctx, id)
 }
 
+func (w *world) MapIndex(ctx context.Context) (api.MapIndex, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.host.MapIndex(ctx)
+}
+
+func (w *world) MapStyle(ctx context.Context) (api.MapStyle, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.host.MapStyle(ctx)
+}
+
+func (w *world) MapRegions(ctx context.Context) (api.MapRegions, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.host.MapRegions(ctx)
+}
+
+func (w *world) MapChunk(ctx context.Context, a, b int64, level string) (api.MapChunk, *api.Refusal, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.host.MapChunk(ctx, a, b, level)
+}
+
+func (w *world) MapOverlay(ctx context.Context, id string, q api.MapOverlayQuery) (api.MapOverlay, *api.Refusal, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.host.MapOverlay(ctx, id, q)
+}
+
 // do sets a scene in the game, with the game held.
 func (w *world) do(f func()) {
 	w.mu.Lock()

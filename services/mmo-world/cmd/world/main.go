@@ -113,6 +113,7 @@ func run(guard *service.Guard, log *slog.Logger) error {
 	defer events.Close()
 	srv, err := service.Open(ctx, pool, service.Config{Secrets: sec,
 		TickSeconds: int32(tickSeconds), Book: book, APIToken: apiToken, OperatorToken: os.Getenv(service.EnvOperatorToken),
+		MapToken:    os.Getenv(service.EnvMapToken),
 		ManualClock: manual, Disposable: disposable,
 		Poll: time.Duration(pollMS) * time.Millisecond, Log: log, Events: events})
 	if err != nil {

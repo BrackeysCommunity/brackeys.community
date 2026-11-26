@@ -1,6 +1,7 @@
 package service
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,11 +12,13 @@ import (
 	"time"
 
 	"jams.team/mmo-world/api"
+	"jams.team/mmo-world/mapview"
 	"jams.team/mmo-world/render"
 	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/game"
+	"jams.team/mmo-world/sim/gen"
 	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/item"
@@ -28,6 +31,7 @@ import (
 const (
 	mapRadius    = 4    // tiles
 	mapRadiusMax = 6    // tiles
+	mapReadTries = 3    // reads of /map's records, when the character moves between the read and the lock
 	recentFacts  = 5    // facts shown on a place card
 	mediaKept    = 1024 // cached images
 	// structural:
@@ -759,44 +763,121 @@ func (s *Server) mapHandler(w http.ResponseWriter, r *http.Request) {
 		radius = mapRadius
 	}
 	radius = min(max(radius, 1), mapRadiusMax)
-	var out api.MapView
-	var crop render.MapCrop
-	if !s.withChar(w, r, func(c *game.Char) {
-		g := s.g
-		out = api.MapView{Tick: g.Tick(), Centre: apiHex(c.C.At), Radius: radius, Tiles: []api.Tile{}}
-		crop = render.MapCrop{Centre: c.C.At, Radius: radius, At: c.C.At}
-		if c.Long != nil {
-			crop.Route = slices.Clone(c.Long.Route)
-		}
-		for _, h := range hex.DiscAt(c.C.At, radius) {
-			known := Sees(g, c, h)
-			mt := render.MapTile{Hex: h, Known: known}
-			if known {
-				t := tileView(g, h)
-				out.Tiles = append(out.Tiles, t)
-				b := g.World.Baseline(h)
-				mt.Terrain, mt.River, mt.Road, mt.Site, mt.Weather, mt.Region = t.Terrain, b.River, t.Road, t.Site, t.Weather, t.Region
-				mt.Danger = g.World.Past(h, "ambush")
-				mt.Corrupted = g.World.Past(h, "corrupted-nodes")
-				if v, ok := g.World.GaugeAt(h, "threat"); ok {
-					mt.Threat = v
-				}
-				if v, ok := g.World.GaugeAt(h, "corruption"); ok {
-					mt.Corruption = v
-				}
-			}
-			crop.Tiles = append(crop.Tiles, mt)
-		}
-	}) {
+	book := s.rules.Load().Book
+	style, err := render.MapStyleOf(book)
+	if err != nil {
+		s.internal(w, err)
 		return
 	}
-	key, err := s.picture("map", crop, func() (*render.Canvas, error) { return render.Map(crop), nil })
+	params := mapview.ParamsOf(book)
+	styleRev := mapview.Rev([]any{book.MapStyle, book.MapView})
+	var chunks []gen.ChunkCoord
+	var guild string
+	if !s.withChar(w, r, func(c *game.Char) { chunks, guild = discChunks(s.g, c.C.At, radius), c.C.Guild }) {
+		return
+	}
+	id := r.URL.Query().Get("characterId")
+	var out api.MapView
+	var crop render.MapCrop
+	for try := range mapReadTries {
+		seen, err := s.mapSeen(r.Context(), id, guild, chunks)
+		if err != nil {
+			s.internal(w, err)
+			return
+		}
+		moved := false
+		if !s.withChar(w, r, func(c *game.Char) {
+			if now := discChunks(s.g, c.C.At, radius); try < mapReadTries-1 && (c.C.Guild != guild || !slices.Equal(now, chunks)) {
+				chunks, guild, moved = now, c.C.Guild, true
+				return
+			}
+			out, crop = mapCrop(s.g, s.cfg.World, c, radius, seen, params)
+		}) {
+			return
+		}
+		if !moved {
+			break
+		}
+	}
+	crop.Style = styleRev
+	key, err := s.picture("map", crop, func() (*render.Canvas, error) { return render.Map(crop, style), nil })
 	if err != nil {
 		s.internal(w, err)
 		return
 	}
 	out.Image = key
 	reply(w, http.StatusOK, out)
+}
+
+// discChunks are the chunks a disc touches, sorted.
+func discChunks(g *game.Game, at hex.Hex, radius int64) []gen.ChunkCoord {
+	chunkOf := g.World.Gen().ChunkOf
+	var out []gen.ChunkCoord
+	for _, h := range hex.DiscAt(at, radius) {
+		out = append(out, chunkOf(h))
+	}
+	slices.SortFunc(out, func(a, b gen.ChunkCoord) int { return cmp.Or(cmp.Compare(a.A, b.A), cmp.Compare(a.B, b.B)) })
+	return slices.Compact(out)
+}
+
+// mapCrop is a held game's disc round a character through the live map's
+// filter (GDD 4.11): each discovered tile's base, merged with the live
+// layers in the character's sight or as last seen in seen, and the own
+// tile whether or not anybody found it. Every other tile is fog, by hex
+// alone.
+func mapCrop(g *game.Game, world string, c *game.Char, radius int64, seen []mapview.Record, p mapview.Params) (api.MapView, render.MapCrop) {
+	at := c.C.At
+	ov := mapview.Overlay(g, world, mapview.Viewer{Kind: api.ViewerCharacter, Char: c}, discChunks(g, at, radius), false, seen, p)
+	live := make(map[hex.Hex]*api.MapLive, len(ov.Tiles))
+	for i, l := range ov.Tiles {
+		live[hex.Hex{Q: l.Q, R: l.R}] = &ov.Tiles[i]
+	}
+	out := api.MapView{Tick: g.Tick(), Centre: apiHex(at), Radius: radius, Tiles: []api.Tile{}, View: []api.MapTileView{}}
+	crop := render.MapCrop{Centre: at, Radius: radius, At: at}
+	if ov.Self != nil {
+		for _, x := range ov.Self.Route {
+			crop.Route = append(crop.Route, hex.Hex{Q: x.Q, R: x.R})
+		}
+	}
+	for _, h := range hex.DiscAt(at, radius) {
+		cell, found := mapview.Cell(g, h, api.LevelTile)
+		switch {
+		case h == at:
+			if !found {
+				cell = mapview.CellAt(g, h, api.LevelTile)
+			}
+			out.Tiles = append(out.Tiles, tileView(g, h))
+		case found:
+			out.Tiles = append(out.Tiles, baseTile(g, h))
+		default:
+			crop.Tiles = append(crop.Tiles, render.MapTile{Hex: h, Fog: api.FogUnknown})
+			continue
+		}
+		v := mapview.Merge(cell, live[h])
+		out.View = append(out.View, v)
+		crop.Tiles = append(crop.Tiles, pictureTile(v, g.Tick()))
+	}
+	slices.SortFunc(out.View, func(a, b api.MapTileView) int {
+		return cmp.Or(cmp.Compare(a.Cell.R, b.Cell.R), cmp.Compare(a.Cell.Q, b.Cell.Q))
+	})
+	return out, crop
+}
+
+// pictureTile is a merged tile as the /map picture draws it.
+func pictureTile(v api.MapTileView, tick int64) render.MapTile {
+	c := v.Cell
+	t := render.MapTile{Hex: hex.Hex{Q: c.Q, R: c.R}, Fog: v.Fog, Terrain: c.Terrain, Road: c.Road, Site: c.Site, Region: c.Region,
+		River: c.Water == gen.WaterRiver || c.Water == gen.WaterStream || c.Water == gen.WaterFord}
+	l := v.Live
+	if l == nil {
+		return t
+	}
+	t.Weather, t.Threat, t.Corruption, t.Danger, t.Corrupted = l.Weather, l.Threat, l.Corruption, l.Danger, l.Corrupted
+	t.Busy, t.Trouble, t.Fire, t.Cut, t.Toll = l.Busy, l.Trouble != "", l.Fire, l.Cut, l.Toll
+	if v.Fog == api.FogSeen {
+		t.Age = max(tick-l.Left, 0) / sheets.TicksPerDay
+	}
+	return t
 }
 
 // lexicon is the pack's names and the sheet numbers cards state, with the

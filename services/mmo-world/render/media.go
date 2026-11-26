@@ -26,7 +26,7 @@ var mediaFS embed.FS
 
 // structural: the version every picture key carries, so a new drawing
 // never reuses a key a client cached as immutable.
-const Version = "2"
+const Version = "3"
 
 // DefaultPack is the setting pack the world draws with.
 const DefaultPack = "wasteland"

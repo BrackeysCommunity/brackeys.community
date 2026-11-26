@@ -55,6 +55,13 @@ type Host interface {
 	// seat in it before its party's machine arms, in seat order. A
 	// character who is gone has no context.
 	Seats(ctx context.Context, characterID string) (context string, members []string, err error)
+	// The live map's reads, as the world serves them (GDD 4.11): the
+	// shared base, and one character's overlay ("" for none).
+	MapIndex(ctx context.Context) (api.MapIndex, error)
+	MapStyle(ctx context.Context) (api.MapStyle, error)
+	MapRegions(ctx context.Context) (api.MapRegions, error)
+	MapChunk(ctx context.Context, a, b int64, level string) (api.MapChunk, *api.Refusal, error)
+	MapOverlay(ctx context.Context, characterID string, q api.MapOverlayQuery) (api.MapOverlay, *api.Refusal, error)
 }
 
 // What Judge says of a merged log so far.
@@ -207,6 +214,8 @@ type Gateway struct {
 	unseated  int    // sockets accepted and not yet seated
 	beacons   window // beacons in the last second
 	exchanges window // codes traded with Discord in the last second
+
+	maps mapLimits
 
 	// The merged logs of party machines, by context; taken after a
 	// character's lock and before a log's own.

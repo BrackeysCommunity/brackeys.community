@@ -237,7 +237,7 @@ func TestActivityListener(t *testing.T) {
 		t.Fatalf("health on the Activity listener: %d %s", status, body)
 	}
 	// The API's paths are not on the public listener.
-	for _, path := range []string{api.PathActions, api.PathOperator, api.PathOperatorDigest, api.PathMap} {
+	for _, path := range []string{api.PathActions, api.PathOperator, api.PathOperatorDigest, api.PathMap, api.PathMapIndex, api.PathMapOverlay} {
 		if status, body := call("POST", path, `{"interactionId":"x","discordId":"u-2","kind":"create"}`); status == http.StatusOK || strings.Contains(body, "character") {
 			t.Fatalf("POST %s on the Activity listener: %d %s", path, status, body)
 		}

@@ -373,7 +373,7 @@ func playerReads(t *testing.T, r *running, id, discord string, at, pin hex.Hex) 
 	q := func(h hex.Hex) string { return fmt.Sprintf("q=%d&r=%d", h.Q, h.R) }
 	paths := []string{
 		api.PathOptions + "?" + ch, api.PathTiles + "?" + q(at) + "&radius=8", api.PathCharacter + "?id=" + id,
-		api.PathPlace + "?" + q(at), api.PathPlace + "?" + q(pin), api.PathSheet + "?" + ch, api.PathHere + "?" + ch,
+		api.PathPlace + "?" + q(at), api.PathPlace + "?" + q(at) + "&" + ch, api.PathPlace + "?" + q(pin), api.PathSheet + "?" + ch, api.PathHere + "?" + ch,
 		api.PathRecipes + "?" + ch, api.PathRecap + "?" + ch, api.PathMap + "?" + ch + "&radius=8", api.PathLexicon,
 		api.PathPlayer + "?discordId=" + discord, api.PathMarket + "?" + ch, api.PathForum + "?" + ch,
 		api.PathRisk + "?" + ch + "&" + q(pin), api.PathGoals + "?" + ch, api.PathBoard + "?" + ch, api.PathGuild + "?" + ch,

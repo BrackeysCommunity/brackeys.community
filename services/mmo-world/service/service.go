@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"jams.team/mmo-world/mapview"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/ledger"
@@ -35,6 +36,9 @@ type Config struct {
 	// the operator paths. An empty APIToken leaves /v1 open (local runs).
 	APIToken      string
 	OperatorToken string
+	// MapToken guards only the live map's reads, for the site; the API
+	// token is taken there too.
+	MapToken string
 	// ManualClock makes the due tick whatever an operator last set, for
 	// tests that must control time. Never on a deployed world.
 	ManualClock bool
@@ -90,6 +94,10 @@ type Server struct {
 	// parties that ended lately, under mu.
 	pool  *pgxpool.Pool
 	ended endings
+	// sight is each holder's sight key as last saved, under mu; nil until
+	// the stored keys are read.
+	sight map[mapview.Holder]mapview.Key
+	maps  mapCache
 }
 
 // Open takes the world's lock (waiting while another service holds it),
@@ -148,6 +156,9 @@ func Open(ctx context.Context, pool *pgxpool.Pool, cfg Config) (*Server, error) 
 	if err := s.open(ctx); err != nil {
 		return nil, s.fail(ctx, err)
 	}
+	s.mu.Lock()
+	s.mapPass(ctx, nil)
+	s.mu.Unlock()
 	s.due.Store(s.g.Tick())
 	s.tick.Store(s.g.Tick())
 	return s, nil
@@ -184,6 +195,7 @@ func (s *Server) open(ctx context.Context) error {
 	if s.g, err = s.st.Load(ctx, s.rules.Load()); err != nil {
 		return err
 	}
+	s.reloadSight(ctx)
 	if err := s.freeze(ctx); err != nil {
 		return err
 	}
@@ -453,6 +465,7 @@ func (s *Server) found(ctx context.Context, replace bool) error {
 	}
 	s.restore(g)
 	s.ended = endings{}
+	s.reloadSight(ctx)
 	return nil
 }
 
@@ -610,6 +623,7 @@ func (s *Server) step(ctx context.Context) error {
 	if err != nil {
 		return s.reload(ctx, err)
 	}
+	s.mapPass(ctx, nil)
 	t := s.g.Tick()
 	s.ended.note(facts, t)
 	// The epoch is taken before the tick shows, so nothing reads the new
@@ -645,6 +659,7 @@ func (s *Server) usable(ctx context.Context) error {
 			return fmt.Errorf("%w: %w", errStale, err)
 		}
 		s.restore(g)
+		s.reloadSight(ctx)
 		s.cfg.Log.Info("world loaded again", "world", s.cfg.World, "tick", g.Tick())
 	}
 	return nil
@@ -685,6 +700,7 @@ func (s *Server) reload(ctx context.Context, cause error) error {
 		return errors.Join(cause, err)
 	}
 	s.restore(g)
+	s.reloadSight(ctx)
 	return cause
 }
 

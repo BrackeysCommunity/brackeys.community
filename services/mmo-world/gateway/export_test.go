@@ -103,3 +103,18 @@ func (g *Gateway) SeatOf(instance, id string) (*Seat, string) {
 	}
 	return s.seats[id], s.seats[id].Context.Kind + ":" + s.seats[id].Context.ID
 }
+
+// The live map's caps a second: one user's reads and overlays, and
+// everyone's reads.
+const (
+	MaxMapReads    = maxMapReads
+	MaxMapOverlays = maxMapOverlays
+	MaxMapAll      = maxMapAll
+)
+
+// MapUsers counts the users whose map reads are being counted.
+func (g *Gateway) MapUsers() int {
+	g.maps.mu.Lock()
+	defer g.maps.mu.Unlock()
+	return len(g.maps.users)
+}

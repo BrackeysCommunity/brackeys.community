@@ -22,6 +22,8 @@ type Local struct {
 	broken error
 	subs   listeners
 	ended  endings
+	sight  localSight
+	maps   mapCache
 }
 
 // NewLocal plays g in process.
@@ -66,6 +68,9 @@ func (l *Local) doCommand(ctx context.Context, cmd game.Command, discord string,
 	if out.ref == nil && !out.dup {
 		l.ended.note(out.res.Facts, l.G.Tick())
 	}
+	if err == nil && out.ref == nil && !out.dup {
+		l.mapPass(passHolders(l.G, out.res))
+	}
 	return out, err
 }
 
@@ -87,6 +92,7 @@ func (l *Local) Advance() error {
 		return err
 	}
 	l.ended.note(facts, l.G.Tick())
+	l.mapPass(nil)
 	l.subs.tell(nil)
 	return nil
 }

@@ -40,6 +40,7 @@ func (g *Gateway) Handler() http.Handler {
 	mux.HandleFunc("POST "+api.PathActivityToken, g.token)
 	mux.HandleFunc("GET "+api.PathActivitySocket, g.socket)
 	mux.HandleFunc("POST "+api.PathActivityLog, g.beacon)
+	g.mapRoutes(mux)
 	// An unknown API path is not a page of the Activity.
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {
 		refuse(w, http.StatusNotFound, api.CodeNotFound, "no such path")

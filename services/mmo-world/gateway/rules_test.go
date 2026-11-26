@@ -92,6 +92,27 @@ func (h *fakeHost) Seats(_ context.Context, id string) (string, []string, error)
 	return st.Context.Kind + ":" + st.Context.ID, h.seats[id], nil
 }
 
+// The map is not this world's: every chunk is one nobody found.
+func (h *fakeHost) MapIndex(context.Context) (api.MapIndex, error) {
+	return api.MapIndex{Chunks: []api.MapChunkRef{}}, nil
+}
+
+func (h *fakeHost) MapStyle(context.Context) (api.MapStyle, error) { return api.MapStyle{}, nil }
+
+func (h *fakeHost) MapRegions(context.Context) (api.MapRegions, error) { return api.MapRegions{}, nil }
+
+func (h *fakeHost) MapChunk(context.Context, int64, int64, string) (api.MapChunk, *api.Refusal, error) {
+	return api.MapChunk{}, &api.Refusal{Code: api.CodeNotFound, Message: "nobody has found that chunk"}, nil
+}
+
+func (h *fakeHost) MapOverlay(_ context.Context, id string, _ api.MapOverlayQuery) (api.MapOverlay, *api.Refusal, error) {
+	viewer := api.ViewerCharacter
+	if id == "" {
+		viewer = api.ViewerAnonymous
+	}
+	return api.MapOverlay{Viewer: viewer, Tiles: []api.MapLive{}, Fronts: []api.MapFront{}}, nil, nil
+}
+
 func (h *fakeHost) Subscribe(f func([]string)) {
 	h.mu.Lock()
 	defer h.mu.Unlock()

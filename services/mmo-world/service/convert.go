@@ -408,15 +408,6 @@ func apiPressed(g *game.Game, ps []fight.Pressed) []api.Pressed {
 	return out
 }
 
-// apiTile is a discovered tile: what it is, and what stands and blows on
-// it now.
-func apiTile(g *game.Game, h hex.Hex) (api.Tile, bool) {
-	if !found(g, h) {
-		return api.Tile{}, false
-	}
-	return tileView(g, h), true
-}
-
 // tileView is a tile as a client sees it, found or not: only for a tile
 // the asking character stands on.
 func tileView(g *game.Game, h hex.Hex) api.Tile {
@@ -447,13 +438,28 @@ func tileView(g *game.Game, h hex.Hex) api.Tile {
 	return out
 }
 
-// apiPlace is a discovered tile with its region's gauges and holder and who
-// stands there; ok is false for a tile nobody has found.
-func apiPlace(g *game.Game, h hex.Hex) (api.Place, bool) {
-	if _, ok := apiTile(g, h); !ok {
+// baseTile is a tile's base layers only, found or not: its weather, a
+// road's cut or toll, a camp and a haunt are live (GDD 4.11), so only the
+// character standing there reads them, through tileView.
+func baseTile(g *game.Game, h hex.Hex) api.Tile {
+	t := tileView(g, h)
+	t.Weather, t.Cut, t.Toll, t.Camp, t.Haunted = "", false, 0, "", false
+	return t
+}
+
+// apiPlace is a discovered tile with its region's gauges and holder; ok is
+// false for a tile nobody has found. Only a reader standing there, by
+// characterID, is told who else stands there and the tile's live layers.
+func apiPlace(g *game.Game, h hex.Hex, characterID string) (api.Place, bool) {
+	if !found(g, h) {
 		return api.Place{}, false
 	}
-	return placeView(g, h), true
+	out := placeView(g, h)
+	if c := g.Char(characterID); c != nil && c.C.At == h {
+		return out, true
+	}
+	out.Tile, out.Here = baseTile(g, h), []string{}
+	return out, true
 }
 
 // placeView is a place found or not: only for where the asking character

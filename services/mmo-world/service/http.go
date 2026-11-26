@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -62,6 +63,10 @@ func (s *Server) Handler() http.Handler {
 	player("GET "+api.PathStoryPromotions, s.storyPromotions)
 	player("GET "+api.PathHouse, s.house)
 	player("GET "+api.PathHouseLog, s.houseLog)
+	maps := s.mapGuard(MapHandler(s), &mapCap{now: s.cfg.Now})
+	for _, path := range mapPaths {
+		mux.Handle("GET "+path, maps)
+	}
 	mux.HandleFunc("GET "+api.PathMedia+"{key}", s.mediaHandler)
 	op := func(path string, h http.HandlerFunc) {
 		mux.Handle(path, s.guard(s.cfg.OperatorToken, s.operatorOnly(h)))
@@ -107,6 +112,69 @@ func (s *Server) guard(token string, h http.Handler) http.Handler {
 		}
 		h.ServeHTTP(w, r)
 	})
+}
+
+// structural: the map reads the world serves a second, from everyone.
+const maxMapReads = 200
+
+// mapPaths are the live map's reads on the world's API.
+var mapPaths = []string{api.PathMapIndex, api.PathMapStyle, api.PathMapRegions, api.PathMapChunk, api.PathMapOverlay, api.PathMapFocus}
+
+// mapGuard admits a map read that carries the map token or the API token
+// (either, where set; any read where neither is) while the world-wide cap
+// has room. No map reply is kept by a cache: the site sets the edge's
+// headers itself.
+func (s *Server) mapGuard(h http.Handler, c *mapCap) http.Handler {
+	var tokens [][]byte
+	for _, t := range []string{s.cfg.MapToken, s.cfg.APIToken} {
+		if t != "" {
+			tokens = append(tokens, []byte(t))
+		}
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		if len(tokens) > 0 {
+			got, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+			ok := 0
+			for _, t := range tokens {
+				ok |= subtle.ConstantTimeCompare([]byte(got), t)
+			}
+			if ok != 1 {
+				refuse(w, http.StatusUnauthorized, api.Refusal{Code: api.CodeForbidden, Message: "bad token"})
+				return
+			}
+		}
+		if !c.take() {
+			refuse(w, http.StatusTooManyRequests, api.Refusal{Code: api.CodeBusy, Message: "too many map reads"})
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
+// mapCap is a sliding one-second window over the map reads, so a stampede
+// cannot queue on the world's lock.
+type mapCap struct {
+	mu   sync.Mutex
+	now  func() time.Time
+	last []time.Time
+}
+
+// take counts one read now, unless the last second already holds the most.
+func (c *mapCap) take() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	now := c.now()
+	i := 0
+	for i < len(c.last) && now.Sub(c.last[i]) >= time.Second {
+		i++
+	}
+	c.last = c.last[i:]
+	if len(c.last) >= maxMapReads {
+		return false
+	}
+	c.last = append(c.last, now)
+	return true
 }
 
 // operatorOnly closes the operator paths when no operator token is set.
@@ -237,6 +305,7 @@ func (s *Server) do(ctx context.Context, cmd game.Command, discord string, versi
 	}
 	if out.ref == nil && !out.dup {
 		s.ended.note(out.res.Facts, s.g.Tick())
+		s.mapAfter(ctx, out)
 		distinct := s.cfg.World
 		if out.res.Char != nil {
 			distinct = out.res.Char.C.ID
@@ -356,8 +425,8 @@ func hexParam(w http.ResponseWriter, r *http.Request) (hex.Hex, bool) {
 	return hex.Hex{Q: q, R: rr}, true
 }
 
-// tiles is the discovered tiles round a centre; nothing undiscovered, on
-// any layer.
+// tiles is the discovered tiles round a centre, base layers only; nothing
+// undiscovered, on any layer.
 func (s *Server) tiles(w http.ResponseWriter, r *http.Request) {
 	centre, ok := hexParam(w, r)
 	if !ok {
@@ -375,8 +444,8 @@ func (s *Server) tiles(w http.ResponseWriter, r *http.Request) {
 	defer unlock()
 	out := api.Tiles{Tick: s.g.Tick(), Tiles: []api.Tile{}}
 	for _, h := range hex.DiscAt(centre, radius) {
-		if t, ok := apiTile(s.g, h); ok {
-			out.Tiles = append(out.Tiles, t)
+		if found(s.g, h) {
+			out.Tiles = append(out.Tiles, baseTile(s.g, h))
 		}
 	}
 	reply(w, http.StatusOK, out)
@@ -403,7 +472,7 @@ func (s *Server) place(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer unlock()
-	out, ok := apiPlace(s.g, h)
+	out, ok := apiPlace(s.g, h, r.URL.Query().Get("characterId"))
 	if !ok {
 		refuse(w, http.StatusNotFound, api.Refusal{Code: api.CodeNotFound, Message: "nobody has found that tile"})
 		return

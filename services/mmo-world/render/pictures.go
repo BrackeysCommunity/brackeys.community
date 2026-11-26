@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/sim/gen"
 	simhex "jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
@@ -32,30 +33,40 @@ var weatherTint = map[string]color.RGBA{
 	"fog": {0x9a, 0x9a, 0x9a, 0xff}, "clear": {0xff, 0xff, 0xff, 0xff},
 }
 
-// MapTile is one tile of a map crop. Unknown tiles are fog: nothing else
-// about them is drawn.
+// MapTile is one tile of a map crop as its viewer may see it. An unknown
+// tile carries only its hex and fog; a discovered one its base; the live
+// values only in sight, or as last seen.
 type MapTile struct {
 	Hex        simhex.Hex `json:"hex"`
-	Known      bool       `json:"known"`
+	Fog        string     `json:"fog"`           // unknown, sight, seen or discovered
+	Age        int64      `json:"age,omitempty"` // seen: world days since it left sight
 	Terrain    string     `json:"terrain,omitempty"`
 	River      bool       `json:"river,omitempty"`
 	Road       int64      `json:"road,omitempty"`
 	Site       string     `json:"site,omitempty"`
-	Weather    string     `json:"weather,omitempty"`
 	Region     string     `json:"region,omitempty"`
+	Weather    string     `json:"weather,omitempty"`
 	Threat     int64      `json:"threat,omitempty"`
 	Corruption int64      `json:"corruption,omitempty"`
 	Danger     bool       `json:"danger,omitempty"`
 	Corrupted  bool       `json:"corrupted,omitempty"`
+	Busy       string     `json:"busy,omitempty"`
+	Trouble    bool       `json:"trouble,omitempty"`
+	Fire       bool       `json:"fire,omitempty"`
+	Cut        bool       `json:"cut,omitempty"`
+	Toll       int64      `json:"toll,omitempty"`
 }
 
-// MapCrop is a map picture's input.
+// MapCrop is a map picture's input: everything one viewer may see of the
+// disc, so its key changes whenever what they may see does, and the rev of
+// the map style it is drawn in, so a restyled pack draws anew.
 type MapCrop struct {
 	Centre simhex.Hex   `json:"centre"`
 	Radius int64        `json:"radius"`
 	Tiles  []MapTile    `json:"tiles"`
 	At     simhex.Hex   `json:"at"`
 	Route  []simhex.Hex `json:"route,omitempty"`
+	Style  string       `json:"style,omitempty"`
 }
 
 // structural: map tile size and picture margin, in pixels.
@@ -63,6 +74,36 @@ const (
 	hexSize   = 26.0
 	mapMargin = 14.0
 )
+
+// structural: the picture's marks, in pixels.
+const (
+	settlementInk  = 11.0
+	settlementMark = 8.0
+	dungeonMark    = 7.0
+	siteMark       = 5.0
+	roadBase       = 3.0
+	riverWidth     = 4.0
+	routeWidth     = 3.0
+	selfInk        = 9.0
+	selfMark       = 6.0
+	liveMark       = 4.0
+	busyPip        = 2.5
+	busyPipGap     = 0.22 // of a hex
+	busyPipRow     = 0.5  // of a hex, below the centre
+	rimWidth       = 3.0
+	dotGap         = 6.0
+	dotRadius      = 1.4
+	dash           = 2.0
+	labelRise      = 0.55 // of a hex, above the centre
+	labelInset     = 4.0  // a label's least gap from the picture's side
+	fogHatchLift   = 0x10 // the hatch is the fog this much lighter
+)
+
+// markSlots are where live marks sit round a tile's centre, as fractions of
+// a hex, in the order the live map places them.
+var markSlots = [...]Pt{{-0.42, -0.38}, {0.42, -0.38}, {-0.5, 0.12}, {0.5, 0.12}, {0, -0.62}, {0, 0.62}}
+
+var busyPips = map[string]int{"light": 1, "busy": 2, "crowded": 3}
 
 func (m MapCrop) centreOf(h simhex.Hex, origin Pt) Pt {
 	return hexCentre(h.Sub(m.Centre), hexSize, origin)
@@ -83,60 +124,76 @@ func hexPoly(c Pt, size float64) []Pt {
 	return p
 }
 
-// Map draws a crop of the hex map: terrain, rivers, roads and sites on
-// known tiles, threat and corruption as shading with a label, the weather
-// layer, the route, the character, and fog over the rest (GDD 16.4).
-func Map(m MapCrop) *Canvas {
+// Map draws a crop of the hex map in the pack's map style (GDD 4.11,
+// 16.4): unknown tiles as hatched fog; discovered tiles never seen as
+// their base alone; last-seen tiles dimmed, their live marks in the seen
+// pattern and their age on the label line; tiles in sight in full, inside
+// the rim of the viewer's sight. Then the route and the character.
+func Map(m MapCrop, s MapStyle) *Canvas {
 	r := float64(m.Radius)
 	w := int(math.Ceil(hexSize*math.Sqrt(3)*(2*r+1) + 2*mapMargin))
 	h := int(math.Ceil(hexSize*(3*r+2) + 2*mapMargin))
 	c := NewCanvas(w, h, tar)
 	origin := Pt{float64(w) / 2, float64(h) / 2}
-	labelled := map[string]bool{}
+	fog := s.Colour("fog:unknown")
+	hatch := color.NRGBA{lift(fog.R), lift(fog.G), lift(fog.B), fog.A}
+	veil := color.NRGBA{A: uint8(min(max(s.SeenDim, 0), 100) * 0xff / 100)}
+	seenPattern := s.Pattern("fog:seen")
+	sight := map[simhex.Hex]bool{}
+	gauged, aged := map[string]bool{}, map[string]bool{}
 	for _, t := range m.Tiles {
 		at := m.centreOf(t.Hex, origin)
 		poly := hexPoly(at, hexSize-1)
-		if !t.Known {
-			c.Fill([][]Pt{poly}, fogColour)
-			c.Line([]Pt{{at.X - hexSize/2, at.Y + hexSize/3}, {at.X + hexSize/2, at.Y - hexSize/3}}, 1, color.RGBA{0x3a, 0x38, 0x35, 0xff})
+		switch t.Fog {
+		case api.FogSight, api.FogSeen, api.FogDiscovered:
+		default:
+			c.Fill([][]Pt{poly}, fog)
+			patterned(c, at, poly, s.Pattern("fog:unknown"), hatch)
 			continue
 		}
-		c.Fill([][]Pt{poly}, terrainOf(t.Terrain))
-		if t.River {
-			c.Line([]Pt{{at.X - hexSize*0.7, at.Y + 3}, {at.X, at.Y - 2}, {at.X + hexSize*0.7, at.Y + 3}}, 4, river)
+		mapBase(c, s, t, at, poly)
+		if t.Fog == api.FogDiscovered {
+			continue
 		}
-		if t.Corrupted {
-			c.Fill([][]Pt{poly}, Alpha(corrupt, 0x60))
+		pattern := ""
+		if t.Fog == api.FogSeen {
+			c.Fill([][]Pt{poly}, veil)
+			pattern = seenPattern
+		} else {
+			sight[t.Hex] = true
 		}
-		if t.Danger {
-			for k := -2; k <= 2; k++ {
-				o := float64(k) * hexSize / 3
-				c.Line([]Pt{{at.X + o - 6, at.Y + 8}, {at.X + o + 6, at.Y - 8}}, 2, Alpha(rust, 0xa0))
-			}
-		}
-		if col, ok := weatherTint[t.Weather]; ok && t.Weather != "clear" {
-			c.Fill([][]Pt{poly}, Alpha(col, 0x50))
-		}
-		if t.Road > 0 {
-			c.Circle(at, 3+float64(t.Road), color.RGBA{0x5a, 0x4a, 0x3a, 0xff})
-		}
-		switch t.Site {
-		case gen.PlaceSettlement:
-			c.Fill([][]Pt{{{at.X, at.Y - 11}, {at.X + 11, at.Y}, {at.X, at.Y + 11}, {at.X - 11, at.Y}}}, ink)
-			c.Fill([][]Pt{{{at.X, at.Y - 8}, {at.X + 8, at.Y}, {at.X, at.Y + 8}, {at.X - 8, at.Y}}}, settlement)
-		case gen.PlaceDungeon:
-			c.Fill([][]Pt{{{at.X - 7, at.Y - 7}, {at.X + 7, at.Y - 7}, {at.X + 7, at.Y + 7}, {at.X - 7, at.Y + 7}}}, dungeon)
-		case "":
-		default:
-			c.Circle(at, 5, site)
-		}
-		if t.Region != "" && !labelled[t.Region] && (t.Danger || t.Corrupted) {
-			labelled[t.Region] = true
-			label := strconv.FormatInt(t.Threat, 10) + " threat"
+		mapLive(c, s, t, at, poly, pattern)
+		var label []string
+		if (t.Danger || t.Corrupted) && t.Region != "" && !gauged[t.Region] {
+			gauged[t.Region] = true
+			v := strconv.FormatInt(t.Threat, 10) + " threat"
 			if t.Corrupted {
-				label = strconv.FormatInt(t.Corruption, 10) + " corruption"
+				v = strconv.FormatInt(t.Corruption, 10) + " corruption"
 			}
-			c.Label(Pt{at.X - float64(TextWidth(label))/2, at.Y - hexSize*0.55}, label)
+			label = append(label, v)
+		}
+		if key := t.Region + "|" + strconv.FormatInt(t.Age, 10); t.Fog == api.FogSeen && !aged[key] {
+			aged[key] = true
+			label = append(label, ageWords(t.Age))
+		}
+		if len(label) > 0 {
+			text := strings.Join(label, ", ")
+			tw := float64(TextWidth(text))
+			x := min(max(at.X-tw/2, labelInset), float64(w)-tw-labelInset)
+			c.Label(Pt{x, at.Y - hexSize*labelRise}, text)
+		}
+	}
+	rim := opaqueOf(s.Colour("fog:sight"))
+	for x := range sight {
+		at := m.centreOf(x, origin)
+		poly := hexPoly(at, hexSize-1)
+		for _, n := range x.Neighbours() {
+			if sight[n] {
+				continue
+			}
+			d := m.centreOf(n, origin)
+			side := (int(math.Round(math.Atan2(d.Y-at.Y, d.X-at.X)/(math.Pi/3))) + simhex.Directions) % simhex.Directions
+			c.Line([]Pt{poly[side], poly[(side+1)%simhex.Directions]}, rimWidth, rim)
 		}
 	}
 	if len(m.Route) > 0 {
@@ -144,12 +201,185 @@ func Map(m MapCrop) *Canvas {
 		for _, x := range m.Route {
 			pts = append(pts, m.centreOf(x, origin))
 		}
-		c.Line(pts, 3, hazard)
+		c.Line(pts, routeWidth, opaqueOf(s.Colour("layer:route")))
 	}
 	me := m.centreOf(m.At, origin)
-	c.Circle(me, 9, ink)
-	c.Circle(me, 6, hazard)
+	c.Circle(me, selfInk, opaqueOf(s.Colour("ink")))
+	c.Circle(me, selfMark, s.Colour("layer:self"))
 	return c
+}
+
+// ageWords is how long ago a last-seen tile left sight, in whole world
+// days, as the live map words it.
+func ageWords(days int64) string {
+	switch {
+	case days <= 0:
+		return "under a world day ago"
+	case days == 1:
+		return "1 world day ago"
+	}
+	return strconv.FormatInt(days, 10) + " world days ago"
+}
+
+func lift(v uint8) uint8 { return uint8(min(int(v)+fogHatchLift, 0xff)) }
+
+func opaqueOf(c color.NRGBA) color.NRGBA { return color.NRGBA{c.R, c.G, c.B, 0xff} }
+
+// mapBase draws a tile's base layers: its terrain, river, road and site.
+func mapBase(c *Canvas, s MapStyle, t MapTile, at Pt, poly []Pt) {
+	c.Fill([][]Pt{poly}, opaqueOf(s.Colour("terrain:"+t.Terrain)))
+	if t.River {
+		c.Line([]Pt{{at.X - hexSize*0.7, at.Y + 3}, {at.X, at.Y - 2}, {at.X + hexSize*0.7, at.Y + 3}}, riverWidth, s.Colour("water:river"))
+	}
+	if t.Road > 0 {
+		c.Circle(at, roadBase+float64(t.Road), s.Colour("road"))
+	}
+	switch t.Site {
+	case gen.PlaceSettlement:
+		g := s.Glyph("place:settlement")
+		glyph(c, g, at, settlementInk, opaqueOf(s.Colour("ink")), false)
+		glyph(c, g, at, settlementMark, s.Colour("place:settlement"), false)
+	case gen.PlaceDungeon:
+		glyph(c, s.Glyph("site:dungeon"), at, dungeonMark, s.Colour("site:dungeon"), false)
+	case "":
+	default:
+		glyph(c, s.Glyph("site:other"), at, siteMark, s.Colour("site:other"), false)
+	}
+}
+
+// mapLive draws a tile's live layers; pattern, when set, replaces each
+// tint's own and dots each mark, for a tile last seen.
+func mapLive(c *Canvas, s MapStyle, t MapTile, at Pt, poly []Pt, pattern string) {
+	tint := func(id string) {
+		p := s.Pattern(id)
+		if pattern != "" {
+			p = pattern
+		}
+		patterned(c, at, poly, p, s.Colour(id))
+	}
+	if t.Corrupted {
+		tint("layer:corruption")
+	}
+	if t.Danger {
+		tint("layer:danger")
+	}
+	if id := "weather:" + t.Weather; t.Weather != "" && s.Colour(id).A > 0 {
+		tint(id)
+	}
+	dotted := pattern != ""
+	slot := 0
+	for _, mk := range []struct {
+		on    bool
+		glyph string
+		col   color.NRGBA
+	}{
+		{t.Trouble, s.Glyph("layer:trouble"), s.Colour("layer:trouble")},
+		{t.Fire, s.Glyph("layer:fire"), s.Colour("layer:fire")},
+		{t.Cut, "cross", opaqueOf(s.Colour("layer:danger"))},
+		{t.Toll > 0, "circle", opaqueOf(s.Colour("layer:trouble"))},
+	} {
+		if !mk.on {
+			continue
+		}
+		o := markSlots[slot%len(markSlots)]
+		slot++
+		glyph(c, mk.glyph, Pt{at.X + o.X*hexSize, at.Y + o.Y*hexSize}, liveMark, mk.col, dotted)
+	}
+	n := busyPips[t.Busy]
+	for i := range n {
+		x := at.X + (float64(i)-float64(n-1)/2)*busyPipGap*hexSize
+		glyph(c, s.Glyph("layer:busy"), Pt{x, at.Y + busyPipRow*hexSize}, busyPip, s.Colour("layer:busy"), dotted)
+	}
+}
+
+// patterned fills a hex in a pattern: solid, hatch, stripes, dots or rim.
+func patterned(c *Canvas, at Pt, poly []Pt, pattern string, col color.Color) {
+	switch pattern {
+	case "":
+		c.Fill([][]Pt{poly}, col)
+	case "hatch":
+		c.Line([]Pt{{at.X - hexSize/2, at.Y + hexSize/3}, {at.X + hexSize/2, at.Y - hexSize/3}}, 1, col)
+	case "stripes":
+		for k := -2; k <= 2; k++ {
+			o := float64(k) * hexSize / 3
+			c.Line([]Pt{{at.X + o - 6, at.Y + 8}, {at.X + o + 6, at.Y - 8}}, 2, col)
+		}
+	case "dots":
+		inner := hexSize * math.Sqrt(3) / 2 * 0.85
+		for y := -hexSize; y <= hexSize; y += dotGap {
+			for x := -hexSize; x <= hexSize; x += dotGap {
+				if math.Hypot(x, y) <= inner {
+					c.Circle(Pt{at.X + x, at.Y + y}, dotRadius, col)
+				}
+			}
+		}
+	case "rim":
+		c.Line(append(slices.Clone(poly), poly[0]), rimWidth, col)
+	}
+}
+
+// glyph draws a mark: filled, or as a dotted outline for a tile last seen.
+func glyph(c *Canvas, kind string, at Pt, r float64, col color.Color, dotted bool) {
+	var outline []Pt
+	switch kind {
+	case "diamond":
+		outline = []Pt{{at.X, at.Y - r}, {at.X + r, at.Y}, {at.X, at.Y + r}, {at.X - r, at.Y}}
+	case "square":
+		outline = []Pt{{at.X - r, at.Y - r}, {at.X + r, at.Y - r}, {at.X + r, at.Y + r}, {at.X - r, at.Y + r}}
+	case "triangle":
+		outline = []Pt{{at.X, at.Y - r}, {at.X + r, at.Y + r*0.8}, {at.X - r, at.Y + r*0.8}}
+	case "circle", "pip", "ring":
+		const sides = 16
+		for i := range sides {
+			a := 2 * math.Pi * float64(i) / sides
+			outline = append(outline, Pt{at.X + r*math.Cos(a), at.Y + r*math.Sin(a)})
+		}
+	case "cross":
+		for _, l := range [][]Pt{{{at.X - r, at.Y - r}, {at.X + r, at.Y + r}}, {{at.X + r, at.Y - r}, {at.X - r, at.Y + r}}} {
+			if dotted {
+				dashed(c, l, r*0.35+1, col)
+			} else {
+				c.Line(l, r*0.35+1, col)
+			}
+		}
+		return
+	default:
+		return
+	}
+	closed := append(outline, outline[0])
+	switch {
+	case dotted:
+		dashed(c, closed, max(r*0.35, 1), col)
+	case kind == "ring":
+		c.Line(closed, max(r*0.35, 1), col)
+	default:
+		c.Fill([][]Pt{outline}, col)
+	}
+}
+
+// dashed strokes a polyline in dashes.
+func dashed(c *Canvas, pts []Pt, width float64, col color.Color) {
+	var polys [][]Pt
+	for i := 1; i < len(pts); i++ {
+		a, b := pts[i-1], pts[i]
+		l := math.Hypot(b.X-a.X, b.Y-a.Y)
+		for o := 0.0; o < l; o += 2 * dash {
+			e := min(o+dash, l)
+			p, q := Pt{a.X + (b.X-a.X)*o/l, a.Y + (b.Y-a.Y)*o/l}, Pt{a.X + (b.X-a.X)*e/l, a.Y + (b.Y-a.Y)*e/l}
+			polys = append(polys, segment(p, q, width)...)
+		}
+	}
+	c.Fill(polys, col)
+}
+
+func segment(a, b Pt, width float64) [][]Pt {
+	dx, dy := b.X-a.X, b.Y-a.Y
+	l := math.Hypot(dx, dy)
+	if l == 0 {
+		return nil
+	}
+	nx, ny := -dy/l*width/2, dx/l*width/2
+	return [][]Pt{{{a.X + nx, a.Y + ny}, {b.X + nx, b.Y + ny}, {b.X - nx, b.Y - ny}, {a.X - nx, a.Y - ny}}}
 }
 
 // BannerInput is a banner's input: a region's biome, the weather over it,
