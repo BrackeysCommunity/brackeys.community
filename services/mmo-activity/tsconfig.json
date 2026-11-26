@@ -22,6 +22,7 @@
     "scripts/**/*.ts",
     "vite.config.ts",
     "../../packages/mmo-api/src/**/*.ts",
+    "../../packages/mmo-map/src/**/*.ts",
     "../../packages/mmo-words/src/**/*.ts"
   ]
 }

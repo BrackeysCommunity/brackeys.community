@@ -1,0 +1,265 @@
+{
+  "rev": "79afee9f595409a9",
+  "entries": [
+    {
+      "id": "terrain:plain",
+      "colour": "#b9c97a",
+      "alpha": 255
+    },
+    {
+      "id": "terrain:forest",
+      "colour": "#4f7a45",
+      "alpha": 255
+    },
+    {
+      "id": "terrain:marsh",
+      "colour": "#6f8a6a",
+      "alpha": 255
+    },
+    {
+      "id": "terrain:hills",
+      "colour": "#a89363",
+      "alpha": 255
+    },
+    {
+      "id": "terrain:mountain",
+      "colour": "#8a8078",
+      "alpha": 255
+    },
+    {
+      "id": "terrain:flats",
+      "colour": "#e0d29e",
+      "alpha": 255
+    },
+    {
+      "id": "terrain:coast",
+      "colour": "#d8cfa8",
+      "alpha": 255
+    },
+    {
+      "id": "terrain:deep-water",
+      "colour": "#2f5d8c",
+      "alpha": 255
+    },
+    {
+      "id": "terrain:peak",
+      "colour": "#eeeef2",
+      "alpha": 255
+    },
+    {
+      "id": "water:river",
+      "colour": "#3d7fc4",
+      "alpha": 255
+    },
+    {
+      "id": "water:stream",
+      "colour": "#3d7fc4",
+      "alpha": 255
+    },
+    {
+      "id": "water:ford",
+      "colour": "#3d7fc4",
+      "alpha": 255
+    },
+    {
+      "id": "water:lake",
+      "colour": "#2f5d8c",
+      "alpha": 255
+    },
+    {
+      "id": "water:sea",
+      "colour": "#2f5d8c",
+      "alpha": 255
+    },
+    {
+      "id": "water:bog",
+      "colour": "#6f8a6a",
+      "alpha": 255
+    },
+    {
+      "id": "water:coast",
+      "colour": "#d8cfa8",
+      "alpha": 255
+    },
+    {
+      "id": "weather:storm",
+      "colour": "#6a4fc8",
+      "alpha": 80
+    },
+    {
+      "id": "weather:frost",
+      "colour": "#e8f0ff",
+      "alpha": 80
+    },
+    {
+      "id": "weather:drought",
+      "colour": "#e09a3a",
+      "alpha": 80
+    },
+    {
+      "id": "weather:fog",
+      "colour": "#9a9a9a",
+      "alpha": 80
+    },
+    {
+      "id": "weather:clear",
+      "colour": "#ffffff",
+      "alpha": 0
+    },
+    {
+      "id": "fog:unknown",
+      "colour": "#2a2927",
+      "alpha": 255,
+      "pattern": "hatch"
+    },
+    {
+      "id": "fog:seen",
+      "colour": "#1d1c1a",
+      "alpha": 115,
+      "pattern": "dots"
+    },
+    {
+      "id": "fog:sight",
+      "colour": "#e0b424",
+      "alpha": 255,
+      "pattern": "rim"
+    },
+    {
+      "id": "layer:threat",
+      "colour": "#a4482a",
+      "alpha": 96
+    },
+    {
+      "id": "layer:corruption",
+      "colour": "#b8358c",
+      "alpha": 96,
+      "pattern": "stripes"
+    },
+    {
+      "id": "layer:danger",
+      "colour": "#a4482a",
+      "alpha": 160,
+      "pattern": "stripes"
+    },
+    {
+      "id": "layer:trouble",
+      "colour": "#e0b424",
+      "alpha": 255,
+      "glyph": "triangle"
+    },
+    {
+      "id": "layer:fire",
+      "colour": "#e08a10",
+      "alpha": 255,
+      "glyph": "cross"
+    },
+    {
+      "id": "layer:busy",
+      "colour": "#101010",
+      "alpha": 255,
+      "glyph": "pip"
+    },
+    {
+      "id": "layer:self",
+      "colour": "#e0b424",
+      "alpha": 255,
+      "glyph": "ring"
+    },
+    {
+      "id": "layer:route",
+      "colour": "#e0b424",
+      "alpha": 255
+    },
+    {
+      "id": "layer:camp",
+      "colour": "#7a141e",
+      "alpha": 255,
+      "glyph": "triangle"
+    },
+    {
+      "id": "layer:haunted",
+      "colour": "#5a1d6e",
+      "alpha": 96,
+      "pattern": "hatch"
+    },
+    {
+      "id": "place:settlement",
+      "colour": "#ffffff",
+      "alpha": 255,
+      "glyph": "diamond"
+    },
+    {
+      "id": "place:city",
+      "colour": "#ffffff",
+      "alpha": 255,
+      "glyph": "diamond"
+    },
+    {
+      "id": "place:city-tile",
+      "colour": "#ffffff",
+      "alpha": 64
+    },
+    {
+      "id": "place:ruin",
+      "colour": "#8d8a82",
+      "alpha": 255,
+      "glyph": "diamond"
+    },
+    {
+      "id": "place:faction",
+      "colour": "#7a4fa0",
+      "alpha": 255,
+      "glyph": "diamond"
+    },
+    {
+      "id": "site:dungeon",
+      "colour": "#7a141e",
+      "alpha": 255,
+      "glyph": "square"
+    },
+    {
+      "id": "site:other",
+      "colour": "#302a22",
+      "alpha": 255,
+      "glyph": "circle"
+    },
+    {
+      "id": "road",
+      "colour": "#5a4a3a",
+      "alpha": 255
+    },
+    {
+      "id": "ink",
+      "colour": "#101010",
+      "alpha": 255
+    },
+    {
+      "id": "paper",
+      "colour": "#f6f3ea",
+      "alpha": 255
+    },
+    {
+      "id": "border",
+      "colour": "#1d1c1a",
+      "alpha": 48
+    },
+    {
+      "id": "frontier",
+      "colour": "#c9c4b8",
+      "alpha": 192
+    },
+    {
+      "id": "region-border",
+      "colour": "#302a22",
+      "alpha": 96
+    }
+  ],
+  "view": {
+    "seenDim": 45,
+    "zoomArea": 4,
+    "zoomTile": 12,
+    "zoomMin": 1,
+    "zoomMax": 40,
+    "blendMax": 50
+  }
+}

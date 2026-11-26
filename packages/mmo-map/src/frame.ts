@@ -111,7 +111,7 @@ function centre(h: Axial): Point {
 function side(c: Point, d: number, size = 1): [Point, Point] {
   const corners = hexCorners(c, size);
   const [i, j] = sideCorners(d);
-  return [corners[i], corners[j]];
+  return [corners[i]!, corners[j]!];
 }
 
 function edgeOp(c: Point, d: number, colour: string, width: number): DrawOp {
@@ -387,7 +387,7 @@ export function overlayOps(
   if (self) sight.add(selfKey);
   const rim = s.opaque("fog:sight");
   for (const k of sight) {
-    const [q, r] = k.split(",").map(Number);
+    const [q = 0, r = 0] = k.split(",").map(Number);
     const h = { q, r };
     if (!cellAt(h)) continue;
     const p = centre(h);
@@ -450,7 +450,7 @@ function liveMarks(
     for (const [on, id, colour] of wanted) {
       if (!on) continue;
       const glyph = id.includes(":") ? s.glyph(id) : id;
-      const at = MARK_SLOTS[slot++ % MARK_SLOTS.length];
+      const at = MARK_SLOTS[slot++ % MARK_SLOTS.length]!;
       if (glyph) {
         out.push({
           kind: "glyph",
@@ -480,7 +480,7 @@ function liveMarks(
 }
 
 function frontArrow(c: Point, d: number, colour: string): DrawOp[] {
-  const v = centre(DIRECTIONS[d]);
+  const v = centre(DIRECTIONS[d]!);
   const len = Math.hypot(v.x, v.y);
   const ux = v.x / len;
   const uy = v.y / len;
@@ -551,7 +551,7 @@ function renamed(ops: DrawOp[], names: Record<string, string>): DrawOp[] {
   if (!ops.some((op) => op.kind === "label" && op.ref && names[op.ref] !== undefined)) return ops;
   return ops.map((op) =>
     op.kind === "label" && op.ref && names[op.ref] !== undefined
-      ? { ...op, text: names[op.ref] }
+      ? { ...op, text: names[op.ref]! }
       : op,
   );
 }

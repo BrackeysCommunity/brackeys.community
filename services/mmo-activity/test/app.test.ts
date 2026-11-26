@@ -161,6 +161,7 @@ test("what opens follows the launch order: armed, a machine beat, the beat, pouc
   expect(screens({ ...fixture("bench"), pouches: fixture("pouch").pouches }, false)).toEqual([
     "pouches",
     "bench",
+    "map",
   ]);
 });
 

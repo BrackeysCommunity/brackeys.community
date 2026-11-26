@@ -80,6 +80,6 @@ export function hexKey(h: Axial): string {
 }
 
 export function neighbour(h: Axial, d: number): Axial {
-  const o = DIRECTIONS[d];
+  const o = DIRECTIONS[d]!;
   return { q: h.q + o.q, r: h.r + o.r };
 }

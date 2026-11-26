@@ -1,0 +1,6762 @@
+[
+  {
+    "world": "mock",
+    "a": -3,
+    "b": 1,
+    "level": "area",
+    "rev": "2acf8896d402e45c",
+    "cells": [
+      {
+        "q": -41,
+        "r": 25,
+        "terrain": "plain",
+        "region": "r-25",
+        "edge": 12
+      },
+      {
+        "q": -40,
+        "r": 25,
+        "terrain": "hills",
+        "region": "r-7"
+      },
+      {
+        "q": -39,
+        "r": 25,
+        "terrain": "hills",
+        "region": "r-8"
+      },
+      {
+        "q": -38,
+        "r": 25,
+        "terrain": "hills",
+        "region": "r-8"
+      },
+      {
+        "q": -37,
+        "r": 25,
+        "terrain": "hills",
+        "region": "r-8"
+      },
+      {
+        "q": -36,
+        "r": 25,
+        "terrain": "hills",
+        "region": "r-8"
+      },
+      {
+        "q": -35,
+        "r": 25,
+        "terrain": "hills",
+        "region": "r-8"
+      },
+      {
+        "q": -42,
+        "r": 26,
+        "terrain": "plain",
+        "region": "r-25",
+        "edge": 28
+      },
+      {
+        "q": -41,
+        "r": 26,
+        "terrain": "plain",
+        "region": "r-25"
+      },
+      {
+        "q": -40,
+        "r": 26,
+        "terrain": "plain",
+        "region": "r-8"
+      },
+      {
+        "q": -39,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-8"
+      },
+      {
+        "q": -38,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-8"
+      },
+      {
+        "q": -37,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-8"
+      },
+      {
+        "q": -36,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-8"
+      },
+      {
+        "q": -35,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-8"
+      },
+      {
+        "q": -42,
+        "r": 27,
+        "terrain": "plain",
+        "region": "r-25",
+        "edge": 24
+      },
+      {
+        "q": -41,
+        "r": 27,
+        "terrain": "plain",
+        "region": "r-25"
+      },
+      {
+        "q": -40,
+        "r": 27,
+        "terrain": "plain",
+        "region": "r-8"
+      },
+      {
+        "q": -39,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-8"
+      },
+      {
+        "q": -38,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-8"
+      },
+      {
+        "q": -37,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-8"
+      },
+      {
+        "q": -36,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-8"
+      },
+      {
+        "q": -35,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-2"
+      },
+      {
+        "q": -42,
+        "r": 28,
+        "terrain": "plain",
+        "region": "r-25",
+        "edge": 24
+      },
+      {
+        "q": -41,
+        "r": 28,
+        "terrain": "plain",
+        "region": "r-26"
+      },
+      {
+        "q": -40,
+        "r": 28,
+        "terrain": "plain",
+        "region": "r-26"
+      },
+      {
+        "q": -39,
+        "r": 28,
+        "terrain": "plain",
+        "region": "r-26"
+      },
+      {
+        "q": -38,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-8"
+      },
+      {
+        "q": -37,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-8"
+      },
+      {
+        "q": -36,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-2"
+      },
+      {
+        "q": -35,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-2"
+      },
+      {
+        "q": -42,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-26",
+        "edge": 24
+      },
+      {
+        "q": -41,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-26"
+      },
+      {
+        "q": -40,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-26"
+      },
+      {
+        "q": -39,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -38,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -37,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-2"
+      },
+      {
+        "q": -36,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-2"
+      },
+      {
+        "q": -35,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-2"
+      },
+      {
+        "q": -42,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-26",
+        "edge": 24
+      },
+      {
+        "q": -41,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-26"
+      },
+      {
+        "q": -40,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-26"
+      },
+      {
+        "q": -39,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -38,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -37,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -36,
+        "r": 30,
+        "terrain": "hills",
+        "region": "r-2"
+      },
+      {
+        "q": -35,
+        "r": 30,
+        "terrain": "hills",
+        "region": "r-2"
+      },
+      {
+        "q": -42,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-26",
+        "edge": 24
+      },
+      {
+        "q": -41,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-26"
+      },
+      {
+        "q": -40,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -39,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -38,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -37,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -36,
+        "r": 31,
+        "terrain": "hills",
+        "region": "r-2"
+      },
+      {
+        "q": -35,
+        "r": 31,
+        "terrain": "hills",
+        "region": "r-2"
+      },
+      {
+        "q": -42,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-26",
+        "edge": 24
+      },
+      {
+        "q": -41,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-26"
+      },
+      {
+        "q": -40,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -39,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -38,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -37,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -36,
+        "r": 32,
+        "terrain": "hills",
+        "region": "r-10"
+      },
+      {
+        "q": -35,
+        "r": 32,
+        "terrain": "hills",
+        "region": "r-11"
+      },
+      {
+        "q": -42,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-27",
+        "edge": 24
+      },
+      {
+        "q": -41,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -40,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -39,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -38,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -37,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -36,
+        "r": 33,
+        "terrain": "hills",
+        "region": "r-11"
+      },
+      {
+        "q": -35,
+        "r": 33,
+        "terrain": "hills",
+        "region": "r-11"
+      },
+      {
+        "q": -42,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-27",
+        "edge": 24
+      },
+      {
+        "q": -41,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-27"
+      },
+      {
+        "q": -40,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-27"
+      },
+      {
+        "q": -39,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -38,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-10"
+      },
+      {
+        "q": -37,
+        "r": 34,
+        "terrain": "plain",
+        "secondary": "hills",
+        "blend": 25,
+        "region": "r-20"
+      },
+      {
+        "q": -36,
+        "r": 34,
+        "terrain": "plain",
+        "secondary": "hills",
+        "blend": 25,
+        "region": "r-11"
+      },
+      {
+        "q": -42,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-27",
+        "edge": 24
+      },
+      {
+        "q": -41,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-27"
+      },
+      {
+        "q": -40,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-27"
+      },
+      {
+        "q": -39,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-20"
+      },
+      {
+        "q": -38,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-20"
+      },
+      {
+        "q": -37,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-20"
+      },
+      {
+        "q": -42,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-27",
+        "edge": 24
+      },
+      {
+        "q": -41,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-27"
+      },
+      {
+        "q": -40,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-27"
+      },
+      {
+        "q": -39,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-20"
+      },
+      {
+        "q": -38,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-20"
+      },
+      {
+        "q": -42,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-27",
+        "edge": 24
+      },
+      {
+        "q": -41,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-27"
+      },
+      {
+        "q": -40,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-27"
+      },
+      {
+        "q": -39,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-20"
+      },
+      {
+        "q": -42,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-27",
+        "edge": 56
+      },
+      {
+        "q": -41,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-27",
+        "edge": 48
+      },
+      {
+        "q": -40,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-20",
+        "edge": 48
+      }
+    ],
+    "names": {
+      "r-10": "Greysprawl",
+      "r-11": "Lowflats",
+      "r-2": "Lowheap",
+      "r-20": "Scrapdrift",
+      "r-25": "Greyline",
+      "r-26": "Leadheap",
+      "r-27": "Ashfields",
+      "r-7": "Rustwaste",
+      "r-8": "Burnpan"
+    }
+  },
+  {
+    "world": "mock",
+    "a": -3,
+    "b": 1,
+    "level": "tile",
+    "rev": "cda7720955819285",
+    "cells": [
+      {
+        "q": -41,
+        "r": 25,
+        "terrain": "plain",
+        "region": "r-25",
+        "edge": 12,
+        "found": 1
+      },
+      {
+        "q": -40,
+        "r": 25,
+        "terrain": "hills",
+        "region": "r-7",
+        "found": 1
+      },
+      {
+        "q": -39,
+        "r": 25,
+        "terrain": "hills",
+        "region": "r-8",
+        "site": "site",
+        "siteKind": "scavenger-camp",
+        "found": 1
+      },
+      {
+        "q": -38,
+        "r": 25,
+        "terrain": "hills",
+        "region": "r-8",
+        "found": 1
+      },
+      {
+        "q": -37,
+        "r": 25,
+        "terrain": "hills",
+        "region": "r-8",
+        "site": "site",
+        "siteKind": "den",
+        "found": 1
+      },
+      {
+        "q": -36,
+        "r": 25,
+        "terrain": "hills",
+        "region": "r-8",
+        "found": 1
+      },
+      {
+        "q": -35,
+        "r": 25,
+        "terrain": "hills",
+        "region": "r-8",
+        "found": 1
+      },
+      {
+        "q": -42,
+        "r": 26,
+        "terrain": "plain",
+        "region": "r-25",
+        "edge": 28,
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -41,
+        "r": 26,
+        "terrain": "plain",
+        "region": "r-25",
+        "found": 1
+      },
+      {
+        "q": -40,
+        "r": 26,
+        "terrain": "plain",
+        "region": "r-8",
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -39,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-8",
+        "found": 1
+      },
+      {
+        "q": -38,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-8",
+        "found": 1
+      },
+      {
+        "q": -37,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-8",
+        "landmark": "mast",
+        "found": 1
+      },
+      {
+        "q": -36,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-8",
+        "found": 1
+      },
+      {
+        "q": -35,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-8",
+        "site": "dungeon",
+        "found": 1
+      },
+      {
+        "q": -42,
+        "r": 27,
+        "terrain": "plain",
+        "region": "r-25",
+        "edge": 24,
+        "found": 1
+      },
+      {
+        "q": -41,
+        "r": 27,
+        "terrain": "plain",
+        "region": "r-25",
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -40,
+        "r": 27,
+        "terrain": "plain",
+        "region": "r-8",
+        "found": 1
+      },
+      {
+        "q": -39,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-8",
+        "found": 1
+      },
+      {
+        "q": -38,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-8",
+        "site": "site",
+        "siteKind": "battlefield-ruin",
+        "found": 1
+      },
+      {
+        "q": -37,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-8",
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -36,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-8",
+        "found": 1
+      },
+      {
+        "q": -35,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-2",
+        "found": 1
+      },
+      {
+        "q": -42,
+        "r": 28,
+        "terrain": "plain",
+        "region": "r-25",
+        "edge": 24,
+        "site": "dungeon",
+        "found": 1
+      },
+      {
+        "q": -41,
+        "r": 28,
+        "terrain": "plain",
+        "region": "r-26",
+        "found": 1
+      },
+      {
+        "q": -40,
+        "r": 28,
+        "terrain": "plain",
+        "region": "r-26",
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -39,
+        "r": 28,
+        "terrain": "plain",
+        "region": "r-26",
+        "found": 1
+      },
+      {
+        "q": -38,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-8",
+        "site": "beacon",
+        "found": 1
+      },
+      {
+        "q": -37,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-8",
+        "found": 1
+      },
+      {
+        "q": -36,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-2",
+        "found": 1
+      },
+      {
+        "q": -35,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-2",
+        "site": "site",
+        "siteKind": "cable-run",
+        "found": 1
+      },
+      {
+        "q": -42,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-26",
+        "edge": 24,
+        "found": 1
+      },
+      {
+        "q": -41,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-26",
+        "found": 1
+      },
+      {
+        "q": -40,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-26",
+        "found": 1
+      },
+      {
+        "q": -39,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-10",
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -38,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-10",
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -37,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-2",
+        "site": "site",
+        "siteKind": "den",
+        "found": 1
+      },
+      {
+        "q": -36,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-2",
+        "found": 1
+      },
+      {
+        "q": -35,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-2",
+        "found": 1
+      },
+      {
+        "q": -42,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-26",
+        "edge": 24,
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -41,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-26",
+        "found": 1
+      },
+      {
+        "q": -40,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-26",
+        "found": 1
+      },
+      {
+        "q": -39,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-10",
+        "found": 1
+      },
+      {
+        "q": -38,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-10",
+        "found": 1
+      },
+      {
+        "q": -37,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-10",
+        "found": 1
+      },
+      {
+        "q": -36,
+        "r": 30,
+        "terrain": "hills",
+        "region": "r-2",
+        "found": 1
+      },
+      {
+        "q": -35,
+        "r": 30,
+        "terrain": "hills",
+        "region": "r-2",
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -42,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-26",
+        "edge": 24,
+        "found": 1
+      },
+      {
+        "q": -41,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-26",
+        "found": 1
+      },
+      {
+        "q": -40,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-10",
+        "found": 1
+      },
+      {
+        "q": -39,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-10",
+        "found": 1
+      },
+      {
+        "q": -38,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-10",
+        "found": 1
+      },
+      {
+        "q": -37,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-10",
+        "found": 1
+      },
+      {
+        "q": -36,
+        "r": 31,
+        "terrain": "hills",
+        "region": "r-2",
+        "found": 1
+      },
+      {
+        "q": -35,
+        "r": 31,
+        "terrain": "hills",
+        "region": "r-2",
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -42,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-26",
+        "edge": 24,
+        "found": 1
+      },
+      {
+        "q": -41,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-26",
+        "found": 1
+      },
+      {
+        "q": -40,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-10",
+        "site": "site",
+        "siteKind": "den",
+        "found": 1
+      },
+      {
+        "q": -39,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-10",
+        "site": "site",
+        "siteKind": "cable-run",
+        "found": 1
+      },
+      {
+        "q": -38,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-10",
+        "found": 1
+      },
+      {
+        "q": -37,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-10",
+        "found": 1
+      },
+      {
+        "q": -36,
+        "r": 32,
+        "terrain": "hills",
+        "region": "r-10",
+        "landmark": "mast",
+        "found": 1
+      },
+      {
+        "q": -35,
+        "r": 32,
+        "terrain": "hills",
+        "region": "r-11",
+        "found": 1
+      },
+      {
+        "q": -42,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-27",
+        "edge": 24,
+        "found": 1
+      },
+      {
+        "q": -41,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-10",
+        "site": "dungeon",
+        "found": 1
+      },
+      {
+        "q": -40,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-10",
+        "found": 1
+      },
+      {
+        "q": -39,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-10",
+        "found": 1
+      },
+      {
+        "q": -38,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-10",
+        "found": 1
+      },
+      {
+        "q": -37,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-10",
+        "site": "site",
+        "siteKind": "den",
+        "found": 1
+      },
+      {
+        "q": -36,
+        "r": 33,
+        "terrain": "hills",
+        "region": "r-11",
+        "site": "site",
+        "siteKind": "cable-run",
+        "found": 1
+      },
+      {
+        "q": -35,
+        "r": 33,
+        "terrain": "hills",
+        "region": "r-11",
+        "found": 1
+      },
+      {
+        "q": -42,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-27",
+        "edge": 24,
+        "found": 1
+      },
+      {
+        "q": -41,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-27",
+        "found": 1
+      },
+      {
+        "q": -40,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-27",
+        "found": 1
+      },
+      {
+        "q": -39,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-10",
+        "found": 1
+      },
+      {
+        "q": -38,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-10",
+        "found": 1
+      },
+      {
+        "q": -37,
+        "r": 34,
+        "terrain": "plain",
+        "secondary": "hills",
+        "blend": 25,
+        "region": "r-20",
+        "found": 1
+      },
+      {
+        "q": -36,
+        "r": 34,
+        "terrain": "plain",
+        "secondary": "hills",
+        "blend": 25,
+        "region": "r-11",
+        "found": 1
+      },
+      {
+        "q": -42,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-27",
+        "edge": 24,
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -41,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-27",
+        "found": 1
+      },
+      {
+        "q": -40,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-27",
+        "site": "site",
+        "siteKind": "cable-run",
+        "found": 1
+      },
+      {
+        "q": -39,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-20",
+        "found": 1
+      },
+      {
+        "q": -38,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-20",
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -37,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-20",
+        "found": 1
+      },
+      {
+        "q": -42,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-27",
+        "edge": 24,
+        "found": 1
+      },
+      {
+        "q": -41,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-27",
+        "found": 1
+      },
+      {
+        "q": -40,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-27",
+        "found": 1
+      },
+      {
+        "q": -39,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-20",
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -38,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-20",
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -42,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-27",
+        "edge": 24,
+        "found": 1
+      },
+      {
+        "q": -41,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-27",
+        "found": 1
+      },
+      {
+        "q": -40,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-27",
+        "found": 1
+      },
+      {
+        "q": -39,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-20",
+        "found": 1
+      },
+      {
+        "q": -42,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-27",
+        "edge": 56,
+        "found": 1
+      },
+      {
+        "q": -41,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-27",
+        "edge": 48,
+        "site": "site",
+        "siteKind": "battlefield-ruin",
+        "found": 1
+      },
+      {
+        "q": -40,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-20",
+        "edge": 48,
+        "found": 1
+      }
+    ],
+    "names": {
+      "r-10": "Greysprawl",
+      "r-11": "Lowflats",
+      "r-2": "Lowheap",
+      "r-20": "Scrapdrift",
+      "r-25": "Greyline",
+      "r-26": "Leadheap",
+      "r-27": "Ashfields",
+      "r-7": "Rustwaste",
+      "r-8": "Burnpan"
+    }
+  },
+  {
+    "world": "mock",
+    "a": -3,
+    "b": 2,
+    "level": "area",
+    "rev": "cbbea38531889a99",
+    "cells": [
+      {
+        "q": -35,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-11"
+      },
+      {
+        "q": -34,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-11"
+      },
+      {
+        "q": -33,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-11"
+      },
+      {
+        "q": -32,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-21"
+      },
+      {
+        "q": -31,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-21"
+      },
+      {
+        "q": -30,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-22"
+      },
+      {
+        "q": -29,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-22"
+      },
+      {
+        "q": -28,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-16"
+      },
+      {
+        "q": -27,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-16"
+      },
+      {
+        "q": -36,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-20"
+      },
+      {
+        "q": -35,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-11"
+      },
+      {
+        "q": -34,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-21"
+      },
+      {
+        "q": -33,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-21"
+      },
+      {
+        "q": -32,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-21"
+      },
+      {
+        "q": -31,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-22"
+      },
+      {
+        "q": -30,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-22"
+      },
+      {
+        "q": -29,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-22"
+      },
+      {
+        "q": -28,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-16"
+      },
+      {
+        "q": -27,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-16",
+        "edge": 33
+      },
+      {
+        "q": -37,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-20"
+      },
+      {
+        "q": -36,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-20"
+      },
+      {
+        "q": -35,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-21"
+      },
+      {
+        "q": -34,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-21"
+      },
+      {
+        "q": -33,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-21"
+      },
+      {
+        "q": -32,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-21"
+      },
+      {
+        "q": -31,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-22"
+      },
+      {
+        "q": -30,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-22"
+      },
+      {
+        "q": -29,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-22"
+      },
+      {
+        "q": -28,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-22",
+        "edge": 33
+      },
+      {
+        "q": -38,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-32"
+      },
+      {
+        "q": -37,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-32"
+      },
+      {
+        "q": -36,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-32"
+      },
+      {
+        "q": -35,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-32"
+      },
+      {
+        "q": -34,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-32"
+      },
+      {
+        "q": -33,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-21"
+      },
+      {
+        "q": -32,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-21"
+      },
+      {
+        "q": -31,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-22"
+      },
+      {
+        "q": -30,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-22"
+      },
+      {
+        "q": -29,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-22",
+        "edge": 33
+      },
+      {
+        "q": -39,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-32",
+        "edge": 48
+      },
+      {
+        "q": -38,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-32",
+        "edge": 48
+      },
+      {
+        "q": -37,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-32",
+        "edge": 48
+      },
+      {
+        "q": -36,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-32",
+        "edge": 48
+      },
+      {
+        "q": -35,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-32",
+        "edge": 48
+      },
+      {
+        "q": -34,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-32",
+        "edge": 48
+      },
+      {
+        "q": -33,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-33",
+        "edge": 48
+      },
+      {
+        "q": -32,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-33",
+        "edge": 48
+      },
+      {
+        "q": -31,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-22",
+        "edge": 48
+      },
+      {
+        "q": -30,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-22",
+        "edge": 49
+      }
+    ],
+    "names": {
+      "r-11": "Lowflats",
+      "r-16": "Greywater",
+      "r-20": "Scrapdrift",
+      "r-21": "Deadwater",
+      "r-22": "Ashpan",
+      "r-32": "Staticline",
+      "r-33": "Rustline"
+    }
+  },
+  {
+    "world": "mock",
+    "a": -3,
+    "b": 2,
+    "level": "tile",
+    "rev": "752abaeadf39b127",
+    "cells": [
+      {
+        "q": -35,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-11",
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-11",
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-11",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-21",
+        "site": "site",
+        "siteKind": "cable-run",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-21",
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-22",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-22",
+        "site": "site",
+        "siteKind": "den",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-16",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 34,
+        "terrain": "plain",
+        "region": "r-16",
+        "found": 1
+      },
+      {
+        "q": -36,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-20",
+        "found": 1
+      },
+      {
+        "q": -35,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-11",
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-21",
+        "site": "site",
+        "siteKind": "cable-run",
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-21",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-21",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-22",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-22",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-22",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-16",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 35,
+        "terrain": "plain",
+        "region": "r-16",
+        "edge": 33,
+        "found": 1
+      },
+      {
+        "q": -37,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-20",
+        "found": 1
+      },
+      {
+        "q": -36,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-20",
+        "found": 1
+      },
+      {
+        "q": -35,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-21",
+        "site": "dungeon",
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-21",
+        "site": "site",
+        "siteKind": "den",
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-21",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-21",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-22",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-22",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-22",
+        "site": "dungeon",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 36,
+        "terrain": "plain",
+        "region": "r-22",
+        "edge": 33,
+        "found": 1
+      },
+      {
+        "q": -38,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-32",
+        "found": 1
+      },
+      {
+        "q": -37,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-32",
+        "landmark": "mast",
+        "found": 1
+      },
+      {
+        "q": -36,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-32",
+        "found": 1
+      },
+      {
+        "q": -35,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-32",
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-32",
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-21",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-21",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-22",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-22",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 37,
+        "terrain": "plain",
+        "region": "r-22",
+        "edge": 33,
+        "found": 1
+      },
+      {
+        "q": -39,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-32",
+        "edge": 48,
+        "found": 1
+      },
+      {
+        "q": -38,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-32",
+        "edge": 48,
+        "found": 1
+      },
+      {
+        "q": -37,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-32",
+        "edge": 48,
+        "found": 1
+      },
+      {
+        "q": -36,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-32",
+        "edge": 48,
+        "found": 1
+      },
+      {
+        "q": -35,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-32",
+        "edge": 48,
+        "site": "site",
+        "siteKind": "battlefield-ruin",
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-32",
+        "edge": 48,
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-33",
+        "edge": 48,
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-33",
+        "edge": 48,
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-22",
+        "edge": 48,
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 38,
+        "terrain": "plain",
+        "region": "r-22",
+        "edge": 49,
+        "found": 1
+      }
+    ],
+    "names": {
+      "r-11": "Lowflats",
+      "r-16": "Greywater",
+      "r-20": "Scrapdrift",
+      "r-21": "Deadwater",
+      "r-22": "Ashpan",
+      "r-32": "Staticline",
+      "r-33": "Rustline"
+    }
+  },
+  {
+    "world": "mock",
+    "a": -2,
+    "b": 0,
+    "level": "area",
+    "rev": "fda35456f0a2ee78",
+    "cells": [
+      {
+        "q": -30,
+        "r": 14,
+        "terrain": "hills",
+        "water": "river",
+        "region": "r-12",
+        "edge": 14
+      },
+      {
+        "q": -29,
+        "r": 14,
+        "terrain": "hills",
+        "water": "river",
+        "region": "r-12",
+        "edge": 6
+      },
+      {
+        "q": -28,
+        "r": 14,
+        "terrain": "hills",
+        "region": "r-12",
+        "edge": 6
+      },
+      {
+        "q": -27,
+        "r": 14,
+        "terrain": "mountain",
+        "region": "r-3",
+        "edge": 6
+      },
+      {
+        "q": -26,
+        "r": 14,
+        "terrain": "mountain",
+        "water": "stream",
+        "region": "r-3",
+        "edge": 6
+      },
+      {
+        "q": -31,
+        "r": 15,
+        "terrain": "hills",
+        "water": "stream",
+        "region": "r-9",
+        "edge": 12
+      },
+      {
+        "q": -30,
+        "r": 15,
+        "terrain": "hills",
+        "region": "r-12"
+      },
+      {
+        "q": -29,
+        "r": 15,
+        "terrain": "hills",
+        "water": "river",
+        "region": "r-12"
+      },
+      {
+        "q": -28,
+        "r": 15,
+        "terrain": "mountain",
+        "region": "r-3"
+      },
+      {
+        "q": -27,
+        "r": 15,
+        "terrain": "mountain",
+        "water": "stream",
+        "region": "r-3"
+      },
+      {
+        "q": -26,
+        "r": 15,
+        "terrain": "mountain",
+        "water": "stream",
+        "region": "r-3"
+      },
+      {
+        "q": -32,
+        "r": 16,
+        "terrain": "hills",
+        "water": "stream",
+        "region": "r-9",
+        "edge": 12
+      },
+      {
+        "q": -31,
+        "r": 16,
+        "terrain": "hills",
+        "region": "r-9"
+      },
+      {
+        "q": -30,
+        "r": 16,
+        "terrain": "hills",
+        "region": "r-9"
+      },
+      {
+        "q": -29,
+        "r": 16,
+        "terrain": "hills",
+        "water": "river",
+        "region": "r-3"
+      },
+      {
+        "q": -28,
+        "r": 16,
+        "terrain": "hills",
+        "water": "stream",
+        "region": "r-3"
+      },
+      {
+        "q": -27,
+        "r": 16,
+        "terrain": "mountain",
+        "region": "r-3"
+      },
+      {
+        "q": -26,
+        "r": 16,
+        "terrain": "mountain",
+        "water": "stream",
+        "region": "r-3"
+      },
+      {
+        "q": -33,
+        "r": 17,
+        "terrain": "hills",
+        "water": "stream",
+        "region": "r-9",
+        "edge": 12
+      },
+      {
+        "q": -32,
+        "r": 17,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -31,
+        "r": 17,
+        "terrain": "mountain",
+        "region": "r-3"
+      },
+      {
+        "q": -30,
+        "r": 17,
+        "terrain": "mountain",
+        "region": "r-3"
+      },
+      {
+        "q": -29,
+        "r": 17,
+        "terrain": "hills",
+        "region": "r-3"
+      },
+      {
+        "q": -28,
+        "r": 17,
+        "terrain": "mountain",
+        "region": "r-3"
+      },
+      {
+        "q": -27,
+        "r": 17,
+        "terrain": "mountain",
+        "region": "r-3"
+      },
+      {
+        "q": -34,
+        "r": 18,
+        "terrain": "hills",
+        "water": "stream",
+        "region": "r-9",
+        "edge": 12
+      },
+      {
+        "q": -33,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -32,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -31,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -30,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-3"
+      },
+      {
+        "q": -29,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-3"
+      },
+      {
+        "q": -28,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-3"
+      },
+      {
+        "q": -35,
+        "r": 19,
+        "terrain": "mountain",
+        "water": "stream",
+        "region": "r-1",
+        "edge": 12
+      },
+      {
+        "q": -34,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -33,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -32,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -31,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -30,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-3"
+      },
+      {
+        "q": -29,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -36,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-1",
+        "edge": 12
+      },
+      {
+        "q": -35,
+        "r": 20,
+        "terrain": "mountain",
+        "water": "stream",
+        "region": "r-1"
+      },
+      {
+        "q": -34,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -33,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -32,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -31,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -30,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -37,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-1",
+        "edge": 12
+      },
+      {
+        "q": -36,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -35,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -34,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -33,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -32,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -31,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -38,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-1",
+        "edge": 12
+      },
+      {
+        "q": -37,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -36,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -35,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -34,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -33,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -32,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -39,
+        "r": 23,
+        "terrain": "hills",
+        "region": "r-7",
+        "edge": 12
+      },
+      {
+        "q": -38,
+        "r": 23,
+        "terrain": "hills",
+        "region": "r-7"
+      },
+      {
+        "q": -37,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -36,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -35,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -34,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -33,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -40,
+        "r": 24,
+        "terrain": "hills",
+        "region": "r-7",
+        "edge": 12
+      },
+      {
+        "q": -39,
+        "r": 24,
+        "terrain": "hills",
+        "region": "r-7"
+      },
+      {
+        "q": -38,
+        "r": 24,
+        "terrain": "hills",
+        "region": "r-8"
+      },
+      {
+        "q": -37,
+        "r": 24,
+        "terrain": "hills",
+        "region": "r-8"
+      },
+      {
+        "q": -36,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -35,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -34,
+        "r": 24,
+        "terrain": "hills",
+        "region": "r-8"
+      }
+    ],
+    "names": {
+      "r-0": "Scrapreach",
+      "r-1": "Junkline",
+      "r-12": "Leadbowl",
+      "r-3": "Greyflats",
+      "r-7": "Rustwaste",
+      "r-8": "Burnpan",
+      "r-9": "Nullsink"
+    }
+  },
+  {
+    "world": "mock",
+    "a": -2,
+    "b": 0,
+    "level": "tile",
+    "rev": "b79aad50dc5f4a22",
+    "cells": [
+      {
+        "q": -30,
+        "r": 14,
+        "terrain": "hills",
+        "water": "river",
+        "region": "r-12",
+        "edge": 14,
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 14,
+        "terrain": "hills",
+        "water": "river",
+        "region": "r-12",
+        "edge": 6,
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 14,
+        "terrain": "hills",
+        "region": "r-12",
+        "edge": 6,
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 14,
+        "terrain": "mountain",
+        "region": "r-3",
+        "edge": 6,
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 14,
+        "terrain": "mountain",
+        "water": "stream",
+        "region": "r-3",
+        "edge": 6,
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 15,
+        "terrain": "hills",
+        "water": "stream",
+        "region": "r-9",
+        "edge": 12,
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 15,
+        "terrain": "hills",
+        "region": "r-12",
+        "site": "dungeon",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 15,
+        "terrain": "hills",
+        "water": "river",
+        "region": "r-12",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 15,
+        "terrain": "mountain",
+        "region": "r-3",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 15,
+        "terrain": "mountain",
+        "water": "stream",
+        "region": "r-3",
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 15,
+        "terrain": "mountain",
+        "water": "stream",
+        "region": "r-3",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 16,
+        "terrain": "hills",
+        "water": "stream",
+        "region": "r-9",
+        "edge": 12,
+        "site": "site",
+        "siteKind": "den",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 16,
+        "terrain": "hills",
+        "region": "r-9",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 16,
+        "terrain": "hills",
+        "region": "r-9",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 16,
+        "terrain": "hills",
+        "water": "river",
+        "region": "r-3",
+        "site": "site",
+        "siteKind": "battlefield-ruin",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 16,
+        "terrain": "hills",
+        "water": "stream",
+        "region": "r-3",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 16,
+        "terrain": "mountain",
+        "region": "r-3",
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 16,
+        "terrain": "mountain",
+        "water": "stream",
+        "region": "r-3",
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 17,
+        "terrain": "hills",
+        "water": "stream",
+        "region": "r-9",
+        "edge": 12,
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 17,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 17,
+        "terrain": "mountain",
+        "region": "r-3",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 17,
+        "terrain": "mountain",
+        "region": "r-3",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 17,
+        "terrain": "hills",
+        "region": "r-3",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 17,
+        "terrain": "mountain",
+        "region": "r-3",
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 17,
+        "terrain": "mountain",
+        "region": "r-3",
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 18,
+        "terrain": "hills",
+        "water": "stream",
+        "region": "r-9",
+        "edge": 12,
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-1",
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-3",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-3",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-3",
+        "site": "site",
+        "siteKind": "scavenger-camp",
+        "found": 1
+      },
+      {
+        "q": -35,
+        "r": 19,
+        "terrain": "mountain",
+        "water": "stream",
+        "region": "r-1",
+        "edge": 12,
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-3",
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -36,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-1",
+        "edge": 12,
+        "found": 1
+      },
+      {
+        "q": -35,
+        "r": 20,
+        "terrain": "mountain",
+        "water": "stream",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-1",
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-0",
+        "site": "site",
+        "siteKind": "den",
+        "found": 1
+      },
+      {
+        "q": -37,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-1",
+        "edge": 12,
+        "found": 1
+      },
+      {
+        "q": -36,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-1",
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -35,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -38,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-1",
+        "edge": 12,
+        "found": 1
+      },
+      {
+        "q": -37,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -36,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -35,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -39,
+        "r": 23,
+        "terrain": "hills",
+        "region": "r-7",
+        "edge": 12,
+        "found": 1
+      },
+      {
+        "q": -38,
+        "r": 23,
+        "terrain": "hills",
+        "region": "r-7",
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -37,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -36,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-1",
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -35,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -40,
+        "r": 24,
+        "terrain": "hills",
+        "region": "r-7",
+        "edge": 12,
+        "found": 1
+      },
+      {
+        "q": -39,
+        "r": 24,
+        "terrain": "hills",
+        "region": "r-7",
+        "found": 1
+      },
+      {
+        "q": -38,
+        "r": 24,
+        "terrain": "hills",
+        "region": "r-8",
+        "site": "beacon",
+        "found": 1
+      },
+      {
+        "q": -37,
+        "r": 24,
+        "terrain": "hills",
+        "region": "r-8",
+        "found": 1
+      },
+      {
+        "q": -36,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-1",
+        "site": "site",
+        "siteKind": "scavenger-camp",
+        "found": 1
+      },
+      {
+        "q": -35,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 24,
+        "terrain": "hills",
+        "region": "r-8",
+        "found": 1
+      }
+    ],
+    "names": {
+      "r-0": "Scrapreach",
+      "r-1": "Junkline",
+      "r-12": "Leadbowl",
+      "r-3": "Greyflats",
+      "r-7": "Rustwaste",
+      "r-8": "Burnpan",
+      "r-9": "Nullsink"
+    }
+  },
+  {
+    "world": "mock",
+    "a": -2,
+    "b": 1,
+    "level": "area",
+    "rev": "bb5280bde47029a6",
+    "cells": [
+      {
+        "q": -26,
+        "r": 17,
+        "terrain": "mountain",
+        "water": "stream",
+        "region": "r-3"
+      },
+      {
+        "q": -25,
+        "r": 17,
+        "terrain": "mountain",
+        "water": "stream",
+        "region": "r-3"
+      },
+      {
+        "q": -24,
+        "r": 17,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -23,
+        "r": 17,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -22,
+        "r": 17,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -21,
+        "r": 17,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -20,
+        "r": 17,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -19,
+        "r": 17,
+        "terrain": "mountain",
+        "region": "r-18"
+      },
+      {
+        "q": -18,
+        "r": 17,
+        "terrain": "mountain",
+        "region": "r-18",
+        "edge": 3
+      },
+      {
+        "q": -27,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-3"
+      },
+      {
+        "q": -26,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -25,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -24,
+        "r": 18,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -23,
+        "r": 18,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -22,
+        "r": 18,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -21,
+        "r": 18,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -20,
+        "r": 18,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -19,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-18"
+      },
+      {
+        "q": -18,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-18",
+        "edge": 3
+      },
+      {
+        "q": -28,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -27,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -26,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -25,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -24,
+        "r": 19,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -23,
+        "r": 19,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -22,
+        "r": 19,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -21,
+        "r": 19,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -20,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -19,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-18"
+      },
+      {
+        "q": -18,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-18",
+        "edge": 3
+      },
+      {
+        "q": -29,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -28,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -27,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -26,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -25,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -24,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -23,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -22,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -21,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -20,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -19,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-18"
+      },
+      {
+        "q": -18,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-18",
+        "edge": 3
+      },
+      {
+        "q": -30,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -29,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -28,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -27,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -26,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -25,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -24,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -23,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -22,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -21,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -20,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -19,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-18"
+      },
+      {
+        "q": -18,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-18",
+        "edge": 3
+      },
+      {
+        "q": -31,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -30,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -29,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -28,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -27,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -26,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -25,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -24,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -23,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -22,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -21,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -20,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -19,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -18,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-19",
+        "edge": 3
+      },
+      {
+        "q": -32,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -31,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -30,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -29,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -28,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -27,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -26,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -25,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -24,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -23,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -22,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -21,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -20,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -19,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-19"
+      },
+      {
+        "q": -18,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-28",
+        "edge": 3
+      },
+      {
+        "q": -33,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -32,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -31,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -30,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -29,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -28,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -27,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -26,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -25,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -24,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -23,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -22,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -21,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -20,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-19"
+      },
+      {
+        "q": -19,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-19"
+      },
+      {
+        "q": -18,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-19",
+        "edge": 3
+      },
+      {
+        "q": -34,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-1"
+      },
+      {
+        "q": -33,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -32,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -31,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -30,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -29,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -28,
+        "r": 25,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -27,
+        "r": 25,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -26,
+        "r": 25,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -25,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -24,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -23,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -22,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-6"
+      },
+      {
+        "q": -21,
+        "r": 25,
+        "terrain": "mountain",
+        "secondary": "hills",
+        "blend": 25,
+        "region": "r-19"
+      },
+      {
+        "q": -20,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-19"
+      },
+      {
+        "q": -19,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-19"
+      },
+      {
+        "q": -18,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-19",
+        "edge": 3
+      },
+      {
+        "q": -34,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-2"
+      },
+      {
+        "q": -33,
+        "r": 26,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -32,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-2"
+      },
+      {
+        "q": -31,
+        "r": 26,
+        "terrain": "mountain",
+        "region": "r-0"
+      },
+      {
+        "q": -30,
+        "r": 26,
+        "terrain": "mountain",
+        "region": "r-0",
+        "place": "settlement"
+      },
+      {
+        "q": -29,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -28,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -27,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -26,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -25,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -24,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -23,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -22,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -21,
+        "r": 26,
+        "terrain": "hills",
+        "secondary": "mountain",
+        "blend": 25,
+        "region": "r-15"
+      },
+      {
+        "q": -20,
+        "r": 26,
+        "terrain": "mountain",
+        "secondary": "hills",
+        "blend": 25,
+        "region": "r-19"
+      },
+      {
+        "q": -19,
+        "r": 26,
+        "terrain": "mountain",
+        "region": "r-19"
+      },
+      {
+        "q": -34,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-2"
+      },
+      {
+        "q": -33,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-2"
+      },
+      {
+        "q": -32,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -31,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -30,
+        "r": 27,
+        "terrain": "mountain",
+        "region": "r-4"
+      },
+      {
+        "q": -29,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -28,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -27,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -26,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -25,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -24,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -23,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -22,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -21,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -20,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -34,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-2"
+      },
+      {
+        "q": -33,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-2"
+      },
+      {
+        "q": -32,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -31,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -30,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -29,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -28,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -27,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -26,
+        "r": 28,
+        "terrain": "plain",
+        "region": "r-15"
+      },
+      {
+        "q": -25,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -24,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -23,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -22,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -21,
+        "r": 28,
+        "terrain": "hills",
+        "water": "stream",
+        "region": "r-15"
+      },
+      {
+        "q": -34,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-2"
+      },
+      {
+        "q": -33,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -32,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -31,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -30,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -29,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-4"
+      },
+      {
+        "q": -28,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-15"
+      },
+      {
+        "q": -27,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-15"
+      },
+      {
+        "q": -26,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-16"
+      },
+      {
+        "q": -25,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-16"
+      },
+      {
+        "q": -24,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -23,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-15"
+      },
+      {
+        "q": -22,
+        "r": 29,
+        "terrain": "hills",
+        "water": "stream",
+        "region": "r-15"
+      },
+      {
+        "q": -34,
+        "r": 30,
+        "terrain": "hills",
+        "region": "r-2"
+      },
+      {
+        "q": -33,
+        "r": 30,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -32,
+        "r": 30,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -31,
+        "r": 30,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -30,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-4"
+      },
+      {
+        "q": -29,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-4"
+      },
+      {
+        "q": -28,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-15"
+      },
+      {
+        "q": -27,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-16"
+      },
+      {
+        "q": -26,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-16"
+      },
+      {
+        "q": -25,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-16"
+      },
+      {
+        "q": -24,
+        "r": 30,
+        "terrain": "hills",
+        "secondary": "plain",
+        "blend": 25,
+        "region": "r-15"
+      },
+      {
+        "q": -23,
+        "r": 30,
+        "terrain": "hills",
+        "secondary": "plain",
+        "blend": 25,
+        "water": "stream",
+        "region": "r-15"
+      },
+      {
+        "q": -34,
+        "r": 31,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -33,
+        "r": 31,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -32,
+        "r": 31,
+        "terrain": "hills",
+        "region": "r-4"
+      },
+      {
+        "q": -31,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-11"
+      },
+      {
+        "q": -30,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-4"
+      },
+      {
+        "q": -29,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-4"
+      },
+      {
+        "q": -28,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-16"
+      },
+      {
+        "q": -27,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-16"
+      },
+      {
+        "q": -26,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-16"
+      },
+      {
+        "q": -25,
+        "r": 31,
+        "terrain": "plain",
+        "secondary": "hills",
+        "blend": 25,
+        "region": "r-16"
+      },
+      {
+        "q": -24,
+        "r": 31,
+        "terrain": "plain",
+        "water": "stream",
+        "region": "r-16"
+      },
+      {
+        "q": -34,
+        "r": 32,
+        "terrain": "hills",
+        "region": "r-11"
+      },
+      {
+        "q": -33,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-11"
+      },
+      {
+        "q": -32,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-11"
+      },
+      {
+        "q": -31,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-11"
+      },
+      {
+        "q": -30,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-11"
+      },
+      {
+        "q": -29,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-16"
+      },
+      {
+        "q": -28,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-16"
+      },
+      {
+        "q": -27,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-16"
+      },
+      {
+        "q": -26,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-16"
+      },
+      {
+        "q": -25,
+        "r": 32,
+        "terrain": "plain",
+        "water": "stream",
+        "region": "r-16"
+      },
+      {
+        "q": -34,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-11"
+      },
+      {
+        "q": -33,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-11"
+      },
+      {
+        "q": -32,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-11"
+      },
+      {
+        "q": -31,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-11"
+      },
+      {
+        "q": -30,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-22"
+      },
+      {
+        "q": -29,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-16"
+      },
+      {
+        "q": -28,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-16"
+      },
+      {
+        "q": -27,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-16"
+      },
+      {
+        "q": -26,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-16"
+      }
+    ],
+    "names": {
+      "r-0": "Scrapreach",
+      "r-1": "Junkline",
+      "r-11": "Lowflats",
+      "r-15": "Cinderreach",
+      "r-16": "Greywater",
+      "r-18": "Ironreach",
+      "r-19": "Greyyards",
+      "r-2": "Lowheap",
+      "r-22": "Ashpan",
+      "r-28": "Greyflats",
+      "r-3": "Greyflats",
+      "r-4": "Rustreach",
+      "r-5": "Ashwater",
+      "r-6": "Leadfields"
+    }
+  },
+  {
+    "world": "mock",
+    "a": -2,
+    "b": 1,
+    "level": "tile",
+    "rev": "29c4f4c0c1c95762",
+    "cells": [
+      {
+        "q": -26,
+        "r": 17,
+        "terrain": "mountain",
+        "water": "stream",
+        "region": "r-3",
+        "found": 1
+      },
+      {
+        "q": -25,
+        "r": 17,
+        "terrain": "mountain",
+        "water": "stream",
+        "region": "r-3",
+        "found": 1
+      },
+      {
+        "q": -24,
+        "r": 17,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -23,
+        "r": 17,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -22,
+        "r": 17,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -21,
+        "r": 17,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -20,
+        "r": 17,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -19,
+        "r": 17,
+        "terrain": "mountain",
+        "region": "r-18",
+        "found": 1
+      },
+      {
+        "q": -18,
+        "r": 17,
+        "terrain": "mountain",
+        "region": "r-18",
+        "edge": 3,
+        "landmark": "mast",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-3",
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -25,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -24,
+        "r": 18,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -23,
+        "r": 18,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -22,
+        "r": 18,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -21,
+        "r": 18,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -20,
+        "r": 18,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -19,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-18",
+        "found": 1
+      },
+      {
+        "q": -18,
+        "r": 18,
+        "terrain": "mountain",
+        "region": "r-18",
+        "edge": 3,
+        "site": "site",
+        "siteKind": "den",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -25,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -24,
+        "r": 19,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -23,
+        "r": 19,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -22,
+        "r": 19,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -21,
+        "r": 19,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -20,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-6",
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -19,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-18",
+        "found": 1
+      },
+      {
+        "q": -18,
+        "r": 19,
+        "terrain": "mountain",
+        "region": "r-18",
+        "edge": 3,
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -25,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -24,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -23,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -22,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -21,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -20,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -19,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-18",
+        "found": 1
+      },
+      {
+        "q": -18,
+        "r": 20,
+        "terrain": "mountain",
+        "region": "r-18",
+        "edge": 3,
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-0",
+        "site": "site",
+        "siteKind": "den",
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -25,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -24,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-6",
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -23,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -22,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-6",
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -21,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -20,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -19,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-18",
+        "found": 1
+      },
+      {
+        "q": -18,
+        "r": 21,
+        "terrain": "mountain",
+        "region": "r-18",
+        "edge": 3,
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-0",
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -25,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -24,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -23,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -22,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-6",
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -21,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -20,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -19,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -18,
+        "r": 22,
+        "terrain": "mountain",
+        "region": "r-19",
+        "edge": 3,
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -25,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -24,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -23,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -22,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -21,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -20,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -19,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-19",
+        "found": 1
+      },
+      {
+        "q": -18,
+        "r": 23,
+        "terrain": "mountain",
+        "region": "r-28",
+        "edge": 3,
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -25,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -24,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -23,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -22,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -21,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-6",
+        "site": "relay",
+        "found": 1
+      },
+      {
+        "q": -20,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-19",
+        "found": 1
+      },
+      {
+        "q": -19,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-19",
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -18,
+        "r": 24,
+        "terrain": "mountain",
+        "region": "r-19",
+        "edge": 3,
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-1",
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-0",
+        "site": "dungeon",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 25,
+        "terrain": "hills",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 25,
+        "terrain": "hills",
+        "region": "r-4",
+        "site": "landmark",
+        "landmark": "home-landmark",
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 25,
+        "terrain": "hills",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -25,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -24,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -23,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-6",
+        "found": 1
+      },
+      {
+        "q": -22,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-6",
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -21,
+        "r": 25,
+        "terrain": "mountain",
+        "secondary": "hills",
+        "blend": 25,
+        "region": "r-19",
+        "found": 1
+      },
+      {
+        "q": -20,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-19",
+        "found": 1
+      },
+      {
+        "q": -19,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-19",
+        "found": 1
+      },
+      {
+        "q": -18,
+        "r": 25,
+        "terrain": "mountain",
+        "region": "r-19",
+        "edge": 3,
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-2",
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 26,
+        "terrain": "mountain",
+        "region": "r-0",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-2",
+        "site": "site",
+        "siteKind": "scavenger-camp",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 26,
+        "terrain": "mountain",
+        "region": "r-0",
+        "site": "landmark",
+        "landmark": "frontier-line",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 26,
+        "terrain": "mountain",
+        "region": "r-0",
+        "place": "settlement",
+        "placeRef": "settlement:0",
+        "guild": "guild:g-1",
+        "site": "starting-settlement",
+        "structures": [
+          "forge",
+          "bench",
+          "still",
+          "loom",
+          "market",
+          "notice-board",
+          "tinker-bench",
+          "stable",
+          "treasury"
+        ],
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-4",
+        "site": "site",
+        "siteKind": "den",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -25,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -24,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -23,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-15",
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -22,
+        "r": 26,
+        "terrain": "hills",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -21,
+        "r": 26,
+        "terrain": "hills",
+        "secondary": "mountain",
+        "blend": 25,
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -20,
+        "r": 26,
+        "terrain": "mountain",
+        "secondary": "hills",
+        "blend": 25,
+        "region": "r-19",
+        "found": 1
+      },
+      {
+        "q": -19,
+        "r": 26,
+        "terrain": "mountain",
+        "region": "r-19",
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-2",
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-2",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 27,
+        "terrain": "mountain",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-4",
+        "site": "site",
+        "siteKind": "den",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -25,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -24,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -23,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-15",
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -22,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -21,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -20,
+        "r": 27,
+        "terrain": "hills",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-2",
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-2",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-4",
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-15",
+        "site": "site",
+        "siteKind": "den",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-15",
+        "site": "site",
+        "siteKind": "den",
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 28,
+        "terrain": "plain",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -25,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -24,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -23,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-15",
+        "site": "site",
+        "siteKind": "scavenger-camp",
+        "found": 1
+      },
+      {
+        "q": -22,
+        "r": 28,
+        "terrain": "hills",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -21,
+        "r": 28,
+        "terrain": "hills",
+        "water": "stream",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-2",
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-4",
+        "site": "site",
+        "siteKind": "den",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-4",
+        "site": "landmark",
+        "landmark": "frontier-line",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-16",
+        "found": 1
+      },
+      {
+        "q": -25,
+        "r": 29,
+        "terrain": "plain",
+        "region": "r-16",
+        "found": 1
+      },
+      {
+        "q": -24,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -23,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -22,
+        "r": 29,
+        "terrain": "hills",
+        "water": "stream",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 30,
+        "terrain": "hills",
+        "region": "r-2",
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 30,
+        "terrain": "hills",
+        "region": "r-4",
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 30,
+        "terrain": "hills",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 30,
+        "terrain": "hills",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-16",
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-16",
+        "found": 1
+      },
+      {
+        "q": -25,
+        "r": 30,
+        "terrain": "plain",
+        "region": "r-16",
+        "found": 1
+      },
+      {
+        "q": -24,
+        "r": 30,
+        "terrain": "hills",
+        "secondary": "plain",
+        "blend": 25,
+        "region": "r-15",
+        "found": 1
+      },
+      {
+        "q": -23,
+        "r": 30,
+        "terrain": "hills",
+        "secondary": "plain",
+        "blend": 25,
+        "water": "stream",
+        "region": "r-15",
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 31,
+        "terrain": "hills",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 31,
+        "terrain": "hills",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 31,
+        "terrain": "hills",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-11",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-4",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-16",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-16",
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 31,
+        "terrain": "plain",
+        "region": "r-16",
+        "site": "site",
+        "siteKind": "cable-run",
+        "found": 1
+      },
+      {
+        "q": -25,
+        "r": 31,
+        "terrain": "plain",
+        "secondary": "hills",
+        "blend": 25,
+        "region": "r-16",
+        "site": "edge-site",
+        "siteKind": "scavenger-camp",
+        "found": 1
+      },
+      {
+        "q": -24,
+        "r": 31,
+        "terrain": "plain",
+        "water": "stream",
+        "region": "r-16",
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 32,
+        "terrain": "hills",
+        "region": "r-11",
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-11",
+        "site": "dungeon",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-11",
+        "site": "site",
+        "siteKind": "scrap-seam",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-11",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-11",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-16",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-16",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-16",
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 32,
+        "terrain": "plain",
+        "region": "r-16",
+        "found": 1
+      },
+      {
+        "q": -25,
+        "r": 32,
+        "terrain": "plain",
+        "water": "stream",
+        "region": "r-16",
+        "found": 1
+      },
+      {
+        "q": -34,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-11",
+        "found": 1
+      },
+      {
+        "q": -33,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-11",
+        "found": 1
+      },
+      {
+        "q": -32,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-11",
+        "found": 1
+      },
+      {
+        "q": -31,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-11",
+        "found": 1
+      },
+      {
+        "q": -30,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-22",
+        "found": 1
+      },
+      {
+        "q": -29,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-16",
+        "found": 1
+      },
+      {
+        "q": -28,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-16",
+        "found": 1
+      },
+      {
+        "q": -27,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-16",
+        "site": "site",
+        "siteKind": "cable-run",
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 33,
+        "terrain": "plain",
+        "region": "r-16",
+        "found": 1
+      }
+    ],
+    "names": {
+      "guild:g-1": "Tinkers",
+      "r-0": "Scrapreach",
+      "r-1": "Junkline",
+      "r-11": "Lowflats",
+      "r-15": "Cinderreach",
+      "r-16": "Greywater",
+      "r-18": "Ironreach",
+      "r-19": "Greyyards",
+      "r-2": "Lowheap",
+      "r-22": "Ashpan",
+      "r-28": "Greyflats",
+      "r-3": "Greyflats",
+      "r-4": "Rustreach",
+      "r-5": "Ashwater",
+      "r-6": "Leadfields",
+      "settlement:0": "Fuse Gate"
+    }
+  },
+  {
+    "world": "mock",
+    "a": -2,
+    "b": 2,
+    "level": "area",
+    "rev": "8b0343c672ac9687",
+    "cells": [
+      {
+        "q": -18,
+        "r": 26,
+        "terrain": "mountain",
+        "region": "r-19",
+        "edge": 35
+      },
+      {
+        "q": -19,
+        "r": 27,
+        "terrain": "mountain",
+        "secondary": "hills",
+        "blend": 25,
+        "water": "stream",
+        "region": "r-19",
+        "edge": 33
+      },
+      {
+        "q": -20,
+        "r": 28,
+        "terrain": "hills",
+        "water": "stream",
+        "region": "r-19",
+        "edge": 33
+      },
+      {
+        "q": -21,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-16",
+        "edge": 33
+      },
+      {
+        "q": -22,
+        "r": 30,
+        "terrain": "hills",
+        "secondary": "plain",
+        "blend": 25,
+        "region": "r-16",
+        "edge": 33
+      },
+      {
+        "q": -23,
+        "r": 31,
+        "terrain": "plain",
+        "secondary": "hills",
+        "blend": 25,
+        "region": "r-16",
+        "edge": 33
+      },
+      {
+        "q": -24,
+        "r": 32,
+        "terrain": "plain",
+        "secondary": "hills",
+        "blend": 25,
+        "region": "r-16",
+        "edge": 33
+      },
+      {
+        "q": -25,
+        "r": 33,
+        "terrain": "plain",
+        "water": "stream",
+        "region": "r-16",
+        "edge": 33
+      },
+      {
+        "q": -26,
+        "r": 34,
+        "terrain": "plain",
+        "water": "river",
+        "region": "r-16",
+        "edge": 33
+      }
+    ],
+    "names": {
+      "r-16": "Greywater",
+      "r-19": "Greyyards"
+    }
+  },
+  {
+    "world": "mock",
+    "a": -2,
+    "b": 2,
+    "level": "tile",
+    "rev": "b0a60985e42ba709",
+    "cells": [
+      {
+        "q": -18,
+        "r": 26,
+        "terrain": "mountain",
+        "region": "r-19",
+        "edge": 35,
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -19,
+        "r": 27,
+        "terrain": "mountain",
+        "secondary": "hills",
+        "blend": 25,
+        "water": "stream",
+        "region": "r-19",
+        "edge": 33,
+        "found": 1
+      },
+      {
+        "q": -20,
+        "r": 28,
+        "terrain": "hills",
+        "water": "stream",
+        "region": "r-19",
+        "edge": 33,
+        "site": "site",
+        "siteKind": "battlefield-ruin",
+        "found": 1
+      },
+      {
+        "q": -21,
+        "r": 29,
+        "terrain": "hills",
+        "region": "r-16",
+        "edge": 33,
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      },
+      {
+        "q": -22,
+        "r": 30,
+        "terrain": "hills",
+        "secondary": "plain",
+        "blend": 25,
+        "region": "r-16",
+        "edge": 33,
+        "found": 1
+      },
+      {
+        "q": -23,
+        "r": 31,
+        "terrain": "plain",
+        "secondary": "hills",
+        "blend": 25,
+        "region": "r-16",
+        "edge": 33,
+        "found": 1
+      },
+      {
+        "q": -24,
+        "r": 32,
+        "terrain": "plain",
+        "secondary": "hills",
+        "blend": 25,
+        "region": "r-16",
+        "edge": 33,
+        "found": 1
+      },
+      {
+        "q": -25,
+        "r": 33,
+        "terrain": "plain",
+        "water": "stream",
+        "region": "r-16",
+        "edge": 33,
+        "found": 1
+      },
+      {
+        "q": -26,
+        "r": 34,
+        "terrain": "plain",
+        "water": "river",
+        "region": "r-16",
+        "edge": 33,
+        "found": 1
+      }
+    ],
+    "names": {
+      "r-16": "Greywater",
+      "r-19": "Greyyards"
+    }
+  },
+  {
+    "world": "mock",
+    "a": -1,
+    "b": 0,
+    "level": "area",
+    "rev": "41d9527aa1cfcb62",
+    "cells": [
+      {
+        "q": -25,
+        "r": 14,
+        "terrain": "mountain",
+        "region": "r-13",
+        "edge": 6
+      },
+      {
+        "q": -24,
+        "r": 14,
+        "terrain": "mountain",
+        "region": "r-13",
+        "edge": 6
+      },
+      {
+        "q": -23,
+        "r": 14,
+        "terrain": "mountain",
+        "water": "stream",
+        "region": "r-14",
+        "edge": 6
+      },
+      {
+        "q": -22,
+        "r": 14,
+        "terrain": "mountain",
+        "region": "r-14",
+        "edge": 6
+      },
+      {
+        "q": -21,
+        "r": 14,
+        "terrain": "mountain",
+        "region": "r-14",
+        "edge": 6
+      },
+      {
+        "q": -20,
+        "r": 14,
+        "terrain": "mountain",
+        "region": "r-14",
+        "edge": 6
+      },
+      {
+        "q": -19,
+        "r": 14,
+        "terrain": "mountain",
+        "region": "r-14",
+        "edge": 6
+      },
+      {
+        "q": -18,
+        "r": 14,
+        "terrain": "mountain",
+        "region": "r-14",
+        "edge": 7
+      },
+      {
+        "q": -25,
+        "r": 15,
+        "terrain": "mountain",
+        "region": "r-3"
+      },
+      {
+        "q": -24,
+        "r": 15,
+        "terrain": "mountain",
+        "region": "r-3"
+      },
+      {
+        "q": -23,
+        "r": 15,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -22,
+        "r": 15,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -21,
+        "r": 15,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -20,
+        "r": 15,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -19,
+        "r": 15,
+        "terrain": "mountain",
+        "region": "r-14"
+      },
+      {
+        "q": -18,
+        "r": 15,
+        "terrain": "mountain",
+        "region": "r-17",
+        "edge": 3
+      },
+      {
+        "q": -25,
+        "r": 16,
+        "terrain": "mountain",
+        "region": "r-3"
+      },
+      {
+        "q": -24,
+        "r": 16,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -23,
+        "r": 16,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -22,
+        "r": 16,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -21,
+        "r": 16,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -20,
+        "r": 16,
+        "terrain": "peak",
+        "region": "r-5"
+      },
+      {
+        "q": -19,
+        "r": 16,
+        "terrain": "mountain",
+        "region": "r-5"
+      },
+      {
+        "q": -18,
+        "r": 16,
+        "terrain": "mountain",
+        "region": "r-17",
+        "edge": 3
+      }
+    ],
+    "names": {
+      "r-13": "Tarflats",
+      "r-14": "Leadyards",
+      "r-17": "Burnfields",
+      "r-3": "Greyflats",
+      "r-5": "Ashwater"
+    }
+  },
+  {
+    "world": "mock",
+    "a": -1,
+    "b": 0,
+    "level": "tile",
+    "rev": "32f551f0e356eb2d",
+    "cells": [
+      {
+        "q": -25,
+        "r": 14,
+        "terrain": "mountain",
+        "region": "r-13",
+        "edge": 6,
+        "found": 1
+      },
+      {
+        "q": -24,
+        "r": 14,
+        "terrain": "mountain",
+        "region": "r-13",
+        "edge": 6,
+        "found": 1
+      },
+      {
+        "q": -23,
+        "r": 14,
+        "terrain": "mountain",
+        "water": "stream",
+        "region": "r-14",
+        "edge": 6,
+        "found": 1
+      },
+      {
+        "q": -22,
+        "r": 14,
+        "terrain": "mountain",
+        "region": "r-14",
+        "edge": 6,
+        "found": 1
+      },
+      {
+        "q": -21,
+        "r": 14,
+        "terrain": "mountain",
+        "region": "r-14",
+        "edge": 6,
+        "found": 1
+      },
+      {
+        "q": -20,
+        "r": 14,
+        "terrain": "mountain",
+        "region": "r-14",
+        "edge": 6,
+        "found": 1
+      },
+      {
+        "q": -19,
+        "r": 14,
+        "terrain": "mountain",
+        "region": "r-14",
+        "edge": 6,
+        "found": 1
+      },
+      {
+        "q": -18,
+        "r": 14,
+        "terrain": "mountain",
+        "region": "r-14",
+        "edge": 7,
+        "found": 1
+      },
+      {
+        "q": -25,
+        "r": 15,
+        "terrain": "mountain",
+        "region": "r-3",
+        "found": 1
+      },
+      {
+        "q": -24,
+        "r": 15,
+        "terrain": "mountain",
+        "region": "r-3",
+        "found": 1
+      },
+      {
+        "q": -23,
+        "r": 15,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -22,
+        "r": 15,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -21,
+        "r": 15,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -20,
+        "r": 15,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -19,
+        "r": 15,
+        "terrain": "mountain",
+        "region": "r-14",
+        "found": 1
+      },
+      {
+        "q": -18,
+        "r": 15,
+        "terrain": "mountain",
+        "region": "r-17",
+        "edge": 3,
+        "found": 1
+      },
+      {
+        "q": -25,
+        "r": 16,
+        "terrain": "mountain",
+        "region": "r-3",
+        "found": 1
+      },
+      {
+        "q": -24,
+        "r": 16,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -23,
+        "r": 16,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -22,
+        "r": 16,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -21,
+        "r": 16,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -20,
+        "r": 16,
+        "terrain": "peak",
+        "region": "r-5",
+        "found": 1
+      },
+      {
+        "q": -19,
+        "r": 16,
+        "terrain": "mountain",
+        "region": "r-5",
+        "site": "site",
+        "siteKind": "scavenger-camp",
+        "found": 1
+      },
+      {
+        "q": -18,
+        "r": 16,
+        "terrain": "mountain",
+        "region": "r-17",
+        "edge": 3,
+        "site": "site",
+        "siteKind": "ruin",
+        "found": 1
+      }
+    ],
+    "names": {
+      "r-13": "Tarflats",
+      "r-14": "Leadyards",
+      "r-17": "Burnfields",
+      "r-3": "Greyflats",
+      "r-5": "Ashwater"
+    }
+  }
+]

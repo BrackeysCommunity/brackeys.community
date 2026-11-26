@@ -41,6 +41,15 @@ vp dev --port 18787
   with its Circuit armed from chat, the pattern strip shut over it. A solve
   commits the value chat armed it with (0 in the mock, since no state says
   it); what the board makes of it is the world's alone.
+- **The live map:** `?mock=map` opens on the Map screen over the idle
+  state; every other mock has the same map a tab away. Its payloads are
+  `test/fixtures/map/*.json` (`index`, `style`, `regions`, `chunks` at both
+  levels, `overlay`), a 469-tile world read through the world's own
+  `mapview`, as the listener serves it: a character who walked out and
+  back, so the overlay holds tiles in sight and tiles last seen one and two
+  world days ago, a storm front and a busy tile. `?mock=map&viewer=anonymous`
+  serves `overlay-anonymous.json`, the overlay of a viewer with no
+  character: no tile, no front, no self, so no live layer is drawn.
 - **A party with no world:** `?mock=party&seats=4` seats a party of four;
   this screen is the first seat, and the other three are scripted
   teammates who pick, vote, press and play their seats of the rule's own
@@ -103,16 +112,19 @@ services/mmo-bot/scripts/local-world.sh wipe
 | Path                   | What                                                                                                                                 |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `src/main.ts`          | Boot: the theme, the launch, the session, the page                                                                                   |
-| `src/discord.ts`       | Inside or outside Discord, the routes, sign-in                                                                                       |
+| `src/discord.ts`       | Inside or outside Discord, the routes (the map's too), sign-in                                                                       |
 | `src/session.ts`       | The socket: hello, reconnects, the whole state, intents, a party machine's streamed moves                                            |
 | `src/app.ts`           | Which screen is open, and the machine in hand                                                                                        |
 | `src/views/`           | The beat (a party's too) with its creature panel, the floor's rooms, the hunt, the party, why, pouches, the bench, idle, the pattern |
+| `src/views/map.ts`     | The Map screen: the canvas, the layer toggles, the counts in view and the picked tile's panel                                        |
+| `src/map/source.ts`    | Where the map's payloads come from: the listener's map routes (the overlay signed with the session), or the `?mock=` fixtures        |
+| `src/map/canvas.ts`    | The live map on a canvas: pan, wheel and pinch zoom, polling, painted with `packages/mmo-map`                                        |
 | `src/units.ts`         | Every number with its unit (GDD 2); nothing else formats one                                                                         |
 | `src/words.ts`         | Pack names, the lines made from facts and refusals, the beat's encounter line, and every picture's words                             |
 | `src/shell/`           | The puzzle shell every family shares                                                                                                 |
 | `src/scenes/<id>/`     | One family: its model and its scene                                                                                                  |
 | `src/party/<id>/`      | One party version: its merged model and each seat's gesture                                                                          |
-| `src/mock.ts`          | The stand-in gateway behind `?mock=`, a party's seats too                                                                            |
+| `src/mock.ts`          | The stand-in gateway behind `?mock=`, a party's seats too, and the map's fixtures                                                    |
 | `test/golden.ts`       | `goldenSuite`, which holds a model to the Go replay                                                                                  |
 | `test/party-golden.ts` | `partySuite`, which holds a version's model to the Go party replay                                                                   |
 | `test/stage.ts`        | A scene on a surface of a known size, for gesture tests; a party seat too                                                            |
@@ -134,6 +146,15 @@ The beat view's opening line is `encounterLine` from
 `packages/mmo-words/src/encounters.ts` over the committed wasteland pool,
 with the creature and place chat's beat card uses, so both show the same
 line. It is display only: a hash of the fight, never a draw.
+
+The Map screen's canvas is named with `mapAlt` from
+`packages/mmo-words/src/alt.ts`, the words `/map`'s picture uses, from the
+layers it draws; its tile panel's fog states, ages and busy bands are
+`FOG_WORDS`, `seenAgo` and `busyWords` from `packages/mmo-words/src/map.ts`.
+The map holds no fog rule (GDD 4.11): the world filters the overlay to what
+this character and their guild may see before it is sent, and the screen
+draws what arrives with `packages/mmo-map`. Layer toggles are kept in
+`localStorage`, for this browser only.
 
 ## Adding a family
 

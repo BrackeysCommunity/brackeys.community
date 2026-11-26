@@ -36,7 +36,7 @@ const MISSING: Rgba = { r: 255, g: 0, b: 255, a: 255 };
 function hexRgb(s: string): Rgba | undefined {
   const m = /^#([0-9a-f]{6})$/i.exec(s);
   if (!m) return undefined;
-  const v = Number.parseInt(m[1], 16);
+  const v = Number.parseInt(m[1]!, 16);
   return { r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255, a: 255 };
 }
 

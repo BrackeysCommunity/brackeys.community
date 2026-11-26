@@ -1,0 +1,1038 @@
+{
+  "world": "mock",
+  "tick": 308,
+  "viewer": "character",
+  "guild": true,
+  "self": {
+    "character": "c-1",
+    "q": -28,
+    "r": 26
+  },
+  "tiles": [
+    {
+      "q": -30,
+      "r": 21,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -29,
+      "r": 21,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -28,
+      "r": 21,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -27,
+      "r": 21,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -26,
+      "r": 21,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -25,
+      "r": 21,
+      "fog": "sight",
+      "threat": 411,
+      "corruption": 140,
+      "weather": "storm"
+    },
+    {
+      "q": -31,
+      "r": 22,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -30,
+      "r": 22,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -29,
+      "r": 22,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -28,
+      "r": 22,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -27,
+      "r": 22,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -26,
+      "r": 22,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -25,
+      "r": 22,
+      "fog": "sight",
+      "threat": 411,
+      "corruption": 140,
+      "weather": "storm"
+    },
+    {
+      "q": -24,
+      "r": 22,
+      "fog": "sight",
+      "threat": 411,
+      "corruption": 140,
+      "weather": "storm"
+    },
+    {
+      "q": -23,
+      "r": 22,
+      "fog": "seen",
+      "left": 306,
+      "threat": 411,
+      "corruption": 140
+    },
+    {
+      "q": -22,
+      "r": 22,
+      "fog": "seen",
+      "left": 156,
+      "threat": 389,
+      "corruption": 142
+    },
+    {
+      "q": -21,
+      "r": 22,
+      "fog": "seen",
+      "left": 6,
+      "threat": 404,
+      "corruption": 144
+    },
+    {
+      "q": -32,
+      "r": 23,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -31,
+      "r": 23,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -30,
+      "r": 23,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -29,
+      "r": 23,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -28,
+      "r": 23,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -27,
+      "r": 23,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -26,
+      "r": 23,
+      "fog": "sight",
+      "threat": 411,
+      "corruption": 140,
+      "weather": "storm"
+    },
+    {
+      "q": -25,
+      "r": 23,
+      "fog": "sight",
+      "threat": 411,
+      "corruption": 140,
+      "weather": "storm"
+    },
+    {
+      "q": -24,
+      "r": 23,
+      "fog": "sight",
+      "threat": 411,
+      "corruption": 140,
+      "weather": "storm"
+    },
+    {
+      "q": -23,
+      "r": 23,
+      "fog": "seen",
+      "left": 306,
+      "threat": 411,
+      "corruption": 140
+    },
+    {
+      "q": -22,
+      "r": 23,
+      "fog": "seen",
+      "left": 156,
+      "threat": 389,
+      "corruption": 142
+    },
+    {
+      "q": -21,
+      "r": 23,
+      "fog": "seen",
+      "left": 6,
+      "threat": 404,
+      "corruption": 144
+    },
+    {
+      "q": -33,
+      "r": 24,
+      "fog": "sight",
+      "threat": 425,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -32,
+      "r": 24,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -31,
+      "r": 24,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -30,
+      "r": 24,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -29,
+      "r": 24,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -28,
+      "r": 24,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -27,
+      "r": 24,
+      "fog": "sight",
+      "threat": 411,
+      "corruption": 140,
+      "weather": "storm"
+    },
+    {
+      "q": -26,
+      "r": 24,
+      "fog": "sight",
+      "threat": 411,
+      "corruption": 140,
+      "weather": "storm"
+    },
+    {
+      "q": -25,
+      "r": 24,
+      "fog": "sight",
+      "threat": 411,
+      "corruption": 140,
+      "weather": "storm"
+    },
+    {
+      "q": -24,
+      "r": 24,
+      "fog": "sight",
+      "threat": 411,
+      "corruption": 140,
+      "weather": "storm"
+    },
+    {
+      "q": -23,
+      "r": 24,
+      "fog": "seen",
+      "left": 306,
+      "threat": 411,
+      "corruption": 140
+    },
+    {
+      "q": -22,
+      "r": 24,
+      "fog": "seen",
+      "left": 156,
+      "threat": 389,
+      "corruption": 142
+    },
+    {
+      "q": -21,
+      "r": 24,
+      "fog": "seen",
+      "left": 6,
+      "threat": 404,
+      "corruption": 144
+    },
+    {
+      "q": -34,
+      "r": 25,
+      "fog": "sight",
+      "threat": 425,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -33,
+      "r": 25,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -32,
+      "r": 25,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -31,
+      "r": 25,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -30,
+      "r": 25,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -29,
+      "r": 25,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -28,
+      "r": 25,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -27,
+      "r": 25,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -26,
+      "r": 25,
+      "fog": "sight",
+      "threat": 215,
+      "corruption": 138,
+      "weather": "storm"
+    },
+    {
+      "q": -25,
+      "r": 25,
+      "fog": "sight",
+      "threat": 411,
+      "corruption": 140,
+      "weather": "storm"
+    },
+    {
+      "q": -24,
+      "r": 25,
+      "fog": "sight",
+      "threat": 411,
+      "corruption": 140,
+      "weather": "storm"
+    },
+    {
+      "q": -23,
+      "r": 25,
+      "fog": "seen",
+      "left": 306,
+      "threat": 411,
+      "corruption": 140
+    },
+    {
+      "q": -22,
+      "r": 25,
+      "fog": "seen",
+      "left": 156,
+      "threat": 389,
+      "corruption": 142
+    },
+    {
+      "q": -21,
+      "r": 25,
+      "fog": "seen",
+      "left": 6,
+      "threat": 151,
+      "corruption": 127
+    },
+    {
+      "q": -35,
+      "r": 26,
+      "fog": "sight",
+      "threat": 154,
+      "corruption": 98,
+      "weather": "storm"
+    },
+    {
+      "q": -34,
+      "r": 26,
+      "fog": "sight",
+      "threat": 125,
+      "corruption": 103,
+      "weather": "storm"
+    },
+    {
+      "q": -33,
+      "r": 26,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -32,
+      "r": 26,
+      "fog": "sight",
+      "threat": 125,
+      "corruption": 103,
+      "weather": "storm"
+    },
+    {
+      "q": -31,
+      "r": 26,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -30,
+      "r": 26,
+      "fog": "sight",
+      "threat": 284,
+      "corruption": 126,
+      "weather": "storm"
+    },
+    {
+      "q": -29,
+      "r": 26,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -28,
+      "r": 26,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -27,
+      "r": 26,
+      "fog": "sight",
+      "threat": 215,
+      "corruption": 138,
+      "weather": "storm"
+    },
+    {
+      "q": -26,
+      "r": 26,
+      "fog": "sight",
+      "threat": 215,
+      "corruption": 138,
+      "weather": "storm"
+    },
+    {
+      "q": -25,
+      "r": 26,
+      "fog": "sight",
+      "threat": 215,
+      "corruption": 138,
+      "weather": "storm"
+    },
+    {
+      "q": -24,
+      "r": 26,
+      "fog": "sight",
+      "threat": 215,
+      "corruption": 138,
+      "weather": "storm"
+    },
+    {
+      "q": -23,
+      "r": 26,
+      "fog": "seen",
+      "left": 306,
+      "threat": 215,
+      "corruption": 138
+    },
+    {
+      "q": -22,
+      "r": 26,
+      "fog": "seen",
+      "left": 156,
+      "threat": 195,
+      "corruption": 138
+    },
+    {
+      "q": -21,
+      "r": 26,
+      "fog": "seen",
+      "left": 6,
+      "threat": 175,
+      "corruption": 139
+    },
+    {
+      "q": -35,
+      "r": 27,
+      "fog": "sight",
+      "threat": 125,
+      "corruption": 103,
+      "weather": "storm"
+    },
+    {
+      "q": -34,
+      "r": 27,
+      "fog": "sight",
+      "threat": 125,
+      "corruption": 103,
+      "weather": "storm"
+    },
+    {
+      "q": -33,
+      "r": 27,
+      "fog": "sight",
+      "threat": 125,
+      "corruption": 103,
+      "weather": "storm"
+    },
+    {
+      "q": -32,
+      "r": 27,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -31,
+      "r": 27,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -30,
+      "r": 27,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -29,
+      "r": 27,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -28,
+      "r": 27,
+      "fog": "sight",
+      "threat": 215,
+      "corruption": 138,
+      "weather": "storm",
+      "busy": "busy"
+    },
+    {
+      "q": -27,
+      "r": 27,
+      "fog": "sight",
+      "threat": 215,
+      "corruption": 138,
+      "weather": "storm"
+    },
+    {
+      "q": -26,
+      "r": 27,
+      "fog": "sight",
+      "threat": 215,
+      "corruption": 138,
+      "weather": "storm"
+    },
+    {
+      "q": -25,
+      "r": 27,
+      "fog": "sight",
+      "threat": 215,
+      "corruption": 138,
+      "weather": "storm"
+    },
+    {
+      "q": -24,
+      "r": 27,
+      "fog": "seen",
+      "left": 306,
+      "threat": 215,
+      "corruption": 138
+    },
+    {
+      "q": -23,
+      "r": 27,
+      "fog": "seen",
+      "left": 156,
+      "threat": 195,
+      "corruption": 138
+    },
+    {
+      "q": -22,
+      "r": 27,
+      "fog": "seen",
+      "left": 6,
+      "threat": 175,
+      "corruption": 139
+    },
+    {
+      "q": -35,
+      "r": 28,
+      "fog": "sight",
+      "threat": 125,
+      "corruption": 103,
+      "weather": "storm"
+    },
+    {
+      "q": -34,
+      "r": 28,
+      "fog": "sight",
+      "threat": 125,
+      "corruption": 103,
+      "weather": "storm"
+    },
+    {
+      "q": -33,
+      "r": 28,
+      "fog": "sight",
+      "threat": 125,
+      "corruption": 103,
+      "weather": "storm"
+    },
+    {
+      "q": -32,
+      "r": 28,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -31,
+      "r": 28,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -30,
+      "r": 28,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -29,
+      "r": 28,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -28,
+      "r": 28,
+      "fog": "sight",
+      "threat": 215,
+      "corruption": 138,
+      "weather": "storm"
+    },
+    {
+      "q": -27,
+      "r": 28,
+      "fog": "sight",
+      "threat": 215,
+      "corruption": 138,
+      "weather": "storm"
+    },
+    {
+      "q": -26,
+      "r": 28,
+      "fog": "sight",
+      "threat": 215,
+      "corruption": 138,
+      "weather": "storm"
+    },
+    {
+      "q": -25,
+      "r": 28,
+      "fog": "seen",
+      "left": 306,
+      "threat": 215,
+      "corruption": 138
+    },
+    {
+      "q": -24,
+      "r": 28,
+      "fog": "seen",
+      "left": 156,
+      "threat": 195,
+      "corruption": 138
+    },
+    {
+      "q": -23,
+      "r": 28,
+      "fog": "seen",
+      "left": 6,
+      "threat": 175,
+      "corruption": 139
+    },
+    {
+      "q": -35,
+      "r": 29,
+      "fog": "sight",
+      "threat": 125,
+      "corruption": 103,
+      "weather": "storm"
+    },
+    {
+      "q": -34,
+      "r": 29,
+      "fog": "sight",
+      "threat": 125,
+      "corruption": 103,
+      "weather": "storm"
+    },
+    {
+      "q": -33,
+      "r": 29,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -32,
+      "r": 29,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -31,
+      "r": 29,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -30,
+      "r": 29,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -29,
+      "r": 29,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -28,
+      "r": 29,
+      "fog": "sight",
+      "threat": 215,
+      "corruption": 138,
+      "weather": "storm"
+    },
+    {
+      "q": -27,
+      "r": 29,
+      "fog": "sight",
+      "threat": 215,
+      "corruption": 138,
+      "weather": "storm"
+    },
+    {
+      "q": -26,
+      "r": 29,
+      "fog": "seen",
+      "left": 306,
+      "threat": 314,
+      "corruption": 125
+    },
+    {
+      "q": -25,
+      "r": 29,
+      "fog": "seen",
+      "left": 156,
+      "threat": 325,
+      "corruption": 129
+    },
+    {
+      "q": -24,
+      "r": 29,
+      "fog": "seen",
+      "left": 6,
+      "threat": 175,
+      "corruption": 139
+    },
+    {
+      "q": -35,
+      "r": 30,
+      "fog": "sight",
+      "threat": 125,
+      "corruption": 103,
+      "weather": "storm"
+    },
+    {
+      "q": -34,
+      "r": 30,
+      "fog": "sight",
+      "threat": 125,
+      "corruption": 103,
+      "weather": "storm"
+    },
+    {
+      "q": -33,
+      "r": 30,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -32,
+      "r": 30,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -31,
+      "r": 30,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -30,
+      "r": 30,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -29,
+      "r": 30,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -28,
+      "r": 30,
+      "fog": "sight",
+      "threat": 215,
+      "corruption": 138,
+      "weather": "storm"
+    },
+    {
+      "q": -27,
+      "r": 30,
+      "fog": "seen",
+      "left": 306,
+      "threat": 314,
+      "corruption": 125
+    },
+    {
+      "q": -26,
+      "r": 30,
+      "fog": "seen",
+      "left": 156,
+      "threat": 325,
+      "corruption": 129
+    },
+    {
+      "q": -25,
+      "r": 30,
+      "fog": "seen",
+      "left": 6,
+      "threat": 319,
+      "corruption": 130
+    },
+    {
+      "q": -35,
+      "r": 31,
+      "fog": "sight",
+      "threat": 125,
+      "corruption": 103,
+      "weather": "storm"
+    },
+    {
+      "q": -34,
+      "r": 31,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -33,
+      "r": 31,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -32,
+      "r": 31,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    },
+    {
+      "q": -31,
+      "r": 31,
+      "fog": "sight",
+      "threat": 156,
+      "corruption": 136,
+      "weather": "storm"
+    },
+    {
+      "q": -30,
+      "r": 31,
+      "fog": "sight",
+      "threat": 361,
+      "corruption": 141,
+      "weather": "storm"
+    }
+  ],
+  "fronts": [
+    {
+      "kind": "storm",
+      "q": -26,
+      "r": 26,
+      "heading": "w"
+    }
+  ]
+}

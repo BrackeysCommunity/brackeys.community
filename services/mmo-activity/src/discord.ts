@@ -1,5 +1,10 @@
 import {
   PathActivityLog,
+  PathActivityMapChunk,
+  PathActivityMapOverlay,
+  PathActivityMapRegions,
+  PathActivityMapStyle,
+  PathActivityMapTick,
   PathActivitySocket,
   PathActivityToken,
   type TokenRequest,
@@ -39,6 +44,26 @@ export function routes(where: Where): Routes {
     token: `${where.origin}${prefix}${PathActivityToken}`,
     socket: `${ws}//${where.host}${prefix}${PathActivitySocket}`,
     log: `${where.origin}${prefix}${PathActivityLog}`,
+  };
+}
+
+/** The live map's reads on the same listener (GDD 4.11). */
+export interface MapRoutes {
+  tick: string;
+  style: string;
+  regions: string;
+  chunk: string;
+  overlay: string;
+}
+
+export function mapRoutes(where: Pick<Location, "search" | "origin">): MapRoutes {
+  const base = `${where.origin}${inDiscord(where) ? "/.proxy" : ""}`;
+  return {
+    tick: base + PathActivityMapTick,
+    style: base + PathActivityMapStyle,
+    regions: base + PathActivityMapRegions,
+    chunk: base + PathActivityMapChunk,
+    overlay: base + PathActivityMapOverlay,
   };
 }
 

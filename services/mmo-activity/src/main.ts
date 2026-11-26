@@ -1,9 +1,10 @@
 import "@fontsource-variable/rubik";
 import "./styles.css";
 import type { TokenReply, TokenRequest } from "./api.ts";
-import { App } from "./app.ts";
+import { App, type AppOptions } from "./app.ts";
 import { beacon, beaconAs, startBeacon } from "./beacon.ts";
 import { launch, routes, SignInError } from "./discord.ts";
+import { liveSource, mockSource } from "./map/source.ts";
 import { Session, type SessionDeps, type SocketLike } from "./session.ts";
 import { theme } from "./theme.ts";
 
@@ -45,28 +46,35 @@ async function token(url: string, req: TokenRequest): Promise<TokenReply> {
   return res.json();
 }
 
+/** A page's session and what its App is opened with. */
+interface Boot {
+  deps: SessionDeps;
+  app: AppOptions;
+}
+
 // The mock ships in the build and is loaded only when the address asks.
 // ?mock=beat&family=crank&level=6&practice=8 puts any family on the beat.
 // ?mock=party&seats=4 seats a party of four, three of them played by
-// script; party-machine, floor and hunt work the same way.
-async function mocked(
-  fixture: string,
-  compact: boolean,
-  query: URLSearchParams,
-): Promise<SessionDeps> {
+// script; party-machine, floor and hunt work the same way. ?mock=map opens
+// on the map; every mock's Map screen draws the map fixtures.
+async function mocked(fixture: string, compact: boolean, query: URLSearchParams): Promise<Boot> {
   const states = import.meta.glob<{ default: import("./api.ts").ActivityState }>(
     "../test/fixtures/state-*.json",
   );
-  const load = states[`../test/fixtures/state-${fixture}.json`];
+  const { mockScene, mapFixtures, MockGateway } = await import("./mock.ts");
+  const scene = mockScene(fixture);
+  const load = states[`../test/fixtures/state-${scene.state}.json`];
   if (!load) {
     const known = Object.keys(states).map((p) => p.replace(/^.*state-(.*)\.json$/, "$1"));
-    throw new SignInError(`There is no mock called ${fixture}. Try one of: ${known.join(", ")}.`);
+    throw new SignInError(
+      `There is no mock called ${fixture}. Try one of: ${[...known, "map"].join(", ")}.`,
+    );
   }
-  const [{ MockGateway }, rigs, partyRigs, state] = await Promise.all([
-    import("./mock.ts"),
+  const [rigs, partyRigs, state, map] = await Promise.all([
     import("virtual:rigs"),
     import("virtual:party-rigs"),
     load(),
+    mapFixtures(query),
   ]);
   const st = structuredClone(state.default);
   const family = query.get("family");
@@ -86,18 +94,21 @@ async function mocked(
     teammates: true,
   });
   return {
-    signIn: async () => ({ dev: "mock" }),
-    token: () => gateway.token(),
-    open: () => gateway.open(),
-    instance: "mock",
-    viewer: { compact },
-    now: monotonic,
-    after,
-    id: newId,
+    deps: {
+      signIn: async () => ({ dev: "mock" }),
+      token: () => gateway.token(),
+      open: () => gateway.open(),
+      instance: "mock",
+      viewer: { compact },
+      now: monotonic,
+      after,
+      id: newId,
+    },
+    app: { map: mockSource(map), open: scene.open },
   };
 }
 
-async function live(compact: boolean): Promise<SessionDeps> {
+async function live(compact: boolean): Promise<Boot> {
   const r = routes(location);
   startBeacon(r.log);
   beacon("boot");
@@ -105,20 +116,26 @@ async function live(compact: boolean): Promise<SessionDeps> {
     document.querySelector<HTMLMetaElement>('meta[name="discord-client-id"]')?.content ?? "";
   const l = await launch(location, clientId);
   beacon("ready", { instance: l.instance, platform: l.platform, inDiscord: l.inDiscord });
+  // The map's overlay is asked as the newest session the sign-in gave.
+  let bearer = "";
   return {
-    signIn: () => l.signIn(),
-    token: async (req) => {
-      const reply = await token(r.token, req);
-      beaconAs(reply.session);
-      return reply;
+    deps: {
+      signIn: () => l.signIn(),
+      token: async (req) => {
+        const reply = await token(r.token, req);
+        bearer = reply.session;
+        beaconAs(reply.session);
+        return reply;
+      },
+      open: () => new WebSocket(r.socket) as SocketLike,
+      instance: l.instance,
+      viewer: { compact },
+      now: monotonic,
+      after,
+      id: newId,
+      note: (kind, data) => beacon(kind, { instance: l.instance, platform: l.platform, ...data }),
     },
-    open: () => new WebSocket(r.socket) as SocketLike,
-    instance: l.instance,
-    viewer: { compact },
-    now: monotonic,
-    after,
-    id: newId,
-    note: (kind, data) => beacon(kind, { instance: l.instance, platform: l.platform, ...data }),
+    app: { map: liveSource({ bearer: () => bearer }) },
   };
 }
 
@@ -129,9 +146,9 @@ async function main(): Promise<void> {
   document.documentElement.classList.toggle("compact", compact);
   const query = new URLSearchParams(location.search);
   const mock = query.get("mock");
-  const deps = await (mock ? mocked(mock, compact, query) : live(compact));
-  const session = new Session(deps);
-  new App(root, session, compact);
+  const boot = await (mock ? mocked(mock, compact, query) : live(compact));
+  const session = new Session(boot.deps);
+  new App(root, session, compact, boot.app);
   session.start();
 }
 

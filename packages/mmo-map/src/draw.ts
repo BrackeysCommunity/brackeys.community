@@ -126,8 +126,8 @@ export class ChunkCache {
 function hexPath(ctx: Ctx2D, x: number, y: number, size: number): void {
   const pts = hexCorners({ x, y }, size);
   ctx.beginPath();
-  ctx.moveTo(pts[0].x, pts[0].y);
-  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.moveTo(pts[0]!.x, pts[0]!.y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i]!.x, pts[i]!.y);
   ctx.closePath();
 }
 
@@ -273,8 +273,8 @@ function drawOps(
       case "path": {
         if (op.points.length < 2) break;
         ctx.beginPath();
-        ctx.moveTo(op.points[0].x, op.points[0].y);
-        for (let i = 1; i < op.points.length; i++) ctx.lineTo(op.points[i].x, op.points[i].y);
+        ctx.moveTo(op.points[0]!.x, op.points[0]!.y);
+        for (let i = 1; i < op.points.length; i++) ctx.lineTo(op.points[i]!.x, op.points[i]!.y);
         ctx.strokeStyle = op.colour;
         ctx.lineWidth = Math.max(op.width, MIN_LINE_PX / scale);
         ctx.stroke();

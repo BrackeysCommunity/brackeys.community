@@ -67,6 +67,7 @@ import {
   type TokenReply,
   type Viewer,
 } from "./api.ts";
+import type { MapFixtures } from "./map/source.ts";
 import { streamed, type SocketLike } from "./session.ts";
 import { GOING, type Family } from "./shell/kit.ts";
 import { vaultOf } from "./shell/panel.ts";
@@ -1205,4 +1206,33 @@ class PartyMock {
     );
     return { id: ++this.factId, tick: this.st.tick, kind, subjects: [], data: out, weight: 5 };
   }
+}
+
+/** What ?mock=<name> opens: the state fixture it plays, and a screen to open on. */
+export function mockScene(fixture: string): { state: string; open?: "map" } {
+  return fixture === "map" ? { state: "idle", open: "map" } : { state: fixture };
+}
+
+/**
+ * The map's payloads for ?mock=: a small world read through the world's
+ * own map read model, with a character who walked out and back, so the
+ * overlay holds tiles in sight and tiles last seen at several ages.
+ * `?viewer=anonymous` serves the overlay a viewer with no character gets.
+ */
+export async function mapFixtures(query: URLSearchParams): Promise<MapFixtures> {
+  const files = import.meta.glob<{ default: unknown }>("../test/fixtures/map/*.json");
+  const read = async <T>(file: string): Promise<T> => {
+    const load = files[`../test/fixtures/map/${file}.json`];
+    if (!load) throw new Error(`the map mock has no ${file}.json`);
+    return (await load()).default as T;
+  };
+  const overlay = query.get("viewer") === "anonymous" ? "overlay-anonymous" : "overlay";
+  const [index, style, regions, chunks, o] = await Promise.all([
+    read<MapFixtures["index"]>("index"),
+    read<MapFixtures["style"]>("style"),
+    read<MapFixtures["regions"]>("regions"),
+    read<MapFixtures["chunks"]>("chunks"),
+    read<MapFixtures["overlay"]>(overlay),
+  ]);
+  return { index, style, regions, chunks, overlay: o };
 }

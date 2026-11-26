@@ -19,6 +19,7 @@ import {
   type Viewer,
 } from "./api.ts";
 import { button, el, lines, panel } from "./dom.ts";
+import { NO_MAP, type MapSource } from "./map/source.ts";
 import { streamed, type IntentBody, type Session } from "./session.ts";
 import { MachinePanel } from "./shell/panel.ts";
 import { versionOf } from "./shell/party-registry.ts";
@@ -29,13 +30,31 @@ import { benchView } from "./views/bench.ts";
 import { floorView } from "./views/floor.ts";
 import { huntView } from "./views/hunt.ts";
 import { idleView } from "./views/idle.ts";
+import { MapScreen } from "./views/map.ts";
 import { partyResult, partyResultLines, partyView, windowLine } from "./views/party.ts";
 import { PatternStrip } from "./views/pattern.ts";
 import { pouchesView } from "./views/pouches.ts";
 import { machineWhy, optionWhy, witnessWhy } from "./views/why.ts";
 import { name, placedLine, refusalLine, roadLine, theftTitle } from "./words.ts";
 
-export type Screen = "machine" | "beat" | "floor" | "hunt" | "party" | "pouches" | "bench" | "idle";
+export type Screen =
+  | "machine"
+  | "beat"
+  | "floor"
+  | "hunt"
+  | "party"
+  | "pouches"
+  | "bench"
+  | "idle"
+  | "map";
+
+/** What a page is opened with beyond its session. */
+export interface AppOptions {
+  /** Where the Map screen reads from; a page given none draws no map. */
+  map?: MapSource;
+  /** The screen to open on, while the state offers it. */
+  open?: Screen;
+}
 
 // The why open over a screen: an option's, a theft's witness odds, else the machine's.
 interface Why {
@@ -52,9 +71,10 @@ const TITLES: Record<Screen, string> = {
   pouches: "Pouches",
   bench: "Bench",
   idle: "Idle",
+  map: "Map",
 };
 
-/** The screens a state offers, in the order the shell picks from. */
+/** The screens a state offers, in the order the shell picks from; the map is always one. */
 export function screens(st: ActivityState, machine: boolean): Screen[] {
   const out: Screen[] = [];
   if (st.machine || machine) out.push("machine");
@@ -64,7 +84,9 @@ export function screens(st: ActivityState, machine: boolean): Screen[] {
   if (st.party) out.push("party");
   if (st.pouches?.length) out.push("pouches");
   if (st.bench) out.push("bench");
-  return out.length ? out : ["idle"];
+  if (!out.length) out.push("idle");
+  out.push("map");
+  return out;
 }
 
 /**
@@ -123,12 +145,17 @@ export class App {
   private ticking: ReturnType<typeof setTimeout> | undefined;
   private readonly strip = new PatternStrip();
   private theft: { key: string; node: HTMLElement } | undefined;
+  private mapScreen: MapScreen | undefined;
+  private readonly mapSource: MapSource;
 
   constructor(
     root: HTMLElement,
     private readonly session: Session,
     private readonly compact: boolean,
+    options: AppOptions = {},
   ) {
+    this.mapSource = options.map ?? NO_MAP;
+    this.want = options.open;
     root.replaceChildren(this.bar, this.nav, this.main);
     session.subscribe(() => this.render());
     session.onHint((m) => this.machine?.showHint(m));
@@ -338,6 +365,12 @@ export class App {
           }),
         );
         return;
+      case "map": {
+        this.mapScreen ??= new MapScreen({ source: this.mapSource });
+        this.show(this.mapScreen.root);
+        void this.mapScreen.wake();
+        return;
+      }
       case "idle":
         this.show(
           this.recent(),

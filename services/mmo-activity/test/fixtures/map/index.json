@@ -1,0 +1,82 @@
+{
+  "world": "mock",
+  "tick": 308,
+  "ticksPerDay": 144,
+  "tickSeconds": 600,
+  "chunkRadius": 8,
+  "tiles": 469,
+  "home": {
+    "q": -30,
+    "r": 26
+  },
+  "style": "79afee9f595409a9",
+  "regions": "87e55f38c01eec4f",
+  "chunks": [
+    {
+      "a": -3,
+      "b": 1,
+      "centre": {
+        "q": -43,
+        "r": 33
+      },
+      "tiles": 96,
+      "area": "2acf8896d402e45c",
+      "tile": "cda7720955819285"
+    },
+    {
+      "a": -3,
+      "b": 2,
+      "centre": {
+        "q": -35,
+        "r": 42
+      },
+      "tiles": 49,
+      "area": "cbbea38531889a99",
+      "tile": "752abaeadf39b127"
+    },
+    {
+      "a": -2,
+      "b": 0,
+      "centre": {
+        "q": -34,
+        "r": 16
+      },
+      "tiles": 74,
+      "area": "fda35456f0a2ee78",
+      "tile": "b79aad50dc5f4a22"
+    },
+    {
+      "a": -2,
+      "b": 1,
+      "centre": {
+        "q": -26,
+        "r": 25
+      },
+      "tiles": 217,
+      "area": "bb5280bde47029a6",
+      "tile": "29c4f4c0c1c95762"
+    },
+    {
+      "a": -2,
+      "b": 2,
+      "centre": {
+        "q": -18,
+        "r": 34
+      },
+      "tiles": 9,
+      "area": "8b0343c672ac9687",
+      "tile": "b0a60985e42ba709"
+    },
+    {
+      "a": -1,
+      "b": 0,
+      "centre": {
+        "q": -17,
+        "r": 8
+      },
+      "tiles": 24,
+      "area": "41d9527aa1cfcb62",
+      "tile": "32f551f0e356eb2d"
+    }
+  ]
+}
