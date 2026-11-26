@@ -98,6 +98,26 @@ type MmoLedgerTxn struct {
 	FactID  pgtype.Int8
 }
 
+type MmoMapSeen struct {
+	WorldID    string
+	HolderKind string
+	HolderID   string
+	Q          int64
+	R          int64
+	ChunkA     int64
+	ChunkB     int64
+	LeftTick   int64
+	Live       []byte
+}
+
+type MmoMapSight struct {
+	WorldID    string
+	HolderKind string
+	HolderID   string
+	Key        []byte
+	Tick       int64
+}
+
 type MmoNotable struct {
 	WorldID string
 	Faction int32

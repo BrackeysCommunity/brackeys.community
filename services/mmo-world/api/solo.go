@@ -385,14 +385,16 @@ type Choice struct {
 	Coin     int64  `json:"coin,omitempty"`
 }
 
-// MapView is a crop of the hex map around a character (GDD 4.11, 16.4):
-// the discovered tiles, and the picture of them with fog and weather.
+// MapView is a crop of the hex map round a character (GDD 4.11, 16.4): the
+// discovered tiles' base, each tile as the character may see it, and the
+// picture of them.
 type MapView struct {
-	Tick   int64  `json:"tick"`
-	Centre Hex    `json:"centre"`
-	Radius int64  `json:"radius"`
-	Tiles  []Tile `json:"tiles"`
-	Image  string `json:"image"` // a media key
+	Tick   int64         `json:"tick"`
+	Centre Hex           `json:"centre"`
+	Radius int64         `json:"radius"`
+	Tiles  []Tile        `json:"tiles"` // base fields only, the own tile in full
+	View   []MapTileView `json:"view"`  // tile level, sorted by r, then q
+	Image  string        `json:"image"` // a media key
 }
 
 // Lexicon is what the setting calls things, by "sheet:id", the odds

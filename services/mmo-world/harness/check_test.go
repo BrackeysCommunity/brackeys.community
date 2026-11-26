@@ -97,6 +97,9 @@ func TestCheckFailsOnPlantedFaults(t *testing.T) {
 		{"unnamed material", func(t *testing.T, r string) {
 			edit(t, r, "packs/wasteland/names.json", `"ref": "items.materials:timber"`, `"ref": "items.materials:reedflax"`)
 		}, "pack names everything shown", "items.materials:timber"},
+		{"map style without fog:seen", func(t *testing.T, r string) {
+			edit(t, r, "packs/wasteland/map-style.json", `"id": "fog-seen"`, `"id": "fog-seen-old"`)
+		}, "pack names everything shown", "no entry for fog:seen"},
 		{"family with no title", func(t *testing.T, r string) {
 			edit(t, r, "sheets/puzzles/titles.json", `"family": "splice"`, `"family": "scrub"`)
 		}, "play sheets", "no title for splice"},

@@ -10,6 +10,7 @@ sql:
       - ../../drizzle/20261119171759_mmo-fact-region/migration.sql
       - ../../drizzle/20261119192946_mmo-fact-subjects/migration.sql
       - ../../drizzle/20261125145852_mmo-house-log/migration.sql
+      - ../../drizzle/20261126040827_mmo-map-seen/migration.sql
     queries: store/queries.sql
     gen:
       go:

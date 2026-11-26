@@ -1,0 +1,66 @@
+{
+  "$schema": "../../sheets/schema/pack.map-view.schema.json",
+  "sheet": "pack.map-view",
+  "rows": [
+    {
+      "id": "seen-dim",
+      "value": 45,
+      "unit": "percent",
+      "doc": "How far a last-seen tile's terrain is dimmed."
+    },
+    {
+      "id": "zoom-area",
+      "value": 4,
+      "unit": "count",
+      "doc": "Hex corner radius in CSS px from which the area level draws; below it, the region level."
+    },
+    {
+      "id": "zoom-tile",
+      "value": 12,
+      "unit": "count",
+      "doc": "Hex corner radius in CSS px from which the tile level draws."
+    },
+    {
+      "id": "zoom-min",
+      "value": 1,
+      "unit": "count",
+      "doc": "The smallest hex corner radius in CSS px."
+    },
+    {
+      "id": "zoom-max",
+      "value": 40,
+      "unit": "count",
+      "doc": "The largest hex corner radius in CSS px."
+    },
+    {
+      "id": "blend-max",
+      "value": 50,
+      "unit": "percent",
+      "doc": "The largest ecotone blend a cell carries: its secondary terrain's share at most."
+    },
+    {
+      "id": "busy-light",
+      "value": 2,
+      "unit": "count",
+      "doc": "Visits from which a tile reads light."
+    },
+    {
+      "id": "busy-busy",
+      "value": 6,
+      "unit": "count",
+      "doc": "Visits from which a tile reads busy."
+    },
+    {
+      "id": "busy-crowded",
+      "value": 15,
+      "unit": "count",
+      "doc": "Visits from which a tile reads crowded."
+    },
+    {
+      "id": "busy-distinct",
+      "value": 2,
+      "unit": "count",
+      "doc": "Distinct characters a tile's tracks must show before it reads busy at all, so one walker never lights a tile."
+    }
+  ]
+}

@@ -160,6 +160,37 @@ SELECT * FROM mmo.house_log WHERE world_id = @world_id AND server = @server AND 
 -- name: HouseLogAll :many
 SELECT * FROM mmo.house_log WHERE world_id = @world_id AND id > @after ORDER BY id LIMIT @lim;
 
+-- Last-seen records of the live map, per holder (a character or a guild)
+-- and tile, and each holder's sight key. Written by the view pass only.
+-- name: UpsertMapSeen :exec
+INSERT INTO mmo.map_seen (world_id, holder_kind, holder_id, q, r, chunk_a, chunk_b, left_tick, live)
+SELECT @world_id, @holder_kind, @holder_id, unnest(@qs::bigint[]), unnest(@rs::bigint[]), unnest(@chunk_as::bigint[]),
+       unnest(@chunk_bs::bigint[]), @left_tick, unnest(@lives::jsonb[])
+ON CONFLICT (world_id, holder_kind, holder_id, q, r) DO UPDATE SET left_tick = EXCLUDED.left_tick, live = EXCLUDED.live,
+  chunk_a = EXCLUDED.chunk_a, chunk_b = EXCLUDED.chunk_b;
+
+-- name: MapSeenIn :many
+SELECT * FROM mmo.map_seen WHERE world_id = @world_id
+  AND ((holder_kind = 'character' AND holder_id = @character_id) OR (holder_kind = 'guild' AND holder_id = @guild_id))
+  AND (chunk_a, chunk_b) IN (SELECT unnest(@chunk_as::bigint[]), unnest(@chunk_bs::bigint[]))
+ORDER BY holder_kind, holder_id, r, q;
+
+-- name: UpsertMapSight :exec
+INSERT INTO mmo.map_sight (world_id, holder_kind, holder_id, key, tick) VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (world_id, holder_kind, holder_id) DO UPDATE SET key = EXCLUDED.key, tick = EXCLUDED.tick;
+
+-- name: MapSights :many
+SELECT * FROM mmo.map_sight WHERE world_id = $1 ORDER BY holder_kind, holder_id;
+
+-- name: DeleteMapHolderSeen :exec
+DELETE FROM mmo.map_seen WHERE world_id = $1 AND holder_kind = $2 AND holder_id = $3;
+
+-- name: DeleteMapHolderSight :exec
+DELETE FROM mmo.map_sight WHERE world_id = $1 AND holder_kind = $2 AND holder_id = $3;
+
+-- name: CountMapSeen :one
+SELECT count(*) FROM mmo.map_seen WHERE world_id = $1;
+
 -- name: InsertTick :exec
 INSERT INTO mmo.tick (world_id, tick, digest, facts, ms) VALUES ($1, $2, $3, $4, $5);
 
@@ -194,6 +225,12 @@ DELETE FROM mmo.action WHERE world_id = $1;
 
 -- name: DeleteWorldHouseLog :exec
 DELETE FROM mmo.house_log WHERE world_id = $1;
+
+-- name: DeleteWorldMapSeen :exec
+DELETE FROM mmo.map_seen WHERE world_id = $1;
+
+-- name: DeleteWorldMapSight :exec
+DELETE FROM mmo.map_sight WHERE world_id = $1;
 
 -- name: DeleteWorldTicks :exec
 DELETE FROM mmo.tick WHERE world_id = $1;

@@ -175,6 +175,8 @@ type Book struct {
 	NameParts    []NamePart    `sheet:"pack.name-parts" doc:"Pieces generated names are built from."`
 	BannerLayers []BannerLayer `sheet:"pack.banner-layers" doc:"SVG layers banners are composed from."`
 	Palette      []Palette     `sheet:"pack.palette" doc:"Banner colours and the tags that favour them."`
+	MapStyle     []MapStyle    `sheet:"pack.map-style" doc:"The live map's colours, glyphs and patterns (GDD 4.11)."`
+	MapView      []Param       `sheet:"pack.map-view" doc:"The live map's numbers: the last-seen dim, the zoom levels, the ecotone blend, the busy bands."`
 }
 
 // Def describes one sheet.

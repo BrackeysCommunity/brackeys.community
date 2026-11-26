@@ -96,6 +96,47 @@ func (q *Queries) ChronicleDay(ctx context.Context, arg ChronicleDayParams) ([]M
 	return items, nil
 }
 
+const countMapSeen = `-- name: CountMapSeen :one
+SELECT count(*) FROM mmo.map_seen WHERE world_id = $1
+`
+
+func (q *Queries) CountMapSeen(ctx context.Context, worldID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countMapSeen, worldID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const deleteMapHolderSeen = `-- name: DeleteMapHolderSeen :exec
+DELETE FROM mmo.map_seen WHERE world_id = $1 AND holder_kind = $2 AND holder_id = $3
+`
+
+type DeleteMapHolderSeenParams struct {
+	WorldID    string
+	HolderKind string
+	HolderID   string
+}
+
+func (q *Queries) DeleteMapHolderSeen(ctx context.Context, arg DeleteMapHolderSeenParams) error {
+	_, err := q.db.Exec(ctx, deleteMapHolderSeen, arg.WorldID, arg.HolderKind, arg.HolderID)
+	return err
+}
+
+const deleteMapHolderSight = `-- name: DeleteMapHolderSight :exec
+DELETE FROM mmo.map_sight WHERE world_id = $1 AND holder_kind = $2 AND holder_id = $3
+`
+
+type DeleteMapHolderSightParams struct {
+	WorldID    string
+	HolderKind string
+	HolderID   string
+}
+
+func (q *Queries) DeleteMapHolderSight(ctx context.Context, arg DeleteMapHolderSightParams) error {
+	_, err := q.db.Exec(ctx, deleteMapHolderSight, arg.WorldID, arg.HolderKind, arg.HolderID)
+	return err
+}
+
 const deleteNotable = `-- name: DeleteNotable :exec
 DELETE FROM mmo.notable WHERE world_id = $1 AND faction = $2 AND idx = $3
 `
@@ -197,6 +238,24 @@ DELETE FROM mmo.ledger_txn WHERE world_id = $1
 
 func (q *Queries) DeleteWorldLedgerTxns(ctx context.Context, worldID string) error {
 	_, err := q.db.Exec(ctx, deleteWorldLedgerTxns, worldID)
+	return err
+}
+
+const deleteWorldMapSeen = `-- name: DeleteWorldMapSeen :exec
+DELETE FROM mmo.map_seen WHERE world_id = $1
+`
+
+func (q *Queries) DeleteWorldMapSeen(ctx context.Context, worldID string) error {
+	_, err := q.db.Exec(ctx, deleteWorldMapSeen, worldID)
+	return err
+}
+
+const deleteWorldMapSight = `-- name: DeleteWorldMapSight :exec
+DELETE FROM mmo.map_sight WHERE world_id = $1
+`
+
+func (q *Queries) DeleteWorldMapSight(ctx context.Context, worldID string) error {
+	_, err := q.db.Exec(ctx, deleteWorldMapSight, worldID)
 	return err
 }
 
@@ -1110,6 +1169,87 @@ func (q *Queries) ListTiles(ctx context.Context, worldID string) ([]MmoTile, err
 	return items, nil
 }
 
+const mapSeenIn = `-- name: MapSeenIn :many
+SELECT world_id, holder_kind, holder_id, q, r, chunk_a, chunk_b, left_tick, live FROM mmo.map_seen WHERE world_id = $1
+  AND ((holder_kind = 'character' AND holder_id = $2) OR (holder_kind = 'guild' AND holder_id = $3))
+  AND (chunk_a, chunk_b) IN (SELECT unnest($4::bigint[]), unnest($5::bigint[]))
+ORDER BY holder_kind, holder_id, r, q
+`
+
+type MapSeenInParams struct {
+	WorldID     string
+	CharacterID string
+	GuildID     string
+	ChunkAs     []int64
+	ChunkBs     []int64
+}
+
+func (q *Queries) MapSeenIn(ctx context.Context, arg MapSeenInParams) ([]MmoMapSeen, error) {
+	rows, err := q.db.Query(ctx, mapSeenIn,
+		arg.WorldID,
+		arg.CharacterID,
+		arg.GuildID,
+		arg.ChunkAs,
+		arg.ChunkBs,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MmoMapSeen
+	for rows.Next() {
+		var i MmoMapSeen
+		if err := rows.Scan(
+			&i.WorldID,
+			&i.HolderKind,
+			&i.HolderID,
+			&i.Q,
+			&i.R,
+			&i.ChunkA,
+			&i.ChunkB,
+			&i.LeftTick,
+			&i.Live,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const mapSights = `-- name: MapSights :many
+SELECT world_id, holder_kind, holder_id, key, tick FROM mmo.map_sight WHERE world_id = $1 ORDER BY holder_kind, holder_id
+`
+
+func (q *Queries) MapSights(ctx context.Context, worldID string) ([]MmoMapSight, error) {
+	rows, err := q.db.Query(ctx, mapSights, worldID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MmoMapSight
+	for rows.Next() {
+		var i MmoMapSight
+		if err := rows.Scan(
+			&i.WorldID,
+			&i.HolderKind,
+			&i.HolderID,
+			&i.Key,
+			&i.Tick,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const recentFactsIn = `-- name: RecentFactsIn :many
 SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND region = $2 AND NOT (kind LIKE ANY ($3::text[]))
 ORDER BY id DESC LIMIT $4
@@ -1383,6 +1523,67 @@ type UpsertFactionParams struct {
 
 func (q *Queries) UpsertFaction(ctx context.Context, arg UpsertFactionParams) error {
 	_, err := q.db.Exec(ctx, upsertFaction, arg.WorldID, arg.Idx, arg.Body)
+	return err
+}
+
+const upsertMapSeen = `-- name: UpsertMapSeen :exec
+INSERT INTO mmo.map_seen (world_id, holder_kind, holder_id, q, r, chunk_a, chunk_b, left_tick, live)
+SELECT $1, $2, $3, unnest($4::bigint[]), unnest($5::bigint[]), unnest($6::bigint[]),
+       unnest($7::bigint[]), $8, unnest($9::jsonb[])
+ON CONFLICT (world_id, holder_kind, holder_id, q, r) DO UPDATE SET left_tick = EXCLUDED.left_tick, live = EXCLUDED.live,
+  chunk_a = EXCLUDED.chunk_a, chunk_b = EXCLUDED.chunk_b
+`
+
+type UpsertMapSeenParams struct {
+	WorldID    string
+	HolderKind string
+	HolderID   string
+	Qs         []int64
+	Rs         []int64
+	ChunkAs    []int64
+	ChunkBs    []int64
+	LeftTick   int64
+	Lives      [][]byte
+}
+
+// Last-seen records of the live map, per holder (a character or a guild)
+// and tile, and each holder's sight key. Written by the view pass only.
+func (q *Queries) UpsertMapSeen(ctx context.Context, arg UpsertMapSeenParams) error {
+	_, err := q.db.Exec(ctx, upsertMapSeen,
+		arg.WorldID,
+		arg.HolderKind,
+		arg.HolderID,
+		arg.Qs,
+		arg.Rs,
+		arg.ChunkAs,
+		arg.ChunkBs,
+		arg.LeftTick,
+		arg.Lives,
+	)
+	return err
+}
+
+const upsertMapSight = `-- name: UpsertMapSight :exec
+INSERT INTO mmo.map_sight (world_id, holder_kind, holder_id, key, tick) VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (world_id, holder_kind, holder_id) DO UPDATE SET key = EXCLUDED.key, tick = EXCLUDED.tick
+`
+
+type UpsertMapSightParams struct {
+	WorldID    string
+	HolderKind string
+	HolderID   string
+	Key        []byte
+	Tick       int64
+}
+
+func (q *Queries) UpsertMapSight(ctx context.Context, arg UpsertMapSightParams) error {
+	_, err := q.db.Exec(ctx, upsertMapSight,
+		arg.WorldID,
+		arg.HolderKind,
+		arg.HolderID,
+		arg.Key,
+		arg.Tick,
+	)
 	return err
 }
 

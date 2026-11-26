@@ -15,6 +15,7 @@ import (
 	"golang.org/x/tools/go/packages"
 
 	"jams.team/mmo-world/lint"
+	"jams.team/mmo-world/render"
 	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/draw"
 	"jams.team/mmo-world/sim/puzzle"
@@ -284,7 +285,7 @@ func ruleProblems(b *sheets.Book) []string {
 // runs, and the readings taken outside them (growth curves, search).
 var targetRuns = []string{
 	"activity", "battle", "content", "craft", "crime", "delve", "economy", "emergence",
-	"growth", "puzzles", "search", "season", "seen", "social", "terrain", "world",
+	"growth", "map", "puzzles", "search", "season", "seen", "social", "terrain", "world",
 }
 
 func targetProblems(b *sheets.Book) []string {
@@ -342,7 +343,7 @@ func packProblems(b *sheets.Book) []string {
 			p = append(p, "pack.banner-layers: no "+l+" layer")
 		}
 	}
-	return p
+	return append(p, render.MapStyleProblems(b)...)
 }
 
 // lintProblems runs the sim analyzers over sim/ from source.

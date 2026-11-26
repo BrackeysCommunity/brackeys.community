@@ -493,6 +493,18 @@
       "text": "With thieves preying on road wars, the first city at 1,000 players opens no more than 3 world days later than without theft",
       "runs": "crime",
       "holdsFrom": "MM11a"
+    },
+    {
+      "id": "map-load-budget",
+      "text": "A 20,000-tile world's live map loads inside its budget: first draw in 4 requests and 150 KB, a tile view in 32 requests and 300 KB, and first draw modelled within 1.5 s",
+      "runs": "map",
+      "holdsFrom": "MM13"
+    },
+    {
+      "id": "map-seen-cost",
+      "text": "A world day's last-seen writes and sight pass follow movement, not map size: at 20,000 discovered tiles within 1.5x of 1,000",
+      "runs": "map",
+      "holdsFrom": "MM13"
     }
   ]
 }

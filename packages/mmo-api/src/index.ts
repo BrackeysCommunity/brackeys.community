@@ -2186,6 +2186,370 @@ export interface StagedLine {
 }
 
 //////////
+// source: map.go
+
+/**
+ * Paths of the live map (GDD 4.11). The world serves them to the site with
+ * the map token; the Activity listener serves the same reads under
+ * /api/activity/map/ with the session as the viewer.
+ */
+export const PathMapIndex = "/v1/map/index";
+/**
+ * Paths of the live map (GDD 4.11). The world serves them to the site with
+ * the map token; the Activity listener serves the same reads under
+ * /api/activity/map/ with the session as the viewer.
+ */
+export const PathMapStyle = "/v1/map/style";
+/**
+ * Paths of the live map (GDD 4.11). The world serves them to the site with
+ * the map token; the Activity listener serves the same reads under
+ * /api/activity/map/ with the session as the viewer.
+ */
+export const PathMapRegions = "/v1/map/regions";
+/**
+ * Paths of the live map (GDD 4.11). The world serves them to the site with
+ * the map token; the Activity listener serves the same reads under
+ * /api/activity/map/ with the session as the viewer.
+ */
+export const PathMapChunk = "/v1/map/chunk"; // ?a=&b=&level=
+/**
+ * Paths of the live map (GDD 4.11). The world serves them to the site with
+ * the map token; the Activity listener serves the same reads under
+ * /api/activity/map/ with the session as the viewer.
+ */
+export const PathMapOverlay = "/v1/map/overlay"; // ?chunks=a.b,…|scope=sight &discordId=
+/**
+ * Paths of the live map (GDD 4.11). The world serves them to the site with
+ * the map token; the Activity listener serves the same reads under
+ * /api/activity/map/ with the session as the viewer.
+ */
+export const PathMapFocus = "/v1/map/focus"; // ?server=
+/**
+ * Paths of the live map (GDD 4.11). The world serves them to the site with
+ * the map token; the Activity listener serves the same reads under
+ * /api/activity/map/ with the session as the viewer.
+ */
+export const PathActivityMapTick = "/api/activity/map/tick";
+/**
+ * Paths of the live map (GDD 4.11). The world serves them to the site with
+ * the map token; the Activity listener serves the same reads under
+ * /api/activity/map/ with the session as the viewer.
+ */
+export const PathActivityMapStyle = "/api/activity/map/style";
+/**
+ * Paths of the live map (GDD 4.11). The world serves them to the site with
+ * the map token; the Activity listener serves the same reads under
+ * /api/activity/map/ with the session as the viewer.
+ */
+export const PathActivityMapRegions = "/api/activity/map/regions";
+/**
+ * Paths of the live map (GDD 4.11). The world serves them to the site with
+ * the map token; the Activity listener serves the same reads under
+ * /api/activity/map/ with the session as the viewer.
+ */
+export const PathActivityMapChunk = "/api/activity/map/chunk";
+/**
+ * Paths of the live map (GDD 4.11). The world serves them to the site with
+ * the map token; the Activity listener serves the same reads under
+ * /api/activity/map/ with the session as the viewer.
+ */
+export const PathActivityMapOverlay = "/api/activity/map/overlay";
+/**
+ * Levels of detail, widest first.
+ */
+export const LevelRegion = "region";
+/**
+ * Levels of detail, widest first.
+ */
+export const LevelArea = "area";
+/**
+ * Levels of detail, widest first.
+ */
+export const LevelTile = "tile";
+/**
+ * Fog states of a tile to one viewer. Unknown tiles are never sent.
+ */
+export const FogSight = "sight";
+/**
+ * Fog states of a tile to one viewer. Unknown tiles are never sent.
+ */
+export const FogSeen = "seen";
+/**
+ * Fog states of a tile to one viewer. Unknown tiles are never sent.
+ */
+export const FogDiscovered = "discovered";
+/**
+ * Fog states of a tile to one viewer. Unknown tiles are never sent.
+ */
+export const FogUnknown = "unknown"; // only in a /map picture's input
+/**
+ * Viewer kinds of an overlay.
+ */
+export const ViewerAnonymous = "anonymous";
+/**
+ * Viewer kinds of an overlay.
+ */
+export const ViewerPlayer = "player"; // signed in, no character
+/**
+ * Viewer kinds of an overlay.
+ */
+export const ViewerCharacter = "character";
+/**
+ * Busy bands; "" is quiet.
+ */
+export const BusyLight = "light";
+/**
+ * Busy bands; "" is quiet.
+ */
+export const BusyBusy = "busy";
+/**
+ * Busy bands; "" is quiet.
+ */
+export const BusyCrowded = "crowded";
+/**
+ * Place kinds a base cell carries.
+ */
+export const PlaceSettlement = "settlement";
+/**
+ * Place kinds a base cell carries.
+ */
+export const PlaceCity = "city"; // a city's own tile
+/**
+ * Place kinds a base cell carries.
+ */
+export const PlaceCityTile = "city-tile"; // one of a city's other tiles
+/**
+ * Place kinds a base cell carries.
+ */
+export const PlaceRuin = "ruin";
+/**
+ * Place kinds a base cell carries.
+ */
+export const PlaceFaction = "faction"; // a faction city
+/**
+ * MapIndex is the map at one tick: every discovered chunk and the rev of
+ * each payload. It is the one per-tick read; the payloads it names are
+ * addressed by content.
+ */
+export interface MapIndex {
+  world: string;
+  tick: number /* int64 */;
+  ticksPerDay: number /* int64 */;
+  tickSeconds: number /* int64 */;
+  chunkRadius: number /* int64 */;
+  tiles: number /* int64 */; // discovered
+  home: Hex;
+  style: string; // rev
+  regions: string; // rev
+  chunks: MapChunkRef[];
+}
+/**
+ * MapChunkRef is one discovered chunk: where it is and the rev of its
+ * area and tile payloads.
+ */
+export interface MapChunkRef {
+  a: number /* int64 */;
+  b: number /* int64 */;
+  centre: Hex;
+  tiles: number /* int64 */; // discovered
+  area: string;
+  tile: string;
+}
+/**
+ * MapRegions is the widest level: each discovered tile's region, in rows.
+ */
+export interface MapRegions {
+  world: string;
+  rev: string;
+  regions: MapRegion[]; // a row's slots index these
+  rows: MapRow[];
+  places: MapDot[];
+}
+/**
+ * MapRegion is a discovered region at the widest level.
+ */
+export interface MapRegion {
+  ref: string;
+  terrain: string; // its biome
+  anchor: Hex; // the discovered tile nearest its centroid
+  tiles: number /* int64 */; // discovered
+  name?: string;
+}
+/**
+ * MapRow is a run of tiles along one r from Q: Slots[i] is tile (Q+i, R)'s
+ * region slot, or -1 where the tile is not discovered.
+ */
+export interface MapRow {
+  r: number /* int64 */;
+  q: number /* int64 */;
+  slots: number /* int64 */[];
+}
+/**
+ * MapDot is a settlement or city at the widest level.
+ */
+export interface MapDot {
+  q: number /* int64 */;
+  r: number /* int64 */;
+  place: string;
+}
+/**
+ * MapChunk is one chunk's shared base at area or tile level: its
+ * discovered tiles only, the same for every viewer.
+ */
+export interface MapChunk {
+  world: string;
+  a: number /* int64 */;
+  b: number /* int64 */;
+  level: string;
+  rev: string;
+  cells: MapCell[]; // sorted by r, then q
+  names?: { [key: string]: string};
+}
+/**
+ * MapCell is a discovered tile's base layers. Area level fills Terrain,
+ * Secondary, Blend, Water, Region, Edge, Road and Place; tile level the
+ * rest as well.
+ */
+export interface MapCell {
+  q: number /* int64 */;
+  r: number /* int64 */;
+  terrain: string;
+  secondary?: string;
+  blend?: number /* int64 */; // 0 to 50, the secondary's share
+  water?: string; // omitted for none
+  region?: string;
+  edge?: number /* int64 */; // bit d: the neighbour in direction d is undiscovered
+  road?: number /* int64 */;
+  place?: string;
+  placeRef?: string; // a settlement's ref, for its name
+  guild?: string; // the guild ref running it
+  site?: string;
+  siteKind?: string;
+  landmark?: string;
+  roadName?: string;
+  structures?: string[];
+  found?: number /* int64 */;
+}
+/**
+ * MapOverlayQuery is an overlay request: chunks by id, or the chunks the
+ * viewer's sight touches.
+ */
+export interface MapOverlayQuery {
+  chunks?: MapChunkID[];
+  sight?: boolean;
+}
+/**
+ * MapChunkID names a chunk.
+ */
+export interface MapChunkID {
+  a: number /* int64 */;
+  b: number /* int64 */;
+}
+/**
+ * MapLive is a tile's live layers to one viewer: as they are this tick in
+ * sight, or as last seen with the tick the tile left sight.
+ */
+export interface MapLive {
+  q: number /* int64 */;
+  r: number /* int64 */;
+  fog: string; // sight or seen
+  left?: number /* int64 */; // seen: the tick it left sight
+  threat?: number /* int64 */;
+  corruption?: number /* int64 */;
+  danger?: boolean;
+  corrupted?: boolean;
+  weather?: string;
+  trouble?: string; // the trouble row
+  fire?: boolean;
+  cut?: boolean;
+  toll?: number /* int64 */;
+  camp?: string;
+  haunted?: boolean;
+  busy?: string;
+}
+/**
+ * MapFront is a weather system over the viewer's sight, drawn at the
+ * in-sight tile nearest its centre.
+ */
+export interface MapFront {
+  kind: string;
+  q: number /* int64 */;
+  r: number /* int64 */;
+  heading: string; // a direction id: e, ne, nw, w, sw, se
+}
+/**
+ * MapSelf is the viewer's own character on the map.
+ */
+export interface MapSelf {
+  character: string;
+  q: number /* int64 */;
+  r: number /* int64 */;
+  floor?: number /* int64 */;
+  route?: Hex[];
+  cell?: MapCell; // only while nobody has found the tile
+}
+/**
+ * MapOverlay is one viewer's live layers over some chunks. An anonymous
+ * viewer, or one with no character, gets no tile, front or self.
+ */
+export interface MapOverlay {
+  world: string;
+  tick: number /* int64 */;
+  viewer: string;
+  guild?: boolean; // a guild's sight is joined in
+  self?: MapSelf;
+  tiles: MapLive[]; // sorted by r, then q
+  fronts: MapFront[];
+  names?: { [key: string]: string}; // the viewer's server's masks
+}
+/**
+ * MapFocus is where a server's view centres.
+ */
+export interface MapFocus {
+  centre: Hex;
+  settlements: number /* int64 */; // its guild's standing ones
+}
+/**
+ * MapStyle is the map's look, from the setting pack.
+ */
+export interface MapStyle {
+  rev: string;
+  entries: MapStyleEntry[];
+  view: MapViewNumbers;
+}
+/**
+ * MapStyleEntry is one thing the map draws: by id, its colour, alpha,
+ * glyph and pattern.
+ */
+export interface MapStyleEntry {
+  id: string;
+  colour: string; // #rrggbb
+  alpha: number /* int64 */; // 0 to 255
+  glyph?: string;
+  pattern?: string;
+}
+/**
+ * MapViewNumbers are the view's numbers a client draws by.
+ */
+export interface MapViewNumbers {
+  seenDim: number /* int64 */; // percent
+  zoomArea: number /* int64 */;
+  zoomTile: number /* int64 */;
+  zoomMin: number /* int64 */;
+  zoomMax: number /* int64 */;
+  blendMax: number /* int64 */;
+}
+/**
+ * MapTileView is one tile as a viewer may see it: the base and the live
+ * layers merged, as /map draws it and as the site merges it.
+ */
+export interface MapTileView {
+  cell: MapCell;
+  fog: string; // sight, seen or discovered
+  live?: MapLive;
+}
+
+//////////
 // source: market.go
 
 /**
@@ -4327,14 +4691,16 @@ export interface Choice {
   coin?: number /* int64 */;
 }
 /**
- * MapView is a crop of the hex map around a character (GDD 4.11, 16.4):
- * the discovered tiles, and the picture of them with fog and weather.
+ * MapView is a crop of the hex map round a character (GDD 4.11, 16.4): the
+ * discovered tiles' base, each tile as the character may see it, and the
+ * picture of them.
  */
 export interface MapView {
   tick: number /* int64 */;
   centre: Hex;
   radius: number /* int64 */;
-  tiles: Tile[];
+  tiles: Tile[]; // base fields only, the own tile in full
+  view: MapTileView[]; // tile level, sorted by r, then q
   image: string; // a media key
 }
 /**

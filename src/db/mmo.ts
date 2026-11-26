@@ -252,6 +252,49 @@ export const mmoHouseLog = mmoSchema.table(
   ],
 );
 
+/**
+ * Last-seen records of the live map (GDD 4.11): per character or guild and
+ * tile, the live layers as last seen and the tick the tile left sight.
+ * Written only when the holder's sight key changes; a view, never game state.
+ */
+export const mmoMapSeen = mmoSchema.table(
+  "map_seen",
+  {
+    worldId: worldId(),
+    holderKind: text("holder_kind").notNull(),
+    holderId: text("holder_id").notNull(),
+    q: big("q").notNull(),
+    r: big("r").notNull(),
+    chunkA: big("chunk_a").notNull(),
+    chunkB: big("chunk_b").notNull(),
+    leftTick: big("left_tick").notNull(),
+    live: jsonb("live").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.worldId, t.holderKind, t.holderId, t.q, t.r] }),
+    index("map_seen_world_holder_chunk_idx").on(
+      t.worldId,
+      t.holderKind,
+      t.holderId,
+      t.chunkA,
+      t.chunkB,
+    ),
+  ],
+);
+
+/** Each holder's sight key, so a restart knows what it last saw. */
+export const mmoMapSight = mmoSchema.table(
+  "map_sight",
+  {
+    worldId: worldId(),
+    holderKind: text("holder_kind").notNull(),
+    holderId: text("holder_id").notNull(),
+    key: jsonb("key").notNull(),
+    tick: big("tick").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.worldId, t.holderKind, t.holderId] })],
+);
+
 /** Each tick run: the digest it reached, for replays to compare. */
 export const mmoTick = mmoSchema.table(
   "tick",

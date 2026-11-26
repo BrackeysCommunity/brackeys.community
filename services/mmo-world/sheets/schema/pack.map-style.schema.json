@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pack.map-style",
+  "title": "pack.map-style",
+  "description": "The live map's colours, glyphs and patterns (GDD 4.11).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sheet",
+    "rows"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "sheet": {
+      "const": "pack.map-style"
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "colour",
+          "alpha"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "x-unit": "id",
+            "description": "\u003cfamily\u003e-\u003cthing\u003e for the terrain, water, weather, fog, layer, place and site families (terrain-plain, fog-seen), else road, ink, paper, border, frontier or region-border. The map names it family:thing (MapID)."
+          },
+          "colour": {
+            "type": "string",
+            "x-unit": "text",
+            "description": "#rrggbb"
+          },
+          "alpha": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255,
+            "x-unit": "count",
+            "description": "0 to 255."
+          },
+          "glyph": {
+            "type": "string",
+            "enum": [
+              "diamond",
+              "square",
+              "circle",
+              "ring",
+              "triangle",
+              "cross",
+              "pip",
+              "none"
+            ],
+            "x-unit": "enum",
+            "description": "The mark drawn on the tile."
+          },
+          "pattern": {
+            "type": "string",
+            "enum": [
+              "hatch",
+              "dots",
+              "stripes",
+              "rim",
+              "none"
+            ],
+            "x-unit": "enum",
+            "description": "How the fill or the edge is drawn."
+          },
+          "note": {
+            "type": "string",
+            "x-unit": "text"
+          }
+        }
+      }
+    }
+  }
+}
