@@ -29,6 +29,10 @@
  * - MinIO objects — the loop below deletes the user's own uploads, which is
  *   safe precisely because a canonical row never references a user-scoped
  *   key (it carries a provider CDN URL, or its own project-scoped upload).
+ *
+ * The game world is asked first, when the site holds its forget token: a
+ * world that cannot be reached throws, so nothing here is deleted and the
+ * player is never left half-forgotten.
  */
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
@@ -44,9 +48,20 @@ import {
 import { emitCanvasEvent } from "@/lib/canvas-events";
 import { publishCanvasRevoke } from "@/lib/canvas-sync-publish";
 import { purgeGuildMemberCache } from "@/lib/discord";
+import {
+  deletionForgetKey,
+  discordAccountOf,
+  forgetEnabled,
+  forgetGameData,
+} from "@/lib/mmo-forget";
 import { removeProfileProjectImageFromStorage } from "@/lib/profile-project-image-storage";
 
 export async function cleanupUserData(userId: string): Promise<void> {
+  if (forgetEnabled()) {
+    const discordId = await discordAccountOf(userId);
+    if (discordId) await forgetGameData(discordId, deletionForgetKey(userId));
+  }
+
   const [profile] = await db
     .select({ discordId: developerProfiles.discordId })
     .from(developerProfiles)

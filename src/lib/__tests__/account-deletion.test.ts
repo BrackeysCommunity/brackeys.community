@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 // The redaction-before-delete ordering is the load-bearing behavior here:
 // `cleanupUserData` runs in better-auth's `beforeDelete` hook, and the
@@ -11,8 +11,16 @@ const mocks = vi.hoisted(() => {
     selectQueue: [] as unknown[][],
     updateSet: vi.fn(),
     deleteError: null as Error | null,
+    env: {} as Record<string, string | undefined>,
   };
 });
+
+vi.mock("@/env", () => ({
+  env: new Proxy(
+    {},
+    { get: (_, key: string) => (key in mocks.env ? mocks.env[key] : process.env[key]) },
+  ),
+}));
 
 vi.mock("@/db", () => {
   const nextSelect = () => mocks.selectQueue.shift() ?? [];
@@ -66,6 +74,7 @@ vi.mock("@/db/schema", () => {
   const table = (name: string, columns: string[]) =>
     Object.fromEntries([["__name", name], ...columns.map((c) => [c, `${name}.${c}`])]);
   return {
+    account: table("account", ["accountId", "userId", "providerId"]),
     canvases: table("canvases", ["id", "ownerId", "teamId"]),
     canvasDocVersions: table("doc_versions", ["docKind", "docId"]),
     canvasMembers: table("canvas_members", ["canvasId", "userId"]),
@@ -94,6 +103,7 @@ beforeEach(() => {
   mocks.selectQueue.length = 0;
   mocks.updateSet.mockClear();
   mocks.deleteError = null;
+  mocks.env = { MMO_WORLD_URL: undefined, MMO_FORGET_TOKEN: undefined };
 });
 
 describe("cleanupUserData comment redaction", () => {
@@ -136,5 +146,89 @@ describe("cleanupUserData comment redaction", () => {
     mocks.selectQueue.push([]);
     await cleanupUserData("ghost");
     expect(mocks.calls).toEqual([]);
+  });
+});
+
+describe("cleanupUserData and the game world", () => {
+  let posts: { url: string; body: unknown; auth: string | null }[] = [];
+  let status = 200;
+
+  beforeEach(() => {
+    posts = [];
+    status = 200;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string, init: RequestInit) => {
+        posts.push({
+          url: String(input),
+          body: JSON.parse(init.body as string),
+          auth: new Headers(init.headers).get("authorization"),
+        });
+        return Response.json(
+          status === 200 ? { forgotten: true, swept: true } : { code: "unavailable" },
+          { status },
+        );
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const enable = () => {
+    mocks.env = { MMO_WORLD_URL: "http://world.test", MMO_FORGET_TOKEN: "forget-token" };
+  };
+
+  it("asks the world once to forget the Discord account, then cleans up", async () => {
+    enable();
+    mocks.selectQueue.push([{ accountId: "123456789012345678" }], [{ discordId: null }], []);
+    await cleanupUserData("u1");
+
+    expect(posts).toHaveLength(1);
+    expect(posts[0].url).toBe("http://world.test/v1/forget");
+    expect(posts[0].auth).toBe("Bearer forget-token");
+    expect(posts[0].body).toEqual({
+      discordId: "123456789012345678",
+      interactionId: expect.stringMatching(/^site-forget-[0-9a-f]{16}$/),
+    });
+    expect(mocks.calls).toContain("delete:developer_profiles");
+  });
+
+  it("forgets the game data even when the user has no developer profile", async () => {
+    enable();
+    mocks.selectQueue.push([{ accountId: "123456789012345678" }], []);
+    await cleanupUserData("u1");
+
+    expect(posts).toHaveLength(1);
+    expect(mocks.calls).toEqual([]);
+  });
+
+  it("never calls the world when the site holds no forget token", async () => {
+    mocks.env = { MMO_WORLD_URL: "http://world.test", MMO_FORGET_TOKEN: undefined };
+    mocks.selectQueue.push([{ discordId: null }], []);
+    await cleanupUserData("u1");
+
+    expect(posts).toEqual([]);
+    expect(mocks.calls).toContain("delete:developer_profiles");
+  });
+
+  it("skips the world for a user with no Discord account", async () => {
+    enable();
+    mocks.selectQueue.push([], [{ discordId: null }], []);
+    await cleanupUserData("u1");
+
+    expect(posts).toEqual([]);
+    expect(mocks.calls).toContain("delete:developer_profiles");
+  });
+
+  it("throws before deleting anything when the world fails", async () => {
+    enable();
+    status = 503;
+    mocks.selectQueue.push([{ accountId: "123456789012345678" }], [{ discordId: null }], []);
+
+    await expect(cleanupUserData("u1")).rejects.toThrow(/503/);
+    expect(mocks.calls).toEqual([]);
+    expect(mocks.updateSet).not.toHaveBeenCalled();
   });
 });

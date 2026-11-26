@@ -53,6 +53,8 @@ export const env = createEnv({
     // reads only the world's map paths. No URL means `/map` and its API are 404.
     MMO_WORLD_URL: z.url().optional(),
     MMO_MAP_TOKEN: z.string().min(1).optional(),
+    // Opens only the world's forget path; unset, the site deletes no game data.
+    MMO_FORGET_TOKEN: z.string().min(1).optional(),
   },
 
   /**

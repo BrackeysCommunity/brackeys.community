@@ -22,7 +22,11 @@ interface LegalDocumentProps {
   /** Plain-language orientation shown above the contents; not operative. */
   atAGlance: ReactNode;
   sections: LegalSection[];
+  /** The header's date lines; an unpublished draft passes its own. */
+  dates?: string[];
 }
+
+const PUBLISHED_DATES = [`Effective ${EFFECTIVE_DATE}`, `Last updated ${LAST_UPDATED}`];
 
 /**
  * Shared shell for the terms and the privacy policy: title block, dates,
@@ -33,7 +37,14 @@ interface LegalDocumentProps {
  * silently making every cross-reference wrong. Cross-references in the
  * copy therefore name sections rather than numbering them.
  */
-export function LegalDocument({ marker, title, summary, atAGlance, sections }: LegalDocumentProps) {
+export function LegalDocument({
+  marker,
+  title,
+  summary,
+  atAGlance,
+  sections,
+  dates = PUBLISHED_DATES,
+}: LegalDocumentProps) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 py-8">
       <header className="flex flex-col gap-3">
@@ -47,12 +58,11 @@ export function LegalDocument({ marker, title, summary, atAGlance, sections }: L
           {summary}
         </Text>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 pt-1">
-          <MicroLabel as="p" className="uppercase">
-            § Effective {EFFECTIVE_DATE}
-          </MicroLabel>
-          <MicroLabel as="p" className="uppercase">
-            § Last updated {LAST_UPDATED}
-          </MicroLabel>
+          {dates.map((line) => (
+            <MicroLabel key={line} as="p" className="uppercase">
+              § {line}
+            </MicroLabel>
+          ))}
         </div>
       </header>
 
