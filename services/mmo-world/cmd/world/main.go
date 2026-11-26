@@ -68,7 +68,7 @@ func run(guard *service.Guard, log *slog.Logger) error {
 		return err
 	}
 	apiToken := os.Getenv(service.EnvAPIToken)
-	if apiToken == "" {
+	if len(service.Tokens(apiToken)) == 0 {
 		if !manual && !disposable {
 			return fmt.Errorf("%s must be set on a world players keep", service.EnvAPIToken)
 		}
@@ -107,13 +107,13 @@ func run(guard *service.Guard, log *slog.Logger) error {
 		shutdown()
 		return err
 	}
-	log.Info("key check holds: no key in the database, the log guard is armed", "world", sec.World)
+	log.Info("key check holds: no key in the database, the log guard is armed", "world", sec.World, "nextRoll", sec.NextEpoch != nil)
 
 	events := service.NewEvents(envvar.Get(service.EnvPosthogHost, "https://us.i.posthog.com"), os.Getenv(service.EnvPosthogKey), log)
 	defer events.Close()
 	srv, err := service.Open(ctx, pool, service.Config{Secrets: sec,
 		TickSeconds: int32(tickSeconds), Book: book, APIToken: apiToken, OperatorToken: os.Getenv(service.EnvOperatorToken),
-		MapToken:    os.Getenv(service.EnvMapToken),
+		MapToken: os.Getenv(service.EnvMapToken), ForgetToken: os.Getenv(service.EnvForgetToken),
 		ManualClock: manual, Disposable: disposable,
 		Poll: time.Duration(pollMS) * time.Millisecond, Log: log, Events: events})
 	if err != nil {

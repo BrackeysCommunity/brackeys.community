@@ -177,7 +177,7 @@ func DelveRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	if err != nil {
 		return nil, err
 	}
-	d := &liveDelve{r: r, worked: map[string]bool{}, w: &liveWorld{api: client.New(base, os.Getenv(service.EnvAPIToken)), op: client.New(base, os.Getenv(service.EnvOperatorToken)),
+	d := &liveDelve{r: r, worked: map[string]bool{}, w: &liveWorld{api: client.New(base, service.TokenFromEnv(service.EnvAPIToken)), op: client.New(base, service.TokenFromEnv(service.EnvOperatorToken)),
 		activity: activity, kit: puzzleKit(b), run: strconv.FormatInt(time.Now().UnixMilli(), 36)}}
 	home := r.Gen.Settlement(0).Hex
 	var ok bool

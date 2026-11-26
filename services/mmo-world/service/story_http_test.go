@@ -585,16 +585,20 @@ func setParam(t *testing.T, ps []sheets.Param, id string, v int64) {
 	ps[i].Value = fixed.FromInt(v)
 }
 
-// TestSeasonEpoch stages a pending book: it is refused off a boundary,
-// taken right after the tick that closes season zero (re-stamped, loaded
-// on the new rules and recorded once), and a restart on the old sheets
-// root runs on the new book without taking it again.
+// TestSeasonEpoch stages a pending book with one change players see and
+// one they do not: it is refused off a boundary, taken right after the
+// tick that closes season zero (re-stamped, its notes stored, loaded on
+// the new rules and recorded once), its notes served with the epoch on the
+// promotions route, and a restart on the old sheets root runs on the new
+// book without taking it again.
 func TestSeasonEpoch(t *testing.T) {
 	ctx := context.Background()
 	pool := pgtest.Pool(t)
 	book, next := shortSeasons(t), shortSeasons(t)
 	ruin := sheets.IntParam(book.StoryParams, "ruin-troubles")
 	setParam(t, next.StoryParams, "ruin-troubles", ruin+1)
+	mount := sheets.IntParam(book.EconomyParams, "mount-price")
+	setParam(t, next.EconomyParams, "mount-price", mount+1)
 	from, err := book.Digest()
 	if err != nil {
 		t.Fatal(err)
@@ -636,9 +640,36 @@ func TestSeasonEpoch(t *testing.T) {
 	if d, _ := got.Get("from"); d.S != from {
 		t.Fatalf("season.epoch %+v", ds)
 	}
-	if d, _ := got.Get("sheets"); d.N != 1 {
+	if d, _ := got.Get("sheets"); d.N != 2 {
 		t.Fatalf("season.epoch counts %d sheets changed", d.N)
 	}
+	if _, ok := got.Get("roll"); ok {
+		t.Fatalf("an epoch on the same roll key records one: %+v", ds)
+	}
+	notes, ok, err := store.New(pool, world).EpochNotes(ctx, 1)
+	if err != nil || !ok {
+		t.Fatalf("no notes stored for season 1: %v", err)
+	}
+	wantNotes := func(n *api.EpochNotes) {
+		t.Helper()
+		seen := api.EpochNote{Sheet: "economy.params", Row: "mount-price", Column: "value", Change: "changed",
+			Before: fmt.Sprint(mount), After: fmt.Sprint(mount + 1), Unit: "coin"}
+		if n == nil || n.Season != 1 || n.From != from || n.To != to || n.Sheets != 2 || n.Unseen != 1 || len(n.Seen) != 1 {
+			t.Fatalf("epoch notes %+v", n)
+		}
+		got := n.Seen[0]
+		got.Name = ""
+		if got != seen {
+			t.Fatalf("the change players see is %+v, want %+v", n.Seen[0], seen)
+		}
+	}
+	wantNotes(&notes)
+	promos := read[api.StoryEvents](t, r, true, api.PathStoryPromotions, 200)
+	i := slices.IndexFunc(promos.Events, func(ev api.StoryEvent) bool { return ev.Fact.Kind == "season.epoch" })
+	if i < 0 {
+		t.Fatalf("no season.epoch on the promotions route: %+v", promos.Events)
+	}
+	wantNotes(promos.Events[i].Epoch)
 	if lexicon(r).Numbers.RuinTroubles != ruin+1 {
 		t.Fatal("the service does not run on the new book after the epoch")
 	}

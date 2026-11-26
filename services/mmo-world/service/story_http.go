@@ -466,7 +466,7 @@ func (s *Server) chronicle(w http.ResponseWriter, r *http.Request) {
 	defer unlock()
 	shown := facts[:0]
 	for _, f := range facts {
-		v, ok := seen(s.g, "", apiFact(f))
+		v, ok := seen(s.g, "", unrolled(apiFact(f)))
 		if !ok {
 			continue
 		}
@@ -581,14 +581,14 @@ func (s *Server) chronicleFact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer unlock()
-	top, ok := seen(s.g, viewer, apiFact(f))
+	top, ok := seen(s.g, viewer, unrolled(apiFact(f)))
 	if !ok {
 		missing()
 		return
 	}
 	out := api.FactCauses{Fact: maskFact(s.g, server, top), Causes: []api.Fact{}}
 	for _, x := range causes {
-		if v, ok := seen(s.g, viewer, apiFact(x)); ok && game.OnServer(x, server) {
+		if v, ok := seen(s.g, viewer, unrolled(apiFact(x))); ok && game.OnServer(x, server) {
 			out.Causes = append(out.Causes, maskFact(s.g, server, v))
 		}
 	}
@@ -639,7 +639,7 @@ func (s *Server) storyEvents(w http.ResponseWriter, r *http.Request) {
 // trouble's, an arc's that is not a personal thread, or the promotion it
 // names, masked for a server. False for a fact the public may not read.
 func storyEvent(g *game.Game, f fact.Fact, server string) (api.StoryEvent, bool) {
-	v, ok := seen(g, "", apiFact(f))
+	v, ok := seen(g, "", unrolled(apiFact(f)))
 	if !ok {
 		return api.StoryEvent{}, false
 	}
@@ -672,4 +672,14 @@ func storyEvent(g *game.Game, f fact.Fact, server string) (api.StoryEvent, bool)
 		ev.Place = shownPlace(g, server, g.SettlementHex(int(n)))
 	}
 	return ev, true
+}
+
+// unrolled is a fact as players read it: a rules epoch never says that it
+// stepped the roll key (GDD 17.6).
+func unrolled(f api.Fact) api.Fact {
+	if f.Kind != factEpoch {
+		return f
+	}
+	f.Data = slices.DeleteFunc(slices.Clone(f.Data), func(d api.Datum) bool { return d.Key == "roll" })
+	return f
 }

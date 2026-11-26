@@ -590,7 +590,7 @@ func ActivityRun(b *sheets.Book, out string, _ int) ([]Measured, error) {
 		return nil, errors.New(EnvActivityURL + " must name the world's Activity listener, such as http://localhost:18787")
 	}
 	base := envvar.Get(service.EnvURL, "http://localhost:8080")
-	w := &liveWorld{api: client.New(base, os.Getenv(service.EnvAPIToken)), op: client.New(base, os.Getenv(service.EnvOperatorToken)),
+	w := &liveWorld{api: client.New(base, service.TokenFromEnv(service.EnvAPIToken)), op: client.New(base, service.TokenFromEnv(service.EnvOperatorToken)),
 		activity: activity, kit: puzzleKit(b), run: strconv.FormatInt(time.Now().UnixMilli(), 36)}
 	ctx := context.Background()
 	asset, err := w.served(ctx)

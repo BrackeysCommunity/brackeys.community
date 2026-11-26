@@ -18,6 +18,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"jams.team/mmo-world/api"
+	"jams.team/mmo-world/sheetdiff"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/ledger"
@@ -33,11 +35,15 @@ type Config struct {
 	Book        *sheets.Book
 	// APIToken guards /v1 for the bot and the site; OperatorToken guards
 	// the operator paths. An empty APIToken leaves /v1 open (local runs).
+	// Each holds one token or "new,old" while rotating.
 	APIToken      string
 	OperatorToken string
 	// MapToken guards only the live map's reads, for the site; the API
 	// token is taken there too.
 	MapToken string
+	// ForgetToken opens only the forget path, for the site; the API token
+	// is taken there too.
+	ForgetToken string
 	// ManualClock makes the due tick whatever an operator last set, for
 	// tests that must control time. Never on a deployed world.
 	ManualClock bool
@@ -49,7 +55,8 @@ type Config struct {
 	// for sheets that only add (GDD 4.17). Empty, EnvSheetsFrom is read.
 	SheetsFrom string
 	// Next is the pending book of a rules epoch, taken right after the tick
-	// that closes a season (GDD 18.5). Nil, EnvSheetsNext is read.
+	// that closes a season (GDD 18.5). Nil, EnvSheetsNext is read. An epoch
+	// may step the roll key alone (Secrets.NextEpoch) on the same book.
 	Next *sheets.Book
 	Poll time.Duration
 	Now  func() time.Time
@@ -72,6 +79,7 @@ type Server struct {
 	lock  *store.Lock
 	// epoch is the rules epoch pending, nil once taken or with none.
 	epoch *pending
+	ticks tickRing
 	// mu guards g, closed and the store's writes.
 	mu     sync.Mutex
 	g      *game.Game
@@ -169,30 +177,44 @@ func (s *Server) fail(ctx context.Context, err error) error {
 }
 
 func (s *Server) open(ctx context.Context) error {
-	m, err := s.st.MetaFor(ctx, s.cfg.Keys, s.cfg.KeyVersion, s.cfg.Epoch, s.cfg.Book)
-	taken := false
+	var at []store.Stamp
+	if s.epoch != nil {
+		at = append(at, s.epoch.to)
+	}
+	m, err := s.st.MetaFor(ctx, s.cfg.Keys, s.cfg.KeyVersion, s.cfg.Epoch, s.cfg.Book, at...)
+	taken := err == nil && s.epoch != nil && m.Stamp() == s.epoch.to
 	switch {
-	case errors.Is(err, store.ErrOtherSheets) && s.epoch != nil && m.SheetsDigest == s.epoch.to:
+	case taken:
 		s.runOn(s.epoch)
-		taken, err = true, nil
 	case errors.Is(err, store.ErrOtherSheets) && s.cfg.SheetsFrom != "" && s.cfg.SheetsFrom == m.SheetsDigest:
 		err = s.restamp(ctx, &m)
 	}
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		return s.found(ctx, false)
+		if err := s.found(ctx, false); err != nil {
+			return err
+		}
+		return s.dryRun(ctx)
 	case errors.Is(err, store.ErrOtherSheets):
 		if !s.resettable(&m) {
 			return fmt.Errorf("service: %w; only a disposable world under a service that founds disposable worlds is reset", err)
 		}
 		s.cfg.Log.Warn("SHEETS CHANGED: wiping the disposable world and founding it again", "world", m.ID, "err", err.Error())
-		return s.found(ctx, true)
+		if err := s.found(ctx, true); err != nil {
+			return err
+		}
+		return s.dryRun(ctx)
 	case err != nil:
 		return err
 	}
 	s.meta.Store(&m)
 	if s.g, err = s.st.Load(ctx, s.rules.Load()); err != nil {
 		return err
+	}
+	if !taken {
+		if err := s.dryRun(ctx); err != nil {
+			return err
+		}
 	}
 	s.reloadSight(ctx)
 	if err := s.freeze(ctx); err != nil {
@@ -309,39 +331,83 @@ func (s *Server) emergenceStart(ctx context.Context) error {
 	return nil
 }
 
-// pending is a rules epoch waiting for a season's close: the book, its
-// rules and digest, and the digest and count of sheets it changes from.
+// pending is a rules epoch waiting for a season's close: the book and its
+// rules under the next keys, the stamps it moves from and to, the count of
+// sheets it changes and the notes players are told.
 type pending struct {
 	book    *sheets.Book
 	rules   *game.Rules
-	from    string
-	to      string
+	from    store.Stamp
+	to      store.Stamp
 	changed int64
+	notes   api.EpochNotes
 }
 
+// stepped reports whether the epoch steps the roll key.
+func (e *pending) stepped() bool { return e.from.Roll != e.to.Roll }
+
 // pendingEpoch builds the pending epoch's rules up front, so a book that
-// does not build fails the deploy and not the close.
-func pendingEpoch(cfg Config) (*pending, error) {
-	if cfg.Next == nil {
+// does not build fails the deploy and not the close. An epoch is pending
+// when the book or the roll epoch differs from the world's.
+func pendingEpoch(cfg Config) (_ *pending, err error) {
+	if cfg.Next == nil && cfg.NextEpoch == nil {
 		return nil, nil
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			err = fmt.Errorf("service: the pending sheets under %s: %v", EnvSheetsNext, p)
+		}
+	}()
+	next, roll, k := cfg.Book, cfg.Epoch, cfg.Keys
+	if cfg.Next != nil {
+		next = cfg.Next
+	}
+	if cfg.NextEpoch != nil {
+		roll, k = *cfg.NextEpoch, cfg.NextKeys
 	}
 	from, err := cfg.Book.Digest()
 	if err != nil {
 		return nil, err
 	}
-	to, err := cfg.Next.Digest()
+	to, err := next.Digest()
 	if err != nil {
 		return nil, err
 	}
-	if from == to {
-		cfg.Log.Warn("the pending sheets are the sheets the world runs on: no epoch to take; unset "+EnvSheetsNext, "digest", to)
+	if from == to && roll == cfg.Epoch {
+		cfg.Log.Warn("the pending sheets and roll epoch are the ones the world runs on: no epoch to take; unset "+EnvSheetsNext+" and "+EnvEpochNext,
+			"digest", to, "roll", roll)
 		return nil, nil
 	}
-	rules, err := game.NewRules(cfg.Next, cfg.Keys)
+	rules, err := game.NewRules(next, k)
 	if err != nil {
 		return nil, fmt.Errorf("service: the pending sheets under %s: %w", EnvSheetsNext, err)
 	}
-	return &pending{book: cfg.Next, rules: rules, from: from, to: to, changed: int64(len(sheets.Changed(cfg.Book, cfg.Next)))}, nil
+	changed := int64(len(sheets.Changed(cfg.Book, next)))
+	seen, unseen := sheetdiff.Notes(cfg.Book, next)
+	notes := api.EpochNotes{From: from, To: to, Sheets: changed, Seen: make([]api.EpochNote, 0, len(seen)), Unseen: unseen}
+	for _, c := range seen {
+		notes.Seen = append(notes.Seen, api.EpochNote{Sheet: c.Sheet, Row: c.Row, Name: c.Name, Column: c.Column, Change: c.Kind,
+			Before: c.Before, After: c.After, Unit: c.Unit})
+	}
+	return &pending{book: next, rules: rules, from: store.Stamp{Sheets: from, Roll: cfg.Epoch}, to: store.Stamp{Sheets: to, Roll: roll},
+		changed: changed, notes: notes}, nil
+}
+
+// dryRun loads the live world under the pending rules, as the close will,
+// so a book the world cannot run on fails the deploy and not the close.
+func (s *Server) dryRun(ctx context.Context) (err error) {
+	if s.epoch == nil {
+		return nil
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			err = fmt.Errorf("service: the pending sheets under %s do not load the world: %v", EnvSheetsNext, p)
+		}
+	}()
+	if _, err := store.New(s.pool, s.cfg.World).Load(ctx, s.epoch.rules); err != nil {
+		return fmt.Errorf("service: the pending sheets under %s do not load the world: %w", EnvSheetsNext, err)
+	}
+	return nil
 }
 
 // closes reports whether a tick's facts close a season.
@@ -353,7 +419,18 @@ func closes(facts []fact.Fact) bool {
 // season's close with the pending epoch not yet recorded.
 func (s *Server) atBoundary() bool {
 	c, _, ok := s.g.Season()
-	return ok && c.Turned(s.g.Tick()) && c.Epoch != s.epoch.to
+	return ok && c.Turned(s.g.Tick()) && !c.Same(s.epoch.command())
+}
+
+// command is the season-epoch the pending epoch records; it names the roll
+// epoch only when it steps.
+func (e *pending) command() season.Epoch {
+	out := season.Epoch{From: e.from.Sheets, To: e.to.Sheets, Sheets: e.changed}
+	if e.stepped() {
+		roll := int64(e.to.Roll)
+		out.Roll = &roll
+	}
+	return out
 }
 
 // runOn makes the service run on an epoch's book.
@@ -363,18 +440,22 @@ func (s *Server) runOn(e *pending) {
 }
 
 // takeEpoch, under mu, moves the world onto the pending book at a
-// season's close: the store is re-stamped, the game loaded on the new
-// rules, and the epoch recorded. Each step can be taken again after a
-// failure, at the next tick or the next open.
+// season's close: the store is re-stamped with the sheets and roll epoch
+// together, the notes saved, the game loaded on the new rules, and the
+// epoch recorded. Each step can be taken again after a failure, at the
+// next tick or the next open.
 func (s *Server) takeEpoch(ctx context.Context) error {
 	e := s.epoch
 	m := *s.meta.Load()
-	if m.SheetsDigest != e.to {
-		if err := s.st.Restamp(ctx, m.SheetsDigest, e.to); err != nil {
+	if m.Stamp() != e.to {
+		if err := s.st.RestampEpoch(ctx, e.from, e.to); err != nil {
 			return fmt.Errorf("service: taking the epoch: %w", err)
 		}
-		m.SheetsDigest = e.to
+		m.SheetsDigest, m.RulesEpoch = e.to.Sheets, e.to.Roll
 		s.meta.Store(&m)
+	}
+	if err := s.saveNotes(ctx); err != nil {
+		return err
 	}
 	g, err := s.st.Load(ctx, e.rules)
 	if err != nil {
@@ -392,10 +473,26 @@ func (s *Server) takeEpoch(ctx context.Context) error {
 func (s *Server) epochAtOpen(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.saveNotes(ctx); err != nil {
+		return err
+	}
 	if s.atBoundary() {
 		return s.recordEpoch(ctx)
 	}
 	s.epochTaken()
+	return nil
+}
+
+// saveNotes, under mu, stores the pending epoch's notes for the season the
+// world stands in: the season just begun once the close has run. Saving
+// them again changes nothing.
+func (s *Server) saveNotes(ctx context.Context) error {
+	n := s.epoch.notes
+	c, _, _ := s.g.Season()
+	n.Season = c.N
+	if err := s.st.SaveEpochNotes(ctx, n, s.epoch.from.Roll, s.epoch.to.Roll); err != nil {
+		return fmt.Errorf("service: saving the epoch's notes: %w", err)
+	}
 	return nil
 }
 
@@ -406,8 +503,8 @@ func (s *Server) recordEpoch(ctx context.Context) error {
 	c, _, _ := s.g.Season()
 	ctx, cancel := writeContext(ctx)
 	defer cancel()
-	cmd := game.Command{Key: "season-epoch-" + strconv.FormatInt(c.N, 10), Kind: game.SeasonEpoch,
-		Epoch: &season.Epoch{From: e.from, To: e.to, Sheets: e.changed}}
+	ep := e.command()
+	cmd := game.Command{Key: "season-epoch-" + strconv.FormatInt(c.N, 10), Kind: game.SeasonEpoch, Epoch: &ep}
 	out, err := applyCommand(ctx, s.g, s.st, &s.subs, cmd, "", 0, false, s.cfg.Now())
 	switch {
 	case err != nil:
@@ -425,8 +522,13 @@ func (s *Server) recordEpoch(ctx context.Context) error {
 func (s *Server) epochTaken() {
 	e := s.epoch
 	c, _, _ := s.g.Season()
-	s.cfg.Log.Warn("EPOCH TAKEN: point "+EnvSheets+" at the new sheets and unset "+EnvSheetsNext, "world", s.cfg.World, "season", c.N,
-		"from", e.from, "to", e.to, "sheets", e.changed, "tick", s.g.Tick())
+	msg := "EPOCH TAKEN: point " + EnvSheets + " at the new sheets and unset " + EnvSheetsNext
+	if e.stepped() {
+		msg = "EPOCH TAKEN: point " + EnvSheets + " at the new sheets, set " + EnvEpoch + "=" + strconv.FormatInt(int64(e.to.Roll), 10) +
+			", and unset " + EnvSheetsNext + " and " + EnvEpochNext
+	}
+	s.cfg.Log.Warn(msg, "world", s.cfg.World, "season", c.N, "from", e.from.Sheets, "to", e.to.Sheets, "sheets", e.changed,
+		"seen", len(e.notes.Seen), "unseen", e.notes.Unseen, "tick", s.g.Tick())
 	s.epoch = nil
 }
 
@@ -600,8 +702,10 @@ func (s *Server) holdsLock(ctx context.Context) error {
 	return nil
 }
 
-// step runs and saves one tick.
+// step runs and saves one tick. Its whole time, from before the lock to
+// after the map pass, goes to the tick ring.
 func (s *Server) step(ctx context.Context) error {
+	begun := time.Now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.usable(ctx); err != nil {
@@ -624,6 +728,8 @@ func (s *Server) step(ctx context.Context) error {
 	}
 	s.mapPass(ctx, nil)
 	t := s.g.Tick()
+	stepMs, behind := time.Since(begun).Milliseconds(), s.Due()-t
+	s.ticks.add(api.TickTime{Tick: t, AdvanceMs: ms, StepMs: stepMs, Behind: behind})
 	s.ended.note(facts, t)
 	// The epoch is taken before the tick shows, so nothing reads the new
 	// season on the old rules; a failure is retried before the next tick.
@@ -636,7 +742,7 @@ func (s *Server) step(ctx context.Context) error {
 		return err
 	}
 	s.cfg.Log.Debug("tick", "world", s.cfg.World, "tick", t, "facts", len(facts), "ms", ms)
-	s.capture("mmo_tick", s.cfg.World, map[string]any{"tick": t, "facts": saved.Facts, "ms": ms, "behind": s.Due() - t})
+	s.capture("mmo_tick", s.cfg.World, map[string]any{"tick": t, "facts": saved.Facts, "ms": ms, "stepMs": stepMs, "behind": behind})
 	return nil
 }
 

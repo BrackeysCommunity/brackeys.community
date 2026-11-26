@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,7 +30,7 @@ const (
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET "+api.PathHealth, s.health)
-	player := func(path string, h http.HandlerFunc) { mux.Handle(path, s.guard(s.cfg.APIToken, h)) }
+	player := func(path string, h http.HandlerFunc) { mux.Handle(path, s.guard(Tokens(s.cfg.APIToken), h)) }
 	player("POST "+api.PathActions, s.action)
 	player("GET "+api.PathOptions, s.options)
 	player("POST "+api.PathPreview, s.preview)
@@ -69,7 +70,7 @@ func (s *Server) Handler() http.Handler {
 	}
 	mux.HandleFunc("GET "+api.PathMedia+"{key}", s.mediaHandler)
 	op := func(path string, h http.HandlerFunc) {
-		mux.Handle(path, s.guard(s.cfg.OperatorToken, s.operatorOnly(h)))
+		mux.Handle(path, s.guard(Tokens(s.cfg.OperatorToken), s.operatorOnly(h)))
 	}
 	op("POST "+api.PathOperator, s.operator)
 	op("GET "+api.PathOperatorCharacter, s.inspectCharacter)
@@ -85,6 +86,7 @@ func (s *Server) Handler() http.Handler {
 	op("GET "+api.PathOperatorCases, s.operatorCases)
 	op("POST "+api.PathOperatorReset, s.reset)
 	op("POST "+api.PathOperatorClock, s.clock)
+	op("GET "+api.PathOperatorTicks, s.operatorTicks)
 	return mux
 }
 
@@ -101,17 +103,28 @@ func Standby(world string) http.Handler {
 	})
 }
 
-func (s *Server) guard(token string, h http.Handler) http.Handler {
+// guard admits a request whose bearer is one of tokens; with none, every
+// request.
+func (s *Server) guard(tokens [][]byte, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if token != "" {
-			got, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-			if subtle.ConstantTimeCompare([]byte(got), []byte(token)) != 1 {
-				refuse(w, http.StatusUnauthorized, api.Refusal{Code: api.CodeForbidden, Message: "bad token"})
-				return
-			}
+		if len(tokens) > 0 && !bearerOneOf(r, tokens) {
+			refuse(w, http.StatusUnauthorized, api.Refusal{Code: api.CodeForbidden, Message: "bad token"})
+			return
 		}
 		h.ServeHTTP(w, r)
 	})
+}
+
+// bearerOneOf reports whether a request's bearer is one of tokens. Every
+// token is compared, each in constant time, so the time taken says nothing
+// about which matched.
+func bearerOneOf(r *http.Request, tokens [][]byte) bool {
+	got, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	ok := 0
+	for _, t := range tokens {
+		ok |= subtle.ConstantTimeCompare([]byte(got), t)
+	}
+	return ok == 1
 }
 
 // structural: the map reads the world serves a second, from everyone.
@@ -124,24 +137,12 @@ var mapPaths = []string{api.PathMapIndex, api.PathMapStyle, api.PathMapRegions, 
 // (either, where set; any read where neither is) while the world-wide cap
 // has room.
 func (s *Server) mapGuard(h http.Handler, c *mapCap) http.Handler {
-	var tokens [][]byte
-	for _, t := range []string{s.cfg.MapToken, s.cfg.APIToken} {
-		if t != "" {
-			tokens = append(tokens, []byte(t))
-		}
-	}
+	tokens := slices.Concat(Tokens(s.cfg.MapToken), Tokens(s.cfg.APIToken))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		if len(tokens) > 0 {
-			got, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-			ok := 0
-			for _, t := range tokens {
-				ok |= subtle.ConstantTimeCompare([]byte(got), t)
-			}
-			if ok != 1 {
-				refuse(w, http.StatusUnauthorized, api.Refusal{Code: api.CodeForbidden, Message: "bad token"})
-				return
-			}
+		if len(tokens) > 0 && !bearerOneOf(r, tokens) {
+			refuse(w, http.StatusUnauthorized, api.Refusal{Code: api.CodeForbidden, Message: "bad token"})
+			return
 		}
 		if !c.take() {
 			refuse(w, http.StatusTooManyRequests, api.Refusal{Code: api.CodeBusy, Message: "too many map reads"})
@@ -179,7 +180,7 @@ func (c *mapCap) take() bool {
 // operatorOnly closes the operator paths when no operator token is set.
 func (s *Server) operatorOnly(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if s.cfg.OperatorToken == "" {
+		if len(Tokens(s.cfg.OperatorToken)) == 0 {
 			refuse(w, http.StatusForbidden, api.Refusal{Code: api.CodeForbidden, Message: "operator paths are closed"})
 			return
 		}

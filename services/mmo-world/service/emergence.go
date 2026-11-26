@@ -3,6 +3,7 @@ package service
 import (
 	"cmp"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"jams.team/mmo-world/api"
@@ -219,9 +220,16 @@ func stateNames(g *game.Game, st *api.ActivityState) map[string]string {
 	return foundNames(g, ids)
 }
 
+// factEpoch is the fact a rules epoch is recorded as.
+const factEpoch = "season.epoch"
+
+// promotionKinds are what the chronicle channel posts as it happens: the
+// game's chronicle kinds and a rules epoch with its notes.
+var promotionKinds = append(slices.Clone(game.ChronicleKinds), factEpoch)
+
 // storyPromotions are the chronicle channel's promotions after a fact id,
 // each with its record as the game holds it now, masked for the server named,
-// capped like the events.
+// capped like the events. A rules epoch carries its stored notes.
 func (s *Server) storyPromotions(w http.ResponseWriter, r *http.Request) {
 	var after int64
 	if q := r.URL.Query().Get("after"); q != "" {
@@ -232,10 +240,29 @@ func (s *Server) storyPromotions(w http.ResponseWriter, r *http.Request) {
 		}
 		after = n
 	}
-	facts, err := s.st.StoryFactsSince(r.Context(), game.ChronicleKinds, fact.ID(after), eventsMost)
+	facts, err := s.st.StoryFactsSince(r.Context(), promotionKinds, fact.ID(after), eventsMost)
 	if err != nil {
 		s.internal(w, err)
 		return
+	}
+	notes := map[int64]*api.EpochNotes{}
+	for _, f := range facts {
+		d, ok := f.Get("season")
+		if f.Kind != factEpoch || !ok {
+			continue
+		}
+		if _, done := notes[d.N]; done {
+			continue
+		}
+		n, found, err := s.st.EpochNotes(r.Context(), d.N)
+		if err != nil {
+			s.internal(w, err)
+			return
+		}
+		notes[d.N] = nil
+		if found {
+			notes[d.N] = &n
+		}
 	}
 	unlock, ok := s.hold(r.Context(), w, true)
 	if !ok {
@@ -246,9 +273,14 @@ func (s *Server) storyPromotions(w http.ResponseWriter, r *http.Request) {
 	out := api.StoryEvents{Events: []api.StoryEvent{}, Last: after}
 	for _, f := range facts {
 		out.Last = max(out.Last, int64(f.ID))
-		if ev, ok := storyEvent(s.g, f, server); ok {
-			out.Events = append(out.Events, ev)
+		ev, ok := storyEvent(s.g, f, server)
+		if !ok {
+			continue
 		}
+		if d, on := f.Get("season"); f.Kind == factEpoch && on {
+			ev.Epoch = notes[d.N]
+		}
+		out.Events = append(out.Events, ev)
 	}
 	reply(w, http.StatusOK, out)
 }
