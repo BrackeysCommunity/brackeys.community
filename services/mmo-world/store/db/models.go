@@ -31,6 +31,17 @@ type MmoCharacter struct {
 	Body      []byte
 }
 
+type MmoEpochNote struct {
+	WorldID    string
+	Season     int64
+	FromDigest string
+	ToDigest   string
+	RollFrom   int32
+	RollTo     int32
+	Notes      []byte
+	At         pgtype.Timestamptz
+}
+
 type MmoFact struct {
 	WorldID  string
 	ID       int64

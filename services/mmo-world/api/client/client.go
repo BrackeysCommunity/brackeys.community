@@ -201,6 +201,22 @@ func (h *HTTP) OperatorCases(ctx context.Context) (api.Cases, error) {
 	return out, Refused("operator cases", ref, err)
 }
 
+// Forget asks the world to forget a Discord user's character. The client's
+// token is the forget token or the API token.
+func (h *HTTP) Forget(ctx context.Context, req api.ForgetRequest) (api.ForgetReply, *api.Refusal, error) {
+	var out api.ForgetReply
+	ref, err := h.Do(ctx, http.MethodPost, api.PathForget, req, &out)
+	return out, ref, err
+}
+
+// TickTimes are the costs of the ticks after a tick that the world still
+// keeps, oldest first.
+func (h *HTTP) TickTimes(ctx context.Context, after int64) (api.TickTimes, error) {
+	var out api.TickTimes
+	ref, err := h.Do(ctx, http.MethodGet, api.PathOperatorTicks+"?after="+strconv.FormatInt(after, 10), nil, &out)
+	return out, Refused("tick times", ref, err)
+}
+
 // Refused turns a refusal into an error, for calls that expect none.
 func Refused(what string, ref *api.Refusal, err error) error {
 	if err == nil && ref != nil {

@@ -19,6 +19,12 @@ WHERE id = @id AND tick = @was AND digest = @was_digest;
 UPDATE mmo.world SET sheets_digest = @to_digest, updated_at = now()
 WHERE id = @id AND sheets_digest = @from_digest;
 
+-- name: RestampEpoch :execrows
+-- Moves a kept world onto a new book and roll epoch together, only from the
+-- exact stamp it ran on.
+UPDATE mmo.world SET sheets_digest = @to_digest, rules_epoch = @to_epoch, updated_at = now()
+WHERE id = @id AND sheets_digest = @from_digest AND rules_epoch = @from_epoch;
+
 -- name: ListRegions :many
 SELECT * FROM mmo.region_state WHERE world_id = $1 ORDER BY region;
 
@@ -56,8 +62,26 @@ DELETE FROM mmo.tile WHERE world_id = $1 AND q = $2 AND r = $3;
 -- name: ListCharacters :many
 SELECT * FROM mmo.character WHERE world_id = $1 ORDER BY id;
 
+-- A forgotten character's Discord id is a tombstone, 'forgotten:<id>'
+-- (store.Tombstone): no read by or of a Discord id returns one.
 -- name: CharacterByDiscord :one
-SELECT id FROM mmo.character WHERE world_id = $1 AND discord_id = $2;
+SELECT id FROM mmo.character WHERE world_id = $1 AND discord_id = $2 AND discord_id NOT LIKE 'forgotten:%';
+
+-- name: DiscordsOf :many
+SELECT id, discord_id FROM mmo.character
+WHERE world_id = @world_id AND id = ANY(@ids::text[]) AND discord_id NOT LIKE 'forgotten:%' ORDER BY id;
+
+-- name: ForgetCharacterDiscord :one
+-- Tombstones a character's Discord id and returns the id it held; no row
+-- when it was forgotten before. The self-join reads the row as it was.
+UPDATE mmo.character c SET discord_id = 'forgotten:' || c.id
+FROM mmo.character o
+WHERE c.world_id = @world_id AND c.id = @id AND o.world_id = c.world_id AND o.id = c.id AND c.discord_id NOT LIKE 'forgotten:%'
+RETURNING o.discord_id;
+
+-- name: ForgetHouseLogDiscord :execrows
+UPDATE mmo.house_log SET discord_id = ''
+WHERE world_id = @world_id AND discord_id <> '' AND (character_id = @character_id OR (@discord_id::text <> '' AND discord_id = @discord_id::text));
 
 -- name: InsertCharacter :exec
 INSERT INTO mmo.character (world_id, id, discord_id, version, q, r, banned, body) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
@@ -106,6 +130,9 @@ ORDER BY weight DESC, id DESC;
 SELECT * FROM mmo.fact WHERE world_id = @world_id AND id > @after AND kind = ANY(@kinds::text[])
 ORDER BY id LIMIT @lim;
 
+-- name: FactsBetween :many
+SELECT * FROM mmo.fact WHERE world_id = @world_id AND tick >= @from_tick AND tick < @upto_tick ORDER BY id;
+
 -- name: InsertFacts :copyfrom
 INSERT INTO mmo.fact (world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
@@ -144,6 +171,9 @@ SELECT reply FROM mmo.action WHERE world_id = $1 AND interaction_id = $2;
 
 -- name: ListActionsAfter :many
 SELECT * FROM mmo.action WHERE world_id = @world_id AND seq > @seq AND after_tick < @upto ORDER BY seq;
+
+-- name: ActionsBetween :many
+SELECT * FROM mmo.action WHERE world_id = @world_id AND after_tick >= @from_tick AND after_tick < @upto_tick ORDER BY seq;
 
 -- name: LastActionSeq :one
 SELECT coalesce(max(seq), 0)::bigint FROM mmo.action WHERE world_id = $1;
@@ -203,6 +233,32 @@ INSERT INTO mmo.snapshot (world_id, tick, seq, digest, body) VALUES ($1, $2, $3,
 -- name: SnapshotAtOrBefore :one
 SELECT * FROM mmo.snapshot WHERE world_id = $1 AND tick <= $2 ORDER BY tick DESC LIMIT 1;
 
+-- name: SnapshotsBetween :many
+SELECT * FROM mmo.snapshot WHERE world_id = @world_id AND tick >= @from_tick AND tick < @upto_tick ORDER BY tick;
+
+-- name: WorldCounts :one
+SELECT
+  (SELECT count(*) FROM mmo.fact f WHERE f.world_id = @world_id)::bigint AS facts,
+  (SELECT count(*) FROM mmo.ledger_txn t WHERE t.world_id = @world_id)::bigint AS ledger_txns,
+  (SELECT count(*) FROM mmo.ledger_entry e WHERE e.world_id = @world_id)::bigint AS ledger_entries,
+  (SELECT count(*) FROM mmo.action a WHERE a.world_id = @world_id)::bigint AS actions,
+  (SELECT count(*) FROM mmo.tick k WHERE k.world_id = @world_id)::bigint AS ticks,
+  (SELECT count(*) FROM mmo.snapshot s WHERE s.world_id = @world_id)::bigint AS snapshots,
+  (SELECT coalesce(max(s.tick), -1) FROM mmo.snapshot s WHERE s.world_id = @world_id)::bigint AS last_snapshot_tick,
+  (SELECT count(*) FROM mmo.character c WHERE c.world_id = @world_id)::bigint AS characters,
+  (SELECT count(*) FROM mmo.house_log h WHERE h.world_id = @world_id)::bigint AS house_log;
+
+-- A rules epoch's notes, one row per world and season (GDD 18.5). A second
+-- write of a season's notes keeps the first one's time.
+-- name: UpsertEpochNote :exec
+INSERT INTO mmo.epoch_note (world_id, season, from_digest, to_digest, roll_from, roll_to, notes)
+VALUES (@world_id, @season, @from_digest, @to_digest, @roll_from, @roll_to, @notes)
+ON CONFLICT (world_id, season) DO UPDATE SET from_digest = EXCLUDED.from_digest, to_digest = EXCLUDED.to_digest,
+  roll_from = EXCLUDED.roll_from, roll_to = EXCLUDED.roll_to, notes = EXCLUDED.notes;
+
+-- name: EpochNoteFor :one
+SELECT * FROM mmo.epoch_note WHERE world_id = @world_id AND season = @season;
+
 -- name: TryLockWorld :one
 SELECT pg_try_advisory_lock(hashtextextended(@world_id::text, 0));
 
@@ -231,6 +287,9 @@ DELETE FROM mmo.map_seen WHERE world_id = $1;
 
 -- name: DeleteWorldMapSight :exec
 DELETE FROM mmo.map_sight WHERE world_id = $1;
+
+-- name: DeleteWorldEpochNotes :exec
+DELETE FROM mmo.epoch_note WHERE world_id = $1;
 
 -- name: DeleteWorldTicks :exec
 DELETE FROM mmo.tick WHERE world_id = $1;

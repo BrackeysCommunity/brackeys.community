@@ -93,7 +93,7 @@ func (s *Store) wipe(ctx context.Context, q *db.Queries) error {
 	for _, del := range []func(context.Context, string) error{
 		q.DeleteWorldFacts, q.DeleteWorldLedgerEntries, q.DeleteWorldLedgerTxns, q.DeleteWorldActions, q.DeleteWorldHouseLog, q.DeleteWorldTicks,
 		q.DeleteWorldSnapshots, q.DeleteWorldCharacters, q.DeleteWorldNPCs, q.DeleteWorldTiles, q.DeleteWorldNotables, q.DeleteWorldFactions,
-		q.DeleteWorldRegions, q.DeleteWorldMapSeen, q.DeleteWorldMapSight, q.DeleteWorld,
+		q.DeleteWorldRegions, q.DeleteWorldMapSeen, q.DeleteWorldMapSight, q.DeleteWorldEpochNotes, q.DeleteWorld,
 	} {
 		if err := del(ctx, s.World); err != nil {
 			return err

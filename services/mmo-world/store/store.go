@@ -184,8 +184,9 @@ func (s *Store) Meta(ctx context.Context) (Meta, error) {
 }
 
 // MetaFor reads a world's fixed part and checks it against the keys, rules
-// epoch and sheets a process runs with. ErrOtherSheets comes with the Meta.
-func (s *Store) MetaFor(ctx context.Context, k keys.Set, keyVersion, rulesEpoch int32, book *sheets.Book) (Meta, error) {
+// epoch and sheets a process runs with, or the pending epoch's stamp it
+// holds. ErrOtherSheets comes with the Meta.
+func (s *Store) MetaFor(ctx context.Context, k keys.Set, keyVersion, rulesEpoch int32, book *sheets.Book, pending ...Stamp) (Meta, error) {
 	m, err := s.Meta(ctx)
 	if err != nil {
 		return m, err
@@ -194,7 +195,7 @@ func (s *Store) MetaFor(ctx context.Context, k keys.Set, keyVersion, rulesEpoch 
 	if err != nil {
 		return m, err
 	}
-	return m, m.Matches(k, keyVersion, rulesEpoch, digest)
+	return m, m.Matches(k, keyVersion, rulesEpoch, digest, pending...)
 }
 
 // Tick is the world's tick as stored.
@@ -212,10 +213,17 @@ var (
 
 // Matches checks a stored world against the keys, rules epoch and sheets a
 // process runs with. The key check names the generation key only, so the
-// epoch, which the roll key is derived under, is checked on its own.
-func (m Meta) Matches(k keys.Set, keyVersion, rulesEpoch int32, sheetsDigest string) error {
+// epoch, which the roll key is derived under, is checked on its own. A
+// world already restamped onto a pending epoch the process holds matches:
+// the process runs it on that epoch's rules.
+func (m Meta) Matches(k keys.Set, keyVersion, rulesEpoch int32, sheetsDigest string, pending ...Stamp) error {
 	if m.KeyCheck != k.Check() || m.KeyVersion != keyVersion {
 		return fmt.Errorf("%w: world %s, key version %d", ErrOtherKeys, m.ID, m.KeyVersion)
+	}
+	for _, p := range pending {
+		if p.Sheets != "" && m.Stamp() == p {
+			return nil
+		}
 	}
 	if m.RulesEpoch != rulesEpoch {
 		return fmt.Errorf("%w: world %s runs roll epoch %d, this process %d", ErrOtherKeys, m.ID, m.RulesEpoch, rulesEpoch)
@@ -769,7 +777,8 @@ func (s *Store) snapshot(ctx context.Context, q *db.Queries, g *game.Game, diges
 // stored character lags the stored ledger. A world-level command has no
 // character (c is nil) and is recorded under none. A staff, admin or
 // operator command also writes its house log row here, so the log holds
-// exactly the commands applied.
+// exactly the commands applied. A forget command also forgets its
+// character's identity here, so the identity goes with the command.
 func (s *Store) SaveAction(ctx context.Context, g *game.Game, cmd game.Command, c *game.Char, discord string, reply []byte, now time.Time) error {
 	facts, txns := g.Flush()
 	cmdJSON, err := json.Marshal(cmd)
@@ -789,6 +798,11 @@ func (s *Store) SaveAction(ctx context.Context, g *game.Game, cmd game.Command, 
 		}
 		if game.Logged(cmd.Kind) {
 			if err := q.InsertHouseLog(ctx, logRow(s.World, g, cmd, id, discord, now)); err != nil {
+				return err
+			}
+		}
+		if cmd.Kind == game.Forget && cmd.Char != "" {
+			if err := s.forgetIdentity(ctx, q, cmd.Char); err != nil {
 				return err
 			}
 		}
@@ -830,7 +844,8 @@ func (s *Store) Reply(ctx context.Context, interaction string) ([]byte, error) {
 	return r, err
 }
 
-// CharacterOf is the character a Discord user plays, or "".
+// CharacterOf is the character a Discord user plays, or "": a forgotten
+// character is no one's.
 func (s *Store) CharacterOf(ctx context.Context, discord string) (string, error) {
 	id, err := s.q.CharacterByDiscord(ctx, db.CharacterByDiscordParams{WorldID: s.World, DiscordID: discord})
 	if errors.Is(err, pgx.ErrNoRows) {

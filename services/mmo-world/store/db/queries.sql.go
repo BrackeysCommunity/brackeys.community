@@ -27,8 +27,48 @@ func (q *Queries) ActionReply(ctx context.Context, arg ActionReplyParams) ([]byt
 	return reply, err
 }
 
+const actionsBetween = `-- name: ActionsBetween :many
+SELECT world_id, seq, interaction_id, after_tick, character_id, kind, command, reply, at FROM mmo.action WHERE world_id = $1 AND after_tick >= $2 AND after_tick < $3 ORDER BY seq
+`
+
+type ActionsBetweenParams struct {
+	WorldID  string
+	FromTick int64
+	UptoTick int64
+}
+
+func (q *Queries) ActionsBetween(ctx context.Context, arg ActionsBetweenParams) ([]MmoAction, error) {
+	rows, err := q.db.Query(ctx, actionsBetween, arg.WorldID, arg.FromTick, arg.UptoTick)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MmoAction
+	for rows.Next() {
+		var i MmoAction
+		if err := rows.Scan(
+			&i.WorldID,
+			&i.Seq,
+			&i.InteractionID,
+			&i.AfterTick,
+			&i.CharacterID,
+			&i.Kind,
+			&i.Command,
+			&i.Reply,
+			&i.At,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const characterByDiscord = `-- name: CharacterByDiscord :one
-SELECT id FROM mmo.character WHERE world_id = $1 AND discord_id = $2
+SELECT id FROM mmo.character WHERE world_id = $1 AND discord_id = $2 AND discord_id NOT LIKE 'forgotten:%'
 `
 
 type CharacterByDiscordParams struct {
@@ -36,6 +76,8 @@ type CharacterByDiscordParams struct {
 	DiscordID string
 }
 
+// A forgotten character's Discord id is a tombstone, 'forgotten:<id>'
+// (store.Tombstone): no read by or of a Discord id returns one.
 func (q *Queries) CharacterByDiscord(ctx context.Context, arg CharacterByDiscordParams) (string, error) {
 	row := q.db.QueryRow(ctx, characterByDiscord, arg.WorldID, arg.DiscordID)
 	var id string
@@ -194,6 +236,15 @@ func (q *Queries) DeleteWorldCharacters(ctx context.Context, worldID string) err
 	return err
 }
 
+const deleteWorldEpochNotes = `-- name: DeleteWorldEpochNotes :exec
+DELETE FROM mmo.epoch_note WHERE world_id = $1
+`
+
+func (q *Queries) DeleteWorldEpochNotes(ctx context.Context, worldID string) error {
+	_, err := q.db.Exec(ctx, deleteWorldEpochNotes, worldID)
+	return err
+}
+
 const deleteWorldFactions = `-- name: DeleteWorldFactions :exec
 DELETE FROM mmo.faction WHERE world_id = $1
 `
@@ -313,6 +364,66 @@ func (q *Queries) DeleteWorldTiles(ctx context.Context, worldID string) error {
 	return err
 }
 
+const discordsOf = `-- name: DiscordsOf :many
+SELECT id, discord_id FROM mmo.character
+WHERE world_id = $1 AND id = ANY($2::text[]) AND discord_id NOT LIKE 'forgotten:%' ORDER BY id
+`
+
+type DiscordsOfParams struct {
+	WorldID string
+	Ids     []string
+}
+
+type DiscordsOfRow struct {
+	ID        string
+	DiscordID string
+}
+
+func (q *Queries) DiscordsOf(ctx context.Context, arg DiscordsOfParams) ([]DiscordsOfRow, error) {
+	rows, err := q.db.Query(ctx, discordsOf, arg.WorldID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DiscordsOfRow
+	for rows.Next() {
+		var i DiscordsOfRow
+		if err := rows.Scan(&i.ID, &i.DiscordID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const epochNoteFor = `-- name: EpochNoteFor :one
+SELECT world_id, season, from_digest, to_digest, roll_from, roll_to, notes, at FROM mmo.epoch_note WHERE world_id = $1 AND season = $2
+`
+
+type EpochNoteForParams struct {
+	WorldID string
+	Season  int64
+}
+
+func (q *Queries) EpochNoteFor(ctx context.Context, arg EpochNoteForParams) (MmoEpochNote, error) {
+	row := q.db.QueryRow(ctx, epochNoteFor, arg.WorldID, arg.Season)
+	var i MmoEpochNote
+	err := row.Scan(
+		&i.WorldID,
+		&i.Season,
+		&i.FromDigest,
+		&i.ToDigest,
+		&i.RollFrom,
+		&i.RollTo,
+		&i.Notes,
+		&i.At,
+	)
+	return i, err
+}
+
 const factByID = `-- name: FactByID :one
 SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND id = $2 LIMIT 1
 `
@@ -390,6 +501,48 @@ func (q *Queries) FactsAbout(ctx context.Context, arg FactsAboutParams) ([]MmoFa
 	return items, nil
 }
 
+const factsBetween = `-- name: FactsBetween :many
+SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND tick >= $2 AND tick < $3 ORDER BY id
+`
+
+type FactsBetweenParams struct {
+	WorldID  string
+	FromTick int64
+	UptoTick int64
+}
+
+func (q *Queries) FactsBetween(ctx context.Context, arg FactsBetweenParams) ([]MmoFact, error) {
+	rows, err := q.db.Query(ctx, factsBetween, arg.WorldID, arg.FromTick, arg.UptoTick)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MmoFact
+	for rows.Next() {
+		var i MmoFact
+		if err := rows.Scan(
+			&i.WorldID,
+			&i.ID,
+			&i.Tick,
+			&i.Kind,
+			&i.Region,
+			&i.Weight,
+			&i.Subjects,
+			&i.Data,
+			&i.Causes,
+			&i.StagedBy,
+			&i.At,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const factsByIDs = `-- name: FactsByIDs :many
 SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND id = ANY($2::bigint[]) ORDER BY id
 `
@@ -429,6 +582,46 @@ func (q *Queries) FactsByIDs(ctx context.Context, arg FactsByIDsParams) ([]MmoFa
 		return nil, err
 	}
 	return items, nil
+}
+
+const forgetCharacterDiscord = `-- name: ForgetCharacterDiscord :one
+UPDATE mmo.character c SET discord_id = 'forgotten:' || c.id
+FROM mmo.character o
+WHERE c.world_id = $1 AND c.id = $2 AND o.world_id = c.world_id AND o.id = c.id AND c.discord_id NOT LIKE 'forgotten:%'
+RETURNING o.discord_id
+`
+
+type ForgetCharacterDiscordParams struct {
+	WorldID string
+	ID      string
+}
+
+// Tombstones a character's Discord id and returns the id it held; no row
+// when it was forgotten before. The self-join reads the row as it was.
+func (q *Queries) ForgetCharacterDiscord(ctx context.Context, arg ForgetCharacterDiscordParams) (string, error) {
+	row := q.db.QueryRow(ctx, forgetCharacterDiscord, arg.WorldID, arg.ID)
+	var discord_id string
+	err := row.Scan(&discord_id)
+	return discord_id, err
+}
+
+const forgetHouseLogDiscord = `-- name: ForgetHouseLogDiscord :execrows
+UPDATE mmo.house_log SET discord_id = ''
+WHERE world_id = $1 AND discord_id <> '' AND (character_id = $2 OR ($3::text <> '' AND discord_id = $3::text))
+`
+
+type ForgetHouseLogDiscordParams struct {
+	WorldID     string
+	CharacterID string
+	DiscordID   string
+}
+
+func (q *Queries) ForgetHouseLogDiscord(ctx context.Context, arg ForgetHouseLogDiscordParams) (int64, error) {
+	result, err := q.db.Exec(ctx, forgetHouseLogDiscord, arg.WorldID, arg.CharacterID, arg.DiscordID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getWorld = `-- name: GetWorld :one
@@ -1301,6 +1494,35 @@ func (q *Queries) RecentFactsIn(ctx context.Context, arg RecentFactsInParams) ([
 	return items, nil
 }
 
+const restampEpoch = `-- name: RestampEpoch :execrows
+UPDATE mmo.world SET sheets_digest = $1, rules_epoch = $2, updated_at = now()
+WHERE id = $3 AND sheets_digest = $4 AND rules_epoch = $5
+`
+
+type RestampEpochParams struct {
+	ToDigest   string
+	ToEpoch    int32
+	ID         string
+	FromDigest string
+	FromEpoch  int32
+}
+
+// Moves a kept world onto a new book and roll epoch together, only from the
+// exact stamp it ran on.
+func (q *Queries) RestampEpoch(ctx context.Context, arg RestampEpochParams) (int64, error) {
+	result, err := q.db.Exec(ctx, restampEpoch,
+		arg.ToDigest,
+		arg.ToEpoch,
+		arg.ID,
+		arg.FromDigest,
+		arg.FromEpoch,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const restampSheets = `-- name: RestampSheets :execrows
 UPDATE mmo.world SET sheets_digest = $1, updated_at = now()
 WHERE id = $2 AND sheets_digest = $3
@@ -1408,6 +1630,43 @@ func (q *Queries) SnapshotAtOrBefore(ctx context.Context, arg SnapshotAtOrBefore
 	return i, err
 }
 
+const snapshotsBetween = `-- name: SnapshotsBetween :many
+SELECT world_id, tick, seq, digest, body, at FROM mmo.snapshot WHERE world_id = $1 AND tick >= $2 AND tick < $3 ORDER BY tick
+`
+
+type SnapshotsBetweenParams struct {
+	WorldID  string
+	FromTick int64
+	UptoTick int64
+}
+
+func (q *Queries) SnapshotsBetween(ctx context.Context, arg SnapshotsBetweenParams) ([]MmoSnapshot, error) {
+	rows, err := q.db.Query(ctx, snapshotsBetween, arg.WorldID, arg.FromTick, arg.UptoTick)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MmoSnapshot
+	for rows.Next() {
+		var i MmoSnapshot
+		if err := rows.Scan(
+			&i.WorldID,
+			&i.Tick,
+			&i.Seq,
+			&i.Digest,
+			&i.Body,
+			&i.At,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const storyFactsSince = `-- name: StoryFactsSince :many
 SELECT world_id, id, tick, kind, region, weight, subjects, data, causes, staged_by, at FROM mmo.fact WHERE world_id = $1 AND id > $2 AND kind = ANY($3::text[])
 ORDER BY id LIMIT $4
@@ -1508,6 +1767,38 @@ func (q *Queries) UnlockWorld(ctx context.Context, worldID string) (bool, error)
 	var pg_advisory_unlock bool
 	err := row.Scan(&pg_advisory_unlock)
 	return pg_advisory_unlock, err
+}
+
+const upsertEpochNote = `-- name: UpsertEpochNote :exec
+INSERT INTO mmo.epoch_note (world_id, season, from_digest, to_digest, roll_from, roll_to, notes)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (world_id, season) DO UPDATE SET from_digest = EXCLUDED.from_digest, to_digest = EXCLUDED.to_digest,
+  roll_from = EXCLUDED.roll_from, roll_to = EXCLUDED.roll_to, notes = EXCLUDED.notes
+`
+
+type UpsertEpochNoteParams struct {
+	WorldID    string
+	Season     int64
+	FromDigest string
+	ToDigest   string
+	RollFrom   int32
+	RollTo     int32
+	Notes      []byte
+}
+
+// A rules epoch's notes, one row per world and season (GDD 18.5). A second
+// write of a season's notes keeps the first one's time.
+func (q *Queries) UpsertEpochNote(ctx context.Context, arg UpsertEpochNoteParams) error {
+	_, err := q.db.Exec(ctx, upsertEpochNote,
+		arg.WorldID,
+		arg.Season,
+		arg.FromDigest,
+		arg.ToDigest,
+		arg.RollFrom,
+		arg.RollTo,
+		arg.Notes,
+	)
+	return err
 }
 
 const upsertFaction = `-- name: UpsertFaction :exec
@@ -1679,6 +1970,48 @@ func (q *Queries) UpsertTile(ctx context.Context, arg UpsertTileParams) error {
 		arg.Body,
 	)
 	return err
+}
+
+const worldCounts = `-- name: WorldCounts :one
+SELECT
+  (SELECT count(*) FROM mmo.fact f WHERE f.world_id = $1)::bigint AS facts,
+  (SELECT count(*) FROM mmo.ledger_txn t WHERE t.world_id = $1)::bigint AS ledger_txns,
+  (SELECT count(*) FROM mmo.ledger_entry e WHERE e.world_id = $1)::bigint AS ledger_entries,
+  (SELECT count(*) FROM mmo.action a WHERE a.world_id = $1)::bigint AS actions,
+  (SELECT count(*) FROM mmo.tick k WHERE k.world_id = $1)::bigint AS ticks,
+  (SELECT count(*) FROM mmo.snapshot s WHERE s.world_id = $1)::bigint AS snapshots,
+  (SELECT coalesce(max(s.tick), -1) FROM mmo.snapshot s WHERE s.world_id = $1)::bigint AS last_snapshot_tick,
+  (SELECT count(*) FROM mmo.character c WHERE c.world_id = $1)::bigint AS characters,
+  (SELECT count(*) FROM mmo.house_log h WHERE h.world_id = $1)::bigint AS house_log
+`
+
+type WorldCountsRow struct {
+	Facts            int64
+	LedgerTxns       int64
+	LedgerEntries    int64
+	Actions          int64
+	Ticks            int64
+	Snapshots        int64
+	LastSnapshotTick int64
+	Characters       int64
+	HouseLog         int64
+}
+
+func (q *Queries) WorldCounts(ctx context.Context, worldID string) (WorldCountsRow, error) {
+	row := q.db.QueryRow(ctx, worldCounts, worldID)
+	var i WorldCountsRow
+	err := row.Scan(
+		&i.Facts,
+		&i.LedgerTxns,
+		&i.LedgerEntries,
+		&i.Actions,
+		&i.Ticks,
+		&i.Snapshots,
+		&i.LastSnapshotTick,
+		&i.Characters,
+		&i.HouseLog,
+	)
+	return i, err
 }
 
 const worldTick = `-- name: WorldTick :one

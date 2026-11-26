@@ -557,6 +557,11 @@ export const PathOperator = "/v1/operator";
  */
 export const PathHealth = "/healthz";
 /**
+ * PathForget takes a ForgetRequest, behind the forget token or the API
+ * token: the only path the forget token opens (GDD 14.9).
+ */
+export const PathForget = "/v1/forget";
+/**
  * Operator paths, behind the operator token.
  */
 export const PathOperatorCharacter = "/v1/operator/character";
@@ -580,6 +585,10 @@ export const PathOperatorReset = "/v1/operator/reset";
  * Operator paths, behind the operator token.
  */
 export const PathOperatorClock = "/v1/operator/clock";
+/**
+ * PathOperatorTicks takes ?after=<tick> and answers TickTimes.
+ */
+export const PathOperatorTicks = "/v1/operator/ticks";
 /**
  * Action kinds a player sends; operators send the operator kinds through
  * PathOperator.
@@ -620,6 +629,11 @@ export const ActExplore = "explore";
  * PathOperator.
  */
 export const ActPress = "press";
+/**
+ * Action kinds a player sends; operators send the operator kinds through
+ * PathOperator.
+ */
+export const ActForget = "forget"; // forgets the pressing player's character (GDD 14.9)
 /**
  * Action kinds a player sends; operators send the operator kinds through
  * PathOperator.
@@ -866,6 +880,10 @@ export const CodeNeedsActivity = "needs-activity";
  * Refusal codes the rules give.
  */
 export const CodeDown = "down";
+/**
+ * CodeForgotten is a character that was forgotten and acts no more.
+ */
+export const CodeForgotten = "forgotten";
 /**
  * Character condition IDs.
  */
@@ -1288,6 +1306,41 @@ export interface ResetReply {
  */
 export interface ClockRequest {
   due: number /* int64 */;
+}
+/**
+ * ForgetRequest asks the world to forget a Discord user's character (GDD
+ * 14.9). InteractionID makes a repeat write once.
+ */
+export interface ForgetRequest {
+  interactionId: string;
+  discordId: string;
+}
+/**
+ * ForgetReply says whether a character was found and is forgotten, now or
+ * before, and whether its holdings have left it yet: they leave at the
+ * first tick it is free of fights, carries and caravans.
+ */
+export interface ForgetReply {
+  forgotten: boolean;
+  swept: boolean;
+}
+/**
+ * TickTime is one tick's cost. StepMs is the whole step: the lock wait,
+ * Advance, the save and the map pass. Behind is due minus tick after it.
+ */
+export interface TickTime {
+  tick: number /* int64 */;
+  advanceMs: number /* int64 */;
+  stepMs: number /* int64 */;
+  behind: number /* int64 */;
+}
+/**
+ * TickTimes are the latest ticks' costs, oldest first, and the tick length
+ * they are read against.
+ */
+export interface TickTimes {
+  tickMs: number /* int64 */;
+  ticks: TickTime[];
 }
 
 //////////
@@ -5114,6 +5167,10 @@ export interface StoryEvent {
    * Server is the staging server of a staged event, posted only there.
    */
   server?: string;
+  /**
+   * Epoch is a season.epoch's notes: what changed in the rules.
+   */
+  epoch?: EpochNotes;
 }
 /**
  * StoryEvents are the events after a fact id; Last is the id to ask after
@@ -5157,12 +5214,41 @@ export interface BoardView {
 }
 /**
  * Epoch is a rules epoch taken at a season's close (GDD 18.5): the sheets
- * digests before and after, and how many sheets changed.
+ * digests before and after, how many sheets changed, and the roll epoch
+ * taken when it stepped.
  */
 export interface Epoch {
   from: string;
   to: string;
   sheets: number /* int64 */;
+  roll?: number /* int32 */;
+}
+/**
+ * EpochNote is one change a rules epoch made to a sheet players can see
+ * (GDD 17.6): a cell changed, or a row added or removed.
+ */
+export interface EpochNote {
+  sheet: string;
+  row: string;
+  name?: string;
+  column?: string;
+  change: string; // changed, added or removed
+  before?: string;
+  after?: string;
+  unit?: string;
+}
+/**
+ * EpochNotes are a season's rules epoch as players are told it: the books
+ * before and after, how many sheets changed, the changes they can see, and
+ * how many they cannot. A roll-key step is never among them.
+ */
+export interface EpochNotes {
+  season: number /* int64 */;
+  from: string;
+  to: string;
+  sheets: number /* int64 */;
+  seen: EpochNote[];
+  unseen: number /* int64 */;
 }
 /**
  * ArcOrder is what an arc-cast carries: the template, its cast by role, and

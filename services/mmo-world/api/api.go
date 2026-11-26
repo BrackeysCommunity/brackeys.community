@@ -18,6 +18,9 @@ const (
 	PathPlace     = "/v1/place"
 	PathOperator  = "/v1/operator"
 	PathHealth    = "/healthz"
+	// PathForget takes a ForgetRequest, behind the forget token or the API
+	// token: the only path the forget token opens (GDD 14.9).
+	PathForget = "/v1/forget"
 )
 
 // Operator paths, behind the operator token.
@@ -28,6 +31,8 @@ const (
 	PathOperatorDigest    = "/v1/operator/digest"
 	PathOperatorReset     = "/v1/operator/reset"
 	PathOperatorClock     = "/v1/operator/clock"
+	// PathOperatorTicks takes ?after=<tick> and answers TickTimes.
+	PathOperatorTicks = "/v1/operator/ticks"
 )
 
 // Action kinds a player sends; operators send the operator kinds through
@@ -41,6 +46,7 @@ const (
 	ActCancel  = "cancel"
 	ActExplore = "explore"
 	ActPress   = "press"
+	ActForget  = "forget" // forgets the pressing player's character (GDD 14.9)
 	OpCorrect  = "correct"
 	OpGrant    = "grant"
 	OpBan      = "ban"
@@ -196,6 +202,8 @@ const (
 	CodeNoEncounter     = "no-encounter"
 	CodeNeedsActivity   = "needs-activity"
 	CodeDown            = "down"
+	// CodeForgotten is a character that was forgotten and acts no more.
+	CodeForgotten = "forgotten"
 )
 
 // Character condition IDs.
@@ -551,4 +559,35 @@ type ResetReply struct {
 // ClockRequest sets a manual clock's due tick; the reply echoes it.
 type ClockRequest struct {
 	Due int64 `json:"due"`
+}
+
+// ForgetRequest asks the world to forget a Discord user's character (GDD
+// 14.9). InteractionID makes a repeat write once.
+type ForgetRequest struct {
+	InteractionID string `json:"interactionId"`
+	DiscordID     string `json:"discordId"`
+}
+
+// ForgetReply says whether a character was found and is forgotten, now or
+// before, and whether its holdings have left it yet: they leave at the
+// first tick it is free of fights, carries and caravans.
+type ForgetReply struct {
+	Forgotten bool `json:"forgotten"`
+	Swept     bool `json:"swept"`
+}
+
+// TickTime is one tick's cost. StepMs is the whole step: the lock wait,
+// Advance, the save and the map pass. Behind is due minus tick after it.
+type TickTime struct {
+	Tick      int64 `json:"tick"`
+	AdvanceMs int64 `json:"advanceMs"`
+	StepMs    int64 `json:"stepMs"`
+	Behind    int64 `json:"behind"`
+}
+
+// TickTimes are the latest ticks' costs, oldest first, and the tick length
+// they are read against.
+type TickTimes struct {
+	TickMs int64      `json:"tickMs"`
+	Ticks  []TickTime `json:"ticks"`
 }

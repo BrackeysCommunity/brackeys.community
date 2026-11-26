@@ -259,6 +259,8 @@ type StoryEvent struct {
 	Art   *Art              `json:"art,omitempty"`
 	// Server is the staging server of a staged event, posted only there.
 	Server string `json:"server,omitempty"`
+	// Epoch is a season.epoch's notes: what changed in the rules.
+	Epoch *EpochNotes `json:"epoch,omitempty"`
 }
 
 // StoryEvents are the events after a fact id; Last is the id to ask after
@@ -298,11 +300,38 @@ type BoardView struct {
 }
 
 // Epoch is a rules epoch taken at a season's close (GDD 18.5): the sheets
-// digests before and after, and how many sheets changed.
+// digests before and after, how many sheets changed, and the roll epoch
+// taken when it stepped.
 type Epoch struct {
 	From   string `json:"from"`
 	To     string `json:"to"`
 	Sheets int64  `json:"sheets"`
+	Roll   *int32 `json:"roll,omitempty"`
+}
+
+// EpochNote is one change a rules epoch made to a sheet players can see
+// (GDD 17.6): a cell changed, or a row added or removed.
+type EpochNote struct {
+	Sheet  string `json:"sheet"`
+	Row    string `json:"row"`
+	Name   string `json:"name,omitempty"`
+	Column string `json:"column,omitempty"`
+	Change string `json:"change"` // changed, added or removed
+	Before string `json:"before,omitempty"`
+	After  string `json:"after,omitempty"`
+	Unit   string `json:"unit,omitempty"`
+}
+
+// EpochNotes are a season's rules epoch as players are told it: the books
+// before and after, how many sheets changed, the changes they can see, and
+// how many they cannot. A roll-key step is never among them.
+type EpochNotes struct {
+	Season int64       `json:"season"`
+	From   string      `json:"from"`
+	To     string      `json:"to"`
+	Sheets int64       `json:"sheets"`
+	Seen   []EpochNote `json:"seen"`
+	Unseen int64       `json:"unseen"`
 }
 
 // ArcOrder is what an arc-cast carries: the template, its cast by role, and

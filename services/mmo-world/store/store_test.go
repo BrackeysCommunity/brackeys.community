@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/internal/testkit"
 	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/game"
@@ -215,6 +216,9 @@ func TestResetEmptiesEveryTable(t *testing.T) {
 	pool := pgtest.Pool(t)
 	st, g, _ := founded(t, ctx, pool, rules(t))
 	testkit.Ticks(t, ctx, st, g, 3)
+	if err := st.SaveEpochNotes(ctx, api.EpochNotes{Season: 1, From: "s", To: "t"}, 0, 0); err != nil {
+		t.Fatal(err)
+	}
 	if err := st.Reset(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +237,7 @@ func TestResetEmptiesEveryTable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cols) < 12 {
+	if len(cols) < 12 || !slices.ContainsFunc(cols, func(c col) bool { return c.table == "epoch_note" }) {
 		t.Fatalf("found only %v", cols)
 	}
 	for _, c := range cols {

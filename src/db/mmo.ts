@@ -323,3 +323,24 @@ export const mmoSnapshot = mmoSchema.table(
   },
   (t) => [primaryKey({ columns: [t.worldId, t.tick] })],
 );
+
+/**
+ * A rules epoch's notes (GDD 18.5), one per world and season: the books and
+ * roll epochs before and after, and the changes players are told of. Kept
+ * because the old book is gone once the operator moves the world onto the
+ * new one.
+ */
+export const mmoEpochNote = mmoSchema.table(
+  "epoch_note",
+  {
+    worldId: worldId(),
+    season: big("season").notNull(),
+    fromDigest: text("from_digest").notNull(),
+    toDigest: text("to_digest").notNull(),
+    rollFrom: integer("roll_from").notNull(),
+    rollTo: integer("roll_to").notNull(),
+    notes: jsonb("notes").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.worldId, t.season] })],
+);
