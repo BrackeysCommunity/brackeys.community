@@ -19,7 +19,6 @@ import (
 	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/sheets"
-	"jams.team/mmo-world/sim/world"
 	"jams.team/mmo-world/store"
 )
 
@@ -86,7 +85,9 @@ func apiArc(g *game.Game, a *game.Arc, viewer string) api.Arc {
 		out.Cast = append(out.Cast, api.CastRef{Role: b.Role, Kind: b.Ref.Kind, ID: b.Ref.ID, Name: castName(g, b.Ref, viewer)})
 	}
 	for _, r := range a.Regions {
-		out.Regions = append(out.Regions, world.RegionRef(r))
+		if r >= 0 && r < len(g.World.Regions) {
+			out.Regions = append(out.Regions, g.RegionName(r))
+		}
 	}
 	i, st, ok := currentStage(a)
 	if !ok {
@@ -165,7 +166,7 @@ func factionName(g *game.Game, i int) string {
 func sideAtName(g *game.Game, at string) (string, *api.Hex) {
 	if h, ok := g.RefHex(at); ok {
 		ah := apiHex(h)
-		return g.PlaceName(h), &ah
+		return tileName(g, h), &ah
 	}
 	var names []string
 	for _, part := range strings.Split(at, ",") {
@@ -178,6 +179,24 @@ func sideAtName(g *game.Game, at string) (string, *api.Hex) {
 		}
 	}
 	return strings.Join(names, ", "), nil
+}
+
+// tileName is what a tile goes by in words: its place's or region's name,
+// else "near" the closest settlement, so no card prints a raw ref.
+func tileName(g *game.Game, h hex.Hex) string {
+	if n := g.PlaceName(h); n != h.Ref() {
+		return n
+	}
+	best, near := -1, int64(0)
+	for i, p := range g.Places {
+		if d := hex.Distance(h, p.Hex); best < 0 || d < near {
+			best, near = i, d
+		}
+	}
+	if best < 0 {
+		return "an unnamed place"
+	}
+	return "near " + g.PlaceName(g.SettlementHex(best))
 }
 
 // castName is the name a cast ref goes by; a character is named only to
@@ -199,7 +218,7 @@ func castName(g *game.Game, ref fact.Ref, viewer string) string {
 		}
 	case kindTile:
 		if h, ok := hex.ParseRef(ref.ID); ok {
-			return g.PlaceName(h)
+			return tileName(g, h)
 		}
 	case kindNotable:
 		return g.NotableName(ref.ID)
