@@ -414,8 +414,7 @@ func (b *battle) partyMachines(pr func(string, ...any), book *sheets.Book) []Mea
 			for _, ft := range book.FightTiers {
 				practice := b.puzzlePractice(ft.Tier)
 				for floor := int64(1); floor <= pz.Param("floors"); floor++ {
-					w := puzzle.Where{Place: fmt.Sprintf("floor:battle/%d", floor), Beat: ft.Tier}
-					lvl := pz.Level(row.Family, ft.Tier, floor, w)
+					lvl := b.floorLevel(row.Family, ft.Tier, floor)
 					got := bySeats[seats]
 					got[0] += versionRate(pz, row, practice, lvl, ft.Tier, seats)
 					got[1]++

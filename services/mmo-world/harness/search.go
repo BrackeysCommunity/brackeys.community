@@ -3,6 +3,7 @@ package harness
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"jams.team/mmo-world/sim/draw"
@@ -47,18 +48,67 @@ func (c climbed) worse(than climbed) bool {
 	return c.reading.worst.most > than.reading.worst.most
 }
 
-// SearchRun is the Search run aimed at staging (GDD 18.4): an adversary
-// that stages without limit at the main server and does the most damaging
-// thing with what it gives, read for how far it moves prices at every
-// other settlement (staging-stays-local), whether a staged unit ever
-// reaches a place it may not (staged-goods-local), and the staged
-// experience a character gains in a world day (staged-xp-cap).
+// searchClimbs are the Search run's climbs in the order they run and
+// write search.md. SEARCH_ONLY names some of them, comma-separated.
+var searchClimbs = []struct {
+	name string
+	run  func(b *sheets.Book, n int, doc *lineDoc) ([]Measured, error)
+}{{"build", buildClimb}, {"loop", loopClimb}, {"staging", stagingClimb}}
+
+// searchOnly is the climbs SEARCH_ONLY names, every one when it is unset.
+func searchOnly() (map[string]bool, error) {
+	on := map[string]bool{}
+	v := strings.TrimSpace(os.Getenv("SEARCH_ONLY"))
+	for _, c := range searchClimbs {
+		on[c.name] = v == ""
+	}
+	if v == "" {
+		return on, nil
+	}
+	for name := range strings.SplitSeq(v, ",") {
+		name = strings.TrimSpace(name)
+		if _, ok := on[name]; !ok {
+			return nil, fmt.Errorf("SEARCH_ONLY: no climb is named %q (build, loop, staging)", name)
+		}
+		on[name] = true
+	}
+	return on, nil
+}
+
+// SearchRun is the Search run (GDD 18.4): adversaries that climb a build
+// (kinds, loadouts, a party's puzzle policy), a loop (an activity mix),
+// and staging, each to its own section of search.md.
 func SearchRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	if n <= 0 {
 		n = searchSize
 	}
-	_, days := economyPlan(n)
+	on, err := searchOnly()
+	if err != nil {
+		return nil, err
+	}
 	var doc lineDoc
+	var readings []Measured
+	for _, c := range searchClimbs {
+		if !on[c.name] {
+			continue
+		}
+		rs, err := c.run(b, n, &doc)
+		if err != nil {
+			return nil, err
+		}
+		readings = append(readings, rs...)
+	}
+	return readings, doc.save(out, "search.md")
+}
+
+// stagingClimb is the Search run aimed at staging: an adversary that
+// stages without limit at the main server and does the most damaging
+// thing with what it gives, read for how far it moves prices at every
+// other settlement (staging-stays-local), whether a staged unit ever
+// reaches a place it may not (staged-goods-local), and the staged
+// experience a character gains in a world day (staged-xp-cap).
+func stagingClimb(b *sheets.Book, n int, doc *lineDoc) ([]Measured, error) {
+	_, days := economyPlan(n)
 	p := doc.p
 	p("# Search run: staging")
 	p("")
@@ -118,9 +168,6 @@ func SearchRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	xp := int64(0)
 	for _, s := range all {
 		xp = max(xp, s.watch.xpMost)
-	}
-	if err := doc.save(out, "search.md"); err != nil {
-		return nil, err
 	}
 	xpCap := set.staged.watch.xpCap
 	return []Measured{

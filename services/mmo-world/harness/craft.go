@@ -110,11 +110,18 @@ func (s *sampler) one(i int) *item.Kind {
 	return k
 }
 
-// CraftRun is the Craft run.
-func CraftRun(b *sheets.Book, out string, n int) ([]Measured, error) {
-	if n == 0 {
-		n = craftSamples
-	}
+// craftSample is the Craft run's sample: n recipes drawn under the
+// throwaway key craft-run, the kinds they made, and the sampler and
+// deriver that made them.
+type craftSample struct {
+	k       keys.Set
+	d       *item.Deriver
+	s       *sampler
+	kinds   []*item.Kind
+	elapsed time.Duration
+}
+
+func sampleCraft(b *sheets.Book, n int) craftSample {
 	k := keys.Throwaway("craft-run")
 	d := item.NewDeriver(b, k.Quirk)
 	s := newSampler(b, d, k)
@@ -125,7 +132,29 @@ func CraftRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 			kinds = append(kinds, kd)
 		}
 	}
-	elapsed := time.Since(start)
+	return craftSample{k: k, d: d, s: s, kinds: kinds, elapsed: time.Since(start)}
+}
+
+// peaks are the sorted two-strongest-axes sums of the sampled kinds of a
+// tier and slot that made something useful.
+func (c craftSample) peaks(tier int64, slot string) []int64 {
+	var peaks []int64
+	for _, kd := range c.kinds {
+		if kd.Tier == tier && kd.Slot == slot && !kd.Failed {
+			peaks = append(peaks, kd.Vec.TopTwo())
+		}
+	}
+	slices.Sort(peaks)
+	return peaks
+}
+
+// CraftRun is the Craft run.
+func CraftRun(b *sheets.Book, out string, n int) ([]Measured, error) {
+	if n == 0 {
+		n = craftSamples
+	}
+	cs := sampleCraft(b, n)
+	k, d, s, kinds, elapsed := cs.k, cs.d, cs.s, cs.kinds, cs.elapsed
 
 	var doc lineDoc
 	p := doc.p
@@ -186,16 +215,10 @@ func CraftRun(b *sheets.Book, out string, n int) ([]Measured, error) {
 	worst := 0.0
 	for _, t := range b.Tiers {
 		for _, slot := range slots {
-			var peaks []int64
-			for _, kd := range kinds {
-				if kd.Tier == t.Tier && kd.Slot == slot && !kd.Failed {
-					peaks = append(peaks, kd.Vec.TopTwo())
-				}
-			}
+			peaks := cs.peaks(t.Tier, slot)
 			if len(peaks) < craftMinCell {
 				continue
 			}
-			slices.Sort(peaks)
 			p90, bestPts, ratio, ok := strength(peaks, best[cellKey(t.Tier, slot)])
 			cells++
 			if ok {
@@ -230,9 +253,14 @@ func dedupe(in []item.Input, maxQty int64) []item.Input {
 	return out
 }
 
+// found is a kind the search kept, and the recipe that made it: its base
+// (one material, or an Alloy's inputs under alloy) and the Shape method.
 type found struct {
 	*item.Kind
-	d *item.Deriver
+	d     *item.Deriver
+	base  []item.Input
+	alloy string
+	shape string
 }
 
 // strength judges one tier and slot: the search's best against the p90 of
@@ -253,7 +281,7 @@ func searchBest(b *sheets.Book, k keys.Set, methodsOf map[string][]string, slots
 	maxQty := sheets.IntParam(b.ItemParams, "input-max-quantity")
 	best := map[string]*found{}
 	n := 0
-	keep := func(base string) {
+	keep := func(base string, in []item.Input, alloy string) {
 		for _, slot := range slots {
 			for _, m := range methodsOf[item.Shape] {
 				kd, err := d.Derive(item.Recipe{Process: item.Shape, Method: m, Slot: slot, Inputs: []item.Input{{Kind: base, Qty: 1}}}, stationTier)
@@ -264,7 +292,7 @@ func searchBest(b *sheets.Book, k keys.Set, methodsOf map[string][]string, slots
 				key := cellKey(kd.Tier, slot)
 				if cur := best[key]; cur == nil || kd.Vec.TopTwo() > cur.Vec.TopTwo() ||
 					(kd.Vec.TopTwo() == cur.Vec.TopTwo() && kd.ID < cur.ID) {
-					best[key] = &found{kd, d}
+					best[key] = &found{Kind: kd, d: d, base: in, alloy: alloy, shape: m}
 				}
 			}
 		}
@@ -272,7 +300,7 @@ func searchBest(b *sheets.Book, k keys.Set, methodsOf map[string][]string, slots
 	var mats []string
 	for _, m := range b.Materials {
 		mats = append(mats, m.ID)
-		keep(m.ID)
+		keep(m.ID, []item.Input{{Kind: m.ID, Qty: 1}}, "")
 	}
 	alloy := func(in []item.Input) {
 		for _, m := range methodsOf[item.Alloy] {
@@ -281,7 +309,7 @@ func searchBest(b *sheets.Book, k keys.Set, methodsOf map[string][]string, slots
 				continue
 			}
 			n++
-			keep(kd.ID)
+			keep(kd.ID, in, m)
 		}
 	}
 	for i := range mats {

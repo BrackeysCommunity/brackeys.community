@@ -202,8 +202,30 @@ func (b *battle) each(jobs int, f func(x *battle, i int) error) error {
 	})
 }
 
+// matrixKit is the gear and practice a matrix is fought on: kit makes a
+// column's characters on the battle that runs the cell, practice is the
+// practice the column's players spread around at a tier.
+type matrixKit struct {
+	kit      func(x *battle, l Loadout, as *classBuild) gear
+	practice func(tier int64) int64
+}
+
+// referenceKit is the Battle run's: the reference gear at the tier's
+// expected practice.
+func (b *battle) referenceKit() matrixKit {
+	return matrixKit{
+		kit:      func(x *battle, l Loadout, as *classBuild) gear { return x.kitted(l, as) },
+		practice: func(tier int64) int64 { return b.p.Fight.Tier(tier).ExpectedPractice },
+	}
+}
+
 // matrix fills the matchup matrix: every archetype at three gear levels.
 func (b *battle) matrix(book *sheets.Book, n int) ([]matrixCell, error) {
+	return b.matrixOn(book, n, b.referenceKit())
+}
+
+// matrixOn is the matrix fought on a kit.
+func (b *battle) matrixOn(book *sheets.Book, n int, on matrixKit) ([]matrixCell, error) {
 	var cells []matrixCell
 	for _, a := range book.Creatures {
 		ft := b.p.Fight.Tier(a.Tier)
@@ -211,17 +233,17 @@ func (b *battle) matrix(book *sheets.Book, n int) ([]matrixCell, error) {
 			cells = append(cells, matrixCell{arch: a.ID, level: lvl})
 		}
 	}
-	return cells, b.each(len(cells), func(x *battle, i int) error { return x.fill(&cells[i], n) })
+	return cells, b.each(len(cells), func(x *battle, i int) error { return x.fill(&cells[i], n, on) })
 }
 
 // fill runs one cell: each loadout, then each class on the plain kit, at
 // its best build. A Stalker has marked what it fights.
-func (b *battle) fill(c *matrixCell, n int) error {
+func (b *battle) fill(c *matrixCell, n int, on matrixKit) error {
 	book := b.p.Book
-	ft := b.p.Fight.Tier(b.creatures[c.arch].Tier)
+	practice := on.practice(b.creatures[c.arch].Tier)
 	name := fmt.Sprintf("m%d", c.level)
 	for _, l := range loadouts {
-		t, err := b.spreadCell(name, c.arch, l, c.level, ft.ExpectedPractice, policies[0], n/2, nil, situation{})
+		t, err := b.spreadCellWith(name, c.arch, c.level, practice, policies[0], n/2, situation{}, on.kit(b, l, nil))
 		if err != nil {
 			return err
 		}
@@ -233,7 +255,7 @@ func (b *battle) fill(c *matrixCell, n int) error {
 		if fights(book, row) {
 			rate = 0
 			for v := range variants(book, row) {
-				t, err := b.spreadCell(name, c.arch, loadouts[0], c.level, ft.ExpectedPractice, policies[0], n/2, &classBuild{row: row, variant: v}, situation{prey: true})
+				t, err := b.spreadCellWith(name, c.arch, c.level, practice, policies[0], n/2, situation{prey: true}, on.kit(b, loadouts[0], &classBuild{row: row, variant: v}))
 				if err != nil {
 					return err
 				}

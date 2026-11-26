@@ -227,6 +227,11 @@ func (b *battle) variant(k *item.Kind, extra []tags.Tag) *item.Kind {
 
 // character builds a fresh character with a loadout's gear at a level.
 func (b *battle) character(id string, l Loadout, tier, level, practice int64, hand string) *char.Character {
+	return b.characterWith(id, l, tier, level, practice, b.ref[cellKey(tier, hand)], b.ref[cellKey(tier, "plate")])
+}
+
+// characterWith is character with its hand and body kinds given.
+func (b *battle) characterWith(id string, l Loadout, tier, level, practice int64, hand, body *item.Kind) *char.Character {
 	c := char.New(id, hex.Hex{})
 	put := func(slot string, kind *item.Kind, lvl int64) *item.Instance {
 		in := item.NewInstance(id+"-"+slot, kind, "")
@@ -234,8 +239,8 @@ func (b *battle) character(id string, l Loadout, tier, level, practice int64, ha
 		c.Carry(slot, 0, in)
 		return in
 	}
-	put(char.Hand, b.variant(b.ref[cellKey(tier, hand)], l.Hand), level)
-	put(char.Body, b.variant(b.ref[cellKey(tier, "plate")], l.Body), level)
+	put(char.Hand, b.variant(hand, l.Hand), level)
+	put(char.Body, b.variant(body, l.Body), level)
 	if len(l.Charm) > 0 {
 		in := item.NewInstance(id+"-charm", b.variant(b.ref[cellKey(tier, "charm")], l.Charm), "")
 		in.Level = level
@@ -322,15 +327,32 @@ func (t *tally) add(e *fight.Encounter, presses int) {
 
 func (t tally) rate() float64 { return float64(t.won) / float64(max(t.n, 1)) }
 
+// gear makes the character an encounter of a cell is fought by.
+type gear func(id string, tier, level, practice int64) *char.Character
+
+// kitted is a loadout on the reference blade and plate, as a class build
+// if one is given.
+func (b *battle) kitted(l Loadout, as *classBuild) gear {
+	return func(id string, tier, level, practice int64) *char.Character {
+		c := b.character(id, l, tier, level, practice, "blade")
+		b.classed(c, as)
+		return c
+	}
+}
+
 // cell runs n encounters of one archetype with one loadout and policy,
 // as a class build in a situation if one is given.
 func (b *battle) cell(name, arch string, l Loadout, level, practice int64, pol Policy, n int, as *classBuild, sit situation) (tally, error) {
+	return b.cellWith(name, arch, level, practice, pol, n, sit, b.kitted(l, as))
+}
+
+// cellWith is cell for characters g makes.
+func (b *battle) cellWith(name, arch string, level, practice int64, pol Policy, n int, sit situation, g gear) (tally, error) {
 	tier := b.creatures[arch].Tier
 	var t tally
 	for i := range n {
 		id := fmt.Sprintf("%s-%s-%d", name, arch, i)
-		c := b.character("c-"+id, l, tier, level, practice, "blade")
-		b.classed(c, as)
+		c := g("c-"+id, tier, level, practice)
 		e, presses, err := b.fightOne(c, b.site(id, arch, 0), arch, pol, sit)
 		if err != nil {
 			return t, err
@@ -343,10 +365,15 @@ func (b *battle) cell(name, arch string, l Loadout, level, practice int64, pol P
 // spreadCell is a cell over players within the sheet's spread of an
 // expected practice, n encounters in all.
 func (b *battle) spreadCell(name, arch string, l Loadout, level, expected int64, pol Policy, n int, as *classBuild, sit situation) (tally, error) {
+	return b.spreadCellWith(name, arch, level, expected, pol, n, sit, b.kitted(l, as))
+}
+
+// spreadCellWith is spreadCell for characters g makes.
+func (b *battle) spreadCellWith(name, arch string, level, expected int64, pol Policy, n int, sit situation, g gear) (tally, error) {
 	spread := sheets.IntParam(b.p.Book.FightParams, "even-spread")
 	var all tally
 	for pr := max(0, expected-spread); pr <= expected+spread; pr++ {
-		t, err := b.cell(fmt.Sprintf("%s-%d", name, pr), arch, l, level, pr, pol, max(1, n/int(2*spread+1)), as, sit)
+		t, err := b.cellWith(fmt.Sprintf("%s-%d", name, pr), arch, level, pr, pol, max(1, n/int(2*spread+1)), sit, g)
 		if err != nil {
 			return all, err
 		}
@@ -695,8 +722,7 @@ func (b *battle) puzzleCells(tier, practice int64) (float64, int) {
 	var n int
 	for _, f := range b.p.Book.PuzzleFamilies {
 		for floor := int64(1); floor <= pz.Param("floors"); floor++ {
-			w := puzzle.Where{Place: fmt.Sprintf("floor:battle/%d", floor), Beat: tier}
-			lvl := pz.Level(f.ID, tier, floor, w)
+			lvl := b.floorLevel(f.ID, tier, floor)
 			for party := int64(2); party <= 4; party++ {
 				sum += float64(pz.SolveRate(f.ID, practice, lvl, tier, party)) / float64(fixed.Scale)
 				n++
@@ -704,6 +730,12 @@ func (b *battle) puzzleCells(tier, practice int64) (float64, int) {
 		}
 	}
 	return sum, n
+}
+
+// floorLevel is the level of a family's machine on a dungeon floor of a
+// tier, at the place the Battle run gives that floor.
+func (b *battle) floorLevel(family string, tier, floor int64) int64 {
+	return b.p.Puzzles.Level(family, tier, floor, puzzle.Where{Place: fmt.Sprintf("floor:battle/%d", floor), Beat: tier})
 }
 
 // The witness formula's proof (GDD 6.5, 18.3): sampled thefts against the
