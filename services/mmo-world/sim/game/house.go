@@ -58,7 +58,8 @@ const (
 )
 
 // House is one server's own: what it sees, its staff pools, its moderation.
-// Changed by its server's commands and the world day's pool refill.
+// Changed by its server's commands, an operator's case-close and the world
+// day's pool refill.
 type House struct {
 	Server   string        `json:"server"`
 	Settings HouseSettings `json:"settings"`
@@ -68,7 +69,7 @@ type House struct {
 	Masks    []string      `json:"masks,omitempty"`  // name refs read as generated here
 	Hidden   []string      `json:"hidden,omitempty"` // goal ids whose title and note read as generated here
 	Holds    []Hold        `json:"holds,omitempty"`
-	// ReportDay is the world day Reported tallies: each character's reports.
+	// Reported counts each character's reports on world day ReportDay.
 	ReportDay int64            `json:"reportDay,omitempty"`
 	Reported  map[string]int64 `json:"reported,omitempty"`
 }

@@ -1,5 +1,5 @@
 import type { Names } from "./story.ts";
-import { amount, capital, idWords, list, num, plural, readable, TICKS_PER_HOUR } from "./units.ts";
+import { amount, capital, idWords, list, num, plural, readable, TICKS_PER_DAY } from "./units.ts";
 
 /**
  * What an NPC remembers, told without a model: the oldest entries it
@@ -24,9 +24,6 @@ export interface DossierLike {
   folded?: readonly { type: string; count: number }[];
   names: Readonly<Record<string, string>>;
 }
-
-/** structural: a world day is 24 hours. */
-const TICKS_PER_DAY = TICKS_PER_HOUR * 24;
 
 const YOU = "you";
 const TRAVELLER = "a traveller";

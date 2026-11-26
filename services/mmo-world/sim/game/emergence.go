@@ -92,9 +92,9 @@ func (g *Game) emergenceStart(Command) error {
 }
 
 // wireEmergence builds the game's found-material registry, points the item
-// and price rules at it and sets the log's staged stamp; a world without
-// emergence clears the registry but keeps the stamp, so server staging is
-// still stamped there.
+// and price rules at it and sets the log's Stage hook. A world without
+// emergence clears the registry and rules but keeps the hook, which then
+// gives only server stamps.
 func (g *Game) wireEmergence() {
 	r := g.r
 	if g.Emergence == nil {

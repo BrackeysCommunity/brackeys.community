@@ -389,6 +389,7 @@ func (g *Game) ArmedAll() []*Char {
 
 // machineArm starts a machine's countdown: the one on the current beat,
 // or a pouch's lock.
+// A new staged route here needs exclusionStage to see it.
 func (g *Game) machineArm(c *Char, cmd Command) error {
 	m := cmd.Machine
 	if m == nil {

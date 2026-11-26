@@ -16,7 +16,7 @@ import (
 // structural: who a stamp names.
 const (
 	stampOperator = "operator"
-	stampServer   = "server"
+	stampServer   = fact.StampServer
 	stampFact     = "fact"
 )
 
@@ -29,10 +29,14 @@ var unstagedKinds = []string{ContentFreeze, SeasonStart, SeasonEpoch, EmergenceS
 // notes whether it is a character's own; the func it returns puts back
 // what was before, so a nested call is harmless.
 func (g *Game) stagingFor(cmd Command) func() {
+	was, wasOwn := g.stagedBy, g.ownCmd
 	if g.Emergence == nil {
+		if s := g.stampOf(cmd); s != nil && s.Kind == stampServer {
+			g.stagedBy = s
+			return func() { g.stagedBy = was }
+		}
 		return func() {}
 	}
-	was, wasOwn := g.stagedBy, g.ownCmd
 	g.stagedBy, g.ownCmd = g.stampOf(cmd), !passive(cmd.Kind)
 	return func() { g.stagedBy, g.ownCmd = was, wasOwn }
 }
@@ -78,6 +82,7 @@ func (g *Game) huntStaged(id string) bool {
 // stage is the log's Stage hook: it stamps a fact that is staged and keeps
 // its id in the staged-kept ring, so the facts it causes are stamped too;
 // any other fact a player caused is noted for the measures.
+// Without emergence it gives only a server's stamp (serverStampOf).
 func (g *Game) stage(f *fact.Fact) {
 	e := g.Emergence
 	if e == nil {
@@ -108,12 +113,8 @@ func (g *Game) stampFor(f *fact.Fact) *fact.Ref {
 		s := *g.stagedBy
 		return &s
 	}
-	if g.Live != nil {
-		for _, ref := range f.Subjects {
-			if s := g.serverStaged(ref); s != nil {
-				return s
-			}
-		}
+	if s := g.subjectServer(*f); s != nil {
+		return s
 	}
 	for _, ref := range f.Subjects {
 		switch ref.Kind {
@@ -153,6 +154,20 @@ func (g *Game) stampFor(f *fact.Fact) *fact.Ref {
 	return nil
 }
 
+// subjectServer is the stamp of the server whose stage one of a fact's
+// subjects is or belongs to; nil for none.
+func (g *Game) subjectServer(f fact.Fact) *fact.Ref {
+	if g.Live == nil {
+		return nil
+	}
+	for _, ref := range f.Subjects {
+		if s := g.serverStaged(ref); s != nil {
+			return s
+		}
+	}
+	return nil
+}
+
 // serverStaged is the stamp of the server whose stage a subject is or
 // belongs to: the stage, its hunt, its arc or its contest; nil for any
 // other.
@@ -182,20 +197,17 @@ func (g *Game) serverStaged(ref fact.Ref) *fact.Ref {
 	return nil
 }
 
-// serverStampOf is the only stamp a world without emergence gives: a
-// server's, from the command or a subject's stage. It reads no operator
-// stamp and notes no player fact, so an older replay stamps nothing new.
+// serverStampOf stands in for stampFor in a world without emergence: a
+// server's stamp only, from the command (stagingFor) or a subject's
+// stage. It reads no operator stamp and notes no player fact, so an older
+// replay stamps nothing new.
 func (g *Game) serverStampOf(f *fact.Fact) *fact.Ref {
 	if g.stagedBy != nil && g.stagedBy.Kind == stampServer {
 		s := *g.stagedBy
 		return &s
 	}
-	if g.Live != nil {
-		for _, ref := range f.Subjects {
-			if s := g.serverStaged(ref); s != nil {
-				return s
-			}
-		}
+	if s := g.subjectServer(*f); s != nil {
+		return s
 	}
 	return nil
 }

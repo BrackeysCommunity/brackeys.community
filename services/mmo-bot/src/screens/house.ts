@@ -5,7 +5,15 @@ import { authorLine, type Card, COLOUR } from "../card.ts";
 import { CHANNEL_KINDS, type ChannelKind, channelIn, type HeldEntry } from "../house.ts";
 import { encodeId, fields, integerTarget, target } from "../ids.ts";
 import { capitalise, type Lexicon, readable } from "../lexicon.ts";
-import { amount, countWords, outOf, plural, signed, TICKS_PER_HOUR } from "../units.ts";
+import {
+  amount,
+  countWords,
+  outOf,
+  plural,
+  signed,
+  TICKS_PER_DAY,
+  TICKS_PER_HOUR,
+} from "../units.ts";
 import { back, btn, buttonLabel, option, SELECT_MOST } from "./common.ts";
 import { BLANK, goalDraftId } from "./goals.ts";
 
@@ -33,8 +41,6 @@ export interface GuildThing {
   id: string;
   name: string;
 }
-
-const TICKS_PER_DAY = 24 * TICKS_PER_HOUR;
 
 /** When a staging may open, in ticks from now; the world holds the lead days. */
 const OPENS = [
@@ -77,8 +83,12 @@ export function templateName(
   return t?.tier ? `${base}, tier ${t.tier}` : base;
 }
 
-function settlementName(h: api.House, n: number): string {
-  return h.settlements.find((s) => s.n === n)?.name ?? "their settlement";
+function settlementName(
+  h: api.House | undefined,
+  n: number | undefined,
+  fallback = "their settlement",
+): string {
+  return (n === undefined ? undefined : h?.settlements.find((s) => s.n === n)?.name) ?? fallback;
 }
 
 function roleWord(role: string): string {
@@ -526,9 +536,8 @@ export function refWords(ref: string, h?: api.House, plain = false): string {
     case "goal":
       return `${kind} ${id}`;
     case "settlement": {
-      const n = integerTarget(id);
-      const s = n === undefined ? undefined : h?.settlements.find((x) => x.n === n);
-      return s ? `settlement ${s.name}` : "a settlement";
+      const name = settlementName(h, integerTarget(id), "");
+      return name ? `settlement ${name}` : "a settlement";
     }
     case "dungeon":
       return "a dungeon";
@@ -786,10 +795,7 @@ export function logWords(what: string, h?: api.House): string {
   const siteAt = (q: string, r: string) =>
     h?.settlements.flatMap((s) => s.sites).find((x) => `${x.at.q},${x.at.r}` === `${q},${r}`)?.name;
   return what
-    .replace(/settlement (\d+)/g, (_, n: string) => {
-      const s = h?.settlements.find((x) => x.n === Number(n));
-      return s ? s.name : "their settlement";
-    })
+    .replace(/settlement (\d+)/g, (_, n: string) => settlementName(h, Number(n)))
     .replace(/\b(on|pin) (-?\d+),(-?\d+)/g, (_, w: string, q: string, r: string) => {
       const name = siteAt(q, r);
       return w === "on" ? `on ${name ?? "its tile"}` : `pin at ${name ?? "a tile"}`;

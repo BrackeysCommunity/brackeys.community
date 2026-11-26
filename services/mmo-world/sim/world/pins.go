@@ -475,8 +475,7 @@ func (s *State) entered(h hex.Hex) bool {
 // pin-path-tiles, meets a discovered tile or a starting settlement.
 func (s *State) pathFrom(h hex.Hex, most int64) bool { return s.pathOver(h, most, nil) }
 
-// KnownWithin reports whether a walk over passable ground from h, within
-// most tiles, meets a discovered tile or a starting settlement.
+// KnownWithin is pathFrom for the game's staged puzzles.
 func (s *State) KnownWithin(h hex.Hex, most int64) bool { return s.pathFrom(h, most) }
 
 // pathOver is pathFrom with a terrain pin's patch round h laid, at its
@@ -717,7 +716,7 @@ func (s *State) pinFact(log fact.Log, tick int64, kind, region string, p *Pin, a
 		return 0, err
 	}
 	if p.By.staged() {
-		f.StagedBy = &fact.Ref{Kind: "server", ID: p.By.Server}
+		f.StagedBy = &fact.Ref{Kind: fact.StampServer, ID: p.By.Server}
 	}
 	return log.Append(f)
 }

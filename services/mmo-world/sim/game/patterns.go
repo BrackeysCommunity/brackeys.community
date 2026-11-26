@@ -391,6 +391,7 @@ func (g *Game) clueFound(c *Char, b *Board, i int, t int64) error {
 // patternSet sets the point a character stands on. Every refusal comes
 // before anything changes: no point there, a solved board, a value the
 // point does not take, or a character not free to work it.
+// A new staged route here needs exclusionStage to see it.
 func (g *Game) patternSet(c *Char, cmd Command) error {
 	if err := idle(c); err != nil {
 		return err

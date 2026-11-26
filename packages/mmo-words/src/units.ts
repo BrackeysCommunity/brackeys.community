@@ -7,6 +7,8 @@
 
 export const MINUTES_PER_TICK = 10;
 export const TICKS_PER_HOUR = 60 / MINUTES_PER_TICK;
+/** structural: a world day is 24 hours (sim/sheets TicksPerDay). */
+export const TICKS_PER_DAY = 24 * TICKS_PER_HOUR;
 
 /** An id as words: "iron-ore" reads "iron ore". */
 export function idWords(id: string): string {

@@ -403,17 +403,19 @@ func (e *Earner) unsold(p api.Purse) api.ActionRequest {
 // structural: asks an earner leaves resting when nobody buys.
 const restingAsks = 3
 
+// quote is the clean book's quote for a material here.
 func quote(p api.Purse, material string) api.Quote {
-	i := slices.IndexFunc(p.Quotes, func(q api.Quote) bool { return q.Material == material })
+	i := slices.IndexFunc(p.Quotes, func(q api.Quote) bool { return !q.Staged && q.Material == material })
 	if i < 0 {
 		return api.Quote{}
 	}
 	return p.Quotes[i]
 }
 
+// goodsOf is the clean units of a material a purse holds.
 func goodsOf(p api.Purse, material string) int64 {
 	for _, g := range p.Goods {
-		if g.Material == material {
+		if g.Staged == nil && g.Material == material {
 			return g.Units
 		}
 	}

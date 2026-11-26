@@ -629,3 +629,9 @@ func (g *Game) stagedPrize(x *Goal, cl goal.Claim, key string) error {
 	}
 	return g.mintStaged(c, st, ledger.SubKey(key, "prize", x.ID, cl.Who), "prize", s)
 }
+
+// stagedOn reports whether a stage is server's own; a stage gone is no one's.
+func (g *Game) stagedOn(stageID, server string) bool {
+	st := g.StageByID(stageID)
+	return st != nil && st.Server == server
+}

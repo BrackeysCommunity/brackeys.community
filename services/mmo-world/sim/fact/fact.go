@@ -25,6 +25,9 @@ type Ref struct {
 
 func (r Ref) String() string { return r.Kind + ":" + r.ID }
 
+// structural: the StagedBy kind of a fact a server's staging stamped.
+const StampServer = "server"
+
 // ParseRef reads a Ref back from its String form.
 func ParseRef(s string) (Ref, bool) {
 	kind, id, ok := strings.Cut(s, ":")

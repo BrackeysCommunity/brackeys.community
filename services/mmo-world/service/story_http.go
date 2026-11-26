@@ -271,7 +271,8 @@ func factNames(g *game.Game, viewer, server string, fs ...api.Fact) map[string]s
 }
 
 // arcs are the open and lately ended arcs, the season, and the side goals
-// the viewer backs. A personal thread is shown only to its character.
+// the viewer backs, as the viewer's server (or ?server=) reads them. A
+// personal thread is shown only to its character.
 func (s *Server) arcs(w http.ResponseWriter, r *http.Request) {
 	unlock, ok := s.hold(r.Context(), w, true)
 	if !ok {

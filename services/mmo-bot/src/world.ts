@@ -30,7 +30,7 @@ export interface World {
   /** The market forum; with a server, as that server reads it. */
   forum(server?: string): Promise<api.Forum>;
   goals(characterId: string): Promise<WorldReply<api.Goals>>;
-  /** The goals board; with a server, as that server reads it, its staged contests only. */
+  /** The goals board; with a server, as that server reads it, without other servers' staged contests. */
   board(server?: string): Promise<api.Board>;
   guild(characterId: string): Promise<api.Guild>;
   classes(characterId: string): Promise<api.Classes>;
@@ -44,8 +44,12 @@ export interface World {
     day?: number,
     server?: string,
   ): Promise<WorldReply<api.Chronicle>>;
-  /** A fact and its causes; with no character, the public view of them. */
-  chronicleFact(characterId: string | undefined, id: number): Promise<WorldReply<api.FactCauses>>;
+  /** A fact and its causes; with no character, the public view of them, as server reads it when one is named. */
+  chronicleFact(
+    characterId: string | undefined,
+    id: number,
+    server?: string,
+  ): Promise<WorldReply<api.FactCauses>>;
   /** The arcs open and lately ended; with no character, only those everyone may see, and a server's own staged arcs when one is named. */
   arcs(characterId: string, server?: string): Promise<api.Arcs>;
   /** The events channel's facts after a fact id: the bot's own read; with a server, as that server sees them. */
@@ -152,8 +156,8 @@ export function httpWorld(base: string, token: string, fetcher: typeof fetch = f
     hunts: () => get(api.PathHunts),
     chronicle: (id, day, server) =>
       read("GET", api.PathChronicle + q({ characterId: id || undefined, day, server })),
-    chronicleFact: (id, fact) =>
-      read("GET", api.PathChronicleFact + q({ characterId: id || undefined, id: fact })),
+    chronicleFact: (id, fact, server) =>
+      read("GET", api.PathChronicleFact + q({ characterId: id || undefined, id: fact, server })),
     arcs: (id, server) => get(api.PathArcs + q({ characterId: id || undefined, server })),
     storyEvents: (after, server) => get(api.PathStoryEvents + q({ after, server })),
     storyPromotions: (after, server) => get(api.PathStoryPromotions + q({ after, server })),

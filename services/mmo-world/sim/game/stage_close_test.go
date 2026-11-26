@@ -7,8 +7,7 @@ import (
 )
 
 // TestStageClosesAtEnds: a drop opened mid-day takes a crate-open the tick
-// before its end and refuses one at its end, closed by then rather than at
-// the next world day.
+// before its end and refuses one at its end.
 func TestStageClosesAtEnds(t *testing.T) {
 	g, c, home := houseGame(t)
 	for g.Tick()%sheets.TicksPerDay == 0 {

@@ -2,7 +2,7 @@ import type * as api from "./api.ts";
 import type { Card } from "./card.ts";
 import type { ForumStore } from "./forum.ts";
 import { alarmRoleOf, quietNow } from "./house.ts";
-import { type Audience, type ChannelSink, pollEvery } from "./hunts.ts";
+import { type Audience, audienceHouse, type ChannelSink, pollEvery } from "./hunts.ts";
 import type { Lexicon } from "./lexicon.ts";
 import { editDue, LiveCards, postOnce } from "./live.ts";
 import { factNum, factStr } from "./screens/common.ts";
@@ -229,13 +229,7 @@ export class EventsPoster {
 
   /** This channel's house; null when there is none or it cannot be read. */
   private async house(): Promise<api.House | null> {
-    if (!this.audience) return null;
-    try {
-      return await this.audience.houses.houseOf(this.audience.server);
-    } catch (e) {
-      this.log(`[events] house of ${this.audience.server}: ${String(e)}`);
-      return null;
-    }
+    return (await audienceHouse(this.audience, this.log, "events")) ?? null;
   }
 
   /** A fair's contests from the board; none when the board cannot be read. */

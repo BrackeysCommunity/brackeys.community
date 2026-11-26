@@ -34,7 +34,9 @@ func (g *Game) withStage(st *Stage) (restore func()) {
 	}
 }
 
-// stagedSpan marks the facts written until end is called as server's staging: Log.Len is the last id already written, so the span is (Len at start, Len at end].
+// stagedSpan marks the facts written until end is called as server's
+// staging. Log.Len is the last id already written, so the span is
+// (Len at start, Len at end].
 func (g *Game) stagedSpan(server string) (end func()) {
 	from := fact.ID(g.Log.Len())
 	return func() {
@@ -66,10 +68,8 @@ func (g *Game) stagedOf(f fact.Fact) (staged bool, server string) {
 			return true, in.Staged.Server
 		}
 	}
-	for _, r := range f.Subjects {
-		if st := g.serverStaged(r); st != nil {
-			return true, st.ID
-		}
+	if s := g.subjectServer(f); s != nil {
+		return true, s.ID
 	}
 	return false, ""
 }

@@ -39,6 +39,21 @@ export interface Audience {
   houses: HouseReader;
 }
 
+/** An audience's house: null without an audience or when the world serves none, undefined when the read failed. */
+export async function audienceHouse(
+  audience: Audience | undefined,
+  log: (line: string) => void,
+  label: string,
+): Promise<api.House | null | undefined> {
+  if (!audience) return null;
+  try {
+    return await audience.houses.houseOf(audience.server);
+  } catch (e) {
+    log(`[${label}] house of ${audience.server}: ${String(e)}`);
+    return undefined;
+  }
+}
+
 /** Whether a staged hunt is this audience's: its stage is one of the server's own. */
 export function ownStage(house: api.House | null | undefined, stage: string): boolean {
   return !!house?.stages.some((s) => s.id === stage);
@@ -204,13 +219,8 @@ export class HuntPoster {
    * the world serves none, undefined when the read failed.
    */
   private async house(hunts: readonly api.HuntCard[]): Promise<api.House | null | undefined> {
-    if (!this.audience || !hunts.some((h) => h.stage)) return null;
-    try {
-      return await this.audience.houses.houseOf(this.audience.server);
-    } catch (e) {
-      this.log(`[hunts] house of ${this.audience.server}: ${String(e)}`);
-      return undefined;
-    }
+    if (!hunts.some((h) => h.stage)) return null;
+    return audienceHouse(this.audience, this.log, "hunts");
   }
 
   private async show(h: HuntPost, b: api.HuntBoard): Promise<boolean> {

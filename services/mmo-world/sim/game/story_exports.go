@@ -109,9 +109,21 @@ func OnServer(f fact.Fact, server string) bool {
 // ArcOn reports whether server may read a: an arc no server's staging cast, or
 // one its own did.
 func (g *Game) ArcOn(a *Arc, server string) bool {
-	if a.By != ByServer {
-		return true
+	return a.By != ByServer || server != "" && g.stagedOn(a.Staging, server)
+}
+
+// GoalOn reports whether server may read a goal: one no server staged, or
+// a contest or staged arc's side its own staging made.
+func (g *Game) GoalOn(x *Goal, server string) bool {
+	if x.Issuer.Kind == goal.ByStaged {
+		return g.stagedOn(x.Issuer.ID, server)
 	}
-	st := g.StageByID(a.Staging)
-	return st != nil && server != "" && st.Server == server
+	if g.Story != nil && x.Cond.Verb == goal.Back {
+		if arcID, _, _, ok := parseSideKey(x.Cond.Side); ok {
+			if a := g.arcByID(arcID); a != nil {
+				return g.ArcOn(a, server)
+			}
+		}
+	}
+	return true
 }

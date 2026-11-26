@@ -349,14 +349,7 @@ func (g *Game) moderation(h *House, m *ModerateCmd, answers bool) (func(*House),
 		if !r.named() {
 			return nil, refuse(BadArgs, "only a name is masked; a goal's words are hidden")
 		}
-		i, masked := slices.BinarySearch(h.Masks, m.Ref)
-		if masked == (m.Action == ModMask) {
-			return same("is as asked")
-		}
-		if masked {
-			return func(h *House) { h.Masks = slices.Delete(h.Masks, i, i+1) }, nil
-		}
-		return func(h *House) { h.Masks = slices.Insert(h.Masks, i, m.Ref) }, nil
+		return toggled(h, func(h *House) *[]string { return &h.Masks }, m.Ref, m.Action == ModMask, same)
 	case ModHide, ModUnhide:
 		r, err := g.parseRef(m.Ref)
 		if err != nil {
@@ -368,18 +361,24 @@ func (g *Game) moderation(h *House, m *ModerateCmd, answers bool) (func(*House),
 		if m.Action == ModHide && g.GoalOf(r.id).Poster == "" {
 			return nil, refuse(BadArgs, "%s is the world's own goal: it carries no player's words", r.id)
 		}
-		i, hidden := slices.BinarySearch(h.Hidden, r.id)
-		if hidden == (m.Action == ModHide) {
-			return same("is as asked")
-		}
-		if hidden {
-			return func(h *House) { h.Hidden = slices.Delete(h.Hidden, i, i+1) }, nil
-		}
-		return func(h *House) { h.Hidden = slices.Insert(h.Hidden, i, r.id) }, nil
+		return toggled(h, func(h *House) *[]string { return &h.Hidden }, r.id, m.Action == ModHide, same)
 	case ModMute, ModSuspend, ModExclude, ModUnmute, ModUnsuspend, ModUnexclude:
 		return g.holdChange(h, m, same)
 	}
 	return nil, refuse(BadArgs, "no moderation %q", m.Action)
+}
+
+// toggled is the change that adds key to, or drops it from, the sorted
+// list of a house that list picks; same answers when it is already so.
+func toggled(h *House, list func(*House) *[]string, key string, add bool, same func(string) (func(*House), error)) (func(*House), error) {
+	i, in := slices.BinarySearch(*list(h), key)
+	if in == add {
+		return same("is as asked")
+	}
+	if in {
+		return func(h *House) { l := list(h); *l = slices.Delete(*l, i, i+1) }, nil
+	}
+	return func(h *House) { l := list(h); *l = slices.Insert(*l, i, key) }, nil
 }
 
 // holdChange checks a hold or its lifting. A hold lasts Days world days
@@ -634,13 +633,23 @@ func moderationGate(g *Game, c *Char, cmd Command) error {
 	return nil
 }
 
-// exclusionStage is the stage a character's command plays in, for the
-// stager's exclusion: the one it names, else the vault or staged board it
-// works. Only board work counts a board by where it stands, so a plain arm
-// or solve on a staged point is not held. Ending a stage is its staff's.
+// exclusionStage is the stage a command plays in, for its server's
+// exclusion: the stage it names, else the vault it arms, else, for board
+// work, the staged board it stands on. A solve of a countdown already
+// running and the end of a stage are never held.
 func (g *Game) exclusionStage(c *Char, cmd Command) *Stage {
-	if cmd.Kind == StagingEnd {
+	switch cmd.Kind {
+	case StagingEnd:
 		return nil
+	case MachineSolve:
+		// A solve only resolves a countdown armed before the hold; refusing it
+		// would leave the character armed everywhere.
+		if c.Armed != nil {
+			return nil
+		}
+		if sh := g.sharedOf(c); sh != nil && sh.Machine.Armed() {
+			return nil
+		}
 	}
 	if st := g.cmdStage(cmd); st != nil {
 		return st
@@ -651,15 +660,6 @@ func (g *Game) exclusionStage(c *Char, cmd Command) *Stage {
 			if st, err := g.vaultFor(c, cmd); err == nil && st != nil {
 				return st
 			}
-		}
-	case MachineSolve:
-		if c.Armed != nil && c.Armed.Pattern != nil {
-			if b := g.boardByID(c.Armed.Pattern.Board); b != nil {
-				return g.boardStage(b)
-			}
-		}
-		if st := g.vaultOfChar(c.Armed, g.sharedOf(c)); st != nil {
-			return st
 		}
 	}
 	board := cmd.Kind == PatternSet ||

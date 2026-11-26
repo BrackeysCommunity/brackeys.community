@@ -46,4 +46,10 @@ test("the board, forum, arcs and promotions reads carry the server they are aske
   expect(urls[2]!.searchParams.has("characterId")).toBe(false);
   await world.board();
   expect(urls[4]!.searchParams.has("server")).toBe(false);
+  await world.chronicleFact(undefined, 7, "g1");
+  expect(urls[5]!.searchParams.get("server")).toBe("g1");
+  expect(urls[5]!.searchParams.get("id")).toBe("7");
+  expect(urls[5]!.searchParams.has("characterId")).toBe(false);
+  await world.storyEvents(3, "g1");
+  expect(urls[6]!.searchParams.get("server")).toBe("g1");
 });

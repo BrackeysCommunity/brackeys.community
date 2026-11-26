@@ -382,7 +382,7 @@ func (b *Beneficiary) use(o api.Options, s *benefit, day int64) (api.ActionReque
 				return api.ActionRequest{Kind: api.ActGive, Target: out[0], Asset: asset, Units: min(g.Units, giveUnits)}, true
 			}
 		case UseTry:
-			if cleanOf(p, g.Material) == 0 {
+			if goodsOf(p, g.Material) == 0 {
 				if once("sell " + asset) {
 					return api.ActionRequest{Kind: api.ActSell, Material: g.Material, Units: g.Units}, true
 				}
@@ -458,16 +458,6 @@ func stagedQuote(p api.Purse, material string) api.Quote {
 		}
 	}
 	return quote(p, material)
-}
-
-// cleanOf is the clean units of a material a purse holds.
-func cleanOf(p api.Purse, material string) int64 {
-	for _, g := range p.Goods {
-		if g.Staged == nil && g.Material == material {
-			return g.Units
-		}
-	}
-	return 0
 }
 
 // Resting plays Inner but passes one tick in Every from From: a change of

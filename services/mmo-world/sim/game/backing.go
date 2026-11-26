@@ -390,10 +390,8 @@ func (g *Game) backEvents(f fact.Fact) []goal.Event {
 		if staged && s.a.Staging == "" {
 			continue
 		}
-		if staged {
-			if st := g.StageByID(s.a.Staging); st == nil || st.Server != by {
-				continue
-			}
+		if staged && !g.stagedOn(s.a.Staging, by) {
+			continue
 		}
 		units, worth, implicit := g.counts(c, s, f)
 		if units <= 0 {

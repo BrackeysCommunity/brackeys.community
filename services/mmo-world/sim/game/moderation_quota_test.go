@@ -45,3 +45,23 @@ func TestExcludedFromStagedVault(t *testing.T) {
 	targeted.Target = st.ID
 	vaultRefused(t, g, other, Excluded, targeted)
 }
+
+// TestExclusionLetsArmedSolve: a character who armed a's staged vault
+// before a's staff excluded it may still solve, and is free afterwards.
+func TestExclusionLetsArmedSolve(t *testing.T) {
+	g, stager, st := vaultWorld(t)
+	seat := vaultParty(t, g, st.At, 1)[0]
+	vaultAct(t, g, seat, armVault)
+	modAct(t, g, modCmd(stager, "qx-exclude2", ModExclude, RefCharacter+":"+seat.C.ID, 0, ""))
+	sh := g.sharedOf(seat)
+	if sh == nil || !sh.Machine.Armed() {
+		t.Fatal("the vault is not armed")
+	}
+	solveVault(t, g, sh, vaultLog(g, sh))
+	if seat.Armed != nil {
+		t.Fatal("the seat is still armed")
+	}
+	if sh := g.sharedOf(seat); sh != nil && sh.Machine.Armed() {
+		t.Fatal("the vault is still armed")
+	}
+}

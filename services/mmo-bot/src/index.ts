@@ -136,10 +136,21 @@ client.once(Events.ClientReady, async (c) => {
     (await houses.channelOf(guild, kind)) ?? (await own(guild, ref));
   const prefix = (base: string, ref: string | undefined) => (guild: string, id: string) =>
     posterPrefix(base, guild, id, ref ? { guild: primary, channel: ref } : undefined);
+  /** The world's reads as one guild's server reads them. */
+  const worldFor = (guild: string) => ({
+    board: () => world.board(guild),
+    forum: () => world.forum(guild),
+    hunts: () => world.hunts(),
+    arcs: (id = "") => world.arcs(id, guild),
+    storyEvents: (after: number) => world.storyEvents(after, guild),
+    storyPromotions: (after: number) => world.storyPromotions(after, guild),
+    chronicle: (id?: string, day?: number) => world.chronicle(id, day, guild),
+    chronicleFact: (id: string | undefined, fact: number) => world.chronicleFact(id, fact, guild),
+  });
   const audience = (guild: string) => ({
     server: guild,
     houses,
-    board: () => world.board(guild),
+    board: worldFor(guild).board,
     now: Date.now,
   });
 
@@ -155,7 +166,7 @@ client.once(Events.ClientReady, async (c) => {
     mapped("events", huntRef),
     (guild, id) =>
       new HuntPoster(
-        world,
+        worldFor(guild),
         lex,
         store,
         channel(id),
@@ -174,12 +185,7 @@ client.once(Events.ClientReady, async (c) => {
     mapped("events", eventsChannel),
     (guild, id) =>
       new EventsPoster(
-        {
-          storyEvents: (after) => world.storyEvents(after, guild),
-          arcs: () => world.arcs("", guild),
-          hunts: () => world.hunts(),
-          chronicleFact: (_character, fact) => world.chronicleFact(undefined, fact),
-        },
+        worldFor(guild),
         lex,
         store,
         channel(id),
@@ -204,7 +210,7 @@ client.once(Events.ClientReady, async (c) => {
       new ChroniclePoster(
         {
           async chronicle(server) {
-            const r = await world.chronicle("", undefined, server);
+            const r = await worldFor(server).chronicle("");
             if (r.ok) return r.reply;
             // Not found: no world day has closed yet.
             if (r.refusal.code === api.CodeNotFound) return null;
@@ -230,7 +236,7 @@ client.once(Events.ClientReady, async (c) => {
     mapped("chronicle", chronicleChannel),
     (guild, id) =>
       new PromotionsPoster(
-        { storyPromotions: (after) => world.storyPromotions(after, guild) },
+        worldFor(guild),
         lex,
         store,
         channel(id),
@@ -245,14 +251,7 @@ client.once(Events.ClientReady, async (c) => {
   new GuildPosters(
     guildIds,
     mapped("market", marketForum),
-    (guild, id) =>
-      new ForumPoster(
-        { forum: () => world.forum(guild) },
-        lex,
-        store,
-        sink(id),
-        marketPrefix(guild, id),
-      ),
+    (guild, id) => new ForumPoster(worldFor(guild), lex, store, sink(id), marketPrefix(guild, id)),
     console.log,
     "forum",
   ).start(FORUM_POLL_MS);
@@ -261,14 +260,7 @@ client.once(Events.ClientReady, async (c) => {
   new GuildPosters(
     guildIds,
     mapped("board", goalsForum),
-    (guild, id) =>
-      new BoardPoster(
-        { board: () => world.board(guild) },
-        lex,
-        store,
-        sink(id),
-        boardPrefix(guild, id),
-      ),
+    (guild, id) => new BoardPoster(worldFor(guild), lex, store, sink(id), boardPrefix(guild, id)),
     console.log,
     "board",
   ).start(FORUM_POLL_MS);

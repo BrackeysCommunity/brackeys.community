@@ -24,6 +24,7 @@ import { isFlight, SYNDICATE, syndicateName } from "./screens/crime.ts";
 import { hexDistance } from "./screens/hunt.ts";
 import { LISTS } from "./screens/market.ts";
 import { dropCard } from "./screens/staged.ts";
+import { TICKS_PER_DAY, TICKS_PER_HOUR } from "./units.ts";
 import { httpWorld, type World } from "./world.ts";
 
 /** Whether a select is for action and, given a target, offers it. */
@@ -810,11 +811,9 @@ export interface CrimeRun extends Counted {
 /** The act kinds the crime walk records for the fixtures, latest accepted reply of each. */
 export const CRIME_ACTS = [api.ActSteal, api.ActFence, api.ActPayFine, api.ActFlee] as const;
 
-// structural: the world's ticks a day and an hour (sim/sheets units), the
-// ledger's prefix for a material, the material and recipe the walk shapes
-// its tools from, the topics and choices it answers, and how far it goes.
-const TICKS_PER_DAY = 144;
-const TICKS_PER_HOUR = 6;
+// structural: the ledger's prefix for a material, the material and recipe
+// the walk shapes its tools from, the topics and choices it answers, and how
+// far it goes.
 const MATERIAL_ASSET = "mat:";
 const THIEF_START = "hook";
 const UPRIGHT = "upright";
