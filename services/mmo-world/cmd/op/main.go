@@ -1,11 +1,11 @@
 // Command op is the operator CLI: inspect, correct, grant, ban, audit, economy,
 // stand a character before a machine, pin content, start a season, cast an
 // arc, rename for everyone, close escalated cases, read the story, the
-// emergence dashboard and the house log, reset and replay a world.
+// emergence dashboard and the house log, reset, replay and export a world.
 //
 // Writes go through the running service's operator API, so the service
 // stays the only writer and every correction replays. replay reads the
-// database directly with the world's keys.
+// database directly with the world's keys; export reads it with none.
 package main
 
 import (
@@ -66,6 +66,9 @@ const usage = `op [-id <interaction id>] <command>
   audit                           the conservation check
   economy                         the faucet, and characters flagged for review
   digest                          the world's tick and digest
+  export -out DIR [-from-day N] [-to-day M]
+                                  recorded play, pseudonymised, for the tuning pass (direct: DATABASE_URL,
+                                  MMO_WORLD_ID and the world's sheets under MMO_SHEETS_ROOT; no key)
   reset <world> [-direct]         wipe a disposable test world and found it again
   replay [-from N] [-to N]        re-run ticks against their recorded digests, inside one rules epoch`
 
@@ -77,7 +80,7 @@ func main() {
 }
 
 func cli() *client.HTTP {
-	return client.New(envvar.Get(service.EnvURL, "http://localhost:8080"), os.Getenv(service.EnvOperatorToken))
+	return client.New(envvar.Get(service.EnvURL, "http://localhost:8080"), service.TokenFromEnv(service.EnvOperatorToken))
 }
 
 func show(v any) error {
@@ -273,6 +276,8 @@ func run(args []string) error {
 		return reset(rest)
 	case "replay":
 		return replayCmd(rest)
+	case "export":
+		return exportCmd(rest)
 	}
 	return errors.New(usage)
 }
