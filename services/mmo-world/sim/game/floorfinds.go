@@ -19,13 +19,17 @@ import (
 // structural: a floor find is drawn as a percent.
 const findMeasure = "floor-find"
 
-// remember notes a delver's loss on floor n, which only it finds again.
+// remember notes a character's loss on floor n (0 for the tile), which only
+// it finds again, and lets lapsed claims go.
 func (g *Game) remember(c *Char, h hex.Hex, n int64, lost []item.Spoil) {
+	t, tr := g.Tick(), g.trigger(TrigFell)
+	c.Dropped = slices.DeleteFunc(c.Dropped, func(d Dropped) bool { return !inWindow(tr, d.Tick, t) })
 	i := slices.IndexFunc(c.Dropped, func(d Dropped) bool { return d.Hex == h && d.Floor == n })
 	if i < 0 {
 		c.Dropped = append(c.Dropped, Dropped{Hex: h, Floor: n})
 		i = len(c.Dropped) - 1
 	}
+	c.Dropped[i].Tick = t
 	for _, s := range lost {
 		c.Dropped[i].Lost = item.AddSpoil(c.Dropped[i].Lost, s.Material, s.Qty)
 	}
@@ -36,15 +40,14 @@ func (g *Game) remember(c *Char, h hex.Hex, n int64, lost []item.Spoil) {
 // floor's pool, at floor-find-chance as the place's rules scale it.
 func (g *Game) floorFinds(c *Char, h hex.Hex, n int64, key string, place []tags.Tag) error {
 	pool := ledger.FloorPool(h.Ref(), n)
-	if i := slices.IndexFunc(c.Dropped, func(d Dropped) bool { return d.Hex == h && d.Floor == n }); i >= 0 {
-		tr := g.trigger(TrigFell)
+	if i, tr := g.claimOn(c, h, n, g.Tick()); i >= 0 {
 		goods := takeFrom(g.Ledger.Held(pool), c.Dropped[i].Lost, tr.Magnitude)
-		c.Dropped = slices.Delete(c.Dropped, i, i+1)
 		if len(goods) > 0 {
 			if err := g.foundIn(c, h, pool, ledger.SubKey(key, "fell"), Find{Trigger: TrigFell, Rarity: rarityCommon, Chance: tr.Chance, Goods: goods}, g.Tick()); err != nil {
 				return err
 			}
 		}
+		g.reclaimed(c, i, pool, goods)
 	}
 	held := g.Ledger.Held(pool)
 	if len(held) == 0 {

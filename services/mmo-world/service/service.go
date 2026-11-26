@@ -423,8 +423,9 @@ func (s *Server) epochTaken() {
 // and so are the worlds this service founds.
 func (s *Server) resettable(m *store.Meta) bool { return m != nil && m.Disposable && s.cfg.Disposable }
 
-// found starts a world at tick 0, now, on the service's sheets; replace
-// wipes the world it replaces in the same transaction.
+// found starts a world at tick 0 on the service's sheets, its clock from
+// store.FoundedAt; replace wipes the world it replaces in the same
+// transaction.
 func (s *Server) found(ctx context.Context, replace bool) error {
 	digest, err := s.cfg.Book.Digest()
 	if err != nil {
@@ -435,7 +436,7 @@ func (s *Server) found(ctx context.Context, replace bool) error {
 		return err
 	}
 	m := store.Meta{ID: s.cfg.World, KeyVersion: s.cfg.KeyVersion, KeyCheck: s.cfg.Keys.Check(), RulesEpoch: s.cfg.Epoch,
-		SheetsDigest: digest, StartedAt: s.cfg.Now(), TickSeconds: s.cfg.TickSeconds, Disposable: s.cfg.Disposable}
+		SheetsDigest: digest, StartedAt: store.FoundedAt(s.cfg.Now(), s.cfg.TickSeconds), TickSeconds: s.cfg.TickSeconds, Disposable: s.cfg.Disposable}
 	if replace {
 		err = s.st.Recreate(ctx, m, g)
 	} else {

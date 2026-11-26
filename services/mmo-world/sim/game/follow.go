@@ -66,9 +66,10 @@ func (g *Game) slowest(l *Char, from, to hex.Hex, cost, t int64) int64 {
 }
 
 // followed takes each follower onto the tile the leader entered, paying
-// the provisions the leader's step owed. One who cannot (busy, down,
-// or short of provisions) drops off, and the party hears of it.
-func (g *Game) followed(l *Char, followers []*Char, to hex.Hex, owe, t int64, acts []world.Action) ([]world.Action, error) {
+// the provisions the leader's step owed; a tile the leader saw first the
+// party saw first. One who cannot (busy, down, or short of provisions)
+// drops off, and the party hears of it.
+func (g *Game) followed(l *Char, followers []*Char, to hex.Hex, owe int64, first bool, t int64, acts []world.Action) ([]world.Action, error) {
 	p := g.partyOf(l)
 	step := l.Long.Steps
 	for _, f := range followers {
@@ -89,6 +90,7 @@ func (g *Game) followed(l *Char, followers []*Char, to hex.Hex, owe, t int64, ac
 		}
 		acts = append(acts, world.Action{Kind: world.ActVisit, Hex: to, By: char.Ref(f.C.ID), Dir: &dir, Quiet: g.charScale(f, "tracks-left", fixed.Hundredths) <= 0})
 		f.C.Deeds.Bump(DeedHauled, f.Carried())
+		g.rode(f, to, l.Long.StepTicks, t)
 		f.C.Practise("travel", 1, g.r.Growth.Params())
 		if owe > 0 {
 			key := ledger.SubKey(l.Long.Key, "follow", f.C.ID, strconv.FormatInt(step, decimal))
@@ -96,7 +98,7 @@ func (g *Game) followed(l *Char, followers []*Char, to hex.Hex, owe, t int64, ac
 				return acts, err
 			}
 		}
-		if _, err := g.fact(f, "travel.entered", t, append(fact.At(to), fact.N("ticks", l.Long.StepTicks), fact.S("follows", l.C.ID))...); err != nil {
+		if _, err := g.fact(f, "travel.entered", t, enteredData(to, l.Long.StepTicks, first, fact.S("follows", l.C.ID))...); err != nil {
 			return acts, err
 		}
 		if err := g.steppedOnto(f, to, t); err != nil {

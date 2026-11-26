@@ -53,13 +53,13 @@ func TestTileRetainsRecentTracksAndHeavyEvents(t *testing.T) {
 
 func TestDailyDecayAndSeasonReset(t *testing.T) {
 	s := State{Rumours: []Rumour{{Fact: 1, Expires: 3}, {Fact: 2, Expires: 4}}}
-	p := Params{decay: map[string]int64{CounterGathered: 50, CounterBattlesWon: 50, CounterPassage: 50}}
+	p := Params{BattleMemory: 2, decay: map[string]int64{CounterGathered: 50, CounterBattlesWon: 50, CounterPassage: 50}}
 	s.Gather("ore", 4)
 	s.Leave(2)
 	s.Slay("hound")
-	s.WonBeat("pack")
+	s.WonBeat("pack", 1)
 	s.Decay(p, 3)
-	if s.Gathered["ore"] != 2 || len(s.BattlesWon) != 0 || s.Passage[2] != 0 || !slices.Equal(s.Rumours, []Rumour{{Fact: 2, Expires: 4}}) {
+	if s.Gathered["ore"] != 2 || len(s.BattlesWon) != 0 || s.LastBattle != 1 || s.Passage[2] != 0 || !slices.Equal(s.Rumours, []Rumour{{Fact: 2, Expires: 4}}) {
 		t.Fatal(s)
 	}
 	if s.Slain["hound"] != 1 || s.Season[CounterGathered] != 4 || s.Season[CounterPassage] != 1 || s.Season[CounterBattlesWon] != 1 {
@@ -72,7 +72,7 @@ func TestDailyDecayAndSeasonReset(t *testing.T) {
 	s.Decay(p, 4)
 	s.Decay(p, 5)
 	s.Tidy()
-	if !s.Empty() || s.Gathered != nil || s.BattlesWon != nil {
+	if !s.Empty() || s.Gathered != nil || s.BattlesWon != nil || s.LastBattle != 0 {
 		t.Fatal(s)
 	}
 }

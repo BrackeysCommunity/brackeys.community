@@ -39,12 +39,51 @@ type Long struct {
 	Stop *Stop `json:"stop,omitempty"`
 }
 
+// undiscovered reports whether entering h this tick is its first sight:
+// nobody has discovered it, and no action queued earlier this tick will.
+func (g *Game) undiscovered(h hex.Hex, acts []world.Action) bool {
+	if tl := g.World.Tile(h); tl != nil && tl.Discovered != nil {
+		return false
+	}
+	return !slices.ContainsFunc(acts, func(a world.Action) bool {
+		return (a.Kind == world.ActVisit || a.Kind == world.ActDiscover) && a.Hex == h
+	})
+}
+
+// enteredData is a travel.entered fact's data; a first sight marks it.
+func enteredData(to hex.Hex, ticks int64, first bool, more ...fact.Datum) []fact.Datum {
+	data := append(fact.At(to), fact.N("ticks", ticks))
+	if first {
+		data = append(data, fact.N("first", 1))
+	}
+	return append(data, more...)
+}
+
+// rode is a step taken in the saddle: the mount's xp on terrain it suits
+// and the ticks its upkeep counts (GDD 6.2). An unfed mount carries no one.
+func (g *Game) rode(c *Char, to hex.Hex, ticks, t int64) {
+	if m := c.C.In(char.Mount, 0); m != nil && c.Fed() {
+		g.r.Mounts.Ridden(m, g.ground(to, t/sheets.TicksPerDay), g.Laden(c))
+		c.Rode += ticks
+	}
+}
+
 // woundedTicks is what being wounded adds to a long action (GDD 5.5).
 func (g *Game) woundedTicks(c *Char, t int64) int64 {
 	if c.C.Has(char.Wounded, t) {
 		return g.r.wp("wounded-ticks")
 	}
 	return 0
+}
+
+// woundedPace is what wounds add to a journey: a party waits for its
+// slowest, so any wounded follower standing with the leader counts.
+func (g *Game) woundedPace(l *Char, t int64) int64 {
+	slow := g.woundedTicks(l, t)
+	for _, f := range g.followersOn(l, l.C.At) {
+		slow = max(slow, g.woundedTicks(f, t))
+	}
+	return slow
 }
 
 func (g *Game) startLong(c *Char, kind, key string, first, total int64) *Long {
@@ -194,7 +233,7 @@ func (g *Game) travel(c *Char, cmd Command) error {
 	// The party moves at its slowest: the first step waits for the
 	// followers standing with it.
 	first = g.slowest(c, c.C.At, route[0], first, t)
-	slow := g.woundedTicks(c, t)
+	slow := g.woundedPace(c, t)
 	l := g.startLong(c, Travel, cmd.Key, first+slow, total+slow)
 	l.Route, l.StepTicks, l.Stop = route, first+slow, cmd.Stop
 	return nil
@@ -435,13 +474,10 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 	if err := g.visited(c, to, t); err != nil {
 		return acts, err
 	}
-	first := g.World.Tile(to) == nil || g.World.Tile(to).Discovered == nil
+	first := g.undiscovered(to, acts)
 	acts = append(acts, world.Action{Kind: world.ActVisit, Hex: to, By: char.Ref(c.C.ID), Dir: &dir, Quiet: g.charScale(c, "tracks-left", fixed.Hundredths) <= 0})
 	c.C.Deeds.Bump(DeedHauled, c.Carried())
-	if m := c.C.In(char.Mount, 0); m != nil && c.Fed() {
-		g.r.Mounts.Ridden(m, g.ground(to, t/sheets.TicksPerDay), g.Laden(c))
-		c.Rode += l.StepTicks
-	}
+	g.rode(c, to, l.StepTicks, t)
 	c.C.Practise("travel", 1, g.r.Growth.Params())
 	l.Spent += l.StepTicks
 	l.Steps++
@@ -449,15 +485,11 @@ func (g *Game) enter(c *Char, t int64, acts []world.Action) ([]world.Action, err
 	if err := g.provision(c, t); err != nil {
 		return acts, err
 	}
-	acts, err := g.followed(c, followers, to, l.Owed-owed, t, acts)
+	acts, err := g.followed(c, followers, to, l.Owed-owed, first, t, acts)
 	if err != nil {
 		return acts, err
 	}
-	data := append(fact.At(to), fact.N("ticks", l.StepTicks))
-	if first {
-		data = append(data, fact.N("first", 1))
-	}
-	if _, err := g.fact(c, "travel.entered", t, data...); err != nil {
+	if _, err := g.fact(c, "travel.entered", t, enteredData(to, l.StepTicks, first)...); err != nil {
 		return acts, err
 	}
 	if err := g.steppedOnto(c, to, t); err != nil {

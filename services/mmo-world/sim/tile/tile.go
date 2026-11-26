@@ -25,6 +25,7 @@ type State struct {
 	Passage     [hex.Directions]int64 `json:"passage"`
 	BattlesWon  map[string]int64      `json:"battlesWon,omitempty"` // beats won here, by creature tag
 	BattlesLost int64                 `json:"battlesLost,omitempty"`
+	LastBattle  int64                 `json:"lastBattle,omitempty"` // tick of the latest beat won or fall here
 	Population  map[string]int64      `json:"population,omitempty"` // per species, where it differs from capacity
 	Slain       map[string]int64      `json:"slain,omitempty"`      // per species, this season
 	Residents   []string              `json:"residents,omitempty"`  // NPCs living or camped here
@@ -96,10 +97,17 @@ const (
 type Params struct {
 	EventRing, TracksKept, HeavyFact int64
 	HauntedFalls, HauntedDays        int64
-	decay                            map[string]int64
+	// BattleMemory is how long a tile remembers its latest battle: the
+	// spoils-of-war window, the longest anything reads it.
+	BattleMemory int64
+	decay        map[string]int64
 }
 
-// NewParams reads tiles.counters and tiles.params.
+// structural: the tiles.triggers row whose window bounds BattleMemory.
+const spoilsTrigger = "spoils-of-war"
+
+// NewParams reads tiles.counters, tiles.params and the spoils-of-war
+// trigger's window.
 func NewParams(b *sheets.Book) Params {
 	p := Params{
 		EventRing:    sheets.IntParam(b.TileParams, "event-ring"),
@@ -108,6 +116,11 @@ func NewParams(b *sheets.Book) Params {
 		HauntedFalls: sheets.IntParam(b.TileParams, "haunted-falls"),
 		HauntedDays:  sheets.IntParam(b.TileParams, "haunted-days"),
 		decay:        map[string]int64{},
+	}
+	for _, t := range b.Triggers {
+		if t.ID == spoilsTrigger {
+			p.BattleMemory = t.Window
+		}
 	}
 	for _, c := range b.TileCounters {
 		p.decay[c.ID] = c.DecayPercent
@@ -143,6 +156,9 @@ func (s *State) Decay(p Params, tick int64) {
 	s.BattlesLost = decay(s.BattlesLost, p.decay[CounterBattlesLost])
 	decayMap(s.Gathered, p.decay[CounterGathered])
 	s.Rumours = slices.DeleteFunc(s.Rumours, func(r Rumour) bool { return r.Expires <= tick })
+	if p.BattleMemory > 0 && tick-s.LastBattle > p.BattleMemory {
+		s.LastBattle = 0
+	}
 }
 
 // Visit records an arrival by someone; a quiet one lays no track.
@@ -176,12 +192,19 @@ func (s *State) Remember(p Params, f fact.Fact) {
 }
 
 // WonBeat records a beat won here against a creature carrying tag.
-func (s *State) WonBeat(tag string) {
+func (s *State) WonBeat(tag string, tick int64) {
 	if s.BattlesWon == nil {
 		s.BattlesWon = map[string]int64{}
 	}
 	s.BattlesWon[tag]++
 	s.bump(CounterBattlesWon, 1)
+	s.LastBattle = tick
+}
+
+// LostBattle records a character going down here.
+func (s *State) LostBattle(tick int64) {
+	s.BattlesLost++
+	s.LastBattle = tick
 }
 
 // Slay records one of a species slain here.
@@ -227,7 +250,7 @@ func (s *State) Tidy() {
 // need not be stored.
 func (s *State) Empty() bool {
 	return s.Discovered == nil && s.Visits == 0 && s.Passage == [hex.Directions]int64{} &&
-		len(s.BattlesWon) == 0 && s.BattlesLost == 0 && len(s.Population) == 0 &&
+		len(s.BattlesWon) == 0 && s.BattlesLost == 0 && s.LastBattle == 0 && len(s.Population) == 0 &&
 		len(s.Slain) == 0 && len(s.Residents) == 0 && len(s.Stock) == 0 && len(s.Gathered) == 0 &&
 		s.Corruption == 0 && s.Fire == (Fire{}) && len(s.WeatherTags) == 0 && s.Road == 0 &&
 		len(s.Structures) == 0 && s.Owner == nil && len(s.Tracks) == 0 &&

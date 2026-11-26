@@ -60,6 +60,7 @@ type Dropped struct {
 	Hex   hex.Hex      `json:"hex"`
 	Floor int64        `json:"floor,omitempty"`
 	Lost  []item.Spoil `json:"lost"`
+	Tick  int64        `json:"tick,omitempty"` // the latest loss, which the window counts from
 }
 
 // Left is an item a character cached on a tile.
@@ -135,27 +136,70 @@ func (g *Game) arrived(c *Char, h hex.Hex, key string, t int64) error {
 }
 
 // fell gives back the character's own haul lost on this tile, as much
-// as the pool still holds (GDD 8.6, What fell here).
+// as the pool still holds and the trigger's magnitude allows (GDD 8.6,
+// What fell here).
 func (g *Game) fell(c *Char, h hex.Hex, key string, t int64) error {
-	i := slices.IndexFunc(c.Dropped, func(d Dropped) bool { return d.Hex == h && d.Floor == 0 })
+	i, tr := g.claimOn(c, h, 0, t)
 	if i < 0 {
 		return nil
 	}
-	tr := g.trigger(TrigFell)
+	pool := poolOf(h)
 	var goods []item.Spoil
 	room := tr.Magnitude
 	for _, s := range c.Dropped[i].Lost {
-		n := min(s.Qty, g.Ledger.Of(poolOf(h), ledger.Material(s.Material)), room)
+		n := min(s.Qty, g.Ledger.Of(pool, ledger.Material(s.Material)), room)
 		if n > 0 {
 			goods = item.AddSpoil(goods, s.Material, n)
 			room -= n
 		}
 	}
-	c.Dropped = slices.Delete(c.Dropped, i, i+1)
-	if len(goods) == 0 {
-		return nil
+	if len(goods) > 0 {
+		if err := g.found(c, h, ledger.SubKey(key, "fell", h.Ref()), Find{Trigger: TrigFell, Rarity: rarityCommon, Chance: tr.Chance, Goods: goods}, t); err != nil {
+			return err
+		}
 	}
-	return g.found(c, h, ledger.SubKey(key, "fell", h.Ref()), Find{Trigger: TrigFell, Rarity: rarityCommon, Chance: tr.Chance, Goods: goods}, t)
+	g.reclaimed(c, i, pool, goods)
+	return nil
+}
+
+// claimOn is the character's live claim on what it lost at h (floor n,
+// 0 for the tile), or -1. A claim older than What fell here's window
+// lapses and is dropped.
+func (g *Game) claimOn(c *Char, h hex.Hex, n, t int64) (int, sheets.Trigger) {
+	tr := g.trigger(TrigFell)
+	i := slices.IndexFunc(c.Dropped, func(d Dropped) bool { return d.Hex == h && d.Floor == n })
+	if i >= 0 && !inWindow(tr, c.Dropped[i].Tick, t) {
+		c.Dropped = slices.Delete(c.Dropped, i, i+1)
+		i = -1
+	}
+	return i, tr
+}
+
+// reclaimed shrinks claim i by what a find gave back: what is left of each
+// loss stays claimable while the pool still holds it, and an emptied claim
+// goes.
+func (g *Game) reclaimed(c *Char, i int, pool string, took []item.Spoil) {
+	var left []item.Spoil
+	for _, s := range c.Dropped[i].Lost {
+		n := s.Qty
+		if j := slices.IndexFunc(took, func(x item.Spoil) bool { return x.Material == s.Material }); j >= 0 {
+			n -= took[j].Qty
+		}
+		if n = min(n, g.Ledger.Of(pool, ledger.Material(s.Material))); n > 0 {
+			left = item.AddSpoil(left, s.Material, n)
+		}
+	}
+	if len(left) == 0 {
+		c.Dropped = slices.Delete(c.Dropped, i, i+1)
+		return
+	}
+	c.Dropped[i].Lost = left
+}
+
+// inWindow reports whether what a trigger reads, at tick since, lies inside
+// its window at t; a trigger with no window reads any age.
+func inWindow(tr sheets.Trigger, since, t int64) bool {
+	return tr.Window == 0 || t-since <= tr.Window
 }
 
 // Rarities, as rows of tiles.find-rarities.
@@ -171,10 +215,10 @@ const (
 // cannot meet falls to the next one down.
 func (g *Game) spoils(c *Char, h hex.Hex, key string, t int64) error {
 	tl := g.World.Tile(h)
-	if tl == nil || (len(tl.BattlesWon) == 0 && tl.BattlesLost == 0) || len(g.Ledger.Held(poolOf(h))) == 0 {
+	tr := g.trigger(TrigSpoils)
+	if tl == nil || tl.LastBattle == 0 || !inWindow(tr, tl.LastBattle, t) || len(g.Ledger.Held(poolOf(h))) == 0 {
 		return nil
 	}
-	tr := g.trigger(TrigSpoils)
 	if !g.r.draw.Roll(tr.Chance, "game.spoils", draw.Str(c.C.ID), draw.Int(t)) {
 		return nil
 	}

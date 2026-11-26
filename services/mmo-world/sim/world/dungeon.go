@@ -56,6 +56,6 @@ func floorCleared(s *State, _ fact.Log, a Action) error {
 // tile as any fall does.
 func floorFell(s *State, _ fact.Log, a Action) error {
 	s.dungeon(a).Fall(a.Floor, a.By.ID, s.Tick, s.tp.HauntedDays*ticksPerDay)
-	s.touch(a.Hex).BattlesLost++
+	s.touch(a.Hex).LostBattle(s.Tick)
 	return nil
 }

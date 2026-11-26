@@ -79,7 +79,7 @@ var actions = map[string]struct {
 		return nil
 	}},
 	ActWinBeat: {nil, func(s *State, _ fact.Log, a Action) error {
-		s.touch(a.Hex).WonBeat(a.Tag)
+		s.touch(a.Hex).WonBeat(a.Tag, s.Tick)
 		if r := s.RegionAt(a.Hex); r >= 0 {
 			s.addGauge(r, s.GaugeIndex("threat"), s.wp("beat-won-threat"))
 		}
@@ -129,7 +129,7 @@ var actions = map[string]struct {
 	}},
 	ActRoad: {checkRoad, applyRoad},
 	ActFall: {nil, func(s *State, _ fact.Log, a Action) error {
-		s.touch(a.Hex).BattlesLost++
+		s.touch(a.Hex).LostBattle(s.Tick)
 		return nil
 	}},
 	ActClearFloor: {func(_ *State, a Action) error {

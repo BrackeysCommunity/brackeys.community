@@ -52,6 +52,17 @@ type Meta struct {
 	Disposable   bool
 }
 
+// FoundedAt is when a world founded at now starts its clock: the UTC
+// midnight before it when world days are 24 hours (GDD 2.2), so every
+// day's tick falls at 00:00 UTC; now itself on a shorter test tick.
+func FoundedAt(now time.Time, tickSeconds int32) time.Time {
+	day := time.Duration(int64(tickSeconds)*sheets.TicksPerDay) * time.Second
+	if day != 24*time.Hour {
+		return now
+	}
+	return now.UTC().Truncate(day)
+}
+
 // DueTick is the tick that falls due at now.
 func (m Meta) DueTick(now time.Time) int64 {
 	if now.Before(m.StartedAt) || m.TickSeconds <= 0 {
