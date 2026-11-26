@@ -3,24 +3,31 @@ import {
   costDay,
   type DayLedger,
   fixedSwitch,
+  KEY_PREFIX,
   memoryStore as narrationMemory,
   Narrator,
   stubModel,
 } from "../../../packages/mmo-narrate/src/index.ts";
 import * as api from "./api.ts";
 import { type Card, problems } from "./card.ts";
+import { ChroniclePoster } from "./chronicle.ts";
 import { NARRATION_DAY_USD } from "./config.ts";
+import { EventsPoster } from "./events.ts";
 import { answer, type Answer, type Ctx, launchFor, modalFor, type Press } from "./flow.ts";
+import { forgetUser, type RedisLike } from "./forget.ts";
 import { memoryStore } from "./forum.ts";
-import { Houses, memoryHeldNames } from "./house.ts";
-import { HuntPoster } from "./hunts.ts";
+import { type ChannelKind, channelIn, Houses, memoryHeldNames } from "./house.ts";
+import { type ChannelSink, GuildPosters, HuntPoster, type Poller, posterPrefix } from "./hunts.ts";
 import { decodeId, type Id } from "./ids.ts";
 import { Lexicon } from "./lexicon.ts";
 import { narrationParts } from "./narration/index.ts";
+import { HELD_KEY } from "./narration/names.ts";
 import { PartyPoster } from "./party.ts";
+import { PromotionsPoster } from "./promotions.ts";
 import { ThreadBudget } from "./publish.ts";
 import { recording } from "./record.ts";
 import { isFlight, SYNDICATE, syndicateName } from "./screens/crime.ts";
+import { promotionCard } from "./screens/emergence.ts";
 import { hexDistance } from "./screens/hunt.ts";
 import { LISTS } from "./screens/market.ts";
 import { dropCard } from "./screens/staged.ts";
@@ -43,6 +50,10 @@ function offers(sel: Select, action: string, target?: string): boolean {
  * arc's stage card and backs a side through its buttons. With
  * --narration stub every card goes through the narrator with the stub
  * model and every switch on, and must pass the same checks as off.
+ * --two-servers <url> runs two servers on one world through a season's
+ * close on the operator's clock, and --posters <url> --guilds a,b runs
+ * only the posters beside a world on real ticks; each prints one JSON
+ * line last.
  */
 
 export interface Run {
@@ -520,8 +531,8 @@ interface Counted {
   problems: string[];
 }
 
-/** The server a scripted member presses from, and the flags Discord gives it there. */
-type Member = Pick<Press, "guild" | "guildName" | "admin" | "staff">;
+/** The server a scripted member presses from, the flags Discord gives it there, and the lists its settings card shows. */
+type Member = Pick<Press, "guild" | "guildName" | "admin" | "staff" | "channels" | "roles">;
 
 /** One scripted player pressing only what the bot's cards offer. */
 class Player {
@@ -849,6 +860,7 @@ async function worldClock(op: { url: string; token: string }, world: World, id: 
   return {
     manual,
     tick,
+    until,
     pass: async (ticks: number) => until((await tick()) + ticks),
     /** On past the next world day's turn, when orders and the trader's coin are new. */
     nextDay: async () =>
@@ -1565,6 +1577,880 @@ export async function houseRun(
   }
 }
 
+/** A card a scripted poster put in a channel, and the event it told. */
+export interface PostedCard {
+  channel: string;
+  /** The fact's kind; chronicle.day for a closed day's post. */
+  kind: string;
+  fact: number;
+  /** The staging server, on a staged event. */
+  server?: string;
+  /** The season a season fact names. */
+  season?: number;
+  title: string;
+}
+
+/** What one guild's channels were given: the events channel, the day lines and the promotions in the chronicle channel. */
+export interface GuildSinks {
+  events: PostedCard[];
+  chronicle: PostedCard[];
+  promotions: PostedCard[];
+  /** Live cards edited in place, which are not posts. */
+  edits: number;
+}
+
+// structural: Discord's epoch, which a snowflake's time counts from, and
+// how many rounds of polls a drain takes before it gives up.
+const DISCORD_EPOCH = 1_420_070_400_000n;
+const SNOWFLAKE_TIME_SHIFT = 22n;
+const DRAIN_ROUNDS = 30;
+
+/** A snowflake-shaped id, as Discord gives users, servers, channels and roles: the time now and a counter. */
+export function fakeSnowflake(n: number, now = Date.now()): string {
+  return String(((BigInt(now) - DISCORD_EPOCH) << SNOWFLAKE_TIME_SHIFT) | BigInt(n & 0x3fffff));
+}
+
+/** A promotion's or an event's season number, from its fact. */
+function seasonOf(f: api.Fact): number | undefined {
+  return f.kind.startsWith("season.") ? factNumber(f, "season") : undefined;
+}
+
+function factNumber(f: api.Fact, k: string): number | undefined {
+  return f.data.find((d) => d.k === k)?.n;
+}
+
+/**
+ * The events, chronicle and promotions posters of every guild followed,
+ * as the bot runs them, over memory sinks that keep each post with the
+ * event it told. Every card posted or edited is held to the card standard.
+ */
+export class ScriptedPosters {
+  readonly sinks = new Map<string, GuildSinks>();
+  readonly problems: string[] = [];
+  private readonly told = new WeakMap<Card, Omit<PostedCard, "channel" | "title">>();
+  private readonly sets: GuildPosters<Poller>[];
+  private readonly names: Set<string>;
+
+  constructor(
+    world: World,
+    private readonly lex: Lexicon,
+    houses: Houses,
+    guilds: readonly string[],
+    private readonly log: (line: string) => void = () => {},
+  ) {
+    this.names = lex.goodsNames();
+    const store = memoryStore();
+    const read = (guild: string) => ({
+      hunts: () => world.hunts(),
+      arcs: (id = "") => world.arcs(id, guild),
+      storyEvents: (after: number) => world.storyEvents(after, guild),
+      storyPromotions: (after: number) => world.storyPromotions(after, guild),
+      chronicleFact: (id: string | undefined, fact: number) => world.chronicleFact(id, fact, guild),
+    });
+    /** A kind's channel: the one the guild's settings map, else one of the guild's own. */
+    const channelOf = (kind: ChannelKind) => async (guild: string) =>
+      (await houses.channelOf(guild, kind)) ?? `${guild}-${kind}`;
+    const events = new GuildPosters<Poller>(
+      guilds,
+      channelOf("events"),
+      (guild, ch) =>
+        new EventsPoster(
+          read(guild),
+          lex,
+          store,
+          this.sink(guild, "events", ch),
+          undefined,
+          posterPrefix("mmo-bot:events:", guild, ch),
+          log,
+          (ev, mode, template) => {
+            const card = template();
+            if (card && mode === "post")
+              this.told.set(card, {
+                kind: ev.fact.kind,
+                fact: ev.fact.id,
+                server: ev.server,
+                season: seasonOf(ev.fact),
+              });
+            return card;
+          },
+          { server: guild, houses, board: () => world.board(guild) },
+        ),
+      log,
+      "events",
+    );
+    const chronicle = new GuildPosters<Poller>(
+      guilds,
+      channelOf("chronicle"),
+      (guild, ch) =>
+        new ChroniclePoster(
+          {
+            async chronicle(server) {
+              const r = await world.chronicle("", undefined, server);
+              if (r.ok) return r.reply;
+              if (r.refusal.code === api.CodeNotFound) return null;
+              throw new Error(`chronicle refused: ${r.refusal.code} ${r.refusal.message ?? ""}`);
+            },
+          },
+          lex,
+          store,
+          this.sink(guild, "chronicle", ch),
+          guild,
+          posterPrefix("mmo-bot:chronicle:", guild, ch),
+          log,
+          (day, template) => {
+            const card = template();
+            this.told.set(card, { kind: "chronicle.day", fact: day.day });
+            return card;
+          },
+        ),
+      log,
+      "chronicle",
+    );
+    const promotions = new GuildPosters<Poller>(
+      guilds,
+      channelOf("chronicle"),
+      (guild, ch) =>
+        new PromotionsPoster(
+          read(guild),
+          lex,
+          store,
+          this.sink(guild, "promotions", ch),
+          async () => {},
+          posterPrefix("mmo-bot:promotions:", guild, ch),
+          log,
+          (ev) => {
+            const card = promotionCard(ev, lex);
+            if (card)
+              this.told.set(card, {
+                kind: ev.fact.kind,
+                fact: ev.fact.id,
+                server: ev.server,
+                season: seasonOf(ev.fact),
+              });
+            return card;
+          },
+        ),
+      log,
+      "promotions",
+    );
+    this.sets = [events, chronicle, promotions];
+    for (const g of guilds) this.of(g);
+  }
+
+  /** A guild's sinks, made empty the first time it is asked for. */
+  of(guild: string): GuildSinks {
+    let s = this.sinks.get(guild);
+    if (!s) this.sinks.set(guild, (s = { events: [], chronicle: [], promotions: [], edits: 0 }));
+    return s;
+  }
+
+  add(guild: string): void {
+    this.of(guild);
+    for (const p of this.sets) p.add(guild);
+  }
+
+  remove(guild: string): void {
+    for (const p of this.sets) p.remove(guild);
+  }
+
+  guilds(): string[] {
+    return this.sets[0]!.guilds();
+  }
+
+  private sink(guild: string, kind: "events" | "chronicle" | "promotions", channel: string) {
+    const check = (c: Card) => {
+      for (const x of problems(c, this.names))
+        this.problems.push(`${guild} ${kind} ${c.author}: ${x}`);
+    };
+    const sink: ChannelSink = {
+      post: async (card) => {
+        check(card);
+        const list = this.of(guild)[kind];
+        const told = this.told.get(card) ?? { kind: "unknown", fact: 0 };
+        list.push({ channel, title: card.title, ...told });
+        return `${guild}-${kind}-${list.length}`;
+      },
+      edit: async (_message, card) => {
+        check(card);
+        this.of(guild).edits++;
+        return true;
+      },
+    };
+    return sink;
+  }
+
+  /** Polls every poster until a round posts nothing; returns how many it posted or edited. */
+  async drain(): Promise<number> {
+    let n = 0;
+    for (let i = 0; i < DRAIN_ROUNDS; i++) {
+      let round = 0;
+      for (const p of this.sets) round += await p.poll();
+      n += round;
+      if (!round) break;
+    }
+    return n;
+  }
+
+  /** How many times a guild posted a kind, in season (when given), on one sink. */
+  count(
+    guild: string,
+    sink: "events" | "chronicle" | "promotions",
+    kind: string,
+    season?: number,
+  ): number {
+    return this.of(guild)[sink].filter(
+      (p) => p.kind === kind && (season === undefined || p.season === season),
+    ).length;
+  }
+
+  /** Whether every guild has posted the epoch card (unless none is expected) and season.began for season 1. */
+  done(epoch: boolean): boolean {
+    return this.guilds().every(
+      (g) =>
+        this.count(g, "events", SEASON_BEGAN, 1) > 0 &&
+        (!epoch || this.count(g, "promotions", SEASON_EPOCH) > 0),
+    );
+  }
+
+  /** Each guild's posts, by sink and kind, counted: what a summary prints. */
+  summary(): Record<string, GuildTally> {
+    return Object.fromEntries([...this.sinks].map(([g, s]) => [g, guildTally(s)]));
+  }
+}
+
+/** A guild's sinks counted by kind, a season fact's kind with its season. */
+export function guildTally(s: GuildSinks): GuildTally {
+  const tally = (list: PostedCard[]) => {
+    const t: Record<string, number> = {};
+    for (const p of list) {
+      const k = p.season === undefined ? p.kind : `${p.kind} ${p.season}`;
+      t[k] = (t[k] ?? 0) + 1;
+    }
+    return t;
+  };
+  return {
+    events: tally(s.events),
+    chronicle: tally(s.chronicle),
+    promotions: tally(s.promotions),
+    edits: s.edits,
+  };
+}
+
+/** A guild's posts counted by kind on each sink. */
+export interface GuildTally {
+  events: Record<string, number>;
+  chronicle: Record<string, number>;
+  promotions: Record<string, number>;
+  edits: number;
+}
+
+const SEASON_BEGAN = "season.began";
+const SEASON_EPOCH = "season.epoch";
+
+/** The Redis calls the forget step seeds and checks with: a forget's, and a list push. */
+export type SeedRedis = RedisLike & { rpush(key: string, ...values: string[]): Promise<number> };
+
+/** A Redis held in memory, for a run with no REDIS_URL: strings and lists, and SCAN's MATCH. */
+export function memoryRedis(): SeedRedis & { keys(): string[] } {
+  const strings = new Map<string, string>();
+  const lists = new Map<string, string[]>();
+  const glob = (pattern: string) => {
+    let re = "";
+    for (let i = 0; i < pattern.length; i++) {
+      const c = pattern[i]!;
+      if (c === "\\" && i + 1 < pattern.length) re += escapeRe(pattern[++i]!);
+      else if (c === "*") re += ".*";
+      else if (c === "?") re += ".";
+      else re += escapeRe(c);
+    }
+    return new RegExp(`^${re}$`);
+  };
+  return {
+    keys: () => [...strings.keys(), ...lists.keys()],
+    async scan(_cursor, _match, pattern) {
+      const re = glob(pattern);
+      return ["0", [...strings.keys(), ...lists.keys()].filter((k) => re.test(k))];
+    },
+    async del(...keys) {
+      let n = 0;
+      for (const k of keys) if (strings.delete(k) || lists.delete(k)) n++;
+      return n;
+    },
+    get: async (k) => strings.get(k) ?? null,
+    set: async (k, v) => void strings.set(k, v),
+    async lrange(k, start, stop) {
+      const l = lists.get(k) ?? [];
+      return l.slice(start, stop < 0 ? l.length + stop + 1 : stop + 1);
+    },
+    async lrem(k, _count, v) {
+      const l = lists.get(k) ?? [];
+      const kept = l.filter((x) => x !== v);
+      // As in Redis, an emptied list is no key at all.
+      if (kept.length) lists.set(k, kept);
+      else lists.delete(k);
+      return l.length - kept.length;
+    },
+    async rpush(k, ...values) {
+      const l = lists.get(k) ?? [];
+      l.push(...values);
+      lists.set(k, l);
+      return l.length;
+    },
+  };
+}
+
+function escapeRe(c: string): string {
+  return c.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+}
+
+/** What the bot would hold of a player who pressed, held a name and joined a party: keys to forget, and one of another's. */
+function botKeys(user: string, other: string, stamp: number) {
+  return {
+    cooldown: `mmo-bot:cd:${user}`,
+    last: `${KEY_PREFIX}last:scripted:${user}`,
+    cap: `${KEY_PREFIX}cap:scripted:${user}:1`,
+    party: `mmo-bot:party:scripted-${stamp}`,
+    others: `mmo-bot:cd:${other}`,
+  };
+}
+
+/** The forget step: one player's /forget-me and its Confirm, and what the bot's Redis then holds of them. */
+export interface ForgetRun {
+  user: string;
+  character: string;
+  /** The card each press answered. */
+  asked: string;
+  done: string;
+  /** The world's lookup of the user afterwards: empty once forgotten. */
+  lookup: string;
+  /** Keys, entries and memberships the bot removed, and those of the user left behind. */
+  purged: number;
+  left: string[];
+  /** Whether another user's key was kept. */
+  othersKept: boolean;
+}
+
+/** One server of the two-servers run, as the run read it back from its house. */
+export interface ServerRun {
+  server: string;
+  /** Its guild in the world, and the settlement the guild runs. */
+  guild: string;
+  settlement: number;
+  place: string;
+  settings: api.HouseSettings;
+  /** The channels and staff role its admin mapped through the settings card. */
+  mapped: { events: string; chronicle: string; staffRole: string };
+  characters: { admin: string; staff: string; players: string[] };
+  /** The stage its admin staged in its own settlement. */
+  staged: string;
+}
+
+/** What the two-servers run did (GDD 14, 18.5): two servers on one world, through a season's close. */
+export interface TwoServersRun extends Counted {
+  servers: ServerRun[];
+  /** The tool a player of A crafted: the kind the quote named, the card the craft answered, and the item made. */
+  crafted: { by: string; kind: string; card: string; item: string };
+  /** B's staff pressing A's staging: the bot's answer, whether it wrote, and the world's refusal of the same order. */
+  refused: { card: string; wrote: boolean; code: string };
+  /** The world clock: where the run began, the tick season zero closed at, and season one's start and first day. */
+  season: { from: number; closes: number; n: number; began: number; to: number };
+  /** Each guild's sinks, by guild. */
+  posted: Record<string, GuildSinks>;
+  forget: ForgetRun;
+  audit: string[];
+  log: string[];
+}
+
+/** The world clock as the run drives it. */
+export interface RunClock {
+  manual: boolean;
+  tick(): Promise<number>;
+  /** Moves the clock to a tick and waits for the world to reach it. */
+  until(to: number): Promise<void>;
+}
+
+/** The operator's part in the run: the manual clock, a little stock for the crafter, and the audit. */
+export interface TwoServersOps {
+  clock(characterId: string): Promise<RunClock>;
+  stock(characterId: string, asset: string, units: number): Promise<void>;
+  audit(): Promise<string[]>;
+}
+
+/** The operator's part over its HTTP API. */
+export function httpOps(op: { url: string; token: string }, world: World): TwoServersOps {
+  let n = 0;
+  return {
+    clock: (id) => worldClock(op, world, id),
+    async stock(characterId, asset, units) {
+      const res = await operate(op, {
+        interactionId: `two-servers-${characterId}-${++n}`,
+        characterId,
+        kind: api.OpCorrect,
+        asset,
+        units,
+        note: "The scripted two-servers run's stock.",
+      });
+      if (!res.ok) throw new Error(`the correction of ${asset} was refused: ${await res.text()}`);
+    },
+    async audit() {
+      const res = await fetch(`${op.url}${api.PathOperatorAudit}`, {
+        headers: { authorization: `Bearer ${op.token}` },
+      });
+      return ((await res.json()) as api.Audit).discrepancies ?? [];
+    },
+  };
+}
+
+// structural: the players each server brings beside its admin and staff
+// member, the start every scripted character takes, and the coin the
+// crafter is given for the forge's fee.
+const SERVER_PLAYERS = 3;
+const TWO_SERVERS_START = "knife";
+const CRAFT_COIN = 20;
+
+/** Why a two-servers run does not hold, one line each; empty when it holds. epoch says an epoch card is expected. */
+export function twoServersMisses(r: TwoServersRun, epoch = true): string[] {
+  const out: string[] = [];
+  const miss = (bad: boolean, why: string) => bad && out.push(why);
+  miss(r.problems.length > 0, `${r.problems.length} card problems`);
+  miss(r.servers.length !== 2, `${r.servers.length} servers, not 2`);
+  const [a, b] = r.servers;
+  if (a && b) {
+    miss(a.guild === b.guild, `both servers are in guild ${a.guild}`);
+    miss(a.settlement === b.settlement, `both guilds run settlement ${a.settlement}`);
+    miss(
+      JSON.stringify(a.settings) === JSON.stringify(b.settings),
+      "the two servers' settings are the same",
+    );
+  }
+  for (const s of r.servers) {
+    const posted = r.posted[s.server];
+    miss(
+      channelIn(s.settings, "events") !== s.mapped.events ||
+        channelIn(s.settings, "chronicle") !== s.mapped.chronicle,
+      `${s.server}'s settings do not hold the channels its admin mapped`,
+    );
+    miss(
+      !(s.settings.staffRoles ?? []).includes(s.mapped.staffRole),
+      `${s.server}'s settings do not hold its staff role`,
+    );
+    miss(!s.staged, `${s.server}'s admin staged nothing`);
+    if (!posted) {
+      out.push(`${s.server} has no sinks`);
+      continue;
+    }
+    const foreign = posted.events.filter((p) => p.server && p.server !== s.server);
+    miss(
+      foreign.length > 0,
+      `${s.server}'s events channel holds ${foreign.length} events another server staged`,
+    );
+    miss(
+      !posted.events.some((p) => p.kind === "staged.opened" && p.server === s.server),
+      `${s.server}'s events channel holds none of its own staging`,
+    );
+    const wrong = [
+      ...posted.events.filter((p) => p.channel !== s.mapped.events),
+      ...[...posted.chronicle, ...posted.promotions].filter(
+        (p) => p.channel !== s.mapped.chronicle,
+      ),
+    ];
+    miss(
+      wrong.length > 0,
+      `${s.server} posted ${wrong.length} cards outside the channels it mapped`,
+    );
+    const began = posted.events.filter((p) => p.kind === SEASON_BEGAN && p.season === 1).length;
+    miss(began !== 1, `${s.server} posted season one's start ${began} times, not once`);
+    const epochs = posted.promotions.filter((p) => p.kind === SEASON_EPOCH).length;
+    miss(
+      epochs !== (epoch ? 1 : 0),
+      `${s.server} posted the epoch card ${epochs} times, not ${epoch ? "once" : "never"}`,
+    );
+    miss(
+      !posted.chronicle.some((p) => p.kind === "chronicle.day"),
+      `${s.server}'s chronicle channel holds no closed day`,
+    );
+  }
+  miss(!r.crafted.card, "the crafter in A made nothing");
+  miss(r.refused.wrote, "the bot sent server B's staging of server A's settlement");
+  miss(r.refused.code !== api.CodeHouseScope, `the world answered B's staging "${r.refused.code}"`);
+  miss(r.season.n !== 1, `the world ended in season ${r.season.n}, not season one`);
+  miss(
+    r.season.to < r.season.began + TICKS_PER_DAY,
+    "the clock stopped before season one's first world day was over",
+  );
+  const f = r.forget;
+  miss(!f.character, "no player of B was there to forget");
+  miss(f.lookup !== "", "the world still finds the forgotten player");
+  miss(f.done !== "You are forgotten", `/forget-me answered "${f.done}"`);
+  miss(f.purged === 0, "the bot removed none of its keys of the forgotten player");
+  miss(f.left.length > 0, `the bot's Redis still holds ${f.left.join(", ")}`);
+  miss(!f.othersKept, "the forget removed another user's key");
+  miss(r.audit.length > 0, `the audit found ${r.audit.length} discrepancies`);
+  return out;
+}
+
+/**
+ * Two servers on one world, as Discord drives the bot (GDD 14, 17.2,
+ * 18.5): each with an admin who saves its settings, a staff member and
+ * three players, under snowflake-shaped ids. A player of A crafts a tool,
+ * each admin stages in its own settlement, and B's staff is refused on
+ * A's stage. The events, chronicle and promotions posters run for both
+ * guilds over memory sinks while the operator's clock drives the world
+ * through season zero's close and season one's first world day; then a
+ * player of B is forgotten through /forget-me.
+ */
+export async function twoServersRun(
+  ctx: Ctx,
+  opts: {
+    ops: TwoServersOps;
+    servers?: [string, string];
+    /** The bot's Redis for the forget step; one in memory when unset. */
+    redis?: SeedRedis;
+    log?: (line: string) => void;
+  },
+): Promise<TwoServersRun> {
+  const writes: { kind: string; server?: string; character: string; code: string }[] = [];
+  const world = keepingWrites(ctx.world, writes);
+  const houses = new Houses(world, { held: memoryHeldNames(), ttlMs: 0 });
+  const redis = opts.redis ?? memoryRedis();
+  let purged = 0;
+  const c: Ctx = {
+    ...ctx,
+    world,
+    house: houses,
+    forget: async (user) => {
+      purged += await forgetUser(redis, user);
+    },
+  };
+  const names = ctx.lex.goodsNames();
+  const stamp = Date.now();
+  let made = 0;
+  const id = () => fakeSnowflake(++made, stamp);
+  const [A, B] = opts.servers ?? [id(), id()];
+  const run: TwoServersRun = {
+    presses: 0,
+    cards: 0,
+    problems: [],
+    servers: [],
+    crafted: { by: "", kind: "", card: "", item: "" },
+    refused: { card: "", wrote: false, code: "" },
+    season: { from: 0, closes: 0, n: 0, began: 0, to: 0 },
+    posted: {},
+    forget: {
+      user: "",
+      character: "",
+      asked: "",
+      done: "",
+      lookup: "",
+      purged: 0,
+      left: [],
+      othersKept: false,
+    },
+    audit: [],
+    log: [],
+  };
+  const note = (s: string) => {
+    run.log.push(s);
+    opts.log?.(s);
+  };
+
+  interface Side {
+    server: string;
+    mapped: ServerRun["mapped"];
+    admin: Player;
+    staff: Player;
+    players: Player[];
+  }
+  const side = (server: string, label: string): Side => {
+    const mapped = { events: id(), chronicle: id(), staffRole: id() };
+    const lists = {
+      channels: [
+        { id: mapped.events, name: "events" },
+        { id: mapped.chronicle, name: "chronicle" },
+      ],
+      roles: [{ id: mapped.staffRole, name: "Staff" }],
+    };
+    const member = (as: Member) => new Player(c, id(), run, names, async () => {}, as);
+    return {
+      server,
+      mapped,
+      admin: member({ guild: server, guildName: `${label} Crew`, admin: true, ...lists }),
+      staff: member({ guild: server, staff: true }),
+      players: Array.from({ length: SERVER_PLAYERS }, () => member({ guild: server })),
+    };
+  };
+  const sides = [side(A, "Rustwater"), side(B, "Saltmarsh")];
+  // The admins first, so each server's guild is installed by its admin's arrival.
+  for (const s of sides) await arrive(s.admin);
+  const clock = await opts.ops.clock(sides[0]!.admin.id);
+  if (!clock.manual)
+    throw new Error("the two-servers walk needs a world on the manual clock (MMO_MANUAL_CLOCK=1)");
+  run.season.from = await clock.tick();
+  // A guild the world had no free settlement for waits for the one it opens.
+  for (let i = 0; i < 2 * TICKS_PER_DAY; i++) {
+    const waiting = [];
+    for (const s of sides) if (!(await houseOf(s)).settlements.length) waiting.push(s.server);
+    if (!waiting.length) break;
+    if (i === 0) note(`waiting for a settlement for ${waiting.join(", ")}`);
+    await clock.until((await clock.tick()) + 1);
+  }
+  // Then the rest, who arrive at their server's settlement.
+  for (const s of sides) for (const p of [s.staff, ...s.players]) await arrive(p);
+
+  // Each admin saves its server's settings through the settings card.
+  for (const s of sides) {
+    const a = s.admin;
+    await a.command("admin");
+    await a.press("hs-conf");
+    await a.press("hs-kind", undefined, "events");
+    await a.press("hs-chan", undefined, s.mapped.events);
+    await a.press("hs-kind", undefined, "chronicle");
+    await a.press("hs-chan", undefined, s.mapped.chronicle);
+    await a.press("hs-srole", undefined, s.mapped.staffRole);
+    note(`${s.server}'s admin: ${a.card.title}`);
+  }
+  const homes: api.HouseSettlement[] = [];
+  for (const s of sides) {
+    const h = await houseOf(s);
+    const home = h.settlements[0];
+    if (!home)
+      throw new Error(
+        `server ${s.server} runs no settlement yet: run the two-servers walk on a fresh world`,
+      );
+    homes.push(home);
+    note(`server ${s.server} is guild ${h.guild ?? "?"} at ${home.name} (settlement ${home.n})`);
+  }
+
+  // The posters start at the present, as a bot that has just joined does.
+  const posters = new ScriptedPosters(world, ctx.lex, houses, [A, B], opts.log);
+  await posters.drain();
+
+  // A player of A crafts a tool from stock the operator gives it.
+  const crafter = sides[0]!.players[0]!;
+  run.crafted.by = crafter.id;
+  const owned = async () => {
+    const sh = await world.sheet(crafter.id);
+    return new Set([...sh.kit, ...sh.pack].map((i) => i.id));
+  };
+  const had = await owned();
+  await opts.ops.stock(crafter.id, MATERIAL_ASSET + TOOL.material, 2);
+  // A fresh character has no coin for the forge's fee.
+  await opts.ops.stock(crafter.id, "coin", CRAFT_COIN);
+  await crafter.hub();
+  await crafter.press("craft");
+  await crafter.press("craft-p", undefined, TOOL.process);
+  await crafter.press("craft-m", undefined, TOOL.method);
+  await crafter.press("craft-s", undefined, TOOL.slot);
+  await crafter.press("craft-i", undefined, TOOL.material);
+  await crafter.press("craft-q");
+  run.crafted.kind = crafter.card.title;
+  if (crafter.has("craft-go")) {
+    await crafter.press("craft-go");
+    if (crafter.card.author.startsWith("First discovery") || crafter.card.title === "Made")
+      run.crafted.card = crafter.card.title;
+    else note(`the craft was refused: ${crafter.card.title}`);
+  } else note(`the quote offers no craft: ${crafter.card.title}`);
+  run.crafted.item = [...(await owned())].find((x) => !had.has(x)) ?? "";
+
+  // Each admin stages a drop in its own settlement; each staff member opens its console.
+  const gos: Id[] = [];
+  const staged: string[] = [];
+  for (const [i, s] of sides.entries()) {
+    const before = new Set((await houseOf(s)).stages.map((x) => x.id));
+    gos.push(await stage(s.admin, homes[i]!.n));
+    staged.push((await houseOf(s)).stages.find((x) => !before.has(x.id))?.id ?? "");
+    await s.staff.command("staff");
+  }
+
+  // B's staff presses A's staging: the bot sends nothing, and the world refuses the order itself.
+  const other = sides[1]!.staff;
+  await other.command("staff");
+  const sent = writes.length;
+  await other.send({ id: gos[0]! });
+  run.refused.card = other.card.description ?? other.card.title;
+  run.refused.wrote = writes.slice(sent).some((w) => w.kind === api.ActStage);
+  const site = homes[0]!.sites[0]?.at;
+  if (!site) throw new Error(`${homes[0]!.name} has no site to stage at`);
+  const refusal = await world.act({
+    interactionId: `two-servers-refused-${stamp}`,
+    characterId: other.id,
+    version: (await world.options(other.id)).version,
+    kind: api.ActStage,
+    server: B,
+    staff: true,
+    discordId: other.user,
+    stage: { template: HOUSE_DROP, settlement: homes[0]!.n, at: site },
+  });
+  run.refused.code = refusal.ok ? "accepted" : refusal.refusal.code;
+  await posters.drain();
+
+  // The operator's clock through season zero's close, a world day at a time.
+  const season = async () => (await world.arcs(sides[0]!.admin.id, A)).season;
+  const zero = await season();
+  if (zero.n !== 0)
+    throw new Error(`the world is in season ${zero.n}: run the two-servers walk on a fresh world`);
+  run.season.closes = zero.ends;
+  const walk = async (to: number) => {
+    for (let t = await clock.tick(); t < to; t = await clock.tick()) {
+      await clock.until(Math.min(to, t + TICKS_PER_DAY));
+      await posters.drain();
+    }
+  };
+  await walk(zero.ends + 1);
+  const one = await season();
+  run.season.n = one.n;
+  run.season.began = one.ends - one.days * TICKS_PER_DAY;
+  note(`season ${one.n} began at tick ${run.season.began}, closing at ${one.ends}`);
+  await walk(run.season.began + TICKS_PER_DAY);
+  run.season.to = await clock.tick();
+
+  // A player of B leaves through /forget-me, and the bot's own keys of them go too.
+  const leaver = sides[1]!.players[SERVER_PLAYERS - 1]!;
+  const keys = botKeys(leaver.user, sides[1]!.players[0]!.user, stamp);
+  await redis.set(keys.cooldown, "1");
+  await redis.set(keys.last, "scripted");
+  await redis.set(keys.cap, "1");
+  await redis.set(keys.others, "1");
+  await redis.rpush(HELD_KEY, JSON.stringify({ user: leaver.user, name: "scripted" }));
+  await redis.set(keys.party, JSON.stringify({ members: [leaver.user, keys.others] }));
+  run.forget.user = leaver.user;
+  run.forget.character = leaver.id;
+  await leaver.command("forget-me");
+  run.forget.asked = leaver.card.title;
+  await leaver.press("forget", "yes");
+  run.forget.done = leaver.card.title;
+  run.forget.lookup = await world.player(leaver.user);
+  run.forget.purged = purged;
+  const left: string[] = [];
+  for (const k of [keys.cooldown, keys.last, keys.cap])
+    if ((await redis.get(k)) !== null) left.push(k);
+  if ((await redis.lrange(HELD_KEY, 0, -1)).some((x) => x.includes(leaver.user)))
+    left.push(HELD_KEY);
+  if ((await redis.get(keys.party))?.includes(leaver.user)) left.push(keys.party);
+  run.forget.left = left;
+  run.forget.othersKept = (await redis.get(keys.others)) !== null;
+  // What the step seeded of others goes again, so a bot sharing the Redis never reads it.
+  await redis.del(keys.others, keys.party);
+  // The sweep runs at the first free tick.
+  await clock.until((await clock.tick()) + 2);
+  run.season.to = await clock.tick();
+  await posters.drain();
+
+  run.servers = [];
+  for (const [i, s] of sides.entries()) {
+    const h = await houseOf(s);
+    run.servers.push({
+      server: s.server,
+      guild: h.guild ?? "",
+      settlement: homes[i]!.n,
+      place: homes[i]!.name,
+      settings: h.settings,
+      mapped: s.mapped,
+      characters: {
+        admin: s.admin.id,
+        staff: s.staff.id,
+        players: s.players.map((p) => p.id),
+      },
+      staged: staged[i]!,
+    });
+  }
+  run.posted = Object.fromEntries(posters.sinks);
+  run.problems.push(...posters.problems);
+  run.audit = await opts.ops.audit();
+  return run;
+
+  async function houseOf(s: Side): Promise<api.House> {
+    if (!world.house) throw new Error("the world serves no house");
+    const r = await world.house(s.server, s.admin.id, { admin: true });
+    if (!r.ok) throw new Error(`the house of ${s.server}: ${r.refusal.message}`);
+    return r.reply;
+  }
+
+  async function arrive(p: Player) {
+    await p.command("play");
+    await p.press("start", TWO_SERVERS_START);
+    p.id = await world.player(p.user);
+    if (!p.id) throw new Error(`${p.user} made no character: ${p.card.title}`);
+  }
+
+  /** Stages the free drop from the admin's console at its settlement's first site. */
+  async function stage(p: Player, settlement: number): Promise<Id> {
+    await p.command("admin");
+    await p.press("hs-stage");
+    await p.press("hs-tpl", undefined, HOUSE_DROP);
+    if (p.has("hs-set")) await p.press("hs-set", undefined, String(settlement));
+    if (p.has("hs-site")) await p.press("hs-site", undefined, p.first("hs-site"));
+    const go = p.ids("hs-go")[0];
+    if (!go) throw new Error(`the staging form will not send: ${p.card.description}`);
+    await p.send({ id: go });
+    note(`${p.user} staged: ${p.card.title}`);
+    return go;
+  }
+}
+
+/** What the real-time posters did: each guild's posts, and whether every guild saw the epoch and season one begin. */
+export interface PostersRun {
+  mode: "posters";
+  ok: boolean;
+  done: boolean;
+  problems: string[];
+  guilds: Record<string, GuildTally>;
+  polls: number;
+  seconds: number;
+}
+
+/**
+ * The posters alone, beside a world on real ticks (the launch rehearsal):
+ * polled until every guild has posted the epoch card and season one's
+ * start, or until stopped.
+ */
+export async function postersRun(
+  world: World,
+  lex: Lexicon,
+  guilds: readonly string[],
+  opts: {
+    epoch?: boolean;
+    pollMs?: number;
+    stopped?: () => boolean;
+    log?: (line: string) => void;
+  } = {},
+): Promise<PostersRun> {
+  const started = Date.now();
+  const houses = new Houses(world, { held: memoryHeldNames(), ttlMs: 0 });
+  const posters = new ScriptedPosters(world, lex, houses, guilds, opts.log);
+  const epoch = opts.epoch ?? true;
+  let polls = 0;
+  for (;;) {
+    try {
+      await posters.drain();
+    } catch (e) {
+      opts.log?.(`[posters] ${String(e)}`);
+    }
+    polls++;
+    if (posters.done(epoch) || opts.stopped?.()) break;
+    await Bun.sleep(opts.pollMs ?? POSTERS_POLL_MS);
+  }
+  const done = posters.done(epoch);
+  return {
+    mode: "posters",
+    ok: done && posters.problems.length === 0,
+    done,
+    problems: posters.problems,
+    guilds: posters.summary(),
+    polls,
+    seconds: Math.round((Date.now() - started) / 1000),
+  };
+}
+
+// structural: the real-time posters poll about once a 3-second local tick.
+const POSTERS_POLL_MS = 3_000;
+
+/** The value after a flag, or undefined. */
+function flagValue(argv: readonly string[], flag: string): string | undefined {
+  const i = argv.indexOf(flag);
+  return i >= 0 ? argv[i + 1] : undefined;
+}
+
 export type NarrationMode = "off" | "stub";
 
 /** --narration off|stub, off when absent; a message when the value is neither. */
@@ -1748,7 +2634,103 @@ if (import.meta.main && process.env.SCRIPTED === "house") {
   process.exit(misses.length ? 1 : 0);
 }
 
-if (import.meta.main && !["party", "crime", "house"].includes(process.env.SCRIPTED ?? "")) {
+/** The bot's Redis for the forget step when REDIS_URL names one, else none (the run keeps one in memory). */
+async function seedRedis(): Promise<(SeedRedis & { disconnect(): void }) | undefined> {
+  const url = process.env.REDIS_URL?.trim();
+  if (!url) return undefined;
+  const { default: IORedis } = await import("ioredis");
+  return new IORedis(url, { maxRetriesPerRequest: 1 }) as unknown as SeedRedis & {
+    disconnect(): void;
+  };
+}
+
+/** --no-epoch: the world takes no rules epoch at the close, so no epoch card is expected. */
+const EXPECT_EPOCH = !process.argv.includes("--no-epoch");
+
+// One JSON line on stdout, the last; everything else goes to stderr.
+if (import.meta.main && process.argv.includes("--two-servers")) {
+  const url = flagValue(process.argv, "--two-servers");
+  if (!url || url.startsWith("--")) {
+    console.error("usage: bun run src/scripted.ts --two-servers <world url> [--no-epoch]");
+    process.exit(2);
+  }
+  const started = Date.now();
+  const world = httpWorld(url, process.env.MMO_API_TOKEN ?? "");
+  const redis = await seedRedis();
+  const seconds = () => Math.round((Date.now() - started) / 1000);
+  let code = 0;
+  try {
+    const lex = new Lexicon(await world.lexicon());
+    const r = await twoServersRun(
+      { world, lex, threatLine: lex.numbers.ambushLine },
+      {
+        ops: httpOps({ url, token: process.env.MMO_OPERATOR_TOKEN ?? "local-operator" }, world),
+        redis,
+        log: (line) => console.error(line),
+      },
+    );
+    const misses = twoServersMisses(r, EXPECT_EPOCH);
+    const { posted, ...rest } = r;
+    const tallies = Object.fromEntries(Object.entries(posted).map(([g, s]) => [g, guildTally(s)]));
+    console.log(
+      JSON.stringify({
+        mode: "two-servers",
+        ok: misses.length === 0,
+        misses,
+        ...rest,
+        posted: tallies,
+        seconds: seconds(),
+      }),
+    );
+    code = misses.length ? 1 : 0;
+  } catch (e) {
+    console.error(e);
+    console.log(
+      JSON.stringify({ mode: "two-servers", ok: false, misses: [String(e)], seconds: seconds() }),
+    );
+    code = 2;
+  } finally {
+    redis?.disconnect();
+  }
+  process.exit(code);
+}
+
+if (import.meta.main && process.argv.includes("--posters")) {
+  const url = flagValue(process.argv, "--posters");
+  const guilds = (flagValue(process.argv, "--guilds") ?? "")
+    .split(",")
+    .map((g) => g.trim())
+    .filter(Boolean);
+  if (!url || url.startsWith("--") || !guilds.length) {
+    console.error("usage: bun run src/scripted.ts --posters <world url> --guilds a,b [--no-epoch]");
+    process.exit(2);
+  }
+  let stop = false;
+  for (const sig of ["SIGTERM", "SIGINT"] as const) process.on(sig, () => (stop = true));
+  const world = httpWorld(url, process.env.MMO_API_TOKEN ?? "");
+  let code = 0;
+  try {
+    const lex = new Lexicon(await world.lexicon());
+    const r = await postersRun(world, lex, guilds, {
+      epoch: EXPECT_EPOCH,
+      stopped: () => stop,
+      log: (line) => console.error(line),
+    });
+    console.log(JSON.stringify(r));
+    code = r.ok ? 0 : 1;
+  } catch (e) {
+    console.error(e);
+    console.log(JSON.stringify({ mode: "posters", ok: false, problems: [String(e)] }));
+    code = 2;
+  }
+  process.exit(code);
+}
+
+if (
+  import.meta.main &&
+  !["party", "crime", "house"].includes(process.env.SCRIPTED ?? "") &&
+  !process.argv.some((a) => a === "--two-servers" || a === "--posters")
+) {
   const url = process.env.MMO_WORLD_URL ?? "http://localhost:8080";
   const samples: Record<string, unknown> = {};
   const base: World = httpWorld(url, process.env.MMO_API_TOKEN ?? "");

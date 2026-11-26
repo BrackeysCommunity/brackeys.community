@@ -1,4 +1,5 @@
 import { expect, mock, test } from "bun:test";
+import { EventEmitter } from "node:events";
 
 import { type Client, type Interaction, MessageFlags, SnowflakeUtil } from "discord.js";
 
@@ -10,6 +11,7 @@ import {
   ALARM_ON,
   channelSink,
   createHandler,
+  onGuilds,
 } from "../src/adapter.ts";
 import type * as api from "../src/api.ts";
 import { type Card, COLOUR, problems } from "../src/card.ts";
@@ -868,4 +870,154 @@ test("each guild gets its own poster for its channel, and a new channel a new po
   expect(posterPrefix("mmo-bot:events:", "guild-b", "ch-2", primary)).toBe(
     "mmo-bot:events:guild-b:ch-2:",
   );
+});
+
+test("a guild added is polled from then on, and one removed drops its poster", async () => {
+  const made: string[] = [];
+  const polls: string[] = [];
+  const posters = new GuildPosters<Poller>(
+    ["guild-a"],
+    async (g) => `${g}-events`,
+    (g, ch) => {
+      made.push(`${g}/${ch}`);
+      return { poll: async () => (polls.push(g), 1) };
+    },
+    quiet,
+  );
+  expect(posters.guilds()).toEqual(["guild-a"]);
+  expect(await posters.poll()).toBe(1);
+  expect(posters.add("guild-b")).toBe(true);
+  expect(posters.add("guild-b")).toBe(false);
+  expect(posters.add("")).toBe(false);
+  expect(posters.guilds()).toEqual(["guild-a", "guild-b"]);
+  expect(await posters.poll()).toBe(2);
+  expect(posters.remove("guild-a")).toBe(true);
+  expect(posters.remove("guild-a")).toBe(false);
+  expect(posters.posterOf("guild-a")).toBeUndefined();
+  expect(await posters.poll()).toBe(1);
+  // Back again, it gets a new poster, which starts at the present.
+  posters.add("guild-a");
+  await posters.poll();
+  expect(made).toEqual([
+    "guild-a/guild-a-events",
+    "guild-b/guild-b-events",
+    "guild-a/guild-a-events",
+  ]);
+  expect(polls).toEqual(["guild-a", "guild-a", "guild-b", "guild-b", "guild-b", "guild-a"]);
+});
+
+test("a guild removed while its channel is read is not polled", async () => {
+  let release!: () => void;
+  const reading = new Promise<void>((r) => (release = r));
+  const polls: string[] = [];
+  const posters = new GuildPosters<Poller>(
+    ["guild-a"],
+    async (g) => {
+      await reading;
+      return `${g}-events`;
+    },
+    (g) => ({ poll: async () => (polls.push(g), 1) }),
+    quiet,
+  );
+  const poll = posters.poll();
+  posters.remove("guild-a");
+  release();
+  expect(await poll).toBe(0);
+  expect(polls).toEqual([]);
+  expect(posters.posterOf("guild-a")).toBeUndefined();
+});
+
+test("two guilds' event posters keep their own staged events and marks apart", async () => {
+  const store = memoryStore();
+  const events = [
+    stagedEvent(21, "staged.opened", "guild-a", [{ k: "kind", s: "drop" }], "st-a"),
+    stagedEvent(22, "staged.opened", "guild-b", [{ k: "kind", s: "drop" }], "st-b"),
+    { fact: fact(23, "season.began", 330, [{ k: "season", n: 1 }]) },
+  ];
+  const state = { events: [] as api.StoryEvent[], tick: 320 };
+  const { world } = stubWorld(state);
+  const byGuild: Record<string, api.House | null> = {
+    "guild-a": house("guild-a", {}, [dropStage("st-a", 4)]),
+    "guild-b": house("guild-b", {}, [dropStage("st-b", 4, { settlement: 5 })]),
+  };
+  const sinks = new Map<string, Card[]>();
+  const posters = new GuildPosters<EventsPoster>(
+    [],
+    async (g) => `${g}-events`,
+    (g, ch) => {
+      const cards: Card[] = [];
+      sinks.set(g, cards);
+      return new EventsPoster(
+        world,
+        lex,
+        store,
+        { post: async (c) => (cards.push(c), `m-${cards.length}`), edit: async () => true },
+        ROLE,
+        posterPrefix("mmo-bot:events:", g, ch),
+        quiet,
+        (ev) => ({ ...plainCard(ev)!, title: `${ev.fact.kind} ${ev.server ?? "world"}` }),
+        { server: g, houses: housesOf(byGuild) },
+      );
+    },
+    quiet,
+  );
+  posters.add("guild-a");
+  posters.add("guild-b");
+  // Each starts at the present, then the stagings and the season arrive.
+  await posters.poll();
+  state.events = events;
+  await posters.poll();
+  expect(sinks.get("guild-a")!.map((c) => c.title)).toEqual([
+    "staged.opened guild-a",
+    "season.began world",
+  ]);
+  expect(sinks.get("guild-b")!.map((c) => c.title)).toEqual([
+    "staged.opened guild-b",
+    "season.began world",
+  ]);
+  expect(await store.get("mmo-bot:events:guild-a:guild-a-events:last")).toBe("23");
+  expect(await store.get("mmo-bot:events:guild-b:guild-b-events:last")).toBe("23");
+  // One guild leaving leaves the other's channel as it was.
+  posters.remove("guild-a");
+  state.events = [...events, { fact: fact(24, "season.finale", 340) }];
+  await posters.poll();
+  expect(sinks.get("guild-a")).toHaveLength(2);
+  expect(
+    sinks
+      .get("guild-b")!
+      .map((c) => c.title)
+      .at(-1),
+  ).toBe("season.finale world");
+});
+
+/** A client as onGuilds reads it: the guilds it is in, and the gateway's join and leave events. */
+function fakeClient(ids: string[]) {
+  const emitter = new EventEmitter();
+  const cache = new Map(ids.map((id) => [id, { id }]));
+  return Object.assign(emitter, { guilds: { cache } }) as unknown as Client & EventEmitter;
+}
+
+test("the posters follow the guilds the bot is in at ready, then each join and leave", () => {
+  const client = fakeClient(["111", "222"]);
+  const posters = new GuildPosters<Poller>(
+    [],
+    async () => undefined,
+    () => ({ poll: async () => 0 }),
+    quiet,
+  );
+  const stop = onGuilds(
+    client,
+    (g) => posters.add(g),
+    (g) => posters.remove(g),
+  );
+  expect(posters.guilds()).toEqual(["111", "222"]);
+  client.emit("guildCreate", { id: "333" });
+  client.emit("guildDelete", { id: "111" });
+  expect(posters.guilds()).toEqual(["222", "333"]);
+  // An outage is not a leave.
+  client.emit("guildUnavailable", { id: "222" });
+  expect(posters.guilds()).toEqual(["222", "333"]);
+  stop();
+  client.emit("guildCreate", { id: "444" });
+  expect(posters.guilds()).toEqual(["222", "333"]);
 });

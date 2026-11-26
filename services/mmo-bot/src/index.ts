@@ -2,12 +2,20 @@ import { Client, Events, GatewayIntentBits } from "discord.js";
 import IORedis from "ioredis";
 
 import { describe } from "../../../packages/discord-kit/src/index.ts";
-import { channelSink, createHandler, forumSink, guildChannel, threadSink } from "./adapter.ts";
+import {
+  channelSink,
+  createHandler,
+  forumSink,
+  guildChannel,
+  onGuilds,
+  threadSink,
+} from "./adapter.ts";
 import * as api from "./api.ts";
 import { CHRONICLE_POLL_MS, ChroniclePoster } from "./chronicle.ts";
 import { loadConfig } from "./config.ts";
 import { localBudget, redisBudget } from "./cooldown.ts";
 import { EVENTS_POLL_MS, EventsPoster } from "./events.ts";
+import { forgetUser } from "./forget.ts";
 import { BoardPoster, FORUM_POLL_MS, ForumPoster, type ForumStore, memoryStore } from "./forum.ts";
 import {
   type ChannelKind,
@@ -16,7 +24,7 @@ import {
   redisHeldNames,
   redisSwitchWriter,
 } from "./house.ts";
-import { GuildPosters, HUNT_POLL_MS, HuntPoster, posterPrefix } from "./hunts.ts";
+import { GuildPosters, HUNT_POLL_MS, HuntPoster, type Poller, posterPrefix } from "./hunts.ts";
 import { Lexicon } from "./lexicon.ts";
 import { LogPoster } from "./logs.ts";
 import { MediaCache } from "./media.ts";
@@ -39,7 +47,8 @@ import { httpWorld } from "./world.ts";
  * the events or game channel's hunts, the events channel and the chronicle
  * channel, its promotions among them, from the world service's API. Each
  * server's staff and admins have their consoles, and its public log is
- * posted to its log channel.
+ * posted to its log channel. The posters follow the servers the bot is
+ * in, so a server that installs it is posted to from its first poll.
  */
 process.on("unhandledRejection", (e) => console.error(`[unhandled] ${describe(e)}`));
 const config = loadConfig();
@@ -99,6 +108,13 @@ const handle = createHandler({
     threatLine: config.threatLine ?? lex.numbers.ambushLine,
     ...parts,
     house: houses,
+    // The bot's own keys for a forgotten player (GDD 14.9); the user's id is never logged.
+    forget: redis
+      ? async (user: string) => {
+          const n = await forgetUser(redis, user);
+          console.log(`[forget] ${n} bot keys removed`);
+        }
+      : undefined,
   },
   budget: redis ? redisBudget(redis) : localBudget(),
   media: (key) => media.get(key),
@@ -123,7 +139,15 @@ client.once(Events.ClientReady, async (c) => {
     console.warn("[forum] REDIS_URL is not set; no channel, forum or log is posted");
     return;
   }
-  const { guildId: primary, guildIds } = config;
+  const { guildId: primary } = config;
+  /** The guilds the bot is in, kept in place for the log poster, which reads the list each poll. */
+  const followed: string[] = [];
+  const posters: GuildPosters<Poller>[] = [];
+  const follow = <P extends Poller>(p: GuildPosters<P>, ms: number) => {
+    for (const g of followed) p.add(g);
+    posters.push(p);
+    p.start(ms);
+  };
   const channel = (id: string) => channelSink(client, id, (k) => media.get(k));
   const sink = (id: string) => forumSink(client, id, (k) => media.get(k));
   /** The bot's own channel for a kind in a guild: the primary guild's env id as it is, else looked up in that guild. */
@@ -154,115 +178,153 @@ client.once(Events.ClientReady, async (c) => {
     now: Date.now,
   });
 
-  new LogPoster(world, houses, store, channel, guildIds, (guild) =>
+  new LogPoster(world, houses, store, channel, followed, (guild) =>
     own(guild, config.logChannel),
   ).start();
 
   const { marketForum, goalsForum, gameChannel, eventsChannel, chronicleChannel } = config;
   const huntRef = eventsChannel ?? gameChannel;
   const huntPrefix = prefix("mmo-bot:hunt:", huntRef);
-  new GuildPosters(
-    guildIds,
-    mapped("events", huntRef),
-    (guild, id) =>
-      new HuntPoster(
-        worldFor(guild),
-        lex,
-        store,
-        channel(id),
-        huntPrefix(guild, id),
-        undefined,
-        id === gameChannel ? undefined : EVENTS_CHANNEL,
-        audience(guild),
-      ),
-    console.log,
-    "hunts",
-  ).start(HUNT_POLL_MS);
+  follow(
+    new GuildPosters(
+      [],
+      mapped("events", huntRef),
+      (guild, id) =>
+        new HuntPoster(
+          worldFor(guild),
+          lex,
+          store,
+          channel(id),
+          huntPrefix(guild, id),
+          undefined,
+          id === gameChannel ? undefined : EVENTS_CHANNEL,
+          audience(guild),
+        ),
+      console.log,
+      "hunts",
+    ),
+    HUNT_POLL_MS,
+  );
 
   const eventsPrefix = prefix("mmo-bot:events:", eventsChannel);
-  new GuildPosters(
-    guildIds,
-    mapped("events", eventsChannel),
-    (guild, id) =>
-      new EventsPoster(
-        worldFor(guild),
-        lex,
-        store,
-        channel(id),
-        config.eventsAlarmRole,
-        eventsPrefix(guild, id),
-        undefined,
-        (ev, mode, template) => {
-          const card = template();
-          return card && narration.event(ev, guild, mode, () => card);
-        },
-        audience(guild),
-      ),
-    console.log,
-    "events",
-  ).start(EVENTS_POLL_MS);
+  follow(
+    new GuildPosters(
+      [],
+      mapped("events", eventsChannel),
+      (guild, id) =>
+        new EventsPoster(
+          worldFor(guild),
+          lex,
+          store,
+          channel(id),
+          config.eventsAlarmRole,
+          eventsPrefix(guild, id),
+          undefined,
+          (ev, mode, template) => {
+            const card = template();
+            return card && narration.event(ev, guild, mode, () => card);
+          },
+          audience(guild),
+        ),
+      console.log,
+      "events",
+    ),
+    EVENTS_POLL_MS,
+  );
 
   const chroniclePrefix = prefix("mmo-bot:chronicle:", chronicleChannel);
-  new GuildPosters(
-    guildIds,
-    mapped("chronicle", chronicleChannel),
-    (guild, id) =>
-      new ChroniclePoster(
-        {
-          async chronicle(server) {
-            const r = await worldFor(server).chronicle("");
-            if (r.ok) return r.reply;
-            // Not found: no world day has closed yet.
-            if (r.refusal.code === api.CodeNotFound) return null;
-            throw new Error(`chronicle refused: ${r.refusal.code} ${r.refusal.message ?? ""}`);
+  follow(
+    new GuildPosters(
+      [],
+      mapped("chronicle", chronicleChannel),
+      (guild, id) =>
+        new ChroniclePoster(
+          {
+            async chronicle(server) {
+              const r = await worldFor(server).chronicle("");
+              if (r.ok) return r.reply;
+              // Not found: no world day has closed yet.
+              if (r.refusal.code === api.CodeNotFound) return null;
+              throw new Error(`chronicle refused: ${r.refusal.code} ${r.refusal.message ?? ""}`);
+            },
           },
-        },
-        lex,
-        store,
-        channel(id),
-        guild,
-        chroniclePrefix(guild, id),
-        undefined,
-        (ch, template) => narration.chronicle(ch, guild, "post", template),
-        (d) => day.saw(d),
-      ),
-    console.log,
-    "chronicle",
-  ).start(CHRONICLE_POLL_MS);
+          lex,
+          store,
+          channel(id),
+          guild,
+          chroniclePrefix(guild, id),
+          undefined,
+          (ch, template) => narration.chronicle(ch, guild, "post", template),
+          (d) => day.saw(d),
+        ),
+      console.log,
+      "chronicle",
+    ),
+    CHRONICLE_POLL_MS,
+  );
 
   const promotionsPrefix = prefix("mmo-bot:promotions:", chronicleChannel);
-  new GuildPosters(
-    guildIds,
-    mapped("chronicle", chronicleChannel),
-    (guild, id) =>
-      new PromotionsPoster(
-        worldFor(guild),
-        lex,
-        store,
-        channel(id),
-        () => lexicon.refresh(),
-        promotionsPrefix(guild, id),
-      ),
-    console.log,
-    "promotions",
-  ).start(PROMOTIONS_POLL_MS);
+  follow(
+    new GuildPosters(
+      [],
+      mapped("chronicle", chronicleChannel),
+      (guild, id) =>
+        new PromotionsPoster(
+          worldFor(guild),
+          lex,
+          store,
+          channel(id),
+          () => lexicon.refresh(),
+          promotionsPrefix(guild, id),
+        ),
+      console.log,
+      "promotions",
+    ),
+    PROMOTIONS_POLL_MS,
+  );
 
   const marketPrefix = prefix("mmo-bot:forum:", marketForum);
-  new GuildPosters(
-    guildIds,
-    mapped("market", marketForum),
-    (guild, id) => new ForumPoster(worldFor(guild), lex, store, sink(id), marketPrefix(guild, id)),
-    console.log,
-    "forum",
-  ).start(FORUM_POLL_MS);
+  follow(
+    new GuildPosters(
+      [],
+      mapped("market", marketForum),
+      (guild, id) =>
+        new ForumPoster(worldFor(guild), lex, store, sink(id), marketPrefix(guild, id)),
+      console.log,
+      "forum",
+    ),
+    FORUM_POLL_MS,
+  );
 
   const boardPrefix = prefix("mmo-bot:board:", goalsForum);
-  new GuildPosters(
-    guildIds,
-    mapped("board", goalsForum),
-    (guild, id) => new BoardPoster(worldFor(guild), lex, store, sink(id), boardPrefix(guild, id)),
-    console.log,
-    "board",
-  ).start(FORUM_POLL_MS);
+  follow(
+    new GuildPosters(
+      [],
+      mapped("board", goalsForum),
+      (guild, id) => new BoardPoster(worldFor(guild), lex, store, sink(id), boardPrefix(guild, id)),
+      console.log,
+      "board",
+    ),
+    FORUM_POLL_MS,
+  );
+
+  // Guild-scoped commands exist only in MMO_GUILD_IDS, so a test bot posts nowhere else.
+  const serves = (guild: string) => config.commands === "global" || config.guildIds.includes(guild);
+  onGuilds(
+    client,
+    (guild) => {
+      if (!serves(guild) || followed.includes(guild)) return;
+      followed.push(guild);
+      for (const p of posters) p.add(guild);
+      console.log(`[guilds] following ${guild} (${followed.length} in all)`);
+    },
+    (guild) => {
+      const i = followed.indexOf(guild);
+      if (i >= 0) followed.splice(i, 1);
+      for (const p of posters) p.remove(guild);
+      houses.forget(guild);
+      console.log(`[guilds] left ${guild} (${followed.length} in all)`);
+    },
+  );
 });
 await client.login(config.token);

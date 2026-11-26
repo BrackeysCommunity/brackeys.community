@@ -4,12 +4,18 @@ function need(name: string): string {
   return v;
 }
 
+/** Where the commands are registered: each named guild, or globally for every server the bot is in. */
+export type CommandScope = "guild" | "global";
+
 export interface Config {
   token: string;
   applicationId: string;
+  /** The primary guild (DISCORD_GUILD_ID): its env channel ids are used as they are. Empty only with global commands. */
   guildId: string;
   /** Every guild the commands are registered to (MMO_GUILD_IDS, comma separated); DISCORD_GUILD_ID alone when unset. */
   guildIds: string[];
+  /** MMO_COMMANDS: guild (the default, for test servers) or global (for launch). */
+  commands: CommandScope;
   worldUrl: string;
   worldToken: string;
   redisUrl?: string;
@@ -78,7 +84,15 @@ export function withKey<T extends object>(
   return out;
 }
 
-/** The guilds named in MMO_GUILD_IDS, in order and once each, or the primary guild alone. */
+/** MMO_COMMANDS: guild when unset. */
+export function commandScope(env: Record<string, string | undefined> = process.env): CommandScope {
+  const v = env.MMO_COMMANDS?.trim() || "guild";
+  if (v !== "guild" && v !== "global")
+    throw new Error(`MMO_COMMANDS must be guild or global, not "${v}"`);
+  return v;
+}
+
+/** The guilds named in MMO_GUILD_IDS, in order and once each, or the primary guild alone (none when it is empty). */
 export function guildIds(
   primary: string,
   env: Record<string, string | undefined> = process.env,
@@ -90,17 +104,22 @@ export function guildIds(
   for (const id of ids)
     if (!/^\d{1,20}$/.test(id))
       throw new Error(`MMO_GUILD_IDS holds "${id}", not a Discord server id`);
-  return ids.length ? [...new Set(ids)] : [primary];
+  if (ids.length) return [...new Set(ids)];
+  return primary ? [primary] : [];
 }
 
 /** Reads the bot settings and fails at startup if a required value is missing. */
 export function loadConfig(): Config {
-  const guildId = need("DISCORD_GUILD_ID");
+  const commands = commandScope();
+  // Global commands reach servers whose ids are unknown, so no guild is required then.
+  const guildId =
+    commands === "global" ? process.env.DISCORD_GUILD_ID?.trim() || "" : need("DISCORD_GUILD_ID");
   const config: Config = {
     token: need("DISCORD_TOKEN"),
     applicationId: need("DISCORD_APP_ID"),
     guildId,
     guildIds: guildIds(guildId),
+    commands,
     worldUrl: process.env.MMO_WORLD_URL?.trim() || "http://localhost:8080",
     worldToken: process.env.MMO_API_TOKEN?.trim() ?? "",
     redisUrl: process.env.REDIS_URL?.trim() || undefined,

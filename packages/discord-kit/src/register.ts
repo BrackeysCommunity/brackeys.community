@@ -1,7 +1,7 @@
 /**
- * Guild command registration behind a diff: a bulk PUT spends the
- * 200-a-day create budget, so GET first, compare only the fields the
- * manifest sets, and PUT only on a change.
+ * Command registration, to a guild or globally, behind a diff: a bulk PUT
+ * spends the 200-a-day create budget, so GET first, compare only the
+ * fields the manifest sets, and PUT only on a change.
  */
 
 type Json = Record<string, unknown>;
@@ -113,5 +113,65 @@ export async function syncGuildCommands(
 
   await rest.put(route, { body: commands });
   log(`[register] registered ${commands.length} guild commands`);
+  return "updated";
+}
+
+export interface GlobalSyncOptions {
+  /** Skip the diff and PUT regardless. */
+  force?: boolean;
+  log?: (line: string) => void;
+}
+
+/** An Activity's launch command, which Discord refuses to drop in a bulk PUT. */
+const PRIMARY_ENTRY_POINT = 4;
+
+/** The fields of a kept command a PUT sends back, beside its id. */
+const KEPT_FIELDS = [
+  "id",
+  "type",
+  "name",
+  "description",
+  "handler",
+  "integration_types",
+  "contexts",
+  "default_member_permissions",
+  "nsfw",
+  "name_localizations",
+  "description_localizations",
+] as const;
+
+function kept(raw: Json): Json {
+  const out: Json = {};
+  for (const k of KEPT_FIELDS) if (raw[k] !== undefined) out[k] = raw[k];
+  return out;
+}
+
+/**
+ * The application's global commands, for servers whose ids are not known
+ * ahead of time, behind the same diff. An Activity's entry point command
+ * is the application's own: it is left out of the diff and sent back as
+ * Discord holds it, since a bulk PUT without it is refused.
+ */
+export async function syncGlobalCommands(
+  rest: CommandRest,
+  applicationId: string,
+  commands: readonly object[],
+  options: GlobalSyncOptions = {},
+): Promise<SyncResult> {
+  const { force = false, log = () => {} } = options;
+  const route = `/applications/${applicationId}/commands` as const;
+  const remote = (await rest.get(route)) as Json[];
+  const entry = remote.filter((c) => Number(c.type) === PRIMARY_ENTRY_POINT);
+  const mine = remote.filter((c) => Number(c.type) !== PRIMARY_ENTRY_POINT);
+  if (!force && !commandsDiffer(commands, mine)) {
+    log(`[register] ${mine.length} global commands already current`);
+    return "unchanged";
+  }
+  if (!force)
+    log(
+      `[register] global has ${mine.length} commands, manifest has ${commands.length} — updating`,
+    );
+  await rest.put(route, { body: [...commands, ...entry.map(kept)] });
+  log(`[register] registered ${commands.length} global commands`);
   return "updated";
 }

@@ -4,6 +4,8 @@ import {
   type ChatInputCommandInteraction,
   type Client,
   DiscordAPIError,
+  Events,
+  type Guild,
   type GuildMemberRoleManager,
   type Interaction,
   type InteractionEditReplyOptions,
@@ -628,4 +630,25 @@ export async function guildChannel(
   const g = client.guilds.cache.get(guild);
   const name = ref.replace(/^#/, "");
   return g?.channels.cache.find((c) => c.name === name && c.isSendable())?.id;
+}
+
+/**
+ * Follows the servers the bot is in: every guild it holds now, then each
+ * it joins or leaves. A guild gone unavailable in an outage is not a
+ * leave, so it stays followed. Returns a function that stops following.
+ */
+export function onGuilds(
+  client: Client,
+  add: (guild: string) => void,
+  remove: (guild: string) => void,
+): () => void {
+  for (const id of client.guilds.cache.keys()) add(id);
+  const joined = (g: Guild) => add(g.id);
+  const left = (g: Guild) => remove(g.id);
+  client.on(Events.GuildCreate, joined);
+  client.on(Events.GuildDelete, left);
+  return () => {
+    client.off(Events.GuildCreate, joined);
+    client.off(Events.GuildDelete, left);
+  };
 }

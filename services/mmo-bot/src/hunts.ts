@@ -84,25 +84,54 @@ export function posterPrefix(
  * One poster for each guild's channel, made the first time the channel is
  * seen and polled together. The channel is read again each poll, so a
  * guild that maps another channel gets a new poster, which starts at the
- * present; a guild with no channel is skipped.
+ * present; a guild with no channel is skipped. The guilds follow the
+ * servers the bot is in: one added starts at the present, one removed
+ * drops its poster.
  */
 export class GuildPosters<P extends Poller> implements Poller {
   private readonly made = new Map<string, { channel: string; poster: P }>();
+  private readonly list: Set<string>;
 
   constructor(
-    private readonly guilds: readonly string[],
+    guilds: Iterable<string>,
     private readonly channelOf: (guild: string) => Promise<string | undefined>,
     private readonly make: (guild: string, channel: string) => P,
     private readonly log: (line: string) => void = console.log,
     private readonly tag = "guilds",
-  ) {}
+  ) {
+    this.list = new Set(guilds);
+  }
+
+  /** Follows a guild; false when it was followed already. */
+  add(guild: string): boolean {
+    if (!guild || this.list.has(guild)) return false;
+    this.list.add(guild);
+    return true;
+  }
+
+  /** Stops following a guild and drops its poster; false when it was not followed. */
+  remove(guild: string): boolean {
+    this.made.delete(guild);
+    return this.list.delete(guild);
+  }
+
+  /** The guilds followed, in the order they were added. */
+  guilds(): string[] {
+    return [...this.list];
+  }
+
+  /** A guild's poster, once its channel has been seen. */
+  posterOf(guild: string): P | undefined {
+    return this.made.get(guild)?.poster;
+  }
 
   async poll(): Promise<number> {
     let n = 0;
-    for (const guild of this.guilds) {
+    for (const guild of this.guilds()) {
       try {
         const channel = await this.channelOf(guild);
-        if (!channel) {
+        // A guild removed while its channel was read gets no poster.
+        if (!channel || !this.list.has(guild)) {
           this.made.delete(guild);
           continue;
         }

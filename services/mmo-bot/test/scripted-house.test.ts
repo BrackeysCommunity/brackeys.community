@@ -3,8 +3,18 @@ import { expect, test } from "bun:test";
 import * as api from "../src/api.ts";
 import type { Ctx } from "../src/flow.ts";
 import { Houses, memoryHeldNames } from "../src/house.ts";
-import { houseMisses, type HouseRun, houseRun } from "../src/scripted.ts";
+import {
+  houseMisses,
+  type HouseRun,
+  houseRun,
+  memoryRedis,
+  type TwoServersOps,
+  type TwoServersRun,
+  twoServersMisses,
+  twoServersRun,
+} from "../src/scripted.ts";
 import type { World } from "../src/world.ts";
+import * as story from "./fixtures/mm11-story.ts";
 import { house as sample, lex, lexicon, o } from "./fixtures/mm12.ts";
 import samples from "./fixtures/world.json";
 
@@ -349,4 +359,396 @@ test("the walk steps to a drop no known way leads to", async () => {
     api.ActStep,
     api.ActCrateOpen,
   ]);
+});
+
+const DAY_TICKS = 144;
+const SEASON_ZERO_ENDS = 14 * DAY_TICKS;
+
+interface SharedRules {
+  /** The world posts a staged event to every server's feed with no server tag. */
+  untagged?: boolean;
+  /** The world takes no rules epoch at the close. */
+  noEpoch?: boolean;
+  /** Every new server's guild lands at one settlement. */
+  oneSettlement?: boolean;
+}
+
+/**
+ * One world two servers share, as the two-servers walk reads it: each
+ * server's first arrival installs its guild at the next settlement, admins
+ * save settings and stage, crates and travel are left out, the feed
+ * carries each staging under its server, and a manual clock runs the
+ * season's close, its epoch and season one.
+ */
+function sharedWorld(rules: SharedRules = {}) {
+  const places: api.HouseSettlement[] = [
+    { ...sample.settlements[0]!, pool: 400 },
+    { ...sample.settlements[1]!, pool: 400 },
+  ];
+  const houses = new Map<
+    string,
+    { guild: string; label: string; n: number; settings: api.HouseSettings }
+  >();
+  const chars: (Who & { forgotten?: boolean; kit: string[] })[] = [];
+  const stages: (api.StageView & { server: string })[] = [];
+  const feed: api.StoryEvent[] = [];
+  const promos: api.StoryEvent[] = [];
+  const acts: api.ActionRequest[] = [];
+  let tick = 100;
+  let facts = 0;
+  let season = { n: 0, day: 1, days: 14, band: "opening", ends: SEASON_ZERO_ENDS };
+  const who = (id: string) => {
+    const c = chars.find((x) => x.id === id);
+    if (!c) throw new Error(`no character ${id}`);
+    return c;
+  };
+  const refuse = (code: string, message: string) => ({
+    ok: false as const,
+    refusal: { code, message },
+  });
+  const accept = (c: Who, facts: api.Fact[] = []) => {
+    c.version++;
+    return {
+      ok: true as const,
+      reply: {
+        ...look,
+        tick,
+        character: { ...look.character, id: c.id, version: c.version, at: c.at, goods: c.goods },
+        facts,
+      },
+    };
+  };
+  const event = (kind: string, data: api.Datum[], server?: string): api.StoryEvent => ({
+    fact: { id: ++facts, tick, kind, subjects: [], data, weight: 5 },
+    ...(server && !rules.untagged ? { server } : {}),
+  });
+  const houseOf = (server?: string) => {
+    const h = houses.get(server ?? "");
+    return h && places.find((p) => p.n === h.n)
+      ? { h, place: places.find((p) => p.n === h.n)! }
+      : null;
+  };
+  const advance = (to: number) => {
+    for (; tick < to; ) {
+      tick++;
+      if (tick === season.ends && season.n === 0) {
+        if (!rules.noEpoch)
+          promos.push({
+            fact: {
+              id: ++facts,
+              tick,
+              kind: "season.epoch",
+              subjects: [],
+              data: [
+                { k: "season", n: 1 },
+                { k: "from", s: "a".repeat(64) },
+                { k: "to", s: "b".repeat(64) },
+                { k: "sheets", n: 2 },
+              ],
+              weight: 70,
+            },
+            epoch: {
+              season: 1,
+              from: "a".repeat(64),
+              to: "b".repeat(64),
+              sheets: 2,
+              seen: [
+                {
+                  sheet: "items.materials",
+                  row: "bog-iron",
+                  name: "Bog iron",
+                  column: "tier",
+                  change: "changed",
+                  before: "1",
+                  after: "2",
+                  unit: "tier",
+                },
+              ],
+              unseen: 1,
+            },
+          });
+        feed.push(
+          event("season.began", [
+            { k: "season", n: 1 },
+            { k: "start", n: tick },
+          ]),
+        );
+        season = { n: 1, day: 1, days: 42, band: "opening", ends: tick + 42 * DAY_TICKS };
+      }
+    }
+  };
+  const stage = (req: api.ActionRequest) => {
+    const c = who(req.characterId!);
+    const role = req.admin ? "admin" : req.staff ? "staff" : "";
+    if (!role) return refuse(api.CodeHouseRole, "not staff or admin of this server");
+    const own = houseOf(req.server);
+    if (!own || own.place.n !== req.stage?.settlement)
+      return refuse(api.CodeHouseScope, "not a settlement this server's guild runs");
+    const t = sample.templates.find((x) => x.id === req.stage?.template);
+    if (!t) return refuse(api.CodeStageTemplate, "no such template");
+    const id = `st-${stages.length + 1}`;
+    const at = req.stage!.at;
+    stages.push({
+      id,
+      server: req.server!,
+      template: t.id,
+      kind: t.kind,
+      placed: { by: role === "admin" ? "admins" : "staff", label: own.h.label },
+      settlement: own.place.n,
+      place: own.place.sites.find((x) => x.at.q === at.q && x.at.r === at.r)?.name ?? "",
+      at,
+      opens: tick,
+      ends: tick + 2 * DAY_TICKS,
+      open: true,
+      crates: t.crates,
+    });
+    feed.push({
+      ...event(
+        "staged.opened",
+        [
+          { k: "stage", s: id },
+          { k: "kind", s: t.kind },
+          { k: "template", s: t.id },
+        ],
+        req.server,
+      ),
+      place: own.place.name,
+    });
+    feed.at(-1)!.fact.subjects = [{ kind: "stage", id }];
+    return accept(c);
+  };
+  const world = {
+    async player(user: string) {
+      return chars.find((x) => x.user === user && !x.forgotten)?.id ?? "";
+    },
+    async options(id: string) {
+      const c = who(id);
+      return { ...o, characterId: id, version: c.version, tick, at: c.at, conditions: [] };
+    },
+    here: async () => samples.here as api.Here,
+    async sheet(id: string) {
+      const c = who(id);
+      const s = samples.sheet as api.Sheet;
+      const kit = c.kit.map((k, i) => ({
+        ...s.kit[0]!,
+        id: k,
+        worn: i === 0 ? s.kit[0]!.worn : "",
+      }));
+      return { ...s, kit, pack: [], character: { ...s.character, id, at: c.at, goods: c.goods } };
+    },
+    recipes: async () => samples.recipes as api.Recipes,
+    appraise: async () => ({ ok: true as const, reply: samples.appraise as api.Appraisal }),
+    map: async () => samples.map as api.MapView,
+    recap: async () => ({ since: tick, tick, lines: [], more: 0 }),
+    hunts: async () => ({ tick, every: 1, hunts: [] }),
+    lexicon: async () => lexicon,
+    board: async () => ({ tick, posts: [] }),
+    async arcs() {
+      return { season: { ...season }, open: [], ended: [], backing: [] };
+    },
+    async storyEvents(after: number) {
+      const events = feed.filter((e) => e.fact.id > after).slice(0, 3);
+      return { events, last: events.at(-1)?.fact.id ?? Math.max(after, facts) };
+    },
+    async storyPromotions(after: number) {
+      const events = promos.filter((e) => e.fact.id > after);
+      return { events, last: events.at(-1)?.fact.id ?? Math.max(after, facts) };
+    },
+    async chronicle() {
+      const day = Math.floor(tick / DAY_TICKS);
+      if (day < 1)
+        return { ok: false as const, refusal: { code: api.CodeNotFound, message: "no day yet" } };
+      return { ok: true as const, reply: { ...story.chronicle, day: day - 1 } };
+    },
+    chronicleFact: async () => ({
+      ok: false as const,
+      refusal: { code: api.CodeNotFound, message: "no fact" },
+    }),
+    async house(server: string, _character?: string, f?: { admin?: boolean; staff?: boolean }) {
+      const own = houseOf(server);
+      if (!own)
+        return { ok: false as const, refusal: { code: api.CodeNotFound, message: "no house" } };
+      const reply: api.House = {
+        server,
+        label: own.h.label,
+        guild: own.h.guild,
+        arrival: own.place.n,
+        settings: structuredClone(own.h.settings),
+        settlements: [{ ...own.place }],
+        templates: sample.templates,
+        hunts: sample.hunts,
+        contests: sample.contests,
+        stages: stages.filter((x) => x.server === server).map(({ server: _, ...v }) => v),
+        role: f?.admin ? "admin" : f?.staff ? "staff" : "player",
+        stagedXp: 150,
+      };
+      return { ok: true as const, reply };
+    },
+    houseLog: async () => ({ rows: [], next: 0 }),
+    async act(req: api.ActionRequest) {
+      acts.push(req);
+      switch (req.kind) {
+        case api.ActCreate: {
+          const server = req.server ?? "";
+          if (server && !houses.has(server)) {
+            const n = rules.oneSettlement ? places[0]!.n : places[houses.size]!.n;
+            const guild = `g-${houses.size + 1}`;
+            houses.set(server, { guild, label: req.note ?? guild, n, settings: {} });
+          }
+          const c = {
+            id: `c-${chars.length + 1}`,
+            user: req.discordId!,
+            server,
+            at: { q: 0, r: 0 },
+            version: 1,
+            goods: [] as api.Goods[],
+            kit: [`it-${chars.length + 1}`],
+          };
+          chars.push(c);
+          return accept(c);
+        }
+        case api.ActHouseSettings: {
+          if (!req.admin) return refuse(api.CodeHouseRole, "only admins");
+          houses.get(req.server ?? "")!.settings = req.settings ?? {};
+          return accept(who(req.characterId!));
+        }
+        case api.ActStage:
+          return stage(req);
+        case api.ActCraft: {
+          const c = who(req.characterId!);
+          c.kit.push(`it-made-${c.kit.length}`);
+          c.goods = [];
+          return {
+            ...(samples["act:craft"] as { ok: true; reply: api.ActionReply }),
+            ok: true as const,
+          };
+        }
+        case api.ActForget: {
+          const c = who(req.characterId!);
+          c.forgotten = true;
+          return accept(c);
+        }
+        default:
+          return accept(who(req.characterId!));
+      }
+    },
+  } as unknown as World;
+  const ops: TwoServersOps = {
+    clock: async () => ({
+      manual: true,
+      tick: async () => tick,
+      until: async (to: number) => advance(to),
+    }),
+    async stock(id, asset, units) {
+      if (asset !== "coin") who(id).goods.push({ material: asset.replace(/^mat:/, ""), units });
+    },
+    audit: async () => [],
+  };
+  return { world, ops, acts, feed, chars, houses };
+}
+
+async function shared(rules: SharedRules = {}) {
+  const w = sharedWorld(rules);
+  const ctx: Ctx = { world: w.world, lex, threatLine: 600 };
+  const redis = memoryRedis();
+  const run = await twoServersRun(ctx, { ops: w.ops, servers: [A, B], redis });
+  return { ...w, run, redis };
+}
+
+test("two servers on one world keep their settings, settlements, staging and channels apart", async () => {
+  const { run, acts, redis } = await shared();
+  expect(run.problems).toEqual([]);
+  expect(twoServersMisses(run)).toEqual([]);
+  const [a, b] = run.servers;
+  expect([a!.guild, b!.guild]).toEqual(["g-1", "g-2"]);
+  expect(a!.settlement).not.toBe(b!.settlement);
+  expect(a!.characters.players).toHaveLength(3);
+  // Every fake id the run made is snowflake-shaped.
+  const users = acts.filter((x) => x.kind === api.ActCreate).map((x) => x.discordId!);
+  expect(users).toHaveLength(10);
+  for (const u of [...users, a!.mapped.events, b!.mapped.staffRole])
+    expect(u).toMatch(/^\d{17,20}$/);
+  // The admins installed the guilds: theirs were the first arrivals of each server.
+  expect(
+    acts
+      .filter((x) => x.kind === api.ActCreate)
+      .slice(0, 2)
+      .map((x) => x.server),
+  ).toEqual([A, B]);
+  expect(acts.filter((x) => x.kind === api.ActHouseSettings).every((x) => x.admin)).toBe(true);
+  // Each events channel holds its own staging and the world's season, never the other's staging.
+  for (const s of run.servers) {
+    const posted = run.posted[s.server]!;
+    const staged = posted.events.filter((p) => p.kind === "staged.opened");
+    expect(staged.map((p) => p.server)).toEqual([s.server]);
+    expect(posted.events.filter((p) => p.kind === "season.began")).toHaveLength(1);
+    expect(posted.promotions.map((p) => p.title)).toEqual(["Season 1 runs on new rules"]);
+    expect(posted.chronicle.length).toBeGreaterThan(14);
+  }
+  expect(run.refused).toEqual({ card: run.refused.card, wrote: false, code: api.CodeHouseScope });
+  expect(run.crafted.card).not.toBe("");
+  expect(run.crafted.item).toMatch(/^it-made-/);
+  expect(run.season.n).toBe(1);
+  expect(run.season.to).toBeGreaterThanOrEqual(run.season.began + DAY_TICKS);
+  expect(run.forget.asked).toBe("Forget you and your character?");
+  expect(run.forget.done).toBe("You are forgotten");
+  expect(run.forget.purged).toBeGreaterThanOrEqual(5);
+  expect(run.forget.left).toEqual([]);
+  expect(run.forget.othersKept).toBe(true);
+  // What the step seeded of others is gone again.
+  expect(redis.keys()).toEqual([]);
+});
+
+test("the walk misses a world that shows one server's staging in the other's channel", async () => {
+  const { run } = await shared({ untagged: true });
+  const misses = twoServersMisses(run);
+  // Untagged, a staging reads as the world's own: both channels show both, and neither as its own.
+  expect(misses).toContain(`${A}'s events channel holds none of its own staging`);
+  expect(misses).toContain(`${B}'s events channel holds none of its own staging`);
+});
+
+test("the walk misses an epoch card that never came, unless none is expected", async () => {
+  const { run } = await shared({ noEpoch: true });
+  expect(twoServersMisses(run)).toEqual([
+    `${A} posted the epoch card 0 times, not once`,
+    `${B} posted the epoch card 0 times, not once`,
+  ]);
+  expect(twoServersMisses(run, false)).toEqual([]);
+});
+
+test("the walk misses two guilds at one settlement", async () => {
+  const { run } = await shared({ oneSettlement: true });
+  const misses = twoServersMisses(run);
+  expect(misses).toContain(`both guilds run settlement ${run.servers[0]!.settlement}`);
+});
+
+test("a forget that leaves the bot's keys behind, or a foreign staging posted, is a miss", async () => {
+  const { run } = await shared();
+  const broken: TwoServersRun = structuredClone(run);
+  broken.forget.left = ["mmo-bot:cd:1"];
+  broken.posted[A]!.events.push({
+    channel: run.servers[0]!.mapped.events,
+    kind: "staged.opened",
+    fact: 999,
+    server: B,
+    title: "x",
+  });
+  broken.audit = ["coin: off by 1"];
+  expect(twoServersMisses(broken)).toEqual([
+    `${A}'s events channel holds 1 events another server staged`,
+    "the bot's Redis still holds mmo-bot:cd:1",
+    "the audit found 1 discrepancies",
+  ]);
+});
+
+test("the memory Redis matches SCAN patterns as Redis does", async () => {
+  const r = memoryRedis();
+  await r.set("mmo-narr:last:a:1*2", "x");
+  await r.set("mmo-narr:last:a:132", "x");
+  const [, keys] = await r.scan("0", "MATCH", "mmo-narr:last:*:1\\*2", "COUNT", 10);
+  expect(keys).toEqual(["mmo-narr:last:a:1*2"]);
+  await r.rpush("l", "a", "b", "a");
+  expect(await r.lrange("l", 0, -1)).toEqual(["a", "b", "a"]);
+  expect(await r.lrem("l", 0, "a")).toBe(2);
+  expect(await r.del("l", "mmo-narr:last:a:132", "none")).toBe(2);
 });
