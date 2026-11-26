@@ -349,7 +349,7 @@ export interface ActivityState {
    * Names are the names of found ids the state shows, "sheet:id" to name:
    * what the pack cannot know.
    */
-  names?: { [key: string]: string };
+  names?: { [key: string]: string};
 }
 /**
  * ActivityHere is the tile the character stands on, and how busy it is.
@@ -2533,7 +2533,7 @@ export interface Dossier {
   oldest: Memory[]; // the oldest kept
   folded?: TypeCount[];
   foldedTotal: number /* int64 */;
-  names: { [key: string]: string };
+  names: { [key: string]: string};
 }
 /**
  * Memory is one remembered entry. A Who that is a character id is shown as "a traveller"; clients never show the id.
@@ -3684,7 +3684,7 @@ export interface Charter {
   coin: number /* int64 */;
   timber: number /* int64 */;
   stone: number /* int64 */;
-  fields?: { [key: string]: number /* int64 */ }; // a Surveyor's view
+  fields?: { [key: string]: number /* int64 */}; // a Surveyor's view
 }
 /**
  * Guild is /guild: a character's guild, or what founding one takes.
@@ -4287,7 +4287,7 @@ export interface Recap {
   /**
    * Names are what the lines' refs are called, as the viewer may read them.
    */
-  names?: { [key: string]: string };
+  names?: { [key: string]: string};
 }
 /**
  * Conversation is an NPC's topics for a character, voiced from
@@ -4342,7 +4342,7 @@ export interface MapView {
  * bands best first, and the rules' numbers the cards state.
  */
 export interface Lexicon {
-  names: { [key: string]: string };
+  names: { [key: string]: string};
   bands: string[];
   starts: string[];
   numbers: Numbers;
@@ -4706,7 +4706,7 @@ export interface Chronicle {
    * Names are what the lines' refs are called, keyed "kind:id"; a
    * character is never among them.
    */
-  names?: { [key: string]: string };
+  names?: { [key: string]: string};
   cover?: Art;
 }
 /**
@@ -4720,7 +4720,7 @@ export interface FactCauses {
    * Names are what the fact's and its causes' refs are called, as on the
    * chronicle.
    */
-  names?: { [key: string]: string };
+  names?: { [key: string]: string};
 }
 /**
  * StoryEvent is one fact for the events channel, with a snapshot of its arc
@@ -4737,7 +4737,7 @@ export interface StoryEvent {
   /**
    * Names are what the fact's refs are called, as on the chronicle.
    */
-  names?: { [key: string]: string };
+  names?: { [key: string]: string};
   art?: Art;
   /**
    * Server is the staging server of a staged event, posted only there.
