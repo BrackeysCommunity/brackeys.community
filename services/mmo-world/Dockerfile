@@ -12,6 +12,10 @@ RUN go mod download
 COPY services/mmo-world/ ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/world ./cmd/world \
  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/op ./cmd/op
+# The book a world runs on until it takes this build's at an epoch, when
+# the deploy carries one (scripts/epoch-root.sh); empty otherwise.
+RUN mkdir -p /out/epoch-from \
+ && if [ -d epoch-from/sheets ]; then cp -R epoch-from/sheets epoch-from/packs /out/epoch-from/; fi
 
 # The Activity's static build, which the service serves on its Activity
 # listener. It reads the API's generated types, the words it shares with
@@ -53,6 +57,7 @@ FROM gcr.io/distroless/static-debian12:nonroot AS world
 WORKDIR /app
 COPY --from=build /out/world /out/op /app/
 COPY --from=assets /app /app
+COPY --from=build /out/epoch-from /app/epoch-from
 COPY --from=activity /src/services/mmo-activity/dist /app/activity
 ENV MMO_SHEETS_ROOT=/app
 ENV MMO_ACTIVITY_DIR=/app/activity
