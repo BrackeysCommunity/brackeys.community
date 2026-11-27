@@ -59,12 +59,15 @@ mmo-world-test:
     - go test -race $(go list ./... | grep -v '^jams.team/mmo-world/sim\(/\|$\)')
 
 # The harness Check run (see harness/check.go); mmo-world-lint owns the
-# sim analyzers.
+# sim analyzers. report -check fails while the newest file under
+# harness/epochs holds readings of another book: no sheet change ships
+# without its Report (GDD 18.1 rule 4).
 mmo-world-sheet-check:
   extends: .mmo-world-go
   stage: check
   script:
     - go run ./cmd/harness check -skip-lint
+    - go run ./cmd/harness report -check
 
 # The generated code is current: sqlc's queries against the drizzle
 # migrations, and packages/mmo-api against api/.
