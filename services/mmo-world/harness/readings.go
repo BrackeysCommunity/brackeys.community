@@ -221,6 +221,11 @@ func ParseReport(text string, b *sheets.Book) []Measured {
 // labelRun reads a suite label: its run is the longest run name it starts
 // with, its size the first number after it, and "-alone" marks it alone.
 func labelRun(label string) (run string, n int, alone bool) {
+	for _, sr := range Suite {
+		if sr.Label == label {
+			return sr.Run, sr.N, sr.Alone
+		}
+	}
 	names := append(slices.Collect(maps.Keys(Runs)), "check")
 	slices.SortFunc(names, func(a, b string) int { return len(b) - len(a) })
 	run = label
@@ -244,25 +249,36 @@ func labelRun(label string) (run string, n int, alone bool) {
 }
 
 // Merge reads every target across the runs: a target holds only if every
-// measured reading of it holds, and the readings of a run read alone
-// supersede the others for the targets they carry.
+// measured reading of it holds. A measured reading of a run read alone
+// supersedes that same run's other readings of the target; readings from
+// other runs stay, so no reading hides a miss.
 func Merge(b *sheets.Book, rs []Readings) []EpochRow {
+	type ranReading struct {
+		run string
+		Labelled
+	}
 	out := make([]EpochRow, 0, len(b.Targets))
 	for _, t := range b.Targets {
-		var all []Labelled
-		aloneMeasured := false
+		var got []ranReading
+		aloneRuns := map[string]bool{}
 		for _, r := range rs {
 			for _, m := range r.Rows {
 				if m.Target != t.ID {
 					continue
 				}
 				measured := !strings.HasPrefix(m.Value, unmeasured)
-				all = append(all, Labelled{Label: r.Label, Value: m.Value, Holds: m.Holds && measured, Measured: measured, Alone: r.Alone})
-				aloneMeasured = aloneMeasured || (r.Alone && measured)
+				got = append(got, ranReading{r.Run, Labelled{Label: r.Label, Value: m.Value, Holds: m.Holds && measured, Measured: measured, Alone: r.Alone}})
+				if r.Alone && measured {
+					aloneRuns[r.Run] = true
+				}
 			}
 		}
-		if aloneMeasured {
-			all = slices.DeleteFunc(all, func(l Labelled) bool { return !l.Alone })
+		var all []Labelled
+		for _, g := range got {
+			if !g.Alone && aloneRuns[g.run] {
+				continue
+			}
+			all = append(all, g.Labelled)
 		}
 		row := EpochRow{ID: t.ID, Text: t.Text, Holds: HoldsNone, Readings: all}
 		if row.Readings == nil {

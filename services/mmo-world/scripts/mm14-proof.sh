@@ -214,7 +214,7 @@ build() {
   note "Postgres $("$PGBIN/postgres" --version | awk '{print $3}') on :$PGPORT and Redis on :$REDISPORT under $OUT"
 }
 
-# P8: a world saved at the base reopens unchanged on this build.
+# A world saved at the base reopens unchanged on this build.
 reopen() {
   db=reopen
   wid=w-mm14-reopen
@@ -288,8 +288,8 @@ tiles() {
   done
 }
 
-# P3 and P5: two servers through season zero's close and season one's
-# first world day, the epoch taken at the boundary; and P7's /forget-me.
+# Two servers through season zero's close and season one's first world
+# day, the epoch taken at the boundary, and a /forget-me.
 two_servers() {
   db=kept
   wid=w-mm14
@@ -378,7 +378,7 @@ two_servers() {
   audit_clean two-servers-audit
 }
 
-# P2: the restore drill.
+# The restore drill.
 restore() {
   db=kept
   wid=$(got kept-world)
@@ -418,7 +418,7 @@ rows() {
   sql kept "select id, discord_id, version, q, r, banned, body::text from mmo.character where world_id = '$(got kept-world)' and id <> '$1' order by id"
 }
 
-# P7 through the site's path: POST /v1/forget with the forget token.
+# A forget through POST /v1/forget with the forget token.
 forget() {
   db=kept
   wid=$(got kept-world)
@@ -478,7 +478,7 @@ forget() {
   note "op audit clean; op replay over the world day of the forget $(jq -c '{from, to, checked, actions}' "$OUT/forget-replay.json")"
 }
 
-# P6: the recorded-play export holds no identity, token or key.
+# The recorded-play export holds no identity, token or key.
 export_() {
   db=kept
   wid=$(got kept-world)
@@ -509,7 +509,7 @@ export_() {
   note "export: $(jq -c '.records' "$ex/manifest.json"); every file parses; none of $(wc -l <"$needles" | tr -d ' ') ids, tokens and keys, no raw character id, no 17-20 digit run, no interaction id"
 }
 
-# P4: ten times the closed test's peak on a fresh disposable world.
+# Ten times the closed test's peak on a fresh disposable world.
 load() {
   db=load
   wid=w-mm14-load
@@ -536,7 +536,7 @@ load() {
   note "load-tick-inside holds: $(jq -r '.rows[] | select(.target == "load-tick-inside") | .value' "$OUT/load/readings.json")"
 }
 
-# P9: Report's before and after against epoch 0001.
+# Report's before and after against epoch 0001.
 report() {
   rc=0
   (
@@ -580,4 +580,4 @@ step forget forget
 step export export_
 step load load
 step report report
-say "holds: P2 restore, P3 two servers, P4 load, P5 the epoch, P6 the export, P7 forget, P8 reopen, P9 report"
+say "holds: restore, two servers, load, the epoch, the export, forget, reopen, report"

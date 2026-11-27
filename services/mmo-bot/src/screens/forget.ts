@@ -53,10 +53,7 @@ export function forgetAskCard(version: number, notice?: string): Card {
   };
 }
 
-/**
- * After a forget. character says the world held a character to forget;
- * cleared says the bot's own notes went too.
- */
+/** The card after a forget: `character` when the world held one to forget, `cleared` when the bot's own notes went too. */
 export function forgetDoneCard(character: boolean, cleared: boolean): Card {
   const world = character
     ? "The world no longer knows your Discord user id. Your character is a traveller now: its holdings leave it at the first tick it is free."

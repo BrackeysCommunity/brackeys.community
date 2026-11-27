@@ -26,20 +26,20 @@ func readingsBook() *sheets.Book {
 func TestReadingsMerge(t *testing.T) {
 	b := readingsBook()
 	rs := []Readings{
-		{Label: "economy-10", Rows: []Measured{
+		{Label: "economy-10", Run: "economy", Rows: []Measured{
 			{Target: "both-hold", Value: "a", Holds: true},
 			{Target: "one-misses", Value: "b", Holds: true},
 			{Target: "only-why", Value: unmeasured + "read at 1,000"},
 		}},
-		{Label: "crime-10", Rows: []Measured{
+		{Label: "crime-10", Run: "crime", Rows: []Measured{
 			{Target: "both-hold", Value: "c", Holds: true},
 			{Target: "one-misses", Value: "d", Holds: false},
 		}},
-		{Label: "social", Rows: []Measured{
+		{Label: "social", Run: "social", Rows: []Measured{
 			{Target: "cost-flat", Value: "+20.8%", Holds: false},
 			{Target: "alone-why", Value: "held beside the suite", Holds: true},
 		}},
-		{Label: "social-alone", Alone: true, Rows: []Measured{
+		{Label: "social-alone", Run: "social", Alone: true, Rows: []Measured{
 			{Target: "cost-flat", Value: "+6.5%", Holds: true},
 			{Target: "alone-why", Value: unmeasured + "too short"},
 		}},
@@ -86,6 +86,41 @@ func TestReadingsParseReport(t *testing.T) {
 	got := ParseReport(out.String(), edited)
 	if !slices.Equal(got, in) {
 		t.Fatalf("parsed\n%+v\nwant\n%+v\nfrom\n%s", got, in, out.String())
+	}
+}
+
+func TestReadingsMergeAloneKeepsOtherRuns(t *testing.T) {
+	b := &sheets.Book{Targets: []sheets.Target{
+		{ID: "spoils-conserved", Text: "Spoils are conserved", Runs: "social, soak", HoldsFrom: "MM4"},
+		{ID: "cost-flat", Text: "A day costs the same", Runs: "social", HoldsFrom: "MM4"},
+	}}
+	rs := []Readings{
+		{Label: "social", Run: "social", Rows: []Measured{
+			{Target: "spoils-conserved", Value: "beside the suite", Holds: true},
+			{Target: "cost-flat", Value: "+20.8%", Holds: false},
+		}},
+		{Label: "social-alone", Run: "social", Alone: true, Rows: []Measured{
+			{Target: "spoils-conserved", Value: "alone", Holds: true},
+			{Target: "cost-flat", Value: "+6.5%", Holds: true},
+		}},
+		{Label: "soak-10-s0", Run: "soak", N: 10, Rows: []Measured{
+			{Target: "spoils-conserved", Value: "3 coin lost", Holds: false},
+		}},
+	}
+	got := map[string]EpochRow{}
+	for _, r := range Merge(b, rs) {
+		got[r.ID] = r
+	}
+	sc := got["spoils-conserved"]
+	var labels []string
+	for _, l := range sc.Readings {
+		labels = append(labels, l.Label)
+	}
+	if sc.Holds != HoldsNo || !slices.Equal(labels, []string{"social-alone", "soak-10-s0"}) {
+		t.Errorf("an alone reading hid another run's miss: %s %v", sc.Holds, labels)
+	}
+	if cf := got["cost-flat"]; cf.Holds != HoldsYes || len(cf.Readings) != 1 || cf.Readings[0].Label != "social-alone" {
+		t.Errorf("the alone reading does not supersede its own run: %+v", cf)
 	}
 }
 

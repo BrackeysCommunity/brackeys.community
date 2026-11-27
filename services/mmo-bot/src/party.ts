@@ -5,6 +5,8 @@ import type { Lexicon } from "./lexicon.ts";
 import type { ThreadBudget } from "./publish.ts";
 import { threadCard, threadEndedCard, type ThreadPicture } from "./screens/party.ts";
 
+export const PARTY_PREFIX = "mmo-bot:party:";
+
 /**
  * Party threads (GDD 7.5, 17.2). A party plays in a private thread under
  * the channel where /party or the hub's Party button was pressed, with its
@@ -98,7 +100,7 @@ export class PartyPoster {
   ) {}
 
   private get prefix() {
-    return this.opts.prefix ?? "mmo-bot:party:";
+    return this.opts.prefix ?? PARTY_PREFIX;
   }
   private now() {
     return (this.opts.now ?? Date.now)();

@@ -27,34 +27,33 @@ frozen.
 
 ## Deploy
 
-Deploy the world with the world's current sheets still at
-`MMO_SHEETS_ROOT` and the new sheets root (a directory holding `sheets/`
-and `packs/`) at `MMO_SHEETS_NEXT`. To step the roll key too
-([keys.md](keys.md)), add `MMO_ROLL_EPOCH_NEXT=<MMO_ROLL_EPOCH + 1>`; a
-roll-only epoch (no `MMO_SHEETS_NEXT`) is allowed.
-
 The world image carries its build's own book at `/app`. An epoch deploy
-needs the world's current book too, so it carries a second root at
-`/app/epoch-from`: before the deploy, run
+needs the world's current book too, so it carries a second root (a
+directory holding `sheets/` and `packs/`) at `/app/epoch-from`.
 
-```sh
-sh scripts/epoch-root.sh <the commit of the world's current book>
-```
+1. Write that root and commit the `epoch-from/` it writes with the deploy:
 
-and commit the `epoch-from/` it writes with the deploy. Then set
-`MMO_SHEETS_ROOT=/app/epoch-from` and `MMO_SHEETS_NEXT=/app`. The world
-refuses a root whose book is not its own at open, so a wrong commit fails
-the deploy. Once the epoch is taken, remove it (`sh scripts/epoch-root.sh
---remove`, committed with the deploy that sets `MMO_SHEETS_ROOT=/app`).
+   ```sh
+   sh scripts/epoch-root.sh <the commit of the world's current book>
+   ```
+
+2. Deploy with `MMO_SHEETS_ROOT=/app/epoch-from` (the current book) and
+   `MMO_SHEETS_NEXT=/app` (the new one). To step the roll key too
+   ([keys.md](keys.md)), add `MMO_ROLL_EPOCH_NEXT=<MMO_ROLL_EPOCH + 1>`; a
+   roll-only epoch leaves `MMO_SHEETS_NEXT` unset.
+3. At open the world builds the pending rules and loads the stored world
+   under them, as the close will. A root whose book is not the world's own
+   (a wrong commit) is refused, and a book that cannot run this world fails
+   the deploy before any tick with `service: the pending sheets under MMO_SHEETS_NEXT do not load the world`
+   ([runbooks/world-down.md](runbooks/world-down.md)): unset it, fix the
+   book, deploy again. Pending sheets and roll epoch equal to the world's
+   log `no epoch to take` and change nothing.
+4. Nothing is taken before the close: the world runs on its current book
+   until then, and a restart in between keeps the epoch pending.
+5. Once the epoch is taken, `sh scripts/epoch-root.sh --remove`, committed
+   with the deploy that sets `MMO_SHEETS_ROOT=/app` (see After).
+
 A local world or the launch rehearsal points at two checkouts instead.
-
-At open the world builds the pending rules and loads the stored world
-under them, as the close will. A book that cannot run this world fails the
-deploy, before any tick, with `service: the pending sheets under MMO_SHEETS_NEXT do not load the world`; unset it, fix the book, deploy
-again. Pending sheets and roll epoch equal to the world's log `no epoch to take` and change nothing.
-
-Nothing is taken before the close: the world runs on its current book
-until then, and a restart in between keeps the epoch pending.
 
 ## At the close
 

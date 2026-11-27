@@ -113,7 +113,7 @@ confirmed**; plan as if it does.
   through its own interaction.
 - **Invalid requests** (401, 403 and 429 answers) above 10,000 in 10
   minutes block the bot's address for a while.
-- **Per route**, measured by spike D: about 1 edit a second sustained on one
+- **Per route**, as measured on a test server: about 1 edit a second sustained on one
   message, about 1.3 posts a second to one channel, and thread creation
   sharing a bucket of 50 every 300 seconds. The bot keeps public posts and
   edits at most one every 2 seconds a channel and opens at most 40 threads
@@ -147,7 +147,7 @@ Keep the test app apart from the verified one, and never verify it:
   asks for.
 - Whether the Activity is verified in the same submission as the app.
 - How long a global command change takes to propagate.
-- Which thread operations need Manage Threads: spike D measured that the bot
+- Which thread operations need Manage Threads: a test server showed that the bot
   archives its own threads without it; reopening a thread a moderator
   archived or locked is taken from Discord's documented thread rules and was
   not measured.
@@ -164,5 +164,3 @@ Read on 26 November 2026:
 - Discord's Developer Help Center articles on getting an app verified and on
   how friends can play an Activity (search results only; the pages refused a
   direct read).
-- Spike D's measurements (`spikes/D-discord-platform.md` in the game
-  drafts).

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"jams.team/mmo-world/sim/char"
+	"jams.team/mmo-world/sim/econ"
 	"jams.team/mmo-world/sim/emerge"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fixed"
@@ -239,15 +240,21 @@ func (g *Game) retire(l market.Listing, key string) error {
 
 // ItemValue is what an item is worth: its kind's value, less its wear.
 func (g *Game) ItemValue(in *item.Instance) int64 {
-	k, ok := g.Kinds.Kind(in.Kind)
+	return ItemWorth(g.r.Values, &g.Kinds, in)
+}
+
+// ItemWorth is an item's value under v: its kind's, scaled by the wear
+// left, never under 1; an unknown kind is worth nothing.
+func ItemWorth(v *econ.Values, kinds *Kinds, in *item.Instance) int64 {
+	k, ok := kinds.Kind(in.Kind)
 	if !ok {
 		return 0
 	}
-	v := g.r.Values.Kind(&g.Kinds, k)
+	w := v.Kind(kinds, k)
 	if in.MaxDurability > 0 {
-		v = fixed.Ratio(v*in.Durability, in.MaxDurability).Int()
+		w = fixed.Ratio(w*in.Durability, in.MaxDurability).Int()
 	}
-	return max(1, v)
+	return max(1, w)
 }
 
 // TraderPays is what a settlement's trader pays for an item.

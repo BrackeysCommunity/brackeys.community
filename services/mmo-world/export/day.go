@@ -8,7 +8,6 @@ import (
 
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/sim/fact"
-	"jams.team/mmo-world/sim/fixed"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
@@ -179,7 +178,7 @@ func (x *run) day(d int64, world string) (bool, error) {
 func (x *run) charDay(st *dayState, c *game.Char, acts map[string]int64) Day {
 	cc := c.C
 	dy := Day{Day: st.day, Character: x.nm.name(PrefixCharacter, cc.ID), Server: x.nm.name(PrefixServer, c.Server), Acted: len(acts) > 0,
-		Active: c.Acted >= st.close-x.activeDays*sheets.TicksPerDay && !c.Banned, Actions: map[string]int64{}, Coin: cc.Coin,
+		Active: game.ActiveAt(c, st.close, x.activeDays), Actions: map[string]int64{}, Coin: cc.Coin,
 		Classes: slices.Sorted(slices.Values(cc.Classes.Active))}
 	for k, n := range acts {
 		dy.Actions[k] = n
@@ -192,7 +191,7 @@ func (x *run) charDay(st *dayState, c *game.Char, acts map[string]int64) Day {
 		if in.Staged != nil {
 			continue
 		}
-		dy.GoodsValue += x.itemValue(&st.g.Kinds, in)
+		dy.GoodsValue += game.ItemWorth(x.values, &st.g.Kinds, in)
 		if in.Mount == "" {
 			dy.XP += x.curve[in.Level] + in.XP
 			dy.BestItemLevel = max(dy.BestItemLevel, in.Level)
@@ -202,20 +201,6 @@ func (x *run) charDay(st *dayState, c *game.Char, acts map[string]int64) Day {
 		dy.Classes = []string{}
 	}
 	return dy
-}
-
-// itemValue is an item's reference value as the sim reads it: its kind's,
-// scaled by the wear left, never under 1; an unknown kind is worth nothing.
-func (x *run) itemValue(kinds *game.Kinds, in *item.Instance) int64 {
-	k, ok := kinds.Kind(in.Kind)
-	if !ok {
-		return 0
-	}
-	v := x.values.Kind(kinds, k)
-	if in.MaxDurability > 0 {
-		v = fixed.Ratio(v*in.Durability, in.MaxDurability).Int()
-	}
-	return max(1, v)
 }
 
 func subjectChar(f fact.Fact) string {

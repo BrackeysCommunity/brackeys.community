@@ -43,17 +43,18 @@ func (s *Store) ActionsAfter(ctx context.Context, seq, upto int64) ([]Recorded, 
 	}
 	out := make([]Recorded, len(rows))
 	for i, a := range rows {
-		out[i] = Recorded{Seq: a.Seq, AfterTick: a.AfterTick}
-		if err := json.Unmarshal(a.Command, &out[i].Cmd); err != nil {
+		cmd, err := decodeCommand(a.Command)
+		if err != nil {
 			return nil, err
 		}
+		out[i] = Recorded{Seq: a.Seq, AfterTick: a.AfterTick, Cmd: cmd}
 	}
 	return out, nil
 }
 
 // TickDigests are the digests recorded for ticks in (after, upto].
 func (s *Store) TickDigests(ctx context.Context, after, upto int64) (map[int64]string, error) {
-	rows, err := s.q.ListTicks(ctx, db.ListTicksParams{WorldID: s.World, After: after, Upto: upto})
+	rows, err := s.TicksBetween(ctx, after, upto)
 	if err != nil {
 		return nil, err
 	}
@@ -62,4 +63,10 @@ func (s *Store) TickDigests(ctx context.Context, after, upto int64) (map[int64]s
 		out[t.Tick] = t.Digest
 	}
 	return out, nil
+}
+
+func decodeCommand(b []byte) (game.Command, error) {
+	var cmd game.Command
+	err := json.Unmarshal(b, &cmd)
+	return cmd, err
 }

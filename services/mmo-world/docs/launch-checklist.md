@@ -37,7 +37,9 @@ suite's `report.md` with options and a recommendation:
 - `top-kinds-near-median` (Craft's and the build climb's) and
   `richest-loop-band` (the loop climb);
 - Economy at 10,000 near its floor, and `invitation-days` as a floor;
-- the real peak for `load-tick-inside`.
+- the real peak for `load-tick-inside`;
+- `puzzle-solve-rate` at the build climb's highest tier (tier 1 scrub at
+  4 seats at 89.0% against 80%).
 
 Then tune, and read the change:
 
@@ -61,9 +63,7 @@ Commit the sheets with their epoch file ([epochs.md](epochs.md)).
   `MMO_WORLD_ID`, and a private bucket for its output (the copy to the
   bucket and the pruning are the service's settings; the scripts write to
   a directory).
-- Schedule it at 00:30 UTC; keep 14 dailies, 4 weeklies and the last
-  season-close dump until 14 days after the next close; nothing older
-  than 90 days.
+- Schedule and keep it as [backups.md](backups.md#schedule-and-retention) says.
 - Run the restore drill on a staging copy, never on production
   ([backups.md](backups.md)).
 
@@ -161,7 +161,7 @@ season over HTTP.]
 - Then `op audit`, `op replay` and the tick ring
   (`/v1/operator/ticks`) on staging.
 
-## 11. Carried from earlier milestones
+## 11. Other owner steps before season one
 
 - Apply the `mmo-map-seen` migration on staging, then production; set a
   new `MMO_MAP_TOKEN` on the world in both environments.
@@ -188,4 +188,4 @@ season over HTTP.]
 - Narration: set the model key, take the real cost sample, set
   `MMO_NARRATION_DAY_USD` and turn `MMO_NARRATION` on; read the arc
   proposals and the weekly digest.
-- Art.
+- Review the season and card art in the test servers.

@@ -1,11 +1,7 @@
 #!/bin/sh
-# A world's backup (GDD 19): every mmo table, the fact log and the ledger
-# with them, as one pg_dump in custom format, and a manifest beside it
-# that names the world, its tick and digest, its sheets, key version and
-# rules epoch, its row counts, the build and the dump's sha256. The
-# manifest is read first, so the dump holds that tick or a later one.
-# Nothing secret is written: the database holds no key, and the manifest
-# names none.
+# A world's backup (GDD 19): a custom-format pg_dump of the mmo schema and
+# a manifest beside it (docs/backups.md). The manifest is read first, so
+# the dump holds its tick or a later one. Nothing secret is written.
 #
 #   sh scripts/backup.sh <out dir>
 #

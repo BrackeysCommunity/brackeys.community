@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"jams.team/mmo-world/sim/fact"
@@ -11,7 +12,6 @@ import (
 )
 
 // The readers of recorded play, for the export and the backup's manifest.
-// Ranges are of ticks, [from, upto).
 
 // Action is a stored command as it was recorded. InteractionID is a
 // client's, never exported.
@@ -35,11 +35,12 @@ func (s *Store) ActionsBetween(ctx context.Context, from, upto int64) ([]Action,
 	}
 	out := make([]Action, len(rows))
 	for i, a := range rows {
-		out[i] = Action{Seq: a.Seq, InteractionID: a.InteractionID, AfterTick: a.AfterTick, Character: a.CharacterID, Kind: a.Kind,
-			Reply: json.RawMessage(a.Reply), At: a.At.Time}
-		if err := json.Unmarshal(a.Command, &out[i].Cmd); err != nil {
+		cmd, err := decodeCommand(a.Command)
+		if err != nil {
 			return nil, err
 		}
+		out[i] = Action{Seq: a.Seq, InteractionID: a.InteractionID, AfterTick: a.AfterTick, Character: a.CharacterID, Kind: a.Kind,
+			Cmd: cmd, Reply: json.RawMessage(a.Reply), At: a.At.Time}
 	}
 	return out, nil
 }
@@ -94,6 +95,28 @@ func (s *Store) TicksBetween(ctx context.Context, after, upto int64) ([]TickRow,
 		out[i] = TickRow{Tick: x.Tick, Digest: x.Digest, Facts: int64(x.Facts), Ms: int64(x.Ms), At: x.At.Time}
 	}
 	return out, nil
+}
+
+// TickDigest is the digest recorded for one tick: its mmo.tick row, or the
+// founding snapshot's at tick 0.
+func (s *Store) TickDigest(ctx context.Context, tick int64) (string, error) {
+	rows, err := s.TicksBetween(ctx, tick-1, tick)
+	if err != nil {
+		return "", err
+	}
+	if len(rows) == 1 {
+		return rows[0].Digest, nil
+	}
+	if tick == 0 {
+		snaps, err := s.SnapshotsBetween(ctx, 0, 1)
+		if err != nil {
+			return "", err
+		}
+		if len(snaps) == 1 {
+			return snaps[0].Digest, nil
+		}
+	}
+	return "", fmt.Errorf("world %s records no digest for tick %d", s.World, tick)
 }
 
 // Counts are how many rows of each log a world holds. LastSnapshotTick is

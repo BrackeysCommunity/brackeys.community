@@ -108,6 +108,7 @@ func suiteRuns() []SuiteRun {
 		SuiteRun{Label: "social-alone", Run: "social", Cap: hour, Alone: true},
 		SuiteRun{Label: "world-alone", Run: "world", Cap: 2 * hour, Alone: true},
 		SuiteRun{Label: "map-10-alone", Run: "map", N: 10, Cap: hour, Alone: true},
+		SuiteRun{Label: "emergence-alone", Run: "emergence", Cap: long, Alone: true},
 		SuiteRun{Label: "load", Run: SuiteLoad, Cap: 2 * hour, Alone: true, Live: true},
 	)
 }

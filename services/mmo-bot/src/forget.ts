@@ -1,5 +1,8 @@
 import { KEY_PREFIX } from "../../../packages/mmo-narrate/src/index.ts";
+import { COOLDOWN_PREFIX } from "./cooldown.ts";
 import { HELD_KEY } from "./narration/names.ts";
+import { lastKey } from "./narration/voice.ts";
+import { PARTY_PREFIX } from "./party.ts";
 
 /**
  * What the bot's Redis holds of one Discord user, removed when the user
@@ -24,10 +27,6 @@ export interface RedisLike {
   lrem(key: string, count: number, value: string): Promise<number>;
 }
 
-/** The press limit's key prefix, as cooldown.ts writes it. */
-const COOLDOWN = "mmo-bot:cd:";
-/** Party threads' records, as party.ts keeps them. */
-const PARTY = "mmo-bot:party:";
 const SCAN_COUNT = 500;
 
 /** A user id as a SCAN pattern matches it literally. */
@@ -50,14 +49,12 @@ async function scanAll(redis: RedisLike, pattern: string): Promise<string[]> {
 export async function forgetUser(redis: RedisLike, user: string): Promise<number> {
   const u = literal(user);
   // A glob's * also crosses colons, so each key is checked by its parts.
-  const last = (await scanAll(redis, `${KEY_PREFIX}last:*:${u}`)).filter(
-    (k) => k.split(":").at(-1) === user,
-  );
+  const last = (await scanAll(redis, lastKey("*", u))).filter((k) => k.split(":").at(-1) === user);
   const caps = (await scanAll(redis, `${KEY_PREFIX}cap:*:${u}:*`)).filter((k) => {
     const parts = k.split(":");
     return parts.at(-2) === user && /^\d+$/.test(parts.at(-1) ?? "");
   });
-  const keys = [`${COOLDOWN}${user}`, ...last, ...caps];
+  const keys = [`${COOLDOWN_PREFIX}${user}`, ...last, ...caps];
   let n = await redis.del(...keys);
 
   for (const raw of await redis.lrange(HELD_KEY, 0, -1)) {
@@ -70,7 +67,7 @@ export async function forgetUser(redis: RedisLike, user: string): Promise<number
     if (held?.user === user) n += await redis.lrem(HELD_KEY, 0, raw);
   }
 
-  for (const key of await scanAll(redis, `${PARTY}*`)) {
+  for (const key of await scanAll(redis, `${PARTY_PREFIX}*`)) {
     const raw = await redis.get(key);
     if (!raw) continue;
     let kept: { members?: unknown };

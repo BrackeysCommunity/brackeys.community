@@ -31,7 +31,6 @@ func init() { Runs["load"] = LoadRun }
 
 // Env names of the load run.
 const (
-	EnvLoadURL     = "LOAD_URL"
 	EnvLoadPPM     = "LOAD_PPM"
 	EnvLoadMinutes = "LOAD_MINUTES"
 	EnvLoadServers = "LOAD_SERVERS"
@@ -122,9 +121,9 @@ func loadConfigFromEnv(n int) (loadConfig, error) {
 // LoadRun loads the live world at LOAD_URL (else MMO_URL) for the window
 // and writes load.md.
 func LoadRun(b *sheets.Book, out string, n int) ([]Measured, error) {
-	base := envvar.Get(EnvLoadURL, os.Getenv(service.EnvURL))
+	base := envvar.Get(LoadURL, os.Getenv(service.EnvURL))
 	if base == "" {
-		return nil, fmt.Errorf("the load run needs the world's URL: set %s or %s", EnvLoadURL, service.EnvURL)
+		return nil, fmt.Errorf("the load run needs the world's URL: set %s or %s", LoadURL, service.EnvURL)
 	}
 	cfg, err := loadConfigFromEnv(n)
 	if err != nil {

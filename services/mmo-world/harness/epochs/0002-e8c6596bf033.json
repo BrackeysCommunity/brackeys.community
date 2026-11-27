@@ -1,7 +1,7 @@
 {
   "seq": 2,
   "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
-  "commit": "2547a1d6bfaf6e0d2b116cc63103b4b75b19c139",
+  "commit": "f2ff51253a4ea5ba0bc2418a4c6e3198257e2591",
   "taken": "2026-11-27",
   "note": "MM14's launch build, the book season one takes",
   "labels": [
@@ -224,9 +224,9 @@
       "label": "search-1000",
       "run": "search",
       "n": 1000,
-      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "commit": "f2ff51253a4ea5ba0bc2418a4c6e3198257e2591",
       "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
-      "secs": 895
+      "secs": 5792
     },
     {
       "label": "season",
@@ -1060,6 +1060,60 @@
       "holds": "yes",
       "readings": [
         {
+          "label": "soak-10-s0",
+          "value": "soak, 0 finds from pools",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s1",
+          "value": "soak, 0 finds from pools",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s2",
+          "value": "soak, 0 finds from pools",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s3",
+          "value": "soak, 0 finds from pools",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s4",
+          "value": "soak, 0 finds from pools",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s5",
+          "value": "soak, 0 finds from pools",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s6",
+          "value": "soak, 0 finds from pools",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s7",
+          "value": "soak, 0 finds from pools",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-1000",
+          "value": "soak, 153 finds from pools",
+          "holds": true,
+          "measured": true
+        },
+        {
           "label": "social-alone",
           "value": "0 finds from pools",
           "holds": true,
@@ -1132,7 +1186,7 @@
     {
       "id": "puzzle-solve-rate",
       "text": "A party at the expected practice level solves a floor's puzzle within its countdown 60% to 80% of the time",
-      "holds": "yes",
+      "holds": "no",
       "readings": [
         {
           "label": "battle",
@@ -1142,8 +1196,8 @@
         },
         {
           "label": "search-1000",
-          "value": "the climbed party policy solves 76.4% over every tier (tier 1 scrub at 4 seats 89.0%; tier 2 rewire at 4 seats 82.3%; tier 3 keycard at 4 seats 74.7%; tier 4 override at 3 seats 59.6%)",
-          "holds": true,
+          "value": "the climbed party policy's highest tier: tier 1 scrub at 4 seats 89.0% (tier 1 scrub at 4 seats 89.0%; tier 2 lock-dial at 4 seats 73.7%; tier 3 circuit at 4 seats 63.6%; tier 4 override at 3 seats 59.6%; over every tier 71.5%)",
+          "holds": false,
           "measured": true
         }
       ]

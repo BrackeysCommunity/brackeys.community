@@ -265,7 +265,7 @@ function seasonAddedCard(f: api.Fact): Card {
 
 /** The most notes the epoch card lists; the rest are counted. */
 export const EPOCH_NOTES_MOST = 10;
-/** structural: the longest one note's line runs. */
+/** structural: the most characters one note's line runs to. */
 const NOTE_MOST = 200;
 
 /**

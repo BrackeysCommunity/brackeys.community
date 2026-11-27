@@ -10,8 +10,9 @@ import {
 } from "../../../packages/mmo-narrate/src/index.ts";
 import * as api from "./api.ts";
 import { type Card, problems } from "./card.ts";
-import { ChroniclePoster } from "./chronicle.ts";
+import { ChroniclePoster, chronicleSource } from "./chronicle.ts";
 import { NARRATION_DAY_USD } from "./config.ts";
+import { COOLDOWN_PREFIX } from "./cooldown.ts";
 import { EventsPoster } from "./events.ts";
 import { answer, type Answer, type Ctx, launchFor, modalFor, type Press } from "./flow.ts";
 import { forgetUser, type RedisLike } from "./forget.ts";
@@ -22,7 +23,8 @@ import { decodeId, type Id } from "./ids.ts";
 import { Lexicon } from "./lexicon.ts";
 import { narrationParts } from "./narration/index.ts";
 import { HELD_KEY } from "./narration/names.ts";
-import { PartyPoster } from "./party.ts";
+import { lastKey } from "./narration/voice.ts";
+import { PARTY_PREFIX, PartyPoster } from "./party.ts";
 import { PromotionsPoster } from "./promotions.ts";
 import { ThreadBudget } from "./publish.ts";
 import { recording } from "./record.ts";
@@ -1683,14 +1685,7 @@ export class ScriptedPosters {
       channelOf("chronicle"),
       (guild, ch) =>
         new ChroniclePoster(
-          {
-            async chronicle(server) {
-              const r = await world.chronicle("", undefined, server);
-              if (r.ok) return r.reply;
-              if (r.refusal.code === api.CodeNotFound) return null;
-              throw new Error(`chronicle refused: ${r.refusal.code} ${r.refusal.message ?? ""}`);
-            },
-          },
+          chronicleSource((server) => world.chronicle("", undefined, server)),
           lex,
           store,
           this.sink(guild, "chronicle", ch),
@@ -1906,11 +1901,11 @@ function escapeRe(c: string): string {
 /** What the bot would hold of a player who pressed, held a name and joined a party: keys to forget, and one of another's. */
 function botKeys(user: string, other: string, stamp: number) {
   return {
-    cooldown: `mmo-bot:cd:${user}`,
-    last: `${KEY_PREFIX}last:scripted:${user}`,
+    cooldown: `${COOLDOWN_PREFIX}${user}`,
+    last: lastKey("scripted", user),
     cap: `${KEY_PREFIX}cap:scripted:${user}:1`,
-    party: `mmo-bot:party:scripted-${stamp}`,
-    others: `mmo-bot:cd:${other}`,
+    party: `${PARTY_PREFIX}scripted-${stamp}`,
+    others: `${COOLDOWN_PREFIX}${other}`,
   };
 }
 

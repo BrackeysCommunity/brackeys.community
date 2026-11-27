@@ -114,7 +114,7 @@ func manifestOf(ctx context.Context, st *store.Store, now time.Time) (manifest, 
 	if err != nil {
 		return manifest{}, err
 	}
-	d, err := tickDigest(ctx, st, tick)
+	d, err := st.TickDigest(ctx, tick)
 	if err != nil {
 		return manifest{}, err
 	}
@@ -124,28 +124,6 @@ func manifestOf(ctx context.Context, st *store.Store, now time.Time) (manifest, 
 	}
 	return manifest{Schema: manifestSchema, World: meta.ID, Tick: tick, Digest: d, Sheets: meta.SheetsDigest, KeyVersion: meta.KeyVersion,
 		RulesEpoch: meta.RulesEpoch, Counts: c, Commit: commit(), Made: now.Format(time.RFC3339)}, nil
-}
-
-// tickDigest is the digest recorded for a tick: its mmo.tick row, or the
-// founding snapshot's at tick 0.
-func tickDigest(ctx context.Context, st *store.Store, tick int64) (string, error) {
-	rows, err := st.TicksBetween(ctx, tick-1, tick)
-	if err != nil {
-		return "", err
-	}
-	if len(rows) == 1 {
-		return rows[0].Digest, nil
-	}
-	if tick == 0 {
-		snaps, err := st.SnapshotsBetween(ctx, 0, 1)
-		if err != nil {
-			return "", err
-		}
-		if len(snaps) == 1 {
-			return snaps[0].Digest, nil
-		}
-	}
-	return "", fmt.Errorf("world %s records no digest for tick %d", st.World, tick)
 }
 
 // commit is the build the manifest was made by: MMO_COMMIT, else the
@@ -396,7 +374,7 @@ func sameRecords(ctx context.Context, st *store.Store, got verified, want manife
 	if got.Tick < want.Tick {
 		return fmt.Errorf("the restored world stands at tick %d, before the manifest's %d", got.Tick, want.Tick)
 	}
-	d, err := tickDigest(ctx, st, want.Tick)
+	d, err := st.TickDigest(ctx, want.Tick)
 	if err != nil {
 		return err
 	}

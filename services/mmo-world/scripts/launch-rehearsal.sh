@@ -116,14 +116,14 @@ client_env() {
   echo $! >"$OUT/world.pid"
 )
 for _ in $(seq 1 120); do
-  curl -sf "$URL/healthz" >/dev/null 2>&1 && break
+  curl -sf "$URL/healthz" 2>/dev/null | jq -e '.standby != true' >/dev/null 2>&1 && break
   kill -0 "$(cat "$OUT/world.pid")" 2>/dev/null || {
     tail -5 "$OUT/world.log"
     fail "the world did not start"
   }
   sleep 1
 done
-curl -sf "$URL/healthz" >/dev/null || fail "the world never became healthy"
+curl -sf "$URL/healthz" | jq -e '.standby != true' >/dev/null || fail "the world never became healthy"
 grep '"world founded"' "$OUT/world.log" | grep -q '"disposable":false' || fail "the world was not founded kept: $(grep '"world founded"' "$OUT/world.log" | cut -c1-200)"
 say "a kept world on $URL at ${TICK_SECONDS}-second ticks, on the base book, the launch book pending"
 

@@ -10,8 +10,7 @@ import {
   onGuilds,
   threadSink,
 } from "./adapter.ts";
-import * as api from "./api.ts";
-import { CHRONICLE_POLL_MS, ChroniclePoster } from "./chronicle.ts";
+import { CHRONICLE_POLL_MS, ChroniclePoster, chronicleSource } from "./chronicle.ts";
 import { loadConfig } from "./config.ts";
 import { localBudget, redisBudget } from "./cooldown.ts";
 import { EVENTS_POLL_MS, EventsPoster } from "./events.ts";
@@ -239,15 +238,7 @@ client.once(Events.ClientReady, async (c) => {
       mapped("chronicle", chronicleChannel),
       (guild, id) =>
         new ChroniclePoster(
-          {
-            async chronicle(server) {
-              const r = await worldFor(server).chronicle("");
-              if (r.ok) return r.reply;
-              // Not found: no world day has closed yet.
-              if (r.refusal.code === api.CodeNotFound) return null;
-              throw new Error(`chronicle refused: ${r.refusal.code} ${r.refusal.message ?? ""}`);
-            },
-          },
+          chronicleSource((server) => worldFor(server).chronicle("")),
           lex,
           store,
           channel(id),

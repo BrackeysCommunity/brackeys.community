@@ -12,6 +12,7 @@ import (
 
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/api/client"
+	"jams.team/mmo-world/mapview"
 	"jams.team/mmo-world/service"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/store"
@@ -263,5 +264,49 @@ func TestActForget(t *testing.T) {
 	}
 	if rows.Close(); len(kinds) != 2 {
 		t.Fatalf("recorded forgets: %v", kinds)
+	}
+}
+
+// TestForgetLeavesNoSight forgets a player and opens the world again: a
+// map pass after the reopen writes no sight row for the forgotten one.
+func TestForgetLeavesNoSight(t *testing.T) {
+	ctx := context.Background()
+	pool := pgtest.Pool(t)
+	edit := func(c *service.Config) { c.APIToken, c.ForgetToken = apiToken, forgetToken }
+	r := startOn(t, pool, io.Discard, edit)
+	r.cli = client.New(r.http.URL, apiToken)
+	r.cli.Poll = time.Millisecond
+	var gone string
+	for _, user := range []string{"u-gone", "u-stays"} {
+		rep, ref, err := r.cli.Act(ctx, api.ActionRequest{InteractionID: "new-" + user, DiscordID: user, Kind: api.ActCreate, Option: api.StartKnife})
+		if err != nil || ref != nil {
+			t.Fatal(ref, err)
+		}
+		if user == "u-gone" {
+			gone = rep.Character.ID
+		}
+	}
+	advance(t, ctx, r, 2)
+	act(t, ctx, r, gone, api.ActionRequest{InteractionID: "forget-me", DiscordID: "u-gone", Kind: api.ActForget})
+	advance(t, ctx, r, 4)
+	r.halt()
+
+	r = startOn(t, pool, io.Discard, edit)
+	advance(t, ctx, r, 5)
+	unlock := r.srv.Hold()
+	_, kept := r.srv.MapKeys()[mapview.Holder{Kind: mapview.HolderCharacter, ID: gone}]
+	unlock()
+	if kept {
+		t.Fatal("the reopened world keys the forgotten character")
+	}
+	for _, table := range []string{"mmo.map_seen", "mmo.map_sight"} {
+		var n int
+		if err := pool.QueryRow(ctx, "SELECT count(*) FROM "+table+" WHERE world_id = $1 AND holder_kind = $2 AND holder_id = $3",
+			world, mapview.HolderCharacter, gone).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n != 0 {
+			t.Fatalf("%s holds %d rows for the forgotten character", table, n)
+		}
 	}
 }

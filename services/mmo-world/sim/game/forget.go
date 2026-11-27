@@ -102,7 +102,8 @@ func (g *Game) forgetWaits(c *Char) bool {
 // forgetWithdraw ends what a character has under way, each through its own
 // path: its long action, a machine or an encounter only it could resolve
 // (as a ban ends them), its market orders, the goals it posted that may be
-// withdrawn, its party and its guild.
+// withdrawn, its shared record (left as a ban leaves it), its party and its
+// guild.
 func (g *Game) forgetWithdraw(c *Char, key string) error {
 	if c.Long != nil {
 		if err := g.cancel(c); err != nil {
@@ -128,9 +129,7 @@ func (g *Game) forgetWithdraw(c *Char, key string) error {
 			return err
 		}
 	}
-	if g.partyOf(c) != nil {
-		g.leaveRecord(c)
-	}
+	g.unshare(c)
 	if err := g.quitParty(c, g.Tick()); err != nil {
 		return err
 	}

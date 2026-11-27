@@ -41,12 +41,14 @@ A tick keeps failing, or the world does not load.
 The fix is a code deploy, never an edit of `mmo.*`. Every row the world
 holds is checked on load (the digest, the fact chain, the ledger count),
 so a hand edit makes the world fail to load, and it breaks every replay
-after it. To reproduce a deterministic failure, restore a backup into a
-scratch database ([../backups.md](../backups.md)) and run the failing
-build against it with `MMO_MANUAL_CLOCK=1` and `LOG_LEVEL=debug`, setting
-the due tick one past the saved one through `POST /v1/operator/clock`
-(`{"due": <tick+1>}`). Do this only where the world's master already
-lives, never on a laptop ([../keys.md](../keys.md)).
+after it.
+
+To reproduce a deterministic failure, where the world's master already
+lives and never on a laptop ([../keys.md](../keys.md)):
+
+1. Restore a backup into a scratch database ([../backups.md](../backups.md)).
+2. Run the failing build against it with `MMO_MANUAL_CLOCK=1 LOG_LEVEL=debug`.
+3. `POST /v1/operator/clock` with `{"due": <saved tick + 1>}`.
 
 ## After
 

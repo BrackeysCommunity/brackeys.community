@@ -1,10 +1,11 @@
-import type * as api from "./api.ts";
+import * as api from "./api.ts";
 import type { Card } from "./card.ts";
 import type { ForumStore } from "./forum.ts";
 import { type ChannelSink, pollEvery } from "./hunts.ts";
 import type { Lexicon } from "./lexicon.ts";
 import { postOnce } from "./live.ts";
 import { chronicleCard } from "./screens/story.ts";
+import type { WorldReply } from "./world.ts";
 
 /**
  * The chronicle channel (GDD 12.7): one post per closed world day per
@@ -19,6 +20,20 @@ export const CHRONICLE_POLL_MS = 60_000;
 export interface ChronicleWorld {
   /** The last closed world day as a server reads it; null before any has closed. */
   chronicle(server: string): Promise<api.Chronicle | null>;
+}
+
+/** A world's chronicle call as the poster reads it: not-found means no world day has closed yet. */
+export function chronicleSource(
+  fetch: (server: string) => Promise<WorldReply<api.Chronicle>>,
+): ChronicleWorld {
+  return {
+    async chronicle(server) {
+      const r = await fetch(server);
+      if (r.ok) return r.reply;
+      if (r.refusal.code === api.CodeNotFound) return null;
+      throw new Error(`chronicle refused: ${r.refusal.code} ${r.refusal.message ?? ""}`);
+    },
+  };
 }
 
 /** A closed day's card; template is the poster's own. */

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"jams.team/mmo-world/api"
+	"jams.team/mmo-world/sheetfs"
 	"jams.team/mmo-world/sim/sheets"
 )
 
@@ -53,9 +54,31 @@ func TestSuiteCoversTargets(t *testing.T) {
 			}
 		}
 	}
-	for _, l := range []string{"economy-10", "economy-10-s7", "soak-10-s0", "soak-10-s7", "social-alone", "world-alone", "map-10-alone", "spike-e-1000", "replay"} {
+	for _, l := range []string{"economy-10", "economy-10-s7", "soak-10-s0", "soak-10-s7", "social-alone", "world-alone", "map-10-alone", "emergence-alone", "spike-e-1000", "replay"} {
 		if !labels[l] {
 			t.Errorf("no label %s", l)
+		}
+	}
+}
+
+// The newest committed epoch's labels are all in the suite, so `harness
+// all` can reproduce it.
+func TestSuiteHoldsEpochLabels(t *testing.T) {
+	es, err := Epochs(filepath.Join(sheetfs.ModuleRoot(), "harness", "epochs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(es) == 0 {
+		t.Fatal("no epoch files")
+	}
+	labels := map[string]bool{}
+	for _, s := range Suite {
+		labels[s.Label] = true
+	}
+	newest := es[len(es)-1]
+	for _, l := range newest.Labels {
+		if !labels[l.Label] {
+			t.Errorf("epoch %d records the label %s, which the suite does not hold", newest.Seq, l.Label)
 		}
 	}
 }

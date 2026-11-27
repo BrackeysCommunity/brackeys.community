@@ -10,10 +10,10 @@ import (
 	"jams.team/mmo-world/sim/sheets"
 )
 
-// soakAll is the soak run's options: every system on (MVP L358), the
+// soakAll is the soak run's options: every system on (GDD 20.3), the
 // thieves, the staging adversary at the main server, emergence, the
-// season clock and an empty server (GDD 20.3). The loop climb's
-// adversary is Search's.
+// season clock and an empty server. The loop climb's adversary is left
+// to Search.
 var soakAll = soakOptions{Thieves: true, Staging: true, Emergence: true, Season: true, EmptyServer: true}
 
 // SoakRun is the headless soak: the Economy plan (its sizes, or n alone,

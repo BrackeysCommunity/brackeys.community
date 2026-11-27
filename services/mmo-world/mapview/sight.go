@@ -82,11 +82,14 @@ func guildKeys(g *game.Game) map[string]Key {
 	return out
 }
 
-// Keys are every holder's sight keys now: each character, and each guild
-// with a standing place.
+// Keys are every holder's sight keys now: each character not asked to be
+// forgotten, and each guild with a standing place.
 func Keys(g *game.Game) map[Holder]Key {
 	out := make(map[Holder]Key, len(g.Chars))
 	for _, c := range g.Chars {
+		if c.Forget > 0 {
+			continue
+		}
 		out[Holder{HolderCharacter, c.C.ID}] = charKey(g, c)
 	}
 	for id, k := range guildKeys(g) {
@@ -98,13 +101,14 @@ func Keys(g *game.Game) map[Holder]Key {
 }
 
 // KeyOf is one holder's key now; false when the holder is gone: a
-// character no longer in the game, or a guild with no members and no
-// standing place. A guild with members and no place has an empty key.
+// character no longer in the game or one asked to be forgotten, or a
+// guild with no members and no standing place. A guild with members and
+// no place has an empty key.
 func KeyOf(g *game.Game, h Holder) (Key, bool) {
 	switch h.Kind {
 	case HolderCharacter:
 		c := g.Char(h.ID)
-		if c == nil {
+		if c == nil || c.Forget > 0 {
 			return nil, false
 		}
 		return charKey(g, c), true

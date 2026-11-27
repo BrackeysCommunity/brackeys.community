@@ -10,7 +10,7 @@ export interface Budget {
 }
 
 export const PRESSES = { limit: 30, windowMs: 10_000 } as const;
-const PREFIX = "mmo-bot:cd:";
+export const COOLDOWN_PREFIX = "mmo-bot:cd:";
 
 export function redisBudget(
   redis: IORedis,
@@ -19,7 +19,7 @@ export function redisBudget(
   return {
     ...rule,
     async take(user) {
-      const key = PREFIX + user;
+      const key = COOLDOWN_PREFIX + user;
       try {
         const [[, n], [, ttl]] = (await redis.multi().incr(key).pttl(key).exec()) as [
           [null, number],

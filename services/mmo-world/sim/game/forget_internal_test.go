@@ -347,3 +347,34 @@ func TestForgetNamesATraveller(t *testing.T) {
 		t.Fatalf("to itself: %q", mv.Who)
 	}
 }
+
+// A party member forgotten while seated at an armed machine leaves the
+// shared record as a ban does: the machine goes back to rest and the
+// member is no longer in the record.
+func TestForgetUnseatsAnArmedMachine(t *testing.T) {
+	g, _, st := vaultWorld(t)
+	cs := vaultParty(t, g, st.At, 2)
+	vaultAct(t, g, cs[0], armVault)
+	sh := g.sharedOf(cs[0])
+	if sh == nil || !sh.Machine.Armed() || !slices.Contains(sh.Machine.Seats, cs[1].C.ID) {
+		t.Fatal("setup: the vault is not armed with both seats")
+	}
+	fgForget(t, g, cs[1])
+	advance(t, g)
+	if cs[1].Forgotten == 0 {
+		t.Fatal("the sweep did not run")
+	}
+	if sh.Machine.Armed() {
+		t.Fatalf("the machine is still armed: %+v", sh.Machine)
+	}
+	if slices.Contains(sh.Members, cs[1].C.ID) {
+		t.Fatal("the forgotten member is still in the shared record")
+	}
+	if cs[0].Armed != nil {
+		t.Fatal("the remaining seat is still armed")
+	}
+	audit(t, g)
+	if fault := g.OpenIndexFault(); fault != "" {
+		t.Fatalf("open orders: %s", fault)
+	}
+}

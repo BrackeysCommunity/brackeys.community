@@ -38,7 +38,7 @@ const (
 	EnvAPIToken      = "MMO_API_TOKEN" // required unless the world is disposable or on the manual clock
 	EnvOperatorToken = "MMO_OPERATOR_TOKEN"
 	EnvMapToken      = "MMO_MAP_TOKEN"    // reads only the live map's paths; the API token reads them too
-	EnvForgetToken   = "MMO_FORGET_TOKEN" // opens only the forget path, for the site's account deletion
+	EnvForgetToken   = "MMO_FORGET_TOKEN" // opens only the forget path, for a web client
 	EnvManualClock   = "MMO_MANUAL_CLOCK" // tests only: the due tick is set through the operator API
 	EnvDisposable    = "MMO_DISPOSABLE"   // 1: found worlds that may be wiped; never on a world players keep
 	EnvSheetsFrom    = "MMO_SHEETS_FROM"  // a kept world's old sheets digest: re-stamp it onto these sheets, once

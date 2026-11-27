@@ -323,3 +323,24 @@ func TestSightsGuildBounded(t *testing.T) {
 }
 
 func sightKeys() keys.Set { return keys.Throwaway("mapview-sight") }
+
+// A character asked to be forgotten is a gone holder: no key, and a pass
+// that held one drops it.
+func TestSightForgottenGone(t *testing.T) {
+	s := newSighted(t, 4)
+	me := Holder{HolderCharacter, s.c.C.ID}
+	prev := map[Holder]Key{me: s.charKey()}
+	if _, err := s.g.Act(game.Command{Key: "forget-me", Char: s.c.C.ID, Kind: game.Forget}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := Keys(s.g)[me]; ok {
+		t.Fatal("Keys still keys a forgotten character")
+	}
+	if k, ok := KeyOf(s.g, me); ok {
+		t.Fatalf("KeyOf keys a forgotten character as %v", k)
+	}
+	changes, gone := Pass(s.g, prev, nil, s.p)
+	if !slices.Contains(gone, me) || slices.ContainsFunc(changes, func(c Change) bool { return c.Holder == me }) {
+		t.Fatalf("the pass changed %v and dropped %v", changes, gone)
+	}
+}

@@ -5,13 +5,13 @@
 #
 #   sh scripts/restore.sh <dir>/mmo-<world>-t<tick>-<stamp>.dump
 #
-# It refuses a dump its manifest does not seal, a target that already
-# holds a world unless RESTORE_REPLACE=1 (which drops the target's mmo
-# schema first), and a target that is SOURCE_DATABASE_URL, the database
-# backups are taken from. op verify needs the world's keys and sheets:
-# MMO_MASTER_SECRET, MMO_WORLD_ID, MMO_ROLL_EPOCH and MMO_SHEETS_ROOT.
-# op, psql and pg_restore must be on PATH. A failed restore leaves the
-# target with no mmo schema.
+# It refuses a dump its manifest does not seal, a target that is
+# SOURCE_DATABASE_URL (the database backups are taken from), and a target
+# that already holds a world unless RESTORE_REPLACE=1. It drops the
+# target's mmo schema before pg_restore. op verify needs the world's keys
+# and sheets: MMO_MASTER_SECRET, MMO_WORLD_ID, MMO_ROLL_EPOCH and
+# MMO_SHEETS_ROOT. op, psql and pg_restore must be on PATH. A failed
+# restore leaves the target with no mmo schema.
 set -eu
 : "${DATABASE_URL:?}"
 if [ "$#" -ne 1 ]; then

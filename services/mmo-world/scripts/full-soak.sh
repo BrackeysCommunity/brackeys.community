@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The full soak (MVP L358): every run the targets need and the headless
+# The full soak: every run the targets need and the headless
 # soak with every system on, on one build (harness all -soak), beside the
 # launch rehearsal on a kept local world (scripts/launch-rehearsal.sh).
 # Several hours. It exits non-zero when a label exits non-zero or the

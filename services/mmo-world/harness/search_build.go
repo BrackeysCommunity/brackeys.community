@@ -611,6 +611,23 @@ func (p puzzlePlay) total() fixed.F {
 	return t
 }
 
+// peak is the tier with the largest summed rate; every policy plays the
+// same floors, so comparing sums is exact.
+func (p puzzlePlay) peak() (int, fixed.F) {
+	best := 0
+	for i, s := range p.sum {
+		if s > p.sum[best] {
+			best = i
+		}
+	}
+	return best, p.sum[best]
+}
+
+func peakOf(p puzzlePlay) fixed.F {
+	_, v := p.peak()
+	return v
+}
+
 func (p puzzlePlay) overall() float64 {
 	return float64(p.total()) / float64(fixed.Scale) / float64(max(p.floors*int64(len(p.sum)), 1))
 }
@@ -646,7 +663,7 @@ func puzzleClimb(bt *battle, d *draw.Drawer) []puzzlePlay {
 		if gen > 0 {
 			top := out[0]
 			for _, p := range out {
-				if p.total() > top.total() {
+				if peakOf(p) > peakOf(top) {
 					top = p
 				}
 			}
@@ -785,7 +802,7 @@ func climbBuild(b *sheets.Book, n int) (*buildResult, error) {
 	r.puzzles = puzzleClimb(bt, d)
 	r.puzzle = r.puzzles[0]
 	for _, p := range r.puzzles {
-		if p.total() > r.puzzle.total() {
+		if peakOf(p) > peakOf(r.puzzle) {
 			r.puzzle = p
 		}
 	}
@@ -956,23 +973,26 @@ func (r *buildResult) puzzleSection(b *sheets.Book, p func(string, ...any)) Meas
 	hi := sheets.IntParam(b.PuzzleParams, "solve-target-max")
 	p("## Puzzles")
 	p("")
-	p("A party's puzzle policy is, per fight tier, how many seats it fills (%d to %d) and the puzzle family whose places it seeks out. It is read by the model's solve rate at the tier's expected practice on every dungeon floor, at the level the Battle run gives each floor. The first generation is drawn; each later one is single steps from the best so far. The best policy's rate over every tier is read against the target's ceiling, %d%%: a party that chooses well should not beat it.", party.MinSize, sheets.IntParam(b.FightParams, "party-size-max"), hi)
+	p("A party's puzzle policy is, per fight tier, how many seats it fills (%d to %d) and the puzzle family whose places it seeks out. It is read by the model's solve rate at the tier's expected practice on every dungeon floor, at the level the Battle run gives each floor. The first generation is drawn; each later one is single steps from the best so far. The policy is climbed for, and read by, its highest tier's rate against the target's ceiling, %d%%: a party that chooses well should not beat it at any tier.", party.MinSize, sheets.IntParam(b.FightParams, "party-size-max"), hi)
 	p("")
-	p("| Generation | Policy | Over every tier |")
-	p("| --- | --- | --- |")
+	p("| Generation | Policy | Highest tier | Over every tier |")
+	p("| --- | --- | --- | --- |")
 	for _, x := range r.puzzles {
-		p("| %d | `%s` | %.1f%% |", x.gen, x.policy.name, 100*x.overall())
+		i, _ := x.peak()
+		p("| %d | `%s` | tier %d %.1f%% | %.1f%% |", x.gen, x.policy.name, b.FightTiers[i].Tier, 100*x.rate(i), 100*x.overall())
 	}
 	p("")
 	p("| Tier | Family | Seats | Solve rate |")
 	p("| --- | --- | --- | --- |")
 	var per []string
+	holds := true
 	for i, ft := range b.FightTiers {
+		holds = holds && 100*pz.rate(i) <= float64(hi)
 		t := pz.policy.tiers[i]
 		p("| tier %d | %s | %d | %.1f%% |", ft.Tier, b.PuzzleFamilies[t.family].ID, t.seats, 100*pz.rate(i))
 		per = append(per, fmt.Sprintf("tier %d %s at %d seats %.1f%%", ft.Tier, b.PuzzleFamilies[t.family].ID, t.seats, 100*pz.rate(i)))
 	}
 	p("")
-	rate := 100 * pz.overall()
-	return Measured{Target: "puzzle-solve-rate", Value: fmt.Sprintf("the climbed party policy solves %.1f%% over every tier (%s)", rate, strings.Join(per, "; ")), Holds: rate <= float64(hi)}
+	top, _ := pz.peak()
+	return Measured{Target: "puzzle-solve-rate", Value: fmt.Sprintf("the climbed party policy's highest tier: %s (%s; over every tier %.1f%%)", per[top], strings.Join(per, "; "), 100*pz.overall()), Holds: holds}
 }

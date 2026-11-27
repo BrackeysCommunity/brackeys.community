@@ -56,28 +56,36 @@ new_db() {
 # for the world's lock (which answers /healthz and refuses the rest).
 serving() { curl -sf "$URL/healthz" 2>/dev/null | jq -e '.standby != true' >/dev/null 2>&1; }
 
-# start_world <log name> <binary> <module dir> <db> <world id> [VAR=value...]
+# launch_world <log> <binary> <module dir> <db> <world id> [VAR=value...]
 # starts a world in the background with the proof's keys and tokens, the
-# arguments last so they win; it returns once the world is open.
-start_world() {
-  wlog="$OUT/$1.log"
-  wbin=$2
-  wdir=$3
-  wdb=$4
-  wid=$5
+# arguments last so they win, and records its pid.
+launch_world() {
+  lwlog=$1
+  lwbin=$2
+  lwdir=$3
+  lwdb=$4
+  lwid=$5
   shift 5
   (
-    cd "$wdir"
-    export DATABASE_URL="$(db_url "$wdb")" MMO_WORLD_ID="$wid" MMO_KEY_VERSION=1 MMO_ROLL_EPOCH=0 \
+    cd "$lwdir"
+    export DATABASE_URL="$(db_url "$lwdb")" MMO_WORLD_ID="$lwid" MMO_KEY_VERSION=1 MMO_ROLL_EPOCH=0 \
       MMO_TICK_SECONDS=3 PORT="$PORT"
     MMO_MASTER_SECRET="$(secret master)"
     MMO_API_TOKEN="$(secret api-token)"
     MMO_OPERATOR_TOKEN="$(secret operator-token)"
     export MMO_MASTER_SECRET MMO_API_TOKEN MMO_OPERATOR_TOKEN
     for a in "$@"; do export "${a?}"; done
-    nohup "$wbin" >>"$wlog" 2>&1 </dev/null &
+    nohup "$lwbin" >>"$lwlog" 2>&1 </dev/null &
     echo $! >"$OUT/run/world.pid"
   )
+}
+
+# start_world <log name> <binary> <module dir> <db> <world id> [VAR=value...]
+# launches a world and returns once it is open.
+start_world() {
+  wlog="$OUT/$1.log"
+  shift
+  launch_world "$wlog" "$@"
   for _ in $(seq 1 120); do
     serving && return 0
     kill -0 "$(cat "$OUT/run/world.pid")" 2>/dev/null || {
@@ -93,23 +101,8 @@ start_world() {
 # once the process has exited without ever answering /healthz.
 refused_open() {
   wlog="$OUT/$1.log"
-  wbin=$2
-  wdir=$3
-  wdb=$4
-  wid=$5
-  shift 5
-  (
-    cd "$wdir"
-    export DATABASE_URL="$(db_url "$wdb")" MMO_WORLD_ID="$wid" MMO_KEY_VERSION=1 MMO_ROLL_EPOCH=0 \
-      MMO_TICK_SECONDS=3 PORT="$PORT"
-    MMO_MASTER_SECRET="$(secret master)"
-    MMO_API_TOKEN="$(secret api-token)"
-    MMO_OPERATOR_TOKEN="$(secret operator-token)"
-    export MMO_MASTER_SECRET MMO_API_TOKEN MMO_OPERATOR_TOKEN
-    for a in "$@"; do export "${a?}"; done
-    nohup "$wbin" >>"$wlog" 2>&1 </dev/null &
-    echo $! >"$OUT/run/world.pid"
-  )
+  shift
+  launch_world "$wlog" "$@"
   for _ in $(seq 1 120); do
     serving && fail "the world opened (see $wlog)"
     if ! kill -0 "$(cat "$OUT/run/world.pid")" 2>/dev/null; then

@@ -41,8 +41,8 @@ type Config struct {
 	// MapToken guards only the live map's reads, for the site; the API
 	// token is taken there too.
 	MapToken string
-	// ForgetToken opens only the forget path, for the site; the API token
-	// is taken there too.
+	// ForgetToken opens only the forget path, for a web client; the API
+	// token is taken there too.
 	ForgetToken string
 	// ManualClock makes the due tick whatever an operator last set, for
 	// tests that must control time. Never on a deployed world.

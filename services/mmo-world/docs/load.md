@@ -7,8 +7,9 @@ inside one tick.
 
 ## Running it
 
-Against a fresh local world at 3-second ticks, never a world players
-keep:
+Against a fresh local world at 3-second ticks, never a real one.
+`MMO_KEPT=1` runs it as production does: kept rather than disposable, so
+it requires an API token, written to `$MMO_LOCAL_OUT/api-token`:
 
 ```sh
 MMO_KEPT=1 MMO_LOCAL_OUT=out/load PORT=18080 PGPORT=15439 REDISPORT=16389 MMO_TICK_SECONDS=3 \

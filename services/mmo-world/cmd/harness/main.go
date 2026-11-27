@@ -3,10 +3,11 @@
 //	harness check [-skip-lint] schemas, units, references, budgets, the pack, the rules, the sim lints
 //	harness digest           the book's digest (the value MMO_SHEETS_FROM takes)
 //	harness report           the newest epoch file against the one before it
-//	harness report -in DIR [-against FILE] [-write FILE] [-commit SHA] [-note TEXT] [-sheets-from ROOT] [-strict]
+//	harness report -in DIR [-against FILE] [-write FILE|DIR] [-commit SHA] [-note TEXT] [-sheets-from ROOT] [-strict]
 //	                         every readings.json under DIR merged, against FILE or the last epoch; writes
-//	                         DIR/report.md and DIR/report.json, and with -write an epoch file; -sheets-from adds
-//	                         the cell diff from that root's book; -strict exits 1 when a target now misses
+//	                         DIR/report.md and DIR/report.json, and with -write an epoch file (into DIR under
+//	                         its own name); -sheets-from adds the cell diff from that root's book; -strict
+//	                         exits 1 when a target now misses
 //	harness report -check    exits 1 when the newest epoch file is not of this book
 //	harness schema           regenerate sheets/schema from the row types
 //	harness proposals -in F  candidate story.arcs rows (a file, or a directory of them) checked against the book;
@@ -30,7 +31,7 @@
 //	harness soak -out DIR    the Economy plan with every system on: thieves, staging, emergence, the season clock and
 //	                         an empty server (-n for one size, ECONOMY_SEED), each world day audited and timed
 //	harness replay -out DIR  ten players for ten world days, each day replayed from its snapshot (replay-matches)
-//	harness all -out DIR [-jobs 3] [-only label,...] [-soak] [-live URL] [-against FILE] [-write FILE] [-commit SHA]
+//	harness all -out DIR [-jobs 3] [-only label,...] [-soak] [-live URL] [-against FILE] [-write FILE|DIR] [-commit SHA]
 //	                         every label of harness.Suite as a subprocess under a watchdog, then DIR/suite.json,
 //	                         DIR/report.md and DIR/report.json; exits 1 when a label failed
 //	harness search -out DIR  the Search run's climbs (SEARCH_ONLY=build,loop,staging picks): the strongest loadout,

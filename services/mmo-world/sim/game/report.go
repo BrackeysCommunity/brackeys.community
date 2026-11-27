@@ -168,7 +168,12 @@ func (g *Game) coinHeld() (supply, active, n int64) {
 // active reports whether a character acted within active-days and is not
 // banned.
 func (g *Game) active(c *Char) bool {
-	return c.Acted >= g.Tick()-g.mp("active-days")*sheets.TicksPerDay && !c.Banned
+	return ActiveAt(c, g.Tick(), g.mp("active-days"))
+}
+
+// ActiveAt reports whether c acted within activeDays of tick and is not banned.
+func ActiveAt(c *Char, tick, activeDays int64) bool {
+	return c.Acted >= tick-activeDays*sheets.TicksPerDay && !c.Banned
 }
 
 // activeChars are the active characters.

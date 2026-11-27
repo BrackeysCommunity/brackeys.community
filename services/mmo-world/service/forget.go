@@ -9,7 +9,7 @@ import (
 	"jams.team/mmo-world/sim/game"
 )
 
-// forget is POST /v1/forget, the site's way to forget a player (GDD 14.9):
+// forget is POST /v1/forget, the web path to forget a player (GDD 14.9):
 // the Discord user names the character, and the forget is a recorded
 // command like a press of /forget-me, so a repeat with the same
 // interaction id writes once. A user with no character is told so.

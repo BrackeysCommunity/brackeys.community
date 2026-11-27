@@ -68,9 +68,15 @@ env all the same.
 Every token setting on the world accepts `new,old` while rotating, and
 every client sends one token:
 
-1. Set the world's setting to `<new>,<old>` and restart it.
-2. Give each client `<new>` alone and restart it.
-3. Set the world's setting to `<new>` alone and restart it.
+1. Make the new token (the command in the table above).
+2. Set the world's setting to `<new>,<old>` and restart the world. Both
+   work now.
+3. Give each client `<new>` alone and restart it: the bot for
+   `MMO_API_TOKEN`, the web map for `MMO_MAP_TOKEN`, the MMO's own web
+   surface for `MMO_FORGET_TOKEN`, operators' shells for
+   `MMO_OPERATOR_TOKEN`.
+4. Set the world's setting to `<new>` alone and restart the world. The old
+   one gets 401.
 
 Rotate any token that ever left its environment, and each at least once a
 season.

@@ -138,11 +138,13 @@ export DATABASE_URL="postgres://postgres@localhost:$PGPORT/postgres?sslmode=disa
 
 ## The restore drill on a staging copy
 
-The same steps against a scratch database on the platform, never the
-live one: take the dump from the staging world's backups, restore into a
-fresh database with `SOURCE_DATABASE_URL` set to the staging world's (so
-the script refuses to write there), and run `op verify` where the staging
-world's master already lives. Never restore into production to test.
+Against a scratch database on the platform, never the live one; never
+restore into production to test:
+
+1. Take the dump from the staging world's backups.
+2. Restore into a fresh database with `SOURCE_DATABASE_URL` set to the
+   staging world's, so the script refuses to write there.
+3. Run `op verify` where the staging world's master already lives.
 
 ## Forgotten players and restores
 
