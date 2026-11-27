@@ -718,10 +718,19 @@ test("the log poster posts each row once, into the channel the settings map, a c
     }),
   });
   const store = memoryStore();
-  const poster = new LogPoster(world, houses, store, sinkOf, [GUILD, other], async (g) =>
-    g === other ? "7777777770" : undefined,
+  const followed = [GUILD];
+  const poster = new LogPoster(
+    world,
+    houses,
+    store,
+    sinkOf,
+    () => followed,
+    async (g) => (g === other ? "7777777770" : undefined),
   );
-  expect(await poster.poll()).toBe(6);
+  expect(await poster.poll()).toBe(5);
+  // A guild joined after the poster was built is polled from then on.
+  followed.push(other);
+  expect(await poster.poll()).toBe(1);
   expect(posted.filter((p) => p.channel === "2222222223")).toHaveLength(5);
   expect(posted.filter((p) => p.channel === "7777777770")).toHaveLength(1);
   expect(posted[0]!.title).toBe("Admin: stage drop-large at Old Rail on Old pylon");
@@ -742,7 +751,7 @@ test("the log poster posts each row once, into the channel the settings map, a c
       },
       edit: async () => true,
     }),
-    [GUILD],
+    () => [GUILD],
     undefined,
     undefined,
     () => {},
@@ -762,7 +771,7 @@ test("a guild with no log channel posts nothing and keeps its cursor", async () 
     new Houses({ house: async () => ({ ok: true as const, reply: { ...house, settings: {} } }) }),
     store,
     () => ({ post: async (c: Card) => (posted.push(c.title), "m"), edit: async () => true }),
-    [GUILD],
+    () => [GUILD],
   );
   expect(await poster.poll()).toBe(0);
   expect(posted).toEqual([]);

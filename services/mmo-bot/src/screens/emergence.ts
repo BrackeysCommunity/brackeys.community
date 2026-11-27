@@ -18,7 +18,8 @@ import { CHRONICLE_CHANNEL } from "./story.ts";
 /**
  * What play made part of the world (GDD 13.2, 17.6): a card for each
  * promotion as the chronicle channel posts it, a legend laid, a custom
- * held and what a season added.
+ * held, what a season added, and the rules a season runs on (the epoch
+ * notes card).
  * A promotion card never names a character, its first included: places,
  * creatures, materials and counts only.
  */

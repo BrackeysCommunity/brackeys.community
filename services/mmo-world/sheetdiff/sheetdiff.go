@@ -86,7 +86,12 @@ func Diff(from, to *sheets.Book) []Change {
 
 // Notes splits a diff into what a player may read and a count of the rest.
 func Notes(from, to *sheets.Book) (seen []Change, unseen int64) {
-	for _, c := range Diff(from, to) {
+	return Split(Diff(from, to))
+}
+
+// Split parts changes into the ones a player may read and a count of the rest.
+func Split(changes []Change) (seen []Change, unseen int64) {
+	for _, c := range changes {
 		if c.Seen {
 			seen = append(seen, c)
 		} else {
@@ -154,18 +159,7 @@ func rowsOf(b *sheets.Book, d sheets.Def) reflect.Value {
 	if b == nil {
 		return reflect.MakeSlice(reflect.SliceOf(d.Row), 0, 0)
 	}
-	return reflect.ValueOf(b).Elem().FieldByName(fieldOf(d))
-}
-
-// fieldOf is the Book field that holds a sheet.
-func fieldOf(d sheets.Def) string {
-	t := reflect.TypeFor[sheets.Book]()
-	for i := range t.NumField() {
-		if t.Field(i).Tag.Get("sheet") == d.Name {
-			return t.Field(i).Name
-		}
-	}
-	return ""
+	return b.Rows(d)
 }
 
 func rowKey(row reflect.Value, i int) string {

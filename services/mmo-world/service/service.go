@@ -353,6 +353,9 @@ func pendingEpoch(cfg Config) (_ *pending, err error) {
 	if cfg.Next == nil && cfg.NextEpoch == nil {
 		return nil, nil
 	}
+	if cfg.NextEpoch != nil && *cfg.NextEpoch < cfg.Epoch {
+		return nil, fmt.Errorf("service: %s=%d steps back from %s=%d; a roll epoch only steps forward", EnvEpochNext, *cfg.NextEpoch, EnvEpoch, cfg.Epoch)
+	}
 	defer func() {
 		if p := recover(); p != nil {
 			err = fmt.Errorf("service: the pending sheets under %s: %v", EnvSheetsNext, p)

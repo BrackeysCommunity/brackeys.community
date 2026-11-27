@@ -24,10 +24,10 @@ Discord user id the world keeps, so a dump is personal data.
 DATABASE_URL=<the world's database> MMO_WORLD_ID=<world> sh scripts/backup.sh <out dir>
 ```
 
-`op`, `pg_dump` and `psql` must be on PATH, `pg_dump` at least the
+`op` and `pg_dump` must be on PATH, `pg_dump` at least the
 server's version. It writes the manifest first (`op backup-manifest -out`), then the dump, then seals the manifest with the dump's checksum
-(`op backup-manifest -seal`), and prints the dump's path. A failed dump
-leaves no manifest. The image's `backup` target (`docker build --target backup -f services/mmo-world/Dockerfile .` from the repository root)
+(`op backup-manifest -seal`), and prints the dump's path. A failed dump or seal
+leaves neither the dump nor the manifest. The image's `backup` target (`docker build --target backup -f services/mmo-world/Dockerfile .` from the repository root)
 carries `op`, the sheets and both scripts, with `backup` as its
 entrypoint and `restore` beside it.
 

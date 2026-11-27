@@ -343,15 +343,11 @@ func (w *crimeWatch) thiefOf(id string) bool {
 // steals reports whether a policy steals: a thief, a mix that weighs
 // theft, or a beneficiary of either.
 func steals(p agent.Policy) bool {
-	switch e := p.(type) {
+	switch e := agent.Base(p).(type) {
 	case *agent.Thief:
 		return true
 	case *agent.Mixed:
 		return e.Steals()
-	case *agent.Beneficiary:
-		return steals(e.Unwrap())
-	case *agent.Resting:
-		return steals(e.Unwrap())
 	}
 	return false
 }

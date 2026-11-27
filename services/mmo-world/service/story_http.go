@@ -696,7 +696,7 @@ func storyEvent(g *game.Game, f fact.Fact, server string) (api.StoryEvent, bool)
 // unrolled is a fact as players read it: a rules epoch never says that it
 // stepped the roll key (GDD 17.6).
 func unrolled(f api.Fact) api.Fact {
-	if f.Kind != factEpoch {
+	if f.Kind != game.FactSeasonEpoch {
 		return f
 	}
 	f.Data = slices.DeleteFunc(slices.Clone(f.Data), func(d api.Datum) bool { return d.Key == "roll" })

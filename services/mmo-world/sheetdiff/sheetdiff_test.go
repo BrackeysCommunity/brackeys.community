@@ -1,6 +1,7 @@
 package sheetdiff
 
 import (
+	"reflect"
 	"testing"
 
 	"jams.team/mmo-world/sheetfs"
@@ -114,6 +115,10 @@ func TestDiff(t *testing.T) {
 	}
 	if unseen < 4 {
 		t.Errorf("unseen %d, want the map and world cells and the hidden class's two", unseen)
+	}
+	splitSeen, splitUnseen := Split(Diff(from, to))
+	if !reflect.DeepEqual(splitSeen, seen) || splitUnseen != unseen {
+		t.Errorf("split %d seen + %d unseen, notes %d + %d", len(splitSeen), splitUnseen, len(seen), unseen)
 	}
 }
 

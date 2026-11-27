@@ -9,6 +9,7 @@ import (
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/api/client"
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/store"
 )
 
@@ -64,7 +65,7 @@ func epochFacts(ctx context.Context, st *store.Store) ([]fact.Fact, error) {
 	var out []fact.Fact
 	var after fact.ID
 	for {
-		fs, err := st.StoryFactsSince(ctx, []string{factEpoch}, after, epochPage)
+		fs, err := st.StoryFactsSince(ctx, []string{game.FactSeasonEpoch}, after, epochPage)
 		if err != nil {
 			return nil, err
 		}
@@ -76,11 +77,8 @@ func epochFacts(ctx context.Context, st *store.Store) ([]fact.Fact, error) {
 	}
 }
 
-// structural: the fact a rules epoch writes, and how many are read at once.
-const (
-	factEpoch = "season.epoch"
-	epochPage = 64
-)
+// structural: how many epoch facts are read at once.
+const epochPage = 64
 
 // crossed is the epoch a replay from a snapshot at tick from to tick to
 // would run across: ticks up to the epoch's ran on the rules before it, and

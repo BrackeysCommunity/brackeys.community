@@ -249,6 +249,18 @@ test("admins.md's permissions integer is the sum of the permissions it lists", (
   expect(text).toContain(`permissions=${sum}`);
 });
 
+test("every `bun run <script>` the docs name is in package.json", () => {
+  const scripts = (JSON.parse(read(join(BOT, "package.json"))) as { scripts: object }).scripts;
+  const named = [...DOCS, join(WORLD, "docs", "forget.md")].flatMap((path) =>
+    [...read(path).matchAll(/bun run ([a-z-]+)(?![\w./])/g)].map(
+      (m) => [relative(BOT, path), m[1]!] as const,
+    ),
+  );
+  expect(named.map(([, name]) => name)).toContain("forget");
+  const missing = named.filter(([, name]) => !(name in scripts)).map((p) => p.join(": "));
+  expect(missing).toEqual([]);
+});
+
 test("every relative link in the docs reaches a file", () => {
   const broken = DOCS.flatMap((path) =>
     [...read(path).matchAll(/\]\(([^)#\s]+)(?:#[^)]*)?\)/g)]

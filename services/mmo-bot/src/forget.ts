@@ -1,4 +1,4 @@
-import { KEY_PREFIX } from "../../../packages/mmo-narrate/src/index.ts";
+import { capOf, capPattern } from "../../../packages/mmo-narrate/src/index.ts";
 import { COOLDOWN_PREFIX } from "./cooldown.ts";
 import { HELD_KEY } from "./narration/names.ts";
 import { lastKey } from "./narration/voice.ts";
@@ -50,10 +50,7 @@ export async function forgetUser(redis: RedisLike, user: string): Promise<number
   const u = literal(user);
   // A glob's * also crosses colons, so each key is checked by its parts.
   const last = (await scanAll(redis, lastKey("*", u))).filter((k) => k.split(":").at(-1) === user);
-  const caps = (await scanAll(redis, `${KEY_PREFIX}cap:*:${u}:*`)).filter((k) => {
-    const parts = k.split(":");
-    return parts.at(-2) === user && /^\d+$/.test(parts.at(-1) ?? "");
-  });
+  const caps = (await scanAll(redis, capPattern(u))).filter((k) => capOf(k)?.who === user);
   const keys = [`${COOLDOWN_PREFIX}${user}`, ...last, ...caps];
   let n = await redis.del(...keys);
 
@@ -84,4 +81,41 @@ export async function forgetUser(redis: RedisLike, user: string): Promise<number
     n++;
   }
   return n;
+}
+
+/** What `bun run forget <discord id>` does, with its env and Redis handed in; returns the exit code. */
+export async function forgetCli(
+  argv: string[],
+  env: Record<string, string | undefined>,
+  connect: (url: string) => RedisLike & { quit(): Promise<unknown> },
+  log: (line: string) => void = console.log,
+  warn: (line: string) => void = console.error,
+): Promise<number> {
+  const user = argv[0];
+  if (!user || !/^\d+$/.test(user)) {
+    warn("usage: bun run forget <discord id>");
+    return 2;
+  }
+  const url = env.REDIS_URL;
+  if (!url) {
+    warn("[forget] REDIS_URL is not set: point it at the bot's Redis");
+    return 2;
+  }
+  const redis = connect(url);
+  try {
+    const n = await forgetUser(redis, user);
+    log(`[forget] ${n} bot keys removed`);
+    return 0;
+  } catch (err) {
+    // The error may carry the key, and with it the id.
+    warn(`[forget] failed: ${err instanceof Error ? err.name : "error"}`);
+    return 1;
+  } finally {
+    await redis.quit().catch(() => {});
+  }
+}
+
+if (import.meta.main) {
+  const { default: IORedis } = await import("ioredis");
+  process.exitCode = await forgetCli(process.argv.slice(2), process.env, (url) => new IORedis(url));
 }

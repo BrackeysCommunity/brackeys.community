@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"jams.team/mmo-world/api"
+	"jams.team/mmo-world/sim/emerge"
 	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
-	"jams.team/mmo-world/sim/season"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/store"
 )
@@ -34,23 +34,16 @@ const (
 
 // snapGame is the part of a stored game an export reads.
 type snapGame struct {
-	Chars     []*game.Char `json:"chars"`
-	Kinds     game.Kinds   `json:"kinds"`
-	Emergence *struct {
-		Materials []sheets.Material `json:"materials"`
-	} `json:"emergence"`
-	Story *struct {
-		Clock *season.Clock `json:"clock"`
-	} `json:"story"`
+	Chars     []*game.Char  `json:"chars"`
+	Kinds     game.Kinds    `json:"kinds"`
+	Emergence *emerge.State `json:"emergence"`
+	Story     *game.Story   `json:"story"`
 }
 
 // reply is the part of a stored reply an export reads.
 type reply struct {
-	Pressed []api.Pressed     `json:"pressed"`
-	Machine *api.PuzzleResult `json:"machine"`
-	Points  int64             `json:"points"`
-	Facts   []api.Fact        `json:"facts"`
-	Seen    *Seen             `json:"seen"`
+	api.ActionReply
+	Seen *Seen `json:"seen"`
 }
 
 // dayState is the world at a day's close, for naming and valuing.
@@ -391,21 +384,13 @@ func ended(fs []api.Fact) string {
 }
 
 func apiStr(f api.Fact, key string) string {
-	for _, d := range f.Data {
-		if d.Key == key {
-			return d.S
-		}
-	}
-	return ""
+	d, _ := f.Get(key)
+	return d.S
 }
 
 func apiNum(f api.Fact, key string) int64 {
-	for _, d := range f.Data {
-		if d.Key == key {
-			return d.N
-		}
-	}
-	return 0
+	d, _ := f.Get(key)
+	return d.N
 }
 
 // puzzle records a machine solve.

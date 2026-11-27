@@ -18,6 +18,7 @@ import (
 	"jams.team/mmo-world/service"
 	"jams.team/mmo-world/sim/arc"
 	"jams.team/mmo-world/sim/fact"
+	"jams.team/mmo-world/sim/game"
 	"jams.team/mmo-world/sim/season"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/sim/world"
@@ -27,11 +28,9 @@ import (
 // liveTickWait has stalled; liveFailures turns in a row that fail in
 // transport end the run; outcomeLapsed is how the world names a lapse.
 const (
-	liveTickWait    = 5 * time.Minute
-	liveFailures    = 20
-	outcomeLapsed   = "lapsed"
-	factSeasonBegan = "season.began"
-	factSeasonEpoch = "season.epoch"
+	liveTickWait  = 5 * time.Minute
+	liveFailures  = 20
+	outcomeLapsed = "lapsed"
 )
 
 // pacer waits until the world has run tick n and says the tick it is at.
@@ -298,7 +297,7 @@ func (r *liveResult) promotions(ctx context.Context, c *client.HTTP) error {
 			return err
 		}
 		for _, e := range page.Events {
-			if e.Fact.Kind != factSeasonEpoch {
+			if e.Fact.Kind != game.FactSeasonEpoch {
 				continue
 			}
 			ep := liveEpoch{Tick: e.Fact.Tick, Season: datum(e.Fact, "season").N, From: datum(e.Fact, "from").S, To: datum(e.Fact, "to").S, Sheets: datum(e.Fact, "sheets").N}
@@ -395,7 +394,7 @@ func (r *liveResult) events(ctx context.Context, c *client.HTTP, after int64) (i
 func (r *liveResult) fact(f api.Fact) {
 	sf := simFact(f)
 	r.note([]fact.Fact{sf})
-	if f.Kind == factSeasonBegan {
+	if f.Kind == game.FactSeasonBegan {
 		if n := datum(f, "season").N; !hasKey(r.began, n) {
 			r.began[n] = f.Tick
 		}
@@ -445,7 +444,7 @@ func (r *liveResult) fact(f api.Fact) {
 		a.ended, a.outcome = f.Tick, datum(f, "outcome").S
 	}
 	if f.Kind == "trouble.held" || f.Kind == "trouble.lost" {
-		if pl, ok := datumOK(f, "settlement"); ok {
+		if pl, ok := f.Get("settlement"); ok {
 			at := r.troubles[pl.N]
 			if at == nil {
 				at = &seasonPlace{}
@@ -535,17 +534,8 @@ func sideOf(s *seasonStage, side string) *seasonSide {
 	return &s.sides[len(s.sides)-1]
 }
 
-func datumOK(f api.Fact, key string) (api.Datum, bool) {
-	for _, d := range f.Data {
-		if d.Key == key {
-			return d, true
-		}
-	}
-	return api.Datum{}, false
-}
-
 func datum(f api.Fact, key string) api.Datum {
-	d, _ := datumOK(f, key)
+	d, _ := f.Get(key)
 	return d
 }
 

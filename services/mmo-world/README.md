@@ -123,7 +123,7 @@ needs around a sheet change:
 - `harness all -out DIR` runs every label of `harness.Suite`, then writes
   `DIR/report.md` against the last epoch; `-soak` adds the soak, `-live URL` adds the load run, `-only label,...` picks labels.
 - `harness report -in DIR` merges a suite's readings against the last
-  epoch file in `harness/epochs/`; `-write FILE` writes a new epoch file.
+  epoch file in `harness/epochs/`; `-write FILE|DIR` writes a new epoch file (a directory gets it under its own name).
 - `harness report -check` exits 1 when the newest epoch file is not of the
   current book: no sheet change ships without its report (GDD 18.1).
 - `harness digest` prints the book's digest, the value `MMO_SHEETS_FROM`

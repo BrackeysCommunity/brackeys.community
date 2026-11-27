@@ -556,15 +556,11 @@ func due(i int, rel int64, p *agent.Player, busy func(*agent.Player) bool) bool 
 
 // earnerOf is the Earner a policy plays, a thief's own included.
 func earnerOf(p agent.Policy) (*agent.Earner, bool) {
-	switch e := p.(type) {
+	switch e := agent.Base(p).(type) {
 	case *agent.Earner:
 		return e, true
 	case *agent.Thief:
 		return e.Earner, true
-	case *agent.Beneficiary:
-		return earnerOf(e.Unwrap())
-	case *agent.Resting:
-		return earnerOf(e.Unwrap())
 	case *agent.Mixed:
 		return e.Base, true
 	}
@@ -924,15 +920,8 @@ func plays(p agent.Policy) bool {
 
 // mixedOf is the Mixed a policy plays, through any wrapper.
 func mixedOf(p agent.Policy) *agent.Mixed {
-	switch e := p.(type) {
-	case *agent.Mixed:
-		return e
-	case *agent.Beneficiary:
-		return mixedOf(e.Unwrap())
-	case *agent.Resting:
-		return mixedOf(e.Unwrap())
-	}
-	return nil
+	m, _ := agent.Base(p).(*agent.Mixed)
+	return m
 }
 
 // startClocks sends the recorded season and emergence starts the options

@@ -58,6 +58,27 @@ export const failKey = (key: string) =>
 export const capKey = (use: UseId, who: string, day: number) =>
   `${KEY_PREFIX}cap:${use}:${who}:${day}`;
 
+const CAP_PREFIX = `${KEY_PREFIX}cap:`;
+
+/**
+ * The SCAN glob for one player's or NPC's cap keys across uses and days.
+ * The caller escapes glob characters in `who`; a `*` also crosses colons,
+ * so each match is checked with capOf.
+ */
+export const capPattern = (who: string) => `${CAP_PREFIX}*:${who}:*`;
+
+/** The parts of a cap key, or null when the key is not one. */
+export function capOf(key: string): { use: string; who: string; day: number } | null {
+  if (!key.startsWith(CAP_PREFIX)) return null;
+  const parts = key.slice(CAP_PREFIX.length).split(":");
+  if (parts.length < 3) return null;
+  const last = parts.at(-1)!;
+  if (!/^\d+$/.test(last)) return null;
+  const day = Number(last);
+  if (!Number.isSafeInteger(day)) return null;
+  return { use: parts.slice(0, -2).join(":"), who: parts.at(-2)!, day };
+}
+
 /** The day ledger, a hash of micro-dollars and counts. */
 export const COST_PREFIX = `${KEY_PREFIX}cost:`;
 export const costKey = (day: number) => `${COST_PREFIX}${day}`;

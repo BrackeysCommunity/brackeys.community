@@ -27,10 +27,15 @@ import (
 	"jams.team/mmo-world/harness/agent"
 	"jams.team/mmo-world/internal/testkit"
 	"jams.team/mmo-world/service"
+	"jams.team/mmo-world/sim/char"
+	"jams.team/mmo-world/sim/emerge"
+	"jams.team/mmo-world/sim/fact"
 	"jams.team/mmo-world/sim/fight"
 	"jams.team/mmo-world/sim/game"
+	"jams.team/mmo-world/sim/item"
 	"jams.team/mmo-world/sim/ledger"
 	"jams.team/mmo-world/sim/puzzle"
+	"jams.team/mmo-world/sim/season"
 	"jams.team/mmo-world/sim/sheets"
 	"jams.team/mmo-world/store"
 	"jams.team/mmo-world/store/pgtest"
@@ -209,6 +214,62 @@ func machines(t *testing.T, ctx context.Context, srv *service.Server, cli, op *c
 	if _, ref, err := srv.Act(ctx, api.ActionRequest{InteractionID: "solve-" + discord, CharacterID: id, Version: armed.Character.Version,
 		Kind: api.ActMachineSolve, Machine: &api.MachineIntent{Source: api.MachineBeat, Log: log}}, true); err != nil || ref != nil {
 		t.Fatal(ref, err)
+	}
+}
+
+// snapSource serves one stored game as the snapshot at a day's close.
+type snapSource struct {
+	meta store.Meta
+	body []byte
+}
+
+func (s snapSource) Meta(context.Context) (store.Meta, error) { return s.meta, nil }
+func (s snapSource) ActionsBetween(context.Context, int64, int64) ([]store.Action, error) {
+	return nil, nil
+}
+func (s snapSource) FactsBetween(context.Context, int64, int64) ([]fact.Fact, error) {
+	return nil, nil
+}
+func (s snapSource) SnapshotsBetween(_ context.Context, from, _ int64) ([]store.Snapshot, error) {
+	if from != sheets.TicksPerDay {
+		return nil, nil
+	}
+	return []store.Snapshot{{Tick: from, Body: s.body}}, nil
+}
+
+// TestExportReadsTheStoredGame writes a game.Game as the sim stores it and
+// fails if the export no longer finds its characters, found materials or
+// season clock: a renamed json tag on the game breaks it here.
+func TestExportReadsTheStoredGame(t *testing.T) {
+	book := testkit.Book(t)
+	digest, err := book.Digest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const qty = 3
+	found := sheets.Material{ID: "found-ore", Tier: book.Materials[0].Tier, Vector: book.Materials[0].Vector}
+	em := emerge.New(0, 1)
+	em.Materials = []sheets.Material{found}
+	g := game.Game{
+		Chars:     []*game.Char{{C: &char.Character{ID: "c1", Goods: []item.Spoil{{Material: found.ID, Qty: qty}}}, Server: "s1"}},
+		Emergence: em,
+		Story:     &game.Story{Clock: &season.Clock{N: 1, Start: 0, Days: 30}},
+	}
+	body, err := json.Marshal(g)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, m := exported(t, snapSource{meta: store.Meta{ID: "w1", SheetsDigest: digest}, body: body}, book, 0, -1)
+	if m.ToTick != sheets.TicksPerDay || !slices.Equal(m.Seasons, []int64{1}) {
+		t.Fatalf("the export read to tick %d with seasons %v", m.ToTick, m.Seasons)
+	}
+	days := lines(t, filepath.Join(dir, export.FileDays))
+	if len(days) != 1 || days[0]["goodsValue"].(float64) < qty {
+		t.Fatalf("the stored character or its found material went unread: %v", days)
+	}
+	world := lines(t, filepath.Join(dir, export.FileWorld))
+	if len(world) != 1 || world[0]["season"] != float64(1) || world[0]["seasonDay"] != float64(1) {
+		t.Fatalf("the stored season clock went unread: %v", world)
 	}
 }
 

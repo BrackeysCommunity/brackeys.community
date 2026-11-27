@@ -306,3 +306,134 @@ func TestEpochFilesCommitted(t *testing.T) {
 		}
 	}
 }
+
+func TestReadingsDidNotFinish(t *testing.T) {
+	b := readingsBook()
+	dir := t.TempDir()
+	killed := filepath.Join(dir, "economy-10")
+	failed := filepath.Join(dir, "crime-10")
+	for _, p := range []string{killed, failed} {
+		if err := os.MkdirAll(p, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = os.WriteFile(filepath.Join(killed, "stdout.txt"), []byte("no table\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(killed, "exit.txt"), []byte("exit 137\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(killed, "watchdog.txt"), []byte("killed at its cap of 1h\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(failed, "stdout.txt"), []byte("no table\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(failed, "exit.txt"), []byte("exit 2\n"), 0o644)
+	suite := `{"labels":[{"label":"economy-10","run":"economy","exit":137,"secs":5,"watchdog":true},` +
+		`{"label":"crime-10","run":"crime","exit":2,"secs":1},` +
+		`{"label":"social-alone","run":"social","alone":true,"exit":-1,"secs":0},` +
+		`{"label":"map-1","run":"map","exit":0,"secs":1}]}`
+	_ = os.WriteFile(filepath.Join(dir, SuiteFile), []byte(suite), 0o644)
+
+	rs, err := ReadSuite(dir, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var labels []string
+	for _, r := range rs {
+		labels = append(labels, r.Label)
+	}
+	if !slices.Equal(labels, []string{"crime-10", "economy-10", "social-alone"}) {
+		t.Fatalf("labels %v", labels)
+	}
+	if r := rs[1]; r.Exit != 137 || !r.Watchdog {
+		t.Errorf("exit.txt and watchdog.txt read as %+v", r)
+	}
+	if r := rs[0]; r.Exit != 2 || r.Watchdog {
+		t.Errorf("a failed label read as %+v", r)
+	}
+	if r := rs[2]; r.Exit != -1 || !r.Alone || r.Run != "social" || r.Rows == nil {
+		t.Errorf("a never-started label read as %+v", r)
+	}
+
+	rs = append(rs, Readings{Label: "economy-1000", Run: "economy", Rows: []Measured{{Target: "both-hold", Value: "a", Holds: true}}})
+	slices.SortStableFunc(rs, func(a, b Readings) int { return strings.Compare(a.Label, b.Label) })
+	got := map[string]EpochRow{}
+	for _, r := range Merge(b, rs) {
+		got[r.ID] = r
+	}
+	values := func(id string) []string {
+		var out []string
+		for _, l := range got[id].Readings {
+			if l.Measured {
+				out = append(out, l.Label)
+			} else {
+				out = append(out, l.Value)
+			}
+		}
+		return out
+	}
+	killedValue := unmeasured + "economy-10 did not finish: killed at its cap"
+	crimeValue := unmeasured + "crime-10 did not finish: exit 2"
+	socialValue := unmeasured + "social-alone never ran"
+	for id, want := range map[string][]string{
+		"both-hold":  {killedValue, "economy-1000"},
+		"one-misses": {crimeValue, killedValue},
+		"only-why":   {killedValue},
+		"cost-flat":  {socialValue},
+		"never-read": nil,
+	} {
+		if v := values(id); !slices.Equal(v, want) {
+			t.Errorf("%s readings %q, want %q", id, v, want)
+		}
+	}
+	for id, h := range map[string]string{"both-hold": HoldsYes, "one-misses": HoldsNone, "only-why": HoldsNone, "cost-flat": HoldsNone} {
+		if got[id].Holds != h {
+			t.Errorf("%s holds %q, want %q", id, got[id].Holds, h)
+		}
+	}
+
+	e, err := NewEpoch(b, rs, "", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	ReportDiff(&out, b, nil, e)
+	for _, line := range []string{"- **economy-10** did not finish (killed at its cap).", "- **crime-10** did not finish (exit 2).", "- **social-alone** never ran."} {
+		if !strings.Contains(out.String(), line+"\n") {
+			t.Errorf("ReportDiff lacks %q:\n%s", line, out.String())
+		}
+	}
+	if strings.Contains(out.String(), "economy-1000** did not finish") {
+		t.Errorf("a finished label reported as not finished:\n%s", out.String())
+	}
+}
+
+// A failed label shows on a target another label of its run reads, even
+// when that target's Runs does not name the run.
+func TestReadingsMergeFailedReadBySameRun(t *testing.T) {
+	b := readingsBook()
+	rs := []Readings{
+		{Label: "soak-10", Run: "soak", Rows: []Measured{{Target: "both-hold", Value: "a", Holds: true}}},
+		{Label: "soak-10000", Run: "soak", Watchdog: true, Exit: 137, Rows: []Measured{}},
+	}
+	got := map[string]EpochRow{}
+	for _, r := range Merge(b, rs) {
+		got[r.ID] = r
+	}
+	want := unmeasured + "soak-10000 did not finish: killed at its cap"
+	if !slices.ContainsFunc(got["both-hold"].Readings, func(l Labelled) bool { return l.Value == want && !l.Measured && !l.Holds }) {
+		t.Errorf("both-hold readings %+v lack %q", got["both-hold"].Readings, want)
+	}
+	if got["both-hold"].Holds != HoldsYes {
+		t.Errorf("both-hold holds %q", got["both-hold"].Holds)
+	}
+	for _, id := range []string{"one-misses", "cost-flat", "never-read"} {
+		if len(got[id].Readings) != 0 {
+			t.Errorf("%s readings %+v, want none", id, got[id].Readings)
+		}
+	}
+}
+
+func TestShortIDKeepsDirty(t *testing.T) {
+	c := "0123456789abcdef0123456789abcdef01234567"
+	if got := shortID(c + "+dirty"); got != c[:12]+"+dirty" {
+		t.Errorf("shortID = %q", got)
+	}
+	if got := shortID(c); got != c[:12] {
+		t.Errorf("shortID = %q", got)
+	}
+}

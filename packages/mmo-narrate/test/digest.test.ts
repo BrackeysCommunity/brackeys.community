@@ -1,6 +1,15 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import { canonical, cacheKey, capKey, costKey, digestOf, failKey } from "../src/index.ts";
+import {
+  canonical,
+  cacheKey,
+  capKey,
+  capOf,
+  capPattern,
+  costKey,
+  digestOf,
+  failKey,
+} from "../src/index.ts";
 import { toyInput, toyUse } from "./toy.ts";
 
 describe("canonical", () => {
@@ -41,5 +50,15 @@ describe("keys", () => {
     expect(failKey("mmo-narr:v1:stage:m:abc")).toBe("mmo-narr:fail:v1:stage:m:abc");
     expect(capKey("voice", "u1", 7)).toBe("mmo-narr:cap:voice:u1:7");
     expect(costKey(7)).toBe("mmo-narr:cost:7");
+  });
+
+  test("capOf reads a cap key back and refuses anything else", () => {
+    expect(capOf(capKey("voice", "u1", 7))).toEqual({ use: "voice", who: "u1", day: 7 });
+    expect(capOf(capKey("recap", "npc-9", 0))).toEqual({ use: "recap", who: "npc-9", day: 0 });
+    expect(capOf("mmo-narr:cost:7")).toBeNull();
+    expect(capOf("mmo-narr:last:npc-7:u1")).toBeNull();
+    expect(capOf("mmo-narr:cap:voice:u1:x7")).toBeNull();
+    expect(capOf("mmo-narr:cap:u1:7")).toBeNull();
+    expect(capPattern("u1")).toBe("mmo-narr:cap:*:u1:*");
   });
 });

@@ -192,5 +192,13 @@ Discord id and sweeps their character (GDD 14.9). The bot then removes what
 its own Redis holds of the user: the press limit, narration's last lines and
 daily counts, names held for review, and their place in party threads. A
 failure there is said on the card, and running `/forget-me` again finishes
-it. The world side, and the operator's own path for an emailed request, are
-in [../mmo-world/docs/forget.md](../mmo-world/docs/forget.md).
+it. For an emailed request, an operator clears the bot's notes right after
+the world's `op forget`:
+
+```sh
+REDIS_URL=<the bot's Redis> bun run forget <discord id>
+```
+
+It prints only how many keys went, never the id. The world side, and the
+rest of the operator's path for an emailed request, are in
+[../mmo-world/docs/forget.md](../mmo-world/docs/forget.md).

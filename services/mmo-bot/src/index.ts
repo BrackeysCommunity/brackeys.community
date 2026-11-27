@@ -139,7 +139,7 @@ client.once(Events.ClientReady, async (c) => {
     return;
   }
   const { guildId: primary } = config;
-  /** The guilds the bot is in, kept in place for the log poster, which reads the list each poll. */
+  /** The guilds the bot is in, which every poster follows. */
   const followed: string[] = [];
   const posters: GuildPosters<Poller>[] = [];
   const follow = <P extends Poller>(p: GuildPosters<P>, ms: number) => {
@@ -177,8 +177,13 @@ client.once(Events.ClientReady, async (c) => {
     now: Date.now,
   });
 
-  new LogPoster(world, houses, store, channel, followed, (guild) =>
-    own(guild, config.logChannel),
+  new LogPoster(
+    world,
+    houses,
+    store,
+    channel,
+    () => followed,
+    (guild) => own(guild, config.logChannel),
   ).start();
 
   const { marketForum, goalsForum, gameChannel, eventsChannel, chronicleChannel } = config;

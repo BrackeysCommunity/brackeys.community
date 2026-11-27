@@ -456,6 +456,16 @@ type Fact struct {
 	Staged bool `json:"staged,omitempty"`
 }
 
+// Get is the fact's first datum with key, and whether it has one.
+func (f Fact) Get(key string) (Datum, bool) {
+	for _, d := range f.Data {
+		if d.Key == key {
+			return d, true
+		}
+	}
+	return Datum{}, false
+}
+
 // TileQuery asks for the discovered tiles within Radius of Centre.
 type TileQuery struct {
 	Centre Hex   `json:"centre"`

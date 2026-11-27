@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"jams.team/mmo-world/api"
 	"jams.team/mmo-world/internal/testkit"
@@ -220,5 +222,23 @@ func TestUnloadablePendingBook(t *testing.T) {
 	again := startOn(t, pool, io.Discard, func(c *service.Config) { c.Disposable, c.Book = false, book })
 	if at, d := digest2(t, again); at != tick || d != live {
 		t.Fatalf("the failed open moved the world: tick %d %s, was %d %s", at, d, tick, live)
+	}
+}
+
+// TestRollEpochStepsBack refuses a pending roll epoch below the running one
+// before the world is touched: it would put the world back on a used key.
+func TestRollEpochStepsBack(t *testing.T) {
+	sec, _ := testkit.Secrets(t, "mmo/test-master", world)
+	zero := int32(0)
+	sec.Epoch, sec.NextEpoch, sec.NextKeys = 1, &zero, nextRoll(t, zero)
+	cfg := service.Config{Secrets: sec, TickSeconds: 600, Poll: time.Millisecond, Book: testkit.Book(t),
+		Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	srv, err := service.Open(context.Background(), nil, cfg)
+	if err == nil {
+		srv.Close(context.Background())
+		t.Fatal("a world opened on a roll epoch that steps back")
+	}
+	if !strings.Contains(err.Error(), service.EnvEpochNext) || !strings.Contains(err.Error(), service.EnvEpoch+"=") {
+		t.Fatalf("the open failed without naming both settings: %v", err)
 	}
 }

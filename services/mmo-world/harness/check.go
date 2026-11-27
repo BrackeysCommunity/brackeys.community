@@ -281,18 +281,26 @@ func ruleProblems(b *sheets.Book) []string {
 	return nil
 }
 
-// targetRuns are the run names a target may say holds it: the harness
-// runs, and the readings taken outside them (growth curves, search).
-var targetRuns = []string{
-	"activity", "battle", "content", "craft", "crime", "delve", "economy", "emergence",
-	"growth", "load", "map", "puzzles", "replay", "search", "season", "seen", "social", "terrain", "world",
+// outsideRuns are readings a target may name that no harness run takes:
+// the growth curves are read off the sheets by `harness growth`.
+var outsideRuns = []string{"growth"}
+
+// targetRuns are the run names a target may say holds it. It is computed
+// at call time because some runs register into Runs from init().
+func targetRuns() []string {
+	out := slices.Clone(outsideRuns)
+	for name := range Runs {
+		out = append(out, name)
+	}
+	return out
 }
 
 func targetProblems(b *sheets.Book) []string {
 	var p []string
+	runs := targetRuns()
 	for _, t := range b.Targets {
 		for run := range strings.SplitSeq(t.Runs, ",") {
-			if run = strings.TrimSpace(run); !slices.Contains(targetRuns, run) {
+			if run = strings.TrimSpace(run); !slices.Contains(runs, run) {
 				p = append(p, fmt.Sprintf("meta.targets %s: no run is named %q", t.ID, run))
 			}
 		}

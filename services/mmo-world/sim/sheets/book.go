@@ -264,16 +264,16 @@ func Load(files []File) (*Book, error) {
 
 var idPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
-// rows returns a sheet's rows as reflect values.
-func (b *Book) rows(d Def) reflect.Value { return reflect.ValueOf(b).Elem().Field(d.field) }
+// Rows returns a sheet's rows as reflect values.
+func (b *Book) Rows(d Def) reflect.Value { return reflect.ValueOf(b).Elem().Field(d.field) }
 
 // Changed names the sheets whose rows differ between two books. A sheet
 // that fails to marshal counts as changed.
 func Changed(a, b *Book) []string {
 	var out []string
 	for _, d := range Defs() {
-		ja, errA := json.Marshal(a.rows(d).Interface())
-		jb, errB := json.Marshal(b.rows(d).Interface())
+		ja, errA := json.Marshal(a.Rows(d).Interface())
+		jb, errB := json.Marshal(b.Rows(d).Interface())
 		if errA != nil || errB != nil || !bytes.Equal(ja, jb) {
 			out = append(out, d.Name)
 		}
@@ -286,7 +286,7 @@ func (b *Book) Params(d Def) ([]Param, bool) {
 	if d.Row != reflect.TypeFor[Param]() {
 		return nil, false
 	}
-	return b.rows(d).Interface().([]Param), true
+	return b.Rows(d).Interface().([]Param), true
 }
 
 // IDs returns every id in a sheet, in row order.
@@ -295,7 +295,7 @@ func (b *Book) IDs(sheet string) []string {
 	if !ok {
 		return nil
 	}
-	rs := b.rows(d)
+	rs := b.Rows(d)
 	out := make([]string, rs.Len())
 	for i := range out {
 		out[i] = rs.Index(i).FieldByName("ID").String()
@@ -326,7 +326,7 @@ func (b *Book) Validate() error {
 		return ok
 	}
 	for _, d := range Defs() {
-		rs := b.rows(d)
+		rs := b.Rows(d)
 		for i := range rs.Len() {
 			row := rs.Index(i)
 			where := d.Name + " " + row.FieldByName("ID").String()

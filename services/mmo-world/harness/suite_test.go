@@ -1,6 +1,7 @@
 package harness
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -146,6 +147,38 @@ func TestRunLabelWatchdog(t *testing.T) {
 	for _, f := range []string{"stdout.txt", "stderr.txt", "exit.txt", "secs.txt", "watchdog.txt"} {
 		if _, err := os.Stat(filepath.Join(dir, "slow", f)); err != nil {
 			t.Error(err)
+		}
+	}
+}
+
+// TestRunSuiteCancelled: with the context cancelled, the alone labels are
+// never run, yet each keeps its name and counts as failed.
+func TestRunSuiteCancelled(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "ok.sh")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	runs := []SuiteRun{
+		{Label: "a", Run: SuiteCheck, Cap: time.Minute},
+		{Label: "b", Run: SuiteCheck, Cap: time.Minute, Alone: true},
+		{Label: "c", Run: SuiteCheck, Cap: time.Minute, Alone: true},
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	res, err := RunSuite(ctx, runs, "book", SuiteOptions{Out: filepath.Join(dir, "out"), Exe: script, Root: dir, Env: []string{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, l := range res.Labels {
+		if l.Label != runs[i].Label {
+			t.Errorf("label %d is %q, want %q", i, l.Label, runs[i].Label)
+		}
+	}
+	got := res.Failed()
+	for _, l := range []string{"b", "c"} {
+		if !slices.Contains(got, l) {
+			t.Errorf("failed %v, want %s among them", got, l)
 		}
 	}
 }

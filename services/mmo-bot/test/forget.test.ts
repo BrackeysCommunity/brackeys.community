@@ -5,7 +5,7 @@ import type IORedis from "ioredis";
 import * as api from "../src/api.ts";
 import { problems } from "../src/card.ts";
 import { answer, type Ctx } from "../src/flow.ts";
-import { forgetUser, type RedisLike } from "../src/forget.ts";
+import { forgetCli, forgetUser, type RedisLike } from "../src/forget.ts";
 import { decodeId, encodeId } from "../src/ids.ts";
 import { Lexicon } from "../src/lexicon.ts";
 import { MANIFEST } from "../src/manifest.ts";
@@ -116,6 +116,61 @@ test("a user id with glob characters is matched literally", async () => {
   });
   expect(await forgetUser(redis, "a*")).toBe(1);
   expect([...kv.keys()]).toEqual(["mmo-narr:last:npc-1:ab"]);
+});
+
+test("bun run forget refuses a bad id or no REDIS_URL, then clears the user's keys", async () => {
+  const { redis, kv } = fakeRedis({
+    [`mmo-bot:cd:${USER}`]: "3",
+    [`mmo-narr:cap:voice:${USER}:13`]: "1",
+    [`mmo-bot:cd:${OTHER}`]: "1",
+  });
+  const urls: string[] = [];
+  let quits = 0;
+  const connect = (url: string) => {
+    urls.push(url);
+    return { ...redis, quit: async () => quits++ };
+  };
+  const out: string[] = [];
+  const err: string[] = [];
+  const run = (argv: string[], env: Record<string, string | undefined>) =>
+    forgetCli(
+      argv,
+      env,
+      connect,
+      (l) => out.push(l),
+      (l) => err.push(l),
+    );
+
+  expect(await run([], { REDIS_URL: "redis://x" })).toBe(2);
+  expect(await run(["12a"], { REDIS_URL: "redis://x" })).toBe(2);
+  expect(err.at(-1)).toContain("usage");
+  expect(await run([USER], {})).toBe(2);
+  expect(err.at(-1)).toContain("REDIS_URL");
+  expect(urls).toEqual([]);
+
+  expect(await run([USER], { REDIS_URL: "redis://x" })).toBe(0);
+  expect(urls).toEqual(["redis://x"]);
+  expect(quits).toBe(1);
+  expect(out).toEqual(["[forget] 2 bot keys removed"]);
+  expect([...kv.keys()]).toEqual([`mmo-bot:cd:${OTHER}`]);
+  expect([...out, ...err].some((l) => l.includes(USER))).toBe(false);
+
+  const broken = {
+    ...redis,
+    scan: async () => Promise.reject(new Error(USER)),
+    quit: async () => quits++,
+  };
+  expect(
+    await forgetCli(
+      [USER],
+      { REDIS_URL: "redis://x" },
+      () => broken,
+      (l) => out.push(l),
+      (l) => err.push(l),
+    ),
+  ).toBe(1);
+  expect(quits).toBe(2);
+  expect([...out, ...err].some((l) => l.includes(USER))).toBe(false);
 });
 
 /** A world with one character until it is forgotten; act answers as a test says. */

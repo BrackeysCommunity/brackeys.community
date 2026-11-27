@@ -11,7 +11,7 @@ once, the holdings at the character's first free tick.
 | Path    | How                                                              | What it calls                                                                                 |
 | ------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | Discord | `/forget-me`: a card says what goes and what stays, then Confirm | `POST /v1/actions` with the `forget` action, then the bot deletes its Redis keys for the user |
-| Email   | The operator runs `op forget`                                    | The operator path, the same recorded command                                                  |
+| Email   | The operator runs `op forget`                                    | The operator path, the same recorded command, then the bot's `bun run forget`                 |
 
 Both record one `forget` command, idempotent on its interaction id, so a
 repeat writes nothing new. `POST /v1/forget` (with `MMO_FORGET_TOKEN`,
@@ -35,7 +35,18 @@ forgets.
 2. `op forget <character> <note...>`. The note is kept with the command for
    the life of the world: say why ("emailed request"), never who asked or
    how to reach them.
-3. Reply to the request once the checks below pass.
+3. Even when step 1 found no character, clear what the bot holds of the
+   user, in `services/mmo-bot`:
+
+   ```sh
+   REDIS_URL=<the bot's Redis> bun run forget <discord id>
+   ```
+
+   It clears the bot's press limit, narration lines and counts, names held
+   for review and party member entries for that user, and prints only how
+   many went.
+
+4. Reply to the request once the checks below pass.
 
 ## What the world does
 
@@ -47,15 +58,15 @@ forgets.
 | `mmo.action`, `mmo.fact`, `mmo.snapshot`, `mmo.tick` | Kept, for replay; they name the character id only, shown to others as "a traveller"                                                                                                                                                                                                                                                                                            |
 | The ledger                                           | Kept; at the first tick the character is free its holdings leave it in one transaction keyed `forget-<character id>`: coin to `sink:forgotten`, staged goods and items to `sink:staged`, every other good, item and provision to its tile's spoils pool. Its market orders, goal escrow, party and guild are withdrawn first. Anything reaching it later is swept the same way |
 | The sim                                              | Every later command on or naming the character is refused `forgotten`; no new fact kind, no draw                                                                                                                                                                                                                                                                               |
-| The bot's Redis                                      | `/forget-me` deletes the user's press limit, narration lines and counts, names held for review and party member entries                                                                                                                                                                                                                                                        |
+| The bot's Redis                                      | `/forget-me`, or `bun run forget` for an emailed request, deletes the user's press limit, narration lines and counts, names held for review and party member entries                                                                                                                                                                                                           |
 | Posted Discord messages                              | Stay in each server's channels; they are the server's                                                                                                                                                                                                                                                                                                                          |
 | Backups                                              | Hold the Discord id until they age out, 90 days at most ([backups.md](backups.md))                                                                                                                                                                                                                                                                                             |
 | Exports                                              | Hold no identity ([export.md](export.md))                                                                                                                                                                                                                                                                                                                                      |
 
-The email path and `POST /v1/forget` do not reach the bot. Its press-limit and
-narration keys for the user expire on their own; names held for review
-and party member entries stay until the user runs `/forget-me`, which
-clears them even with no character left.
+The email path runs the bot's step by hand (step 3 above), and a forget
+through `POST /v1/forget` needs the same step until the MMO's own web
+surface runs it. The press-limit and narration keys also expire on their
+own.
 
 ## The analytics person
 
@@ -66,7 +77,8 @@ and delete the person with its events. This is the owner's step.
 ## Checking it
 
 - `op inspect character <character>`: `forget` (the tick asked) and, once
-  swept, `forgotten` are set; it holds no coin, goods or items.
+  swept, `forgotten` are set; it holds no coin, goods or items of its own; items a goal left waiting
+  for it on a tile stay there, in its waits.
 - `GET /v1/player?discordId=<discord id>` returns an empty `characterId`.
 - `op audit` prints no discrepancies: the sweep keeps the ledger balanced.
 - `op replay` over the world day of the forget matches every tick digest.

@@ -59,7 +59,11 @@ func (g *Game) IsForgotten(id string) bool {
 // owed, a refund or a share, has reached it since.
 func forgetTurn(g *Game, tick int64) error {
 	for _, c := range g.Chars {
-		if c.Forget == 0 || g.forgetWaits(c) {
+		if c.Forget == 0 {
+			continue
+		}
+		g.forgetRelease(c)
+		if g.forgetWaits(c) {
 			continue
 		}
 		key := forgetPrefix + c.C.ID
@@ -84,14 +88,23 @@ func forgetTurn(g *Game, tick int64) error {
 	return nil
 }
 
+// forgetRelease ends a carry either way, since a forgotten character never
+// travels or crawls to end it: a downed one set down lies where it is, its
+// call for help still open.
+func (g *Game) forgetRelease(c *Char) {
+	if c.Carrying != "" {
+		g.setDown(c, g.Char(c.Carrying))
+	}
+	if c.CarriedBy != "" {
+		g.setDown(g.Char(c.CarriedBy), c)
+	}
+}
+
 // forgetWaits reports whether a character is not yet free to be swept:
 // in an encounter that ends on its own (an ambush, or one shared with a
-// party), carried or carrying, or hauling a live goal's stock.
+// party), or hauling a live goal's stock.
 func (g *Game) forgetWaits(c *Char) bool {
 	if f := c.Fight; f != nil && (f.Ambush || f.Shared != "") {
-		return true
-	}
-	if c.CarriedBy != "" || c.Carrying != "" {
 		return true
 	}
 	return slices.ContainsFunc(g.Goals, func(x *Goal) bool {

@@ -192,7 +192,8 @@ type SuiteResult struct {
 // SuiteFile is the suite's own record under its out dir.
 const SuiteFile = "suite.json"
 
-// Failed are the labels that did not exit 0.
+// Failed are the labels that did not exit 0, a label that never ran
+// among them.
 func (r SuiteResult) Failed() []string {
 	var out []string
 	for _, l := range r.Labels {
@@ -238,6 +239,10 @@ func RunSuite(ctx context.Context, runs []SuiteRun, book string, o SuiteOptions)
 		return SuiteResult{}, err
 	}
 	res := SuiteResult{Commit: o.Commit, Book: book, Started: time.Now().UTC().Format(time.RFC3339), Jobs: o.Jobs, Labels: make([]SuiteLabel, len(runs))}
+	// A label the suite never reaches (cancelled first) stays named and failed.
+	for i, s := range runs {
+		res.Labels[i] = SuiteLabel{Label: s.Label, Run: s.Run, N: s.N, Env: s.Env, Alone: s.Alone, Exit: -1}
+	}
 	var mu sync.Mutex
 	logf := func(f string, a ...any) {
 		mu.Lock()

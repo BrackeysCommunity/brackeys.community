@@ -36,7 +36,6 @@ they get it, which is better than leaving the old one open.
 The generation and quirk keys are for the life of the world. Every key
 derives from the master, so whoever holds a leaked master can derive them
 all: the map not yet found, every quirk, and every roll key to come.
-Stepping the roll epoch does not help.
 
 1. The only remedy is a new world under a new master (a new
    `MMO_WORLD_ID` and secret; nothing carries over). That is the owner's
@@ -59,7 +58,7 @@ and treat the master as leaked.
 - For a forget token: every forget is a recorded command, so list them
   (read-only) and match each against a request someone made. The operator's interaction
   ids start `op-`; the bot's /forget-me carries the Discord interaction id,
-  a bare number; any other came through `MMO_FORGET_TOKEN`:
+  a bare number; any other came through `POST /v1/forget`, with the forget token or the API token:
 
   ```sql
   SELECT interaction_id, character_id, at FROM mmo.action

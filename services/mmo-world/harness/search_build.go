@@ -22,9 +22,10 @@ import (
 // strongest character it can inside the rules. It climbs kinds from the
 // craft space for the sum of their two strongest axes, loadouts (those
 // kinds, a tag pairing, a class and practice up to the tier's expected)
-// for matchup matrix wins, and a party's puzzle policy for solve rate.
-// Every choice it draws is under search.build; the fights and the puzzle
-// levels are the Battle run's own, under its throwaway key.
+// for matchup matrix wins, and a party's puzzle policy for its highest
+// tier's solve rate. Every choice it draws is under search.build; the
+// fights and the puzzle levels are the Battle run's own, under its
+// throwaway key.
 
 // buildLabel is the build climb's draw purpose.
 const buildLabel = "search.build"
@@ -650,8 +651,9 @@ func playPuzzle(bt *battle, pol puzzlePolicy, gen int) puzzlePlay {
 	return out
 }
 
-// puzzleClimb climbs a party's puzzle policy for solve rate: a drawn first
-// generation, then steps from the best so far, none played twice.
+// puzzleClimb climbs a party's puzzle policy for its highest tier's solve
+// rate: a drawn first generation, then steps from the best so far, none
+// played twice.
 func puzzleClimb(bt *battle, d *draw.Drawer) []puzzlePlay {
 	book := bt.p.Book
 	most := sheets.IntParam(book.FightParams, "party-size-max")

@@ -80,19 +80,19 @@ Commit the sheets with their epoch file ([epochs.md](epochs.md)).
 
 ## 5. Deploy
 
-[The `mmo-epoch-notes` migration; the deploy order in the
-[README](../README.md).]
+[The `mmo-epoch-notes` migration; the world's start on the new book;
+the [README's deploy order](../README.md#deploy-order).]
 
-1. A backup.
-2. Apply the `mmo-epoch-notes` migration through the drizzle migrator
-   (the `drizzle/` folder), on staging, then production.
-3. Deploy the world. If the world has not started its season clock, start
-   once with `MMO_SHEETS_FROM=<the world's sheets digest>` (`sheets` in
-   `op backup-manifest`), watch for `SHEETS RESTAMPED`, then unset it.
-   Otherwise it takes the new book as a rules epoch (step 6).
-4. Deploy the bot, then register its commands (`bun run register` in
-   `services/mmo-bot`).
-5. The web clients' env last (the live map's).
+Follow the [README's deploy order](../README.md#deploy-order), its step 1
+(a backup) included. This deploy adds:
+
+- In the migrations step, the `mmo-epoch-notes` migration, on staging,
+  then production.
+- In the world step, a choice. A world that has not started its season
+  clock starts once with `MMO_SHEETS_FROM=<the world's sheets digest>`
+  (`sheets` in `op backup-manifest`), watches for `SHEETS RESTAMPED`, then
+  unsets it. Otherwise it takes the new book as a rules epoch (step 6,
+  [epochs.md](epochs.md)).
 
 ## 6. The epoch at season one's boundary
 
@@ -101,11 +101,12 @@ roll-key step; [epochs.md](epochs.md); `scripts/epoch-root.sh` puts the
 world's current book at the image's second root, `/app/epoch-from`.]
 
 - A backup first.
-- Before season zero closes, run `sh scripts/epoch-root.sh <the closed
-test's commit>` in `services/mmo-world`, commit `epoch-from/`, and deploy
-  with `MMO_SHEETS_ROOT=/app/epoch-from` and `MMO_SHEETS_NEXT=/app` (the
-  launch book), and `MMO_ROLL_EPOCH_NEXT` if the master ever leaked. A book that
-  cannot run the world fails this deploy, not the close.
+- Before season zero closes, follow [epochs.md](epochs.md#deploy) steps
+  1–2 with the closed test's commit as the current book and this build as
+  the new one. Add `MMO_ROLL_EPOCH_NEXT` only if a derived roll key (not
+  the master) ever leaked; a leaked master needs a new world
+  ([runbooks/leaked-key.md](runbooks/leaked-key.md#the-master-secret)). A
+  book that cannot run the world fails this deploy, not the close.
 - At the close watch for `EPOCH TAKEN` in the world's log and the
   rules-epoch notes card in each server's chronicle channel.
 - Then set `MMO_SHEETS_ROOT` at the new sheets and, if it stepped,
@@ -123,7 +124,9 @@ posters that follow the servers the bot is in.]
   opens to servers that are not the owner's, and the Activity's
   verification before opening (an unverified Activity plays only in
   servers under 25 members).
-- Switch to `MMO_COMMANDS=global` and run `bun run register --global --clear-guilds` in `services/mmo-bot`.
+- Move the commands to global as the bot's
+  [README](../../mmo-bot/README.md#register-the-commands) says ("Moving to
+  global").
 - Keep a separate unverified application for testing.
 
 ## 8. The second server and onward

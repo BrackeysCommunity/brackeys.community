@@ -220,12 +220,9 @@ func stateNames(g *game.Game, st *api.ActivityState) map[string]string {
 	return foundNames(g, ids)
 }
 
-// factEpoch is the fact a rules epoch is recorded as.
-const factEpoch = "season.epoch"
-
 // promotionKinds are what the chronicle channel posts as it happens: the
 // game's chronicle kinds and a rules epoch with its notes.
-var promotionKinds = append(slices.Clone(game.ChronicleKinds), factEpoch)
+var promotionKinds = append(slices.Clone(game.ChronicleKinds), game.FactSeasonEpoch)
 
 // storyPromotions are the chronicle channel's promotions after a fact id,
 // each with its record as the game holds it now, masked for the server named,
@@ -248,7 +245,7 @@ func (s *Server) storyPromotions(w http.ResponseWriter, r *http.Request) {
 	notes := map[int64]*api.EpochNotes{}
 	for _, f := range facts {
 		d, ok := f.Get("season")
-		if f.Kind != factEpoch || !ok {
+		if f.Kind != game.FactSeasonEpoch || !ok {
 			continue
 		}
 		if _, done := notes[d.N]; done {
@@ -277,7 +274,7 @@ func (s *Server) storyPromotions(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			continue
 		}
-		if d, on := f.Get("season"); f.Kind == factEpoch && on {
+		if d, on := f.Get("season"); f.Kind == game.FactSeasonEpoch && on {
 			ev.Epoch = notes[d.N]
 		}
 		out.Events = append(out.Events, ev)

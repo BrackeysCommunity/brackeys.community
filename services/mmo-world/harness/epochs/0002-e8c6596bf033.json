@@ -1,7 +1,7 @@
 {
   "seq": 2,
   "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
-  "commit": "f2ff51253a4ea5ba0bc2418a4c6e3198257e2591",
+  "commit": "a1b9a5033d4f1c016e44faced8b78df5add6cfa0",
   "taken": "2026-11-27",
   "note": "MM14's launch build, the book season one takes",
   "labels": [
@@ -158,7 +158,9 @@
       "run": "economy",
       "n": 10000,
       "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
-      "secs": 14400
+      "secs": 14400,
+      "exit": 137,
+      "watchdog": true
     },
     {
       "label": "emergence",
@@ -224,7 +226,7 @@
       "label": "search-1000",
       "run": "search",
       "n": 1000,
-      "commit": "f2ff51253a4ea5ba0bc2418a4c6e3198257e2591",
+      "commit": "a1b9a5033d4f1c016e44faced8b78df5add6cfa0",
       "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
       "secs": 5792
     },
@@ -334,7 +336,9 @@
       "run": "soak",
       "n": 10000,
       "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
-      "secs": 28800
+      "secs": 28800,
+      "exit": 137,
+      "watchdog": true
     },
     {
       "label": "social",
@@ -516,10 +520,22 @@
           "measured": true
         },
         {
+          "label": "economy-10000",
+          "value": "– economy-10000 did not finish: killed at its cap",
+          "holds": false,
+          "measured": false
+        },
+        {
           "label": "soak-1000",
           "value": "soak, 1,000 players (thieves, staging, emergence, season, an empty server), days 78–120",
           "holds": false,
           "measured": true
+        },
+        {
+          "label": "soak-10000",
+          "value": "– soak-10000 did not finish: killed at its cap",
+          "holds": false,
+          "measured": false
         }
       ]
     },
@@ -583,6 +599,12 @@
           "measured": true
         },
         {
+          "label": "economy-10000",
+          "value": "– economy-10000 did not finish: killed at its cap",
+          "holds": false,
+          "measured": false
+        },
+        {
           "label": "soak-10-s0",
           "value": "soak, 10 players (thieves, staging, emergence, season, an empty server)",
           "holds": true,
@@ -629,6 +651,12 @@
           "value": "soak, 10 players (thieves, staging, emergence, season, an empty server)",
           "holds": true,
           "measured": true
+        },
+        {
+          "label": "soak-10000",
+          "value": "– soak-10000 did not finish: killed at its cap",
+          "holds": false,
+          "measured": false
         }
       ]
     },
@@ -666,6 +694,12 @@
       "holds": "no",
       "readings": [
         {
+          "label": "economy-10000",
+          "value": "– economy-10000 did not finish: killed at its cap",
+          "holds": false,
+          "measured": false
+        },
+        {
           "label": "search-1000",
           "value": "`drop-flood` at 1000 players: the stages' footprint 12.00% (copper-ore at settlement 4); taken, 25.41% (provisions at settlement 2); a staging-free change of play, 5.65% (thick-hide at settlement 3)",
           "holds": false,
@@ -678,6 +712,12 @@
       "text": "No staged unit reaches another settlement's market, a faction order, store or budget, a guild bank, a goal, a haul or a caravan, and every staged unit is accounted for",
       "holds": "yes",
       "readings": [
+        {
+          "label": "economy-10000",
+          "value": "– economy-10000 did not finish: killed at its cap",
+          "holds": false,
+          "measured": false
+        },
         {
           "label": "search-1000",
           "value": "53 soaks: every staged unit in a staged home and accounted for",
@@ -737,6 +777,12 @@
           "value": "soak at 1,000: every staged unit in a staged home and accounted for",
           "holds": true,
           "measured": true
+        },
+        {
+          "label": "soak-10000",
+          "value": "– soak-10000 did not finish: killed at its cap",
+          "holds": false,
+          "measured": false
         }
       ]
     },
@@ -985,6 +1031,12 @@
           "measured": true
         },
         {
+          "label": "economy-10000",
+          "value": "– economy-10000 did not finish: killed at its cap",
+          "holds": false,
+          "measured": false
+        },
+        {
           "label": "soak-10-s0",
           "value": "soak, guilds of 12: no work gave back more than it consumed",
           "holds": true,
@@ -1037,6 +1089,12 @@
           "value": "soak, guilds of 951: no work gave back more than it consumed",
           "holds": true,
           "measured": true
+        },
+        {
+          "label": "soak-10000",
+          "value": "– soak-10000 did not finish: killed at its cap",
+          "holds": false,
+          "measured": false
         }
       ]
     },
@@ -1114,6 +1172,12 @@
           "measured": true
         },
         {
+          "label": "soak-10000",
+          "value": "– soak-10000 did not finish: killed at its cap",
+          "holds": false,
+          "measured": false
+        },
+        {
           "label": "social-alone",
           "value": "0 finds from pools",
           "holds": true,
@@ -1180,6 +1244,12 @@
           "value": "a guild of 5 founded on world day 14",
           "holds": false,
           "measured": true
+        },
+        {
+          "label": "economy-10000",
+          "value": "– economy-10000 did not finish: killed at its cap",
+          "holds": false,
+          "measured": false
         }
       ]
     },
@@ -1765,6 +1835,12 @@
           "value": "the first city, 1,000 players: day 54",
           "holds": false,
           "measured": true
+        },
+        {
+          "label": "economy-10000",
+          "value": "– economy-10000 did not finish: killed at its cap",
+          "holds": false,
+          "measured": false
         }
       ]
     },
@@ -1962,6 +2038,12 @@
           "value": "soak, 1,000 players: 2 thefts, 2 source legs; every day's conservation check",
           "holds": true,
           "measured": true
+        },
+        {
+          "label": "soak-10000",
+          "value": "– soak-10000 did not finish: killed at its cap",
+          "holds": false,
+          "measured": false
         }
       ]
     },
@@ -2041,6 +2123,12 @@
           "value": "soak, 1,000 117 to 130 coin",
           "holds": false,
           "measured": true
+        },
+        {
+          "label": "soak-10000",
+          "value": "– soak-10000 did not finish: killed at its cap",
+          "holds": false,
+          "measured": false
         }
       ]
     },

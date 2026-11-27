@@ -25,7 +25,8 @@ export class LogPoster {
     private readonly houses: Pick<Houses, "houseOf" | "channelOf">,
     private readonly store: ForumStore,
     private readonly sinkOf: (channel: string) => ChannelSink,
-    private readonly guilds: readonly string[],
+    /** The guilds followed now, read on each poll. */
+    private readonly guilds: () => Iterable<string>,
     /** The bot's own log channel in a guild, where its settings map none. */
     private readonly fallback: (guild: string) => Promise<string | undefined> = async () =>
       undefined,
@@ -40,7 +41,7 @@ export class LogPoster {
   /** Posts every guild's rows not yet posted; returns how many it posted. */
   async poll(): Promise<number> {
     let posted = 0;
-    for (const guild of this.guilds) {
+    for (const guild of this.guilds()) {
       try {
         posted += await this.pollGuild(guild);
       } catch (e) {

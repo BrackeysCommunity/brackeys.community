@@ -207,6 +207,24 @@ func (b *Beneficiary) Name() string { return b.Inner.Name() + "+" + b.Use }
 // Unwrap is the policy it plays when nothing staged is about.
 func (b *Beneficiary) Unwrap() Policy { return b.Inner }
 
+// Wrapper is a policy that plays another one when it has nothing of its own to do.
+type Wrapper interface{ Unwrap() Policy }
+
+// Base is the innermost policy under any wrappers.
+func Base(p Policy) Policy {
+	for {
+		w, ok := p.(Wrapper)
+		if !ok {
+			return p
+		}
+		inner := w.Unwrap()
+		if inner == nil {
+			return p
+		}
+		p = inner
+	}
+}
+
 func (b *Beneficiary) Choose(o api.Options, d *Dice) (api.ActionRequest, bool) {
 	if req, ok := b.staged(o); ok {
 		return req, true

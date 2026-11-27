@@ -5,9 +5,9 @@
 //	harness report           the newest epoch file against the one before it
 //	harness report -in DIR [-against FILE] [-write FILE|DIR] [-commit SHA] [-note TEXT] [-sheets-from ROOT] [-strict]
 //	                         every readings.json under DIR merged, against FILE or the last epoch; writes
-//	                         DIR/report.md and DIR/report.json, and with -write an epoch file (into DIR under
-//	                         its own name); -sheets-from adds the cell diff from that root's book; -strict
-//	                         exits 1 when a target now misses
+//	                         DIR/report.md and DIR/report.json, and with -write an epoch file (a -write
+//	                         directory gets it under its own name); -sheets-from adds the cell diff from
+//	                         that root's book; -strict exits 1 when a target now misses
 //	harness report -check    exits 1 when the newest epoch file is not of this book
 //	harness schema           regenerate sheets/schema from the row types
 //	harness proposals -in F  candidate story.arcs rows (a file, or a directory of them) checked against the book;
@@ -103,7 +103,7 @@ func main() {
 	soak := fs.Bool("soak", false, "all: add the soak labels")
 	var ro reportOptions
 	fs.StringVar(&ro.against, "against", "", "report: the epoch file to read against (default the last epoch)")
-	fs.StringVar(&ro.write, "write", "", "report: write the merged readings as this epoch file")
+	fs.StringVar(&ro.write, "write", "", "report: write the merged readings as an epoch file, or into this directory under its own name")
 	fs.StringVar(&ro.commit, "commit", "", "report: the commit the readings were read at (default theirs, MMO_COMMIT or git)")
 	fs.StringVar(&ro.note, "note", "", "report: the epoch's note")
 	fs.StringVar(&ro.sheetsFrom, "sheets-from", "", "report: add the cell diff from this module root's book")
@@ -231,7 +231,8 @@ func switches() map[string]string {
 	return out
 }
 
-// commitOf is MMO_COMMIT, else the checkout's HEAD; "" when neither is known.
+// commitOf is MMO_COMMIT, else the checkout's HEAD, marked +dirty when
+// the module has changes; "" when neither is known.
 func commitOf(root string) string {
 	if c := os.Getenv("MMO_COMMIT"); c != "" {
 		return c
@@ -240,7 +241,12 @@ func commitOf(root string) string {
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(string(raw))
+	hash := strings.TrimSpace(string(raw))
+	status, err := exec.Command("git", "-C", root, "status", "--porcelain", "--", ".").Output()
+	if err == nil && len(bytes.TrimSpace(status)) > 0 {
+		return hash + "+dirty"
+	}
+	return hash
 }
 
 type reportOptions struct {
@@ -419,6 +425,10 @@ func runAll(ctx context.Context, w, log io.Writer, root string, b *sheets.Book, 
 	}
 	if failed := res.Failed(); len(failed) > 0 {
 		fmt.Fprintf(log, "labels that did not exit 0: %s\n", strings.Join(failed, ", "))
+		return false, nil
+	}
+	if ctx.Err() != nil {
+		fmt.Fprintf(log, "the suite was interrupted: %v\n", ctx.Err())
 		return false, nil
 	}
 	return ok, nil

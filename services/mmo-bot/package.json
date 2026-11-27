@@ -10,6 +10,7 @@
     "local": "bun --env-file=.env.local run src/index.ts",
     "register": "bun --env-file=.env.local run src/register.ts",
     "scripted": "bun run src/scripted.ts",
+    "forget": "bun run src/forget.ts",
     "test": "bun test test",
     "typecheck": "tsc --noEmit"
   },

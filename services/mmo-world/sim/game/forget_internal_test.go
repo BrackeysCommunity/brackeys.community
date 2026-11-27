@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"jams.team/mmo-world/sim/char"
 	"jams.team/mmo-world/sim/goal"
 	"jams.team/mmo-world/sim/hex"
 	"jams.team/mmo-world/sim/ledger"
@@ -312,6 +313,49 @@ func TestForgetWaitsOnTheRoad(t *testing.T) {
 	}
 	if g.Ledger.Of(poolOf(hauler.C.At), ledger.Material(fibre)) < 10 {
 		t.Fatal("the stock did not stay on the tile")
+	}
+	audit(t, g)
+}
+
+// A forgotten rescuer sets down whom it carries, since it never travels to
+// end the carry, and is swept at once.
+func TestForgetSetsDownWhatItCarries(t *testing.T) {
+	g := guardGame(t)
+	cs := fgChars(t, g, 2)
+	rescuer, d := cs[0], cs[1]
+	d.C.Set(char.Down, 0)
+	rescuer.Carrying, d.CarriedBy = d.C.ID, rescuer.C.ID
+	fgForget(t, g, rescuer)
+	advance(t, g)
+	if rescuer.Carrying != "" || d.CarriedBy != "" {
+		t.Fatalf("still carrying %q, carried by %q", rescuer.Carrying, d.CarriedBy)
+	}
+	if rescuer.Forgotten == 0 {
+		t.Fatal("not swept")
+	}
+	if held := g.Ledger.Held(ledger.Char(rescuer.C.ID)); len(held) != 0 {
+		t.Fatalf("still holds %v", held)
+	}
+	audit(t, g)
+}
+
+// A forgotten character being carried is set down, freeing its carrier.
+func TestForgetIsSetDown(t *testing.T) {
+	g := guardGame(t)
+	cs := fgChars(t, g, 2)
+	carrier, d := cs[0], cs[1]
+	d.C.Set(char.Down, 0)
+	carrier.Carrying, d.CarriedBy = d.C.ID, carrier.C.ID
+	fgForget(t, g, d)
+	advance(t, g)
+	if carrier.Carrying != "" || d.CarriedBy != "" {
+		t.Fatalf("still carrying %q, carried by %q", carrier.Carrying, d.CarriedBy)
+	}
+	if d.Forgotten == 0 {
+		t.Fatal("not swept")
+	}
+	if held := g.Ledger.Held(ledger.Char(d.C.ID)); len(held) != 0 {
+		t.Fatalf("still holds %v", held)
 	}
 	audit(t, g)
 }

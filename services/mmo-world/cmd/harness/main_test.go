@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -39,6 +40,38 @@ func digestOf(t *testing.T, b *sheets.Book) string {
 		t.Fatal(err)
 	}
 	return d
+}
+
+// TestCommitOf: HEAD of a clean module, marked +dirty once it has an
+// untracked file.
+func TestCommitOf(t *testing.T) {
+	t.Setenv("MMO_COMMIT", "")
+	dir := t.TempDir()
+	git := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"}, args...)...)
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("git %v: %v", args, err)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	git("init", "-q")
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git("add", "a.txt")
+	git("commit", "-q", "-m", "one")
+	head := git("rev-parse", "HEAD")
+	if got := commitOf(dir); got != head {
+		t.Errorf("clean: %q, want %q", got, head)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.txt"), []byte("b"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := commitOf(dir); got != head+"+dirty" {
+		t.Errorf("dirty: %q, want %q", got, head+"+dirty")
+	}
 }
 
 func TestReportCheck(t *testing.T) {

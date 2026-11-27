@@ -4,6 +4,7 @@ import (
 	"jams.team/mmo-world/sheetfs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -148,5 +149,27 @@ func TestPlayRunsSmall(t *testing.T) {
 	readings, err := BattleRun(b, dir, 7)
 	if err != nil || len(readings) != 1 {
 		t.Fatal(readings, err)
+	}
+}
+
+func TestTargetRunsCoverReportAndSuite(t *testing.T) {
+	runs := targetRuns()
+	for _, r := range reportRuns {
+		if _, ok := Runs[r.run]; !ok && r.run != SuiteCheck {
+			t.Errorf("report run %q is no run", r.run)
+		}
+	}
+	for _, s := range Suite {
+		if _, ok := Runs[s.Run]; !ok && s.Run != SuiteCheck {
+			t.Errorf("suite label %s runs %q, which is no run", s.Label, s.Run)
+		}
+	}
+	for _, name := range []string{
+		"activity", "battle", "content", "craft", "crime", "delve", "economy", "emergence",
+		"growth", "load", "map", "puzzles", "replay", "search", "season", "seen", "social", "terrain", "world",
+	} {
+		if !slices.Contains(runs, name) {
+			t.Errorf("a target may no longer name %q", name)
+		}
 	}
 }

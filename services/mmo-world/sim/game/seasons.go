@@ -39,8 +39,13 @@ type ArcCmd struct {
 	Seat     *hex.Hex `json:"seat,omitempty"`
 }
 
-// FactSeasonClosed is the fact a season's close writes.
-const FactSeasonClosed = "season.closed"
+// The facts a season's turn writes: its close, the rules epoch taken at the
+// boundary, and the next season's start.
+const (
+	FactSeasonClosed = "season.closed"
+	FactSeasonEpoch  = "season.epoch"
+	FactSeasonBegan  = "season.began"
+)
 
 // finaleDraw breaks a tie between the finale's highest pressures.
 const finaleDraw draw.Purpose = "season.finale"
@@ -114,7 +119,7 @@ func (g *Game) seasonEpoch(cmd Command) error {
 	if e.Roll != nil {
 		data = append(data, fact.N("roll", *e.Roll))
 	}
-	if _, err := g.regionFact("", "season.epoch", nil, nil, data...); err != nil {
+	if _, err := g.regionFact("", FactSeasonEpoch, nil, nil, data...); err != nil {
 		return err
 	}
 	g.Story.Clock.Epoch = e.To
@@ -403,7 +408,7 @@ func (g *Game) seasonClose(t int64) error {
 	}
 	next := c.Next(day, g.storyDays())
 	*g.Story.Clock = next
-	began, err := g.regionFact("", "season.began", nil, []fact.ID{closed}, fact.N("season", next.N), fact.N("start", next.Start), fact.N("days", next.Days))
+	began, err := g.regionFact("", FactSeasonBegan, nil, []fact.ID{closed}, fact.N("season", next.N), fact.N("start", next.Start), fact.N("days", next.Days))
 	if err != nil {
 		return err
 	}

@@ -17,7 +17,7 @@ fi
 mkdir -p "$1"
 stem=$(op backup-manifest -out "$1")
 done=""
-trap '[ -n "$done" ] || rm -f "$stem.dump.part" "$stem.manifest.json"' EXIT
+trap '[ -n "$done" ] || rm -f "$stem.dump.part" "$stem.dump" "$stem.manifest.json"' EXIT
 trap 'exit 1' INT TERM
 pg_dump --schema=mmo --format=custom --no-owner --no-privileges --file="$stem.dump.part" "$DATABASE_URL"
 mv "$stem.dump.part" "$stem.dump"

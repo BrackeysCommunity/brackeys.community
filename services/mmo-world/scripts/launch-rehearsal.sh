@@ -100,15 +100,16 @@ for m in $(grep -o '\.\./\.\./drizzle/[^ ]*migration.sql' sqlc.yaml); do psql_ -
 say "Postgres on :$PGPORT with this tree's migrations"
 
 # world_env runs the world (or op replay, which loads it) with its
-# environment, and client_env a client of it with its tokens alone; the
-# secrets go from their files into the child's env only, and the master
-# never leaves the world's.
+# environment, and client_env a client of it with its tokens alone. The
+# secrets are prefix assignments, so they reach the child's environment and
+# never an argument list the process table shows; the master never leaves
+# the world's.
 world_env() {
-  env DATABASE_URL="$DB" MMO_WORLD_ID="$WORLD" MMO_MASTER_SECRET="$(cat "$OUT/secrets/master")" MMO_ROLL_EPOCH=0 MMO_KEY_VERSION=1 \
-    MMO_API_TOKEN="$(cat "$OUT/secrets/api-token")" MMO_OPERATOR_TOKEN="$(cat "$OUT/secrets/operator-token")" "$@"
+  DATABASE_URL="$DB" MMO_WORLD_ID="$WORLD" MMO_MASTER_SECRET="$(cat "$OUT/secrets/master")" MMO_ROLL_EPOCH=0 MMO_KEY_VERSION=1 \
+    MMO_API_TOKEN="$(cat "$OUT/secrets/api-token")" MMO_OPERATOR_TOKEN="$(cat "$OUT/secrets/operator-token")" env "$@"
 }
 client_env() {
-  env MMO_URL="$URL" MMO_API_TOKEN="$(cat "$OUT/secrets/api-token")" MMO_OPERATOR_TOKEN="$(cat "$OUT/secrets/operator-token")" "$@"
+  MMO_URL="$URL" MMO_API_TOKEN="$(cat "$OUT/secrets/api-token")" MMO_OPERATOR_TOKEN="$(cat "$OUT/secrets/operator-token")" env "$@"
 }
 (
   world_env MMO_SHEETS_ROOT="$BASE_ROOT" MMO_SHEETS_NEXT="$HERE" MMO_TICK_SECONDS="$TICK_SECONDS" PORT="$PORT" \

@@ -2284,9 +2284,9 @@ function peopleOf(here: api.Here): Map<string, string> {
   return new Map(here.people.map((p) => [p.id, p.name]));
 }
 
-/** The bot's own forget; false when it failed, so the player is asked to run it again. */
-async function forgetBot(ctx: Ctx, user: string): Promise<boolean> {
-  if (!ctx.forget) return true;
+/** The bot's own forget; false when it failed, so the player is asked to run it again, and "memory" when the bot keeps no store it can clear. */
+async function forgetBot(ctx: Ctx, user: string): Promise<boolean | "memory"> {
+  if (!ctx.forget) return "memory";
   try {
     await ctx.forget(user);
     return true;
