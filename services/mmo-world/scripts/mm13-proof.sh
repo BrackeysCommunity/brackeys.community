@@ -18,9 +18,11 @@ OUT="$(cd "$OUT" && pwd)"
 SPIKE_WORKERS="${SPIKE_WORKERS:-6}"
 export SPIKE_WORKERS
 
-# The sim must match FROZEN, which is BASE plus only the OWNER_SIM commits.
+# The sim at TIP, the map's finished commit, must match FROZEN, which is
+# BASE plus only the OWNER_SIM commits; later work may change the sim.
 BASE=08bd89192dc4f0247c5f086b4468f1f49de80177
 FROZEN=e5d1914d9b8cb32cb309c493a5bd00f6a79ccff6
+TIP=d65454b075b8fa00e73c4f55a75f00fe059be4da
 OWNER_SIM='491708b361105bd2a616d25d03c14c3956937c77 7a9f611e85d5f6985e89a2a01b0929a507c07806'
 
 say() { echo "mm13-proof: $*"; }
@@ -119,7 +121,7 @@ fi
 say "the modelled first draw is $total ms ($modelled ms to the client and a $frame ms first frame), within $budget ms"
 
 frozen() {
-  git diff --diff-filter=M --exit-code "$FROZEN" -- sim ':!sim/sheets/book.go' || return 1
+  git diff --diff-filter=M --exit-code "$FROZEN" "$TIP" -- sim ':!sim/sheets/book.go' || return 1
   git diff --diff-filter=M --exit-code "$BASE" -- sim/game/testdata sim/world/testdata sim/puzzle/testdata || return 1
   touched="$(git log --format=%H "$BASE..$FROZEN" -- sim | sort | tr '\n' ' ')"
   owner="$(echo "$OWNER_SIM" | tr ' ' '\n' | sort | tr '\n' ' ')"
