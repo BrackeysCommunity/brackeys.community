@@ -1,0 +1,2153 @@
+{
+  "seq": 2,
+  "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+  "commit": "2547a1d6bfaf6e0d2b116cc63103b4b75b19c139",
+  "taken": "2026-11-27",
+  "note": "MM14's launch build, the book season one takes",
+  "labels": [
+    {
+      "label": "battle",
+      "run": "battle",
+      "n": 0,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 315
+    },
+    {
+      "label": "check",
+      "run": "check",
+      "n": 0,
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 0
+    },
+    {
+      "label": "content-40",
+      "run": "content",
+      "n": 40,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 531
+    },
+    {
+      "label": "craft",
+      "run": "craft",
+      "n": 0,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 30
+    },
+    {
+      "label": "crime-10",
+      "run": "crime",
+      "n": 10,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 2
+    },
+    {
+      "label": "crime-1000",
+      "run": "crime",
+      "n": 1000,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 414
+    },
+    {
+      "label": "crime-10000",
+      "run": "crime",
+      "n": 10000,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 14339
+    },
+    {
+      "label": "economy-10",
+      "run": "economy",
+      "n": 10,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 2
+    },
+    {
+      "label": "economy-10-s1",
+      "run": "economy",
+      "n": 10,
+      "env": {
+        "ECONOMY_SEED": "1"
+      },
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 2
+    },
+    {
+      "label": "economy-10-s2",
+      "run": "economy",
+      "n": 10,
+      "env": {
+        "ECONOMY_SEED": "2"
+      },
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 1
+    },
+    {
+      "label": "economy-10-s3",
+      "run": "economy",
+      "n": 10,
+      "env": {
+        "ECONOMY_SEED": "3"
+      },
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 2
+    },
+    {
+      "label": "economy-10-s4",
+      "run": "economy",
+      "n": 10,
+      "env": {
+        "ECONOMY_SEED": "4"
+      },
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 2
+    },
+    {
+      "label": "economy-10-s5",
+      "run": "economy",
+      "n": 10,
+      "env": {
+        "ECONOMY_SEED": "5"
+      },
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 2
+    },
+    {
+      "label": "economy-10-s6",
+      "run": "economy",
+      "n": 10,
+      "env": {
+        "ECONOMY_SEED": "6"
+      },
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 2
+    },
+    {
+      "label": "economy-10-s7",
+      "run": "economy",
+      "n": 10,
+      "env": {
+        "ECONOMY_SEED": "7"
+      },
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 2
+    },
+    {
+      "label": "economy-1000",
+      "run": "economy",
+      "n": 1000,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 135
+    },
+    {
+      "label": "economy-10000",
+      "run": "economy",
+      "n": 10000,
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 14400
+    },
+    {
+      "label": "emergence",
+      "run": "emergence",
+      "n": 0,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 10146
+    },
+    {
+      "label": "emergence-alone",
+      "run": "emergence",
+      "n": 0,
+      "alone": true,
+      "commit": "2547a1d6bfaf6e0d2b116cc63103b4b75b19c139",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 2493
+    },
+    {
+      "label": "load",
+      "run": "load",
+      "n": 0,
+      "env": {
+        "LOAD_URL": "http://localhost:18080"
+      },
+      "commit": "2547a1d6bfaf6e0d2b116cc63103b4b75b19c139",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 1801
+    },
+    {
+      "label": "map-10",
+      "run": "map",
+      "n": 10,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 54
+    },
+    {
+      "label": "map-10-alone",
+      "run": "map",
+      "n": 10,
+      "alone": true,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 49
+    },
+    {
+      "label": "puzzles",
+      "run": "puzzles",
+      "n": 0,
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 2
+    },
+    {
+      "label": "replay",
+      "run": "replay",
+      "n": 0,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 2
+    },
+    {
+      "label": "search-1000",
+      "run": "search",
+      "n": 1000,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 895
+    },
+    {
+      "label": "season",
+      "run": "season",
+      "n": 0,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 1
+    },
+    {
+      "label": "soak-10-s0",
+      "run": "soak",
+      "n": 10,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 3
+    },
+    {
+      "label": "soak-10-s1",
+      "run": "soak",
+      "n": 10,
+      "env": {
+        "ECONOMY_SEED": "1"
+      },
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 4
+    },
+    {
+      "label": "soak-10-s2",
+      "run": "soak",
+      "n": 10,
+      "env": {
+        "ECONOMY_SEED": "2"
+      },
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 4
+    },
+    {
+      "label": "soak-10-s3",
+      "run": "soak",
+      "n": 10,
+      "env": {
+        "ECONOMY_SEED": "3"
+      },
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 5
+    },
+    {
+      "label": "soak-10-s4",
+      "run": "soak",
+      "n": 10,
+      "env": {
+        "ECONOMY_SEED": "4"
+      },
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 4
+    },
+    {
+      "label": "soak-10-s5",
+      "run": "soak",
+      "n": 10,
+      "env": {
+        "ECONOMY_SEED": "5"
+      },
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 4
+    },
+    {
+      "label": "soak-10-s6",
+      "run": "soak",
+      "n": 10,
+      "env": {
+        "ECONOMY_SEED": "6"
+      },
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 4
+    },
+    {
+      "label": "soak-10-s7",
+      "run": "soak",
+      "n": 10,
+      "env": {
+        "ECONOMY_SEED": "7"
+      },
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 4
+    },
+    {
+      "label": "soak-1000",
+      "run": "soak",
+      "n": 1000,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 1934
+    },
+    {
+      "label": "soak-10000",
+      "run": "soak",
+      "n": 10000,
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 28800
+    },
+    {
+      "label": "social",
+      "run": "social",
+      "n": 0,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 6
+    },
+    {
+      "label": "social-alone",
+      "run": "social",
+      "n": 0,
+      "alone": true,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 2
+    },
+    {
+      "label": "spike-a",
+      "run": "spike-a",
+      "n": 0,
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 13
+    },
+    {
+      "label": "spike-b",
+      "run": "spike-b",
+      "n": 0,
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 20
+    },
+    {
+      "label": "spike-e-1000",
+      "run": "spike-e",
+      "n": 1000,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 2112
+    },
+    {
+      "label": "terrain-1000",
+      "run": "terrain",
+      "n": 1000,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 2937
+    },
+    {
+      "label": "world",
+      "run": "world",
+      "n": 0,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 121
+    },
+    {
+      "label": "world-alone",
+      "run": "world",
+      "n": 0,
+      "alone": true,
+      "commit": "82be0eb7b77c4166566a685ad3556804486e5019",
+      "book": "e8c6596bf0330533492e8cdc0773cc5e4eec3758405e949201044a3466b12b82",
+      "secs": 108
+    }
+  ],
+  "targets": [
+    {
+      "id": "even-fight",
+      "text": "An even fight at equal tier is won 50% of the time, within 5 points",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "tier 1 50.8%, tier 2 42.9%, tier 3 59.8%, tier 4 63.8% (best policy)",
+          "holds": false,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "first-tool-level-5",
+      "text": "A first tool reaches level 5 within 10 minutes of play",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "median 4.0 min, p90 7.7 min",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "tier-2-level-20",
+      "text": "A tier-2 item reaches level 20 in 35 to 45 world days of daily play",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "median 57 world days (52 to 61)",
+          "holds": false,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "tag-pairing-share",
+      "text": "No tag pairing wins more than 35% of the matchup matrix",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "top pairing edge-and-ember wins 29.2% of 24 cells",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "search-1000",
+          "value": "on the climbed kit: top pairing edge-and-ember wins 29.2% of 24 cells; the loadout's own edge-and-ember 29.2%, bulwark 20.8%",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "kind-within-budget",
+      "text": "No sampled kind exceeds its tier budget",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "craft",
+          "value": "0 of 30,000 over budget",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "top-kinds-near-median",
+      "text": "Per tier and slot, the best kind a search finds is within 1.3 times the top decile of sampled kinds, by the sum of the two strongest axes",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "craft",
+          "value": "27 of 28 cells; worst 1.36",
+          "holds": false,
+          "measured": true
+        },
+        {
+          "label": "search-1000",
+          "value": "the climbed kinds: 24 of 28 cells; worst 1.59 (tier-4 hook)",
+          "holds": false,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "coin-band",
+      "text": "From 100 players up, coin per active character stays between 350 and 450 coin for 42 simulated days",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "crime-1000",
+          "value": "with thieves, 1,000 players, days 78–120",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "crime-10000",
+          "value": "with thieves, 10,000 players, days 78–120",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-1000",
+          "value": "1,000 players, days 78–120",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-1000",
+          "value": "soak, 1,000 players (thieves, staging, emergence, season, an empty server), days 78–120",
+          "holds": false,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "coin-drift",
+      "text": "At 10 players over a 120-day soak, coin per active character stays between a quarter of the band's floor and twice its ceiling over the last two thirds, and its distance to the band over the last third is no worse than over the middle third by more than a quarter of the band's width",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "crime-10",
+          "value": "with thieves, 10 players, 120 days",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10",
+          "value": "10 players, 120 days",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s1",
+          "value": "10 players, 120 days",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s2",
+          "value": "10 players, 120 days",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s3",
+          "value": "10 players, 120 days",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s4",
+          "value": "10 players, 120 days",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s5",
+          "value": "10 players, 120 days",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s6",
+          "value": "10 players, 120 days",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s7",
+          "value": "10 players, 120 days",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s0",
+          "value": "soak, 10 players (thieves, staging, emergence, season, an empty server)",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s1",
+          "value": "soak, 10 players (thieves, staging, emergence, season, an empty server)",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s2",
+          "value": "soak, 10 players (thieves, staging, emergence, season, an empty server)",
+          "holds": false,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s3",
+          "value": "soak, 10 players (thieves, staging, emergence, season, an empty server)",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s4",
+          "value": "soak, 10 players (thieves, staging, emergence, season, an empty server)",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s5",
+          "value": "soak, 10 players (thieves, staging, emergence, season, an empty server)",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s6",
+          "value": "soak, 10 players (thieves, staging, emergence, season, an empty server)",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s7",
+          "value": "soak, 10 players (thieves, staging, emergence, season, an empty server)",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "settlements-stand",
+      "text": "An unattended world still has every settlement standing after 90 world days",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "world-alone",
+          "value": "0 fell in 50 worlds",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "world-no-collapse",
+      "text": "An unattended world has at most 3 regions overrun on day 90, and at least half its regions' threat still moves 60 or more over days 60 to 90",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "world-alone",
+          "value": "0 collapsed, 0 still, of 50",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "staging-stays-local",
+      "text": "An admin staging without limit moves no price in another settlement by more than 5%",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "search-1000",
+          "value": "`drop-flood` at 1000 players: the stages' footprint 12.00% (copper-ore at settlement 4); taken, 25.41% (provisions at settlement 2); a staging-free change of play, 5.65% (thick-hide at settlement 3)",
+          "holds": false,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "staged-goods-local",
+      "text": "No staged unit reaches another settlement's market, a faction order, store or budget, a guild bank, a goal, a haul or a caravan, and every staged unit is accounted for",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "search-1000",
+          "value": "53 soaks: every staged unit in a staged home and accounted for",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s0",
+          "value": "soak at 10: every staged unit in a staged home and accounted for",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s1",
+          "value": "soak at 10: every staged unit in a staged home and accounted for",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s2",
+          "value": "soak at 10: every staged unit in a staged home and accounted for",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s3",
+          "value": "soak at 10: every staged unit in a staged home and accounted for",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s4",
+          "value": "soak at 10: every staged unit in a staged home and accounted for",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s5",
+          "value": "soak at 10: every staged unit in a staged home and accounted for",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s6",
+          "value": "soak at 10: every staged unit in a staged home and accounted for",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s7",
+          "value": "soak at 10: every staged unit in a staged home and accounted for",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-1000",
+          "value": "soak at 1,000: every staged unit in a staged home and accounted for",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "staged-xp-cap",
+      "text": "No character gains more than 150 xp in a world day from staged fights",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "search-1000",
+          "value": "at most 150 staged xp in a world day (cap 150)",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "terrain-pins-hold",
+      "text": "Every terrain pin the validator accepts keeps every pattern point and starting settlement reachable, every pinned slot reachable, the chunk-order digest unchanged, and changes no tile outside its patch, on 1,000 seeds",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "terrain-1000",
+          "value": "4,108 of 11,903 pins accepted on 1000 seeds, 4108 landed (refused: pin-anchor 1078, pin-budget 410, pin-cut 4, pin-ground 4480, pin-path 123, pin-route 1377, pin-seen 323); 0 broke a target",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "structures-reachable",
+      "text": "Every pattern point, and every starting settlement, is reachable on foot from every starting settlement, on 1,000 sampled seeds and out to 200 tiles",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "spike-e-1000",
+          "value": "0 of 1,657,594 pattern points and 103,821 starting settlements unreachable from the first settlement, in 0 worlds, 1,000 seeds, out to 200 tiles",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "chunk-order",
+      "text": "A tile's generation reads only a bounded neighbourhood: the same tile gives the same baseline whichever chunks were generated first",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "spike-e-1000",
+          "value": "46,850 chunks generated out of order, 0 different, 1,000 seeds",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "novelty-share",
+      "text": "At least 1 newly generated region in 3 holds something its server has not seen, at every distance band out to 200 tiles",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "spike-e-1000",
+          "value": "44% to 51% of regions in every 40-tile band out to 200 tiles, the least 80–120 tiles; the worst single world 27%, 1,000 seeds",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "biome-patches",
+      "text": "Biomes sprawl: the median land tile stands in a connected patch of one biome of at least 300 tiles",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "spike-e-1000",
+          "value": "the median land tile's patch: 3,316 tiles in the median world, 2,258 in the p10 world, 1,000 seeds",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "ecotone-share",
+      "text": "Between 10% and 20% of land tiles are ecotones, where two biomes fade into each other",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "spike-e-1000",
+          "value": "13.0% of 89,089,827 land tiles, 1,000 seeds",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "cost-follows-discovery",
+      "text": "A world day's cost grows with discovered regions, not generated ones",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "world-alone",
+          "value": "377µs per 1,000 stored tiles a day; far chunks leave it flat",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "first-class-unlock",
+      "text": "A new character's first class unlocks in 5 to 9 world days of daily play",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "economy-10",
+          "value": "median 6 world days over 7 daily players (chandler 7)",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s1",
+          "value": "median 8 world days over 7 daily players (chandler 7)",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s2",
+          "value": "median 10 world days over 7 daily players (chandler 7)",
+          "holds": false,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s3",
+          "value": "median 7 world days over 7 daily players (chandler 7)",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s4",
+          "value": "median 8 world days over 7 daily players (chandler 6)",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s5",
+          "value": "median 6 world days over 7 daily players (chandler 6)",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s6",
+          "value": "median 6 world days over 7 daily players (chandler 6)",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s7",
+          "value": "median 8 world days over 7 daily players (chandler 7)",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-1000",
+          "value": "median 6 world days over 698 daily players (chandler 698)",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "class-share",
+      "text": "No class's abilities win more than 30% of the matchup matrix on their own",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "top class stalker wins 29.2% of 24 cells",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "search-1000",
+          "value": "on the climbed kit: top class delver wins 25.0% of 24 cells; the loadout's own stalker 8.3%",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "guild-works-sink",
+      "text": "No guild work returns more than it consumes, at any guild size",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "economy-10",
+          "value": "guilds of 10: no work gave back more than it consumed",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s1",
+          "value": "guilds of 10: no work gave back more than it consumed",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s2",
+          "value": "guilds of 10: no work gave back more than it consumed",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s3",
+          "value": "guilds of 10: no work gave back more than it consumed",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s4",
+          "value": "guilds of 10: no work gave back more than it consumed",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s5",
+          "value": "guilds of 10: no work gave back more than it consumed",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s6",
+          "value": "guilds of 10: no work gave back more than it consumed",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s7",
+          "value": "guilds of 10: no work gave back more than it consumed",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-1000",
+          "value": "guilds of 949: no work gave back more than it consumed",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s0",
+          "value": "soak, guilds of 12: no work gave back more than it consumed",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s1",
+          "value": "soak, guilds of 12: no work gave back more than it consumed",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s2",
+          "value": "soak, guilds of 12: no work gave back more than it consumed",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s3",
+          "value": "soak, guilds of 12: no work gave back more than it consumed",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s4",
+          "value": "soak, guilds of 12: no work gave back more than it consumed",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s5",
+          "value": "soak, guilds of 12: no work gave back more than it consumed",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s6",
+          "value": "soak, guilds of 12: no work gave back more than it consumed",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s7",
+          "value": "soak, guilds of 12: no work gave back more than it consumed",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-1000",
+          "value": "soak, guilds of 951: no work gave back more than it consumed",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "mount-shortens",
+      "text": "A mount on its terrain shortens a 12-tile journey by 25% to 40%",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "world-alone",
+          "value": "median saving stilt-rig 25%, rad-goat 33% (speed mounts)",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "spoils-conserved",
+      "text": "Finds from triggers never add goods: the spoils pool is conserved",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "social-alone",
+          "value": "0 finds from pools",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "guild-founds",
+      "text": "A guild of 5 can found a settlement within 10 world days",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "economy-10",
+          "value": "a guild of 5 founded on world day 14",
+          "holds": false,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s1",
+          "value": "a guild of 5 founded on world day 9",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s2",
+          "value": "a guild of 5 founded on world day 9",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s3",
+          "value": "a guild of 5 founded on world day 16",
+          "holds": false,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s4",
+          "value": "a guild of 5 founded on world day 12",
+          "holds": false,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s5",
+          "value": "a guild of 5 founded on world day 9",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s6",
+          "value": "a guild of 5 founded on world day 13",
+          "holds": false,
+          "measured": true
+        },
+        {
+          "label": "economy-10-s7",
+          "value": "a guild of 5 founded on world day 14",
+          "holds": false,
+          "measured": true
+        },
+        {
+          "label": "economy-1000",
+          "value": "a guild of 5 founded on world day 14",
+          "holds": false,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "puzzle-solve-rate",
+      "text": "A party at the expected practice level solves a floor's puzzle within its countdown 60% to 80% of the time",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "62.8% over every cell",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "search-1000",
+          "value": "the climbed party policy solves 76.4% over every tier (tier 1 scrub at 4 seats 89.0%; tier 2 rewire at 4 seats 82.3%; tier 3 keycard at 4 seats 74.7%; tier 4 override at 3 seats 59.6%)",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "gauges-not-pinned",
+      "text": "In 90 unattended world days, no region's gauge stays pinned at 0 or at its maximum for more than 7 world days in a row",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "world-alone",
+          "value": "0 pinned; longest 1 days",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "factions-keep-holdings",
+      "text": "In 90 unattended world days, no faction loses its last holding",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "world-alone",
+          "value": "0 fell in 50 worlds",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "replay-matches",
+      "text": "A snapshot plus recorded actions replays to the same digest",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "replay",
+          "value": "replay, the Economy population of 10 for 10 world days: 1,440 ticks replayed from 10 daily snapshots with 1,746 recorded commands, every digest matches",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "npc-own-history",
+      "text": "A second NPC meeting raises a topic from the player's own history in 60% or more of meetings",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "social-alone",
+          "value": "80.0%",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "npc-top-differs",
+      "text": "Two players with different histories with one NPC see different top topics in 80% or more of cases",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "social-alone",
+          "value": "95.7%",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "npc-cost-flat",
+      "text": "A world day costs the same whether the world holds 10 saved NPCs or 1,000,000",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "social-alone",
+          "value": "-6.2%, 0 NPCs touched in 7 days",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "npc-world-aware",
+      "text": "NPCs pass on a neighbour's news one hop deep, bring up crowding at 10 structures built in their region within 14 world days, some move home, and every route is relaid at the first meeting after a week",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "social-alone",
+          "value": "gossip in 36 of 36 dossiers, crowding at 12 built, 1 moved, 5 of 5 routes relaid",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "even-fight-party-2",
+      "text": "A party of 2 at equal tier wins within 5 points of a lone character's rate at that tier",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "tier 1 58.3% (solo 50.8%, +7.6, 50 ± 5 fails), tier 2 53.9% (solo 42.9%, +11.0), tier 3 61.4% (solo 59.8%, +1.6), tier 4 48.5% (solo 63.8%, -15.3)",
+          "holds": false,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "even-fight-party-3",
+      "text": "A party of 3 at equal tier wins within 5 points of a lone character's rate at that tier",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "tier 1 61.2% (solo 50.8%, +10.5, 50 ± 5 fails), tier 2 64.9% (solo 42.9%, +22.1), tier 3 58.1% (solo 59.8%, -1.8), tier 4 42.9% (solo 63.8%, -20.9)",
+          "holds": false,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "even-fight-party-4",
+      "text": "A party of 4 at equal tier wins within 5 points of a lone character's rate at that tier",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "tier 1 63.8% (solo 50.8%, +13.1, 50 ± 5 fails), tier 2 58.5% (solo 42.9%, +15.7), tier 3 51.8% (solo 59.8%, -8.1), tier 4 34.8% (solo 63.8%, -29.0)",
+          "holds": false,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "party-solve-rate-big-rewire",
+      "text": "A party at the expected practice solves a big rewire within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "71.1% over every cell (63.3%, 71.3%, 78.9%,)",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "party-solve-rate-split-panel",
+      "text": "A party at the expected practice solves a split panel within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "71.1% over every cell (63.3%, 71.3%, 78.9%,)",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "party-solve-rate-two-hand-lock",
+      "text": "A party at the expected practice solves a two-hand lock within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "61.3% over every cell (53.3%, 61.3%, 69.3%,)",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "party-solve-rate-relay-chain",
+      "text": "A party at the expected practice solves a relay chain within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "62.7% over every cell (54.7%, 62.7%, 70.7%,)",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "party-solve-rate-boiler-room",
+      "text": "A party at the expected practice solves a boiler room within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "54.4% over every cell (46.4%, 54.4%, 62.4%,)",
+          "holds": false,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "party-solve-rate-pipe-crew",
+      "text": "A party at the expected practice solves a pipe crew within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "49.2% over every cell (43.2%, 49.2%, 55.2%,)",
+          "holds": false,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "party-solve-rate-tension-and-pick",
+      "text": "A party at the expected practice solves a tension-and-pick lock within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "66.6% over every cell (58.6%, 66.6%, 74.6%,)",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "party-solve-rate-two-axis-tilt",
+      "text": "A party at the expected practice solves a two-axis tilt within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "65.8% over every cell (57.9%, 65.9%, 73.8%,)",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "party-solve-rate-split-grid",
+      "text": "A party at the expected practice solves a split grid within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "61.3% over every cell (53.3%, 61.3%, 69.3%,)",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "party-solve-rate-bomb-squad",
+      "text": "A party at the expected practice solves a bomb squad within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "55.1% over every cell (48.1%, 55.1%, 62.1%,)",
+          "holds": false,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "party-solve-rate-call-and-answer",
+      "text": "A party at the expected practice solves a call-and-answer override within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "70.1% over every cell (62.1%, 70.1%, 78.1%,)",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "party-solve-rate-tandem-winch",
+      "text": "A party at the expected practice solves a tandem winch within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "64.0% over every cell (56.0%, 64.0%, 72.0%,)",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "party-solve-rate-double-swipe",
+      "text": "A party at the expected practice solves a double swipe within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "69.9% over every cell (61.9%, 69.9%, 77.9%,)",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "party-solve-rate-panel-array",
+      "text": "A party at the expected practice solves a panel array within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "67.2% over every cell (59.2%, 67.2%, 75.1%,)",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "party-solve-rate-relay-solder",
+      "text": "A party at the expected practice solves a relay solder within its countdown 60% to 80% of the time, at 2, 3 and 4 seats",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "57.5% over every cell (49.5%, 57.5%, 65.5%,)",
+          "holds": false,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "dungeon-floors",
+      "text": "Over 1,000 seeds every dungeon runs 3 to 7 floors, deeper with its entrance's tier, and has a guardian",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "world-alone",
+          "value": "16,096 dungeons over 1,000 seeds, 3 to 7 floors every one, mean floors by seed tier tier 1 4.17, tier 2 4.88, tier 3 5.36, tier 4 5.34, 0 without a guardian",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "dungeon-forks",
+      "text": "Every floor above a dungeon's bottom forks into two ways and a hidden third, each of one to three tags",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "world-alone",
+          "value": "143,674 forks, 0 off their rule; 50.1% behind a machine",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "floor-pools-conserved",
+      "text": "In 90 unattended world days, what is lost on a floor is only ever found there: floor pools add no goods",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "world-alone",
+          "value": "game 0 114 in, 22 found, 92 left; game 1 89 in, 24 found, 65 left; game 2 204 in, 61 found, 143 left; no leg while left alone; every refill on its day",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "hunt-spoils-conserved",
+      "text": "A hunt's spoils roll once within its row, and the parts paid to its pressers sum to the roll",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "world-alone",
+          "value": "slain by 10, rolled 13 hide-scraps; slain by 10, rolled 10 hide-scraps; slain by 10, rolled 12 hide-scraps, 19 hide-scraps, 10 hide-scraps, 14 hide-scraps, 18 hide-scraps",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "haunted-comes-and-goes",
+      "text": "A dungeon turns haunted at 5 falls inside 14 world days and calms once a window passes with fewer",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "world-alone",
+          "value": "game 0 haunted 1, calmed 1; game 1 haunted 1, calmed 1; game 2 haunted 1, calmed 1, each turn at its line",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "party-help-measured",
+      "text": "party-help and every party version's rate are what the versions' own solvers measure, not a guess",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "measured -0.65% a seat; party-help 8 (wants 0); rates off: big-rewire 8 (measured -2.9), split-panel 8 (measured -1.7), two-hand-lock 8 (measured -0.0), relay-chain 8 (measured -0.3), boiler-room 8 (measured -0.2), pipe-crew 8 (measured -1.4), tension-and-pick 8 (measured -1.9), two-axis-tilt 8 (measured -1.0), split-grid 8 (measured 0.2), bomb-squad 8 (measured 0.0), call-and-answer 8 (measured -1.7), tandem-winch 8 (measured 0.0), double-swipe 8 (measured 0.0), panel-array 8 (measured 1.2), relay-solder 8 (measured -0.2)",
+          "holds": false,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "content-replays",
+      "text": "The same history gives the same content twice",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "content-40",
+          "value": "160 of 160 plays (4 histories × 40 seeds) replay to equal content and world digests",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "content-differs",
+      "text": "Two histories differing in a tile's neighbourhood give different content in 60% or more of tiles",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "content-40",
+          "value": "in every history, of 43,807 sampled tiles: quiet 98.4%, warring 98.5%, overrun 99.1%, pinned 97.9%",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "pin-stays-in-reach",
+      "text": "A pin changes no tile outside its radius, and none discovered before it",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "content-40",
+          "value": "1527 pins, 1526 landed, 1526 holding their fix; 2,582 tiles equal to the pinless twin's (2,180 before a covering pin, 402 outside every pin) and 45,193 drawn in a pin's reach on the twin's digest but for its pins; 0 failing",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "content-reachable",
+      "text": "Every pinned slot and drawn dungeon entrance is reachable from the first settlement, on every history and with pins on 1,000 seeds",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "content-40",
+          "value": "sweep: 9,610 of 17,249 pins accepted on 1,000 seeds, 0 failing; histories: 2,904 slots and entrances, 0 failing, 3 on scaffold slots no walk reaches",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "content-cost-flat",
+      "text": "A tile's draw costs the same on day 1 and day 300 of a busy world",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "content-40",
+          "value": "day 300 median 16.8 µs, day 1 16.1 µs (104%, at most 150%); visits at most 415 on day 1 and 415 on day 300, bound 541",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "content-dungeons",
+      "text": "Dungeons drawn from history keep their kind's floors, a guardian and distinct ways",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "content-40",
+          "value": "2,904 plans and 10,612 forks drawn from history, 0 failing",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "season-zero",
+      "text": "A 14-day season zero has, on every seed, a stage decided by players (won, its mark met by 2 or more distinct backers) and a stage that lapsed, writes its finale and its close, keeps the ledger clean, and replays to the same digest",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "season",
+          "value": "8 of 8 seeds hold, 15 days: a stage decided by players on 8, a lapse on 8, the finale on 8, the close on 8, the ledger clean on 8; seed \"\" replays to the same digest",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "city-takes-season",
+      "text": "A city takes most of a season: the first city lands between world day 22 and 42",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "economy-10",
+          "value": "– read from 1,000 players; 10 players: 10 members, under the 50 active characters a city needs",
+          "holds": false,
+          "measured": false
+        },
+        {
+          "label": "economy-10-s1",
+          "value": "– read from 1,000 players; 10 players: 10 members, under the 50 active characters a city needs",
+          "holds": false,
+          "measured": false
+        },
+        {
+          "label": "economy-10-s2",
+          "value": "– read from 1,000 players; 10 players: 10 members, under the 50 active characters a city needs",
+          "holds": false,
+          "measured": false
+        },
+        {
+          "label": "economy-10-s3",
+          "value": "– read from 1,000 players; 10 players: 10 members, under the 50 active characters a city needs",
+          "holds": false,
+          "measured": false
+        },
+        {
+          "label": "economy-10-s4",
+          "value": "– read from 1,000 players; 10 players: 10 members, under the 50 active characters a city needs",
+          "holds": false,
+          "measured": false
+        },
+        {
+          "label": "economy-10-s5",
+          "value": "– read from 1,000 players; 10 players: 10 members, under the 50 active characters a city needs",
+          "holds": false,
+          "measured": false
+        },
+        {
+          "label": "economy-10-s6",
+          "value": "– read from 1,000 players; 10 players: 10 members, under the 50 active characters a city needs",
+          "holds": false,
+          "measured": false
+        },
+        {
+          "label": "economy-10-s7",
+          "value": "– read from 1,000 players; 10 players: 10 members, under the 50 active characters a city needs",
+          "holds": false,
+          "measured": false
+        },
+        {
+          "label": "economy-1000",
+          "value": "the first city, 1,000 players: day 54",
+          "holds": false,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "settlements-stand-troubles",
+      "text": "With troubles on, an unattended world loses no starting settlement and leaves no ruin after 90 world days",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "world-alone",
+          "value": "0 fell, 0 ruined in 50 worlds",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "arcs-lapse-unattended",
+      "text": "In 90 unattended world days with the director on, at least one arc lapses on every seed and no stage is won",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "world-alone",
+          "value": "0 worlds without a lapse, 0 stages won, of 50",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "factions-keep-holdings-arcs",
+      "text": "In 90 unattended world days with the director on, no faction loses its last holding",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "world-alone",
+          "value": "0 factions left with no holding, 0 fell, in 50 worlds",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "director-cost-flat",
+      "text": "The director's world day in the week to day 90 costs no more with its memory ring full than 110% of the day as played: a predicate pays for what it recalls, not for what the ring holds",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "world-alone",
+          "value": "24µs in the week to day 90, 24µs with the memory ring full (102%); 109% of the week to day 45",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "emergence-loop",
+      "text": "On every 1,000-player seed of the closed world, agents never told of emergence make a style, its region's variant, the variant's found material and a kind made from it, with no operator command and no staged fact",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "emergence-alone",
+          "value": "1,000 players, 4 seeds: seed \"\" no style; seed \"1\" no style; seed \"2\" no style; seed \"3\" no style; 0 operator commands, 0 staged facts",
+          "holds": false,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "promotion-each-type",
+      "text": "Every promotion type (road, camp, haunt, route, style, variant, legend, custom) fires at least once on some world of the closed-world run",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "emergence-alone",
+          "value": "most on one world: road 159, camp 1, haunt 33, route 10, style 0, variant 0, legend 0, custom 0; never: style, variant, legend, custom",
+          "holds": false,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "pairing-share-falls",
+      "text": "Adaptation brakes reliance: for every variant with 14 days left, its style's share of the region's wins in the 14 days after is below the 14 days before",
+      "holds": "–",
+      "readings": [
+        {
+          "label": "emergence",
+          "value": "– no variant appeared with 14 days left (0 variants)",
+          "holds": false,
+          "measured": false
+        },
+        {
+          "label": "emergence-alone",
+          "value": "– no variant appeared with 14 days left (0 variants)",
+          "holds": false,
+          "measured": false,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "trace-cost-flat",
+      "text": "A day's trace intake and turn with 100,000 stale entries costs no more than 110% of the day as played: traces cost what is touched",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "emergence-alone",
+          "value": "the day turns of days 94 to 100, seed \"\": 5.358ms as played, 5.433ms with 100,000 stale entries (101%)",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "theft-never-mints",
+      "text": "Theft never adds goods or coin: every haul leaves real stock, and fences pay inside the faction budget",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "crime-10",
+          "value": "10 players: 0 theft transactions, 0 source legs: every source an NPC, a store, a caravan or an NPC's listing; fences inside the slice; audit clean",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "crime-1000",
+          "value": "1,000 players: 84 theft transactions, 84 source legs: every source an NPC, a store, a caravan or an NPC's listing; fences inside the slice; audit clean",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "crime-10000",
+          "value": "10,000 players: 92 theft transactions, 92 source legs: every source an NPC, a store, a caravan or an NPC's listing; fences inside the slice; audit clean",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s0",
+          "value": "soak, 10 players: 0 thefts, 0 source legs; every day's conservation check",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s1",
+          "value": "soak, 10 players: 0 thefts, 0 source legs; every day's conservation check",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s2",
+          "value": "soak, 10 players: 0 thefts, 0 source legs; every day's conservation check",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s3",
+          "value": "soak, 10 players: 0 thefts, 0 source legs; every day's conservation check",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s4",
+          "value": "soak, 10 players: 0 thefts, 0 source legs; every day's conservation check",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s5",
+          "value": "soak, 10 players: 0 thefts, 0 source legs; every day's conservation check",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s6",
+          "value": "soak, 10 players: 0 thefts, 0 source legs; every day's conservation check",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s7",
+          "value": "soak, 10 players: 0 thefts, 0 source legs; every day's conservation check",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-1000",
+          "value": "soak, 1,000 players: 2 thefts, 2 source legs; every day's conservation check",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "thieves-hold-band",
+      "text": "With a tenth of players stealing, coin per active character still holds the Economy band",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "crime-10",
+          "value": "10 players 359–465 coin",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "crime-1000",
+          "value": "1,000 players 353–424 coin",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "crime-10000",
+          "value": "10,000 players 362–410 coin",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s0",
+          "value": "soak, 10 264 to 305 coin",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s1",
+          "value": "soak, 10 302 to 466 coin",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s2",
+          "value": "soak, 10 68 to 107 coin",
+          "holds": false,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s3",
+          "value": "soak, 10 338 to 439 coin",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s4",
+          "value": "soak, 10 253 to 287 coin",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s5",
+          "value": "soak, 10 336 to 382 coin",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s6",
+          "value": "soak, 10 323 to 452 coin",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-10-s7",
+          "value": "soak, 10 338 to 429 coin",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "soak-1000",
+          "value": "soak, 1,000 117 to 130 coin",
+          "holds": false,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "alignment-depth",
+      "text": "A character at −15 alignment is back to unremarked within 3 good acts; one at −80 needs 25 or more to leave Notorious",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "social-alone",
+          "value": "3 acts from -15 (-15 → -13 → -11 → -9); 31 from -80 to leave notorious",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "alignment-pair-cap",
+      "text": "No pair of characters can move each other's alignment more than +2 a world day",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "social-alone",
+          "value": "at most +2 a world day from one partner over 14 days of 10 goals met each",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "invitation-days",
+      "text": "No thief is invited in under 30 world days from its first theft",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "crime-10",
+          "value": "– read from 1,000 players",
+          "holds": false,
+          "measured": false
+        },
+        {
+          "label": "crime-1000",
+          "value": "1,000 players: none of 55 thieves invited in 120 world days",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "crime-10000",
+          "value": "10,000 players: none of 263 thieves invited in 120 world days",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "witness-formula",
+      "text": "A witnessed theft's odds match the witness formula within 3 points over 10,000 sampled thefts",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "battle",
+          "value": "worst bucket 30–39 off by 2.7 points over 10,000 sampled thefts; the game agrees on 300 of 300 real lifts' odds and 86 of 86 rolls",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "theft-cost-flat",
+      "text": "A world day costs the same with 0 or 1,000 thefts a day, within 1.2 times",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "world-alone",
+          "value": "1.02 times: 616.27ms with 1,000 thefts, 603.85ms with none",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "road-war-city-slip",
+      "text": "With thieves preying on road wars, the first city at 1,000 players opens no more than 3 world days later than without theft",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "crime-10",
+          "value": "– read at 1,000 players",
+          "holds": false,
+          "measured": false
+        },
+        {
+          "label": "crime-1000",
+          "value": "day 54 with thieves, day 54 without; road wars with thieves 39 ended: 2 won by patrol-it, 33 by prey-on-it, 4 lapsed, without 40 ended: 4 won by patrol-it, 30 by prey-on-it, 6 lapsed",
+          "holds": true,
+          "measured": true
+        },
+        {
+          "label": "crime-10000",
+          "value": "– read at 1,000 players",
+          "holds": false,
+          "measured": false
+        }
+      ]
+    },
+    {
+      "id": "map-load-budget",
+      "text": "A 20,000-tile world's live map loads inside its budget: first draw in 4 requests and 150 KB, a tile view in 32 requests and 300 KB, and first draw modelled within 1.5 s",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "map-10-alone",
+          "value": "first draw 4 requests, 24.9 KB (style 0.7 KB, index 3.7 KB, regions 19.1 KB, overlay 1.6 KB); tile view 25 requests, 38.3 KB; chunks ≤ 1.9 KB tile, ≤ 1.6 KB area, 115.6 KB all area; build 31 ms cold; reads p95 0.36 ms, overlay 0.36 ms; modelled 291 ms + the client's frame",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "map-seen-cost",
+      "text": "A world day's last-seen writes and sight pass follow movement, not map size: at 20,000 discovered tiles within 1.5x of 1,000",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "map-10-alone",
+          "value": "records 32992 at 20,419 tiles against 32992 at 1,027 (1.00x); pass 45.84 ms against 44.48 ms (1.03x); paths apart 0",
+          "holds": true,
+          "measured": true,
+          "alone": true
+        }
+      ]
+    },
+    {
+      "id": "richest-loop-band",
+      "text": "The richest loop a search finds, played by a tenth of the players at 1,000 for 120 days, keeps coin per active character inside 350–450 over days 78–120 and mints no goods or coin",
+      "holds": "no",
+      "readings": [
+        {
+          "label": "search-1000",
+          "value": "`arbitrage, 25 arbitrage→buy-craft-sell, 25 arbitrage→gather-sell, 25 arbitrage→gather-sell` (gather-sell 50, buy-craft-sell 25, arbitrage 25) by a tenth of mains at 1,000 players for 120 days: 21 a character-day against 9 for the other main players; coin per active character 201 to 201 (band 350–450); daily conservation clean",
+          "holds": false,
+          "measured": true
+        }
+      ]
+    },
+    {
+      "id": "load-tick-inside",
+      "text": "At ten times the closed test's peak presses a minute, every tick finishes inside one tick",
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "load",
+          "value": "6,000 presses a minute asked, 5,814 delivered, for 30m0s from 200 characters on 2 servers (54,207 acted, 207 refused, 0 failed); 600 ticks, the longest step 2,082 ms against the 3,000 ms tick and 0.35% of production's 600 s, at most 1 behind; press p95 476.9 ms",
+          "holds": true,
+          "measured": true
+        }
+      ]
+    }
+  ]
+}

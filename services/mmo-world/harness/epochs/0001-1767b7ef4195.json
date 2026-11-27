@@ -20,6 +20,13 @@
       "secs": 692
     },
     {
+      "label": "craft",
+      "run": "craft",
+      "n": 0,
+      "book": "1767b7ef4195f4ed9111080584e96faace0a56b0e16680517e9cb4bc46387334",
+      "secs": 62
+    },
+    {
       "label": "crime-10",
       "run": "crime",
       "n": 10,
@@ -102,6 +109,13 @@
       "n": 0,
       "book": "1767b7ef4195f4ed9111080584e96faace0a56b0e16680517e9cb4bc46387334",
       "secs": 3464
+    },
+    {
+      "label": "map-10",
+      "run": "map",
+      "n": 10,
+      "book": "1767b7ef4195f4ed9111080584e96faace0a56b0e16680517e9cb4bc46387334",
+      "secs": 72
     },
     {
       "label": "search-1000",
@@ -224,14 +238,28 @@
     {
       "id": "kind-within-budget",
       "text": "No sampled kind exceeds its tier budget",
-      "holds": "–",
-      "readings": []
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "craft",
+          "value": "0 of 30,000 over budget",
+          "holds": true,
+          "measured": true
+        }
+      ]
     },
     {
       "id": "top-kinds-near-median",
       "text": "Per tier and slot, the best kind a search finds is within 1.3 times the top decile of sampled kinds, by the sum of the two strongest axes",
-      "holds": "–",
-      "readings": []
+      "holds": "no",
+      "readings": [
+        {
+          "label": "craft",
+          "value": "27 of 28 cells; worst 1.36",
+          "holds": false,
+          "measured": true
+        }
+      ]
     },
     {
       "id": "coin-band",
@@ -1459,14 +1487,28 @@
     {
       "id": "map-load-budget",
       "text": "A 20,000-tile world's live map loads inside its budget: first draw in 4 requests and 150 KB, a tile view in 32 requests and 300 KB, and first draw modelled within 1.5 s",
-      "holds": "–",
-      "readings": []
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "map-10",
+          "value": "first draw 4 requests, 24.9 KB (style 0.7 KB, index 3.7 KB, regions 19.1 KB, overlay 1.6 KB); tile view 25 requests, 38.3 KB; chunks ≤ 1.9 KB tile, ≤ 1.6 KB area, 115.6 KB all area; build 38 ms cold; reads p95 0.46 ms, overlay 0.71 ms; modelled 297 ms + the client's frame",
+          "holds": true,
+          "measured": true
+        }
+      ]
     },
     {
       "id": "map-seen-cost",
       "text": "A world day's last-seen writes and sight pass follow movement, not map size: at 20,000 discovered tiles within 1.5x of 1,000",
-      "holds": "–",
-      "readings": []
+      "holds": "yes",
+      "readings": [
+        {
+          "label": "map-10",
+          "value": "records 40509 at 20,419 tiles against 40509 at 1,027 (1.00x); pass 54.13 ms against 53.01 ms (1.02x); paths apart 0",
+          "holds": true,
+          "measured": true
+        }
+      ]
     }
   ]
 }
