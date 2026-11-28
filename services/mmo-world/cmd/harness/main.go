@@ -7,7 +7,7 @@
 //	                         every readings.json under DIR merged, against FILE or the last epoch; writes
 //	                         DIR/report.md and DIR/report.json, and with -write an epoch file (a -write
 //	                         directory gets it under its own name); -sheets-from adds the cell diff from
-//	                         that root's book; -strict exits 1 when a target now misses
+//	                         that root's book; -strict exits 1 when a target that held before now misses or is no longer measured
 //	harness report -check    exits 1 when the newest epoch file is not of this book
 //	harness schema           regenerate sheets/schema from the row types
 //	harness proposals -in F  candidate story.arcs rows (a file, or a directory of them) checked against the book;
@@ -33,7 +33,7 @@
 //	harness replay -out DIR  ten players for ten world days, each day replayed from its snapshot (replay-matches)
 //	harness all -out DIR [-jobs 3] [-only label,...] [-soak] [-live URL] [-against FILE] [-write FILE|DIR] [-commit SHA]
 //	                         every label of harness.Suite as a subprocess under a watchdog, then DIR/suite.json,
-//	                         DIR/report.md and DIR/report.json; exits 1 when a label failed
+//	                         DIR/report.md and DIR/report.json; exits 1 when a label failed or the suite was interrupted
 //	harness search -out DIR  the Search run's climbs (SEARCH_ONLY=build,loop,staging picks): the strongest loadout,
 //	                         kinds and party puzzle policy; the richest activity mix played for the Economy plan's
 //	                         days; staging policies against an unstaged twin; each best confirmed at -n
@@ -107,7 +107,7 @@ func main() {
 	fs.StringVar(&ro.commit, "commit", "", "report: the commit the readings were read at (default theirs, MMO_COMMIT or git)")
 	fs.StringVar(&ro.note, "note", "", "report: the epoch's note")
 	fs.StringVar(&ro.sheetsFrom, "sheets-from", "", "report: add the cell diff from this module root's book")
-	fs.BoolVar(&ro.strict, "strict", false, "report: exit 1 when a target that held before now misses")
+	fs.BoolVar(&ro.strict, "strict", false, "report: exit 1 when a target that held before now misses or is no longer measured")
 	fs.BoolVar(&ro.check, "check", false, "report: exit 1 when the newest epoch file is not of this book")
 	_ = fs.Parse(args)
 	if *cpuProfile != "" {
@@ -204,8 +204,11 @@ func main() {
 				name = cmd
 			}
 			exitOn(harness.WriteReadings(*out, harness.Readings{
-				Label: name, Run: cmd, N: *n, Env: switches(), Alone: *alone,
-				Commit: commitOf(root), Book: digest, Secs: int64(time.Since(start).Seconds()), Rows: readings,
+				RunLabel: harness.RunLabel{
+					Label: name, Run: cmd, N: *n, Env: switches(), Alone: *alone,
+					Commit: commitOf(root), Book: digest, Secs: int64(time.Since(start).Seconds()),
+				},
+				Rows: readings,
 			}))
 		}
 	}
@@ -370,8 +373,14 @@ func report(w io.Writer, root string, b *sheets.Book, o reportOptions) (bool, er
 		fmt.Fprintf(os.Stderr, "wrote %s\n", path)
 	}
 	if o.strict {
-		if misses := harness.NowMisses(before, after); len(misses) > 0 {
+		misses, gone := harness.NowMisses(before, after), harness.NoLongerRead(before, after)
+		if len(misses) > 0 {
 			fmt.Fprintf(os.Stderr, "now missing: %s\n", strings.Join(misses, ", "))
+		}
+		if len(gone) > 0 {
+			fmt.Fprintf(os.Stderr, "no longer measured: %s\n", strings.Join(gone, ", "))
+		}
+		if len(misses) > 0 || len(gone) > 0 {
 			return false, nil
 		}
 	}
@@ -434,8 +443,8 @@ func runAll(ctx context.Context, w, log io.Writer, root string, b *sheets.Book, 
 	return ok, nil
 }
 
-// suiteHeader is the suite's lines in the report: the check, the labels
-// run and any that failed or met the watchdog.
+// suiteHeader is the suite's lines in the report: the check and the
+// labels run; ReportDiff names each label that did not finish.
 func suiteHeader(r harness.SuiteResult) string {
 	check := "not run"
 	switch r.Check() {
@@ -444,20 +453,7 @@ func suiteHeader(r harness.SuiteResult) string {
 	case "fail":
 		check = "**fail** (`check/stdout.txt`)"
 	}
-	lines := []string{fmt.Sprintf("Check: %s.", check), fmt.Sprintf("Suite: %d labels at commit `%s`, %d at once, %s to %s.", len(r.Labels), r.Commit, r.Jobs, r.Started, r.Finished)}
-	if failed := r.Failed(); len(failed) > 0 {
-		lines = append(lines, fmt.Sprintf("Labels that did not exit 0: **%s**.", strings.Join(failed, ", ")))
-	}
-	var capped []string
-	for _, l := range r.Labels {
-		if l.Watchdog {
-			capped = append(capped, l.Label)
-		}
-	}
-	if len(capped) > 0 {
-		lines = append(lines, fmt.Sprintf("Killed at their caps: **%s**.", strings.Join(capped, ", ")))
-	}
-	return strings.Join(lines, "\n")
+	return fmt.Sprintf("Check: %s.\nSuite: %d labels at commit `%s`, %d at once, %s to %s.", check, len(r.Labels), r.Commit, r.Jobs, r.Started, r.Finished)
 }
 
 func splitList(s string) []string {

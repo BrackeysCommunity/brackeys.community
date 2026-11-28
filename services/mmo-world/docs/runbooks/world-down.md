@@ -33,6 +33,9 @@ The world is not answering, or answers and does not tick.
      epoch ([../epochs.md](../epochs.md)).
    - `service: the pending sheets under MMO_SHEETS_NEXT do not load the world`: the staged book cannot run this world. Unset
      `MMO_SHEETS_NEXT` and redeploy; fix the book.
+   - `steps back from MMO_ROLL_EPOCH`: `MMO_ROLL_EPOCH_NEXT` is below the
+     world's roll epoch ("a roll epoch only steps forward"). Set it above
+     `MMO_ROLL_EPOCH`, or unset it.
    - `service: a key is in the database`: stop. A key reached a table;
      treat it as a leak ([leaked-key.md](leaked-key.md)).
    - `loads to digest`: see [bad-tick.md](bad-tick.md).
@@ -79,4 +82,5 @@ A standby takes the lock as soon as the holder lets go.
 
 Only when the stored world is lost or damaged (the database is gone, or a
 load fails on a digest no code change explains). A restore loses every
-tick after the backup. Follow [../backups.md](../backups.md).
+tick after the backup. Follow [../backups.md](../backups.md). A restore into
+a new database runs the migrations on it first ([../backups.md](../backups.md)).

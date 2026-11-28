@@ -47,9 +47,22 @@ are the backup service's own settings on the platform.
 
 ```sh
 DATABASE_URL=<target> SOURCE_DATABASE_URL=<the live database> \
-  MMO_MASTER_SECRET=<the world's> MMO_WORLD_ID=<world> MMO_ROLL_EPOCH=<the world's> \
+  MMO_MASTER_SECRET=<the world's> MMO_KEY_VERSION=<the world's, default 1> \
+  MMO_WORLD_ID=<world> MMO_ROLL_EPOCH=<the world's> \
   MMO_SHEETS_ROOT=<the world's sheets> sh scripts/restore.sh <dir>/<stem>.dump
 ```
+
+`op verify` reads the world's keys and sheets settings: `MMO_MASTER_SECRET`,
+`MMO_KEY_VERSION`, `MMO_WORLD_ID`, `MMO_ROLL_EPOCH` and `MMO_SHEETS_ROOT`
+(the full list is the [README's env table](../README.md#environment)).
+
+A dump holds only the `mmo` schema; drizzle's migration journal lives
+outside it. A restore into a new database first runs the migrations on it
+(the [README's deploy order](../README.md#deploy-order) step 2) up to the
+dump's build, so the migrator's journal lists the `mmo` migrations;
+`restore.sh` then drops the empty `mmo` schema a fresh migrate leaves and
+restores the dump. Without that, the next deploy's migrate starts from the
+first migration and fails on `CREATE SCHEMA "mmo"`.
 
 `restore.sh`:
 
@@ -142,8 +155,9 @@ Against a scratch database on the platform, never the live one; never
 restore into production to test:
 
 1. Take the dump from the staging world's backups.
-2. Restore into a fresh database with `SOURCE_DATABASE_URL` set to the
-   staging world's, so the script refuses to write there.
+2. Restore into a fresh database the migrations have run on, with
+   `SOURCE_DATABASE_URL` set to the staging world's, so the script
+   refuses to write there.
 3. Run `op verify` where the staging world's master already lives.
 
 ## Forgotten players and restores

@@ -37,28 +37,28 @@ Every name `src/config.ts` reads. `.env.example` lists them with empty
 values; `bun run local` and `bun run register` read `.env.local`
 (gitignored). A missing required value stops the bot at start.
 
-| Name                    | Secret                          | What it is                                                                                                                       |
-| ----------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `DISCORD_TOKEN`         | yes                             | The bot user's token (Developer Portal, the app's Bot page). Required.                                                           |
-| `DISCORD_APP_ID`        | no                              | The application id. Required.                                                                                                    |
-| `DISCORD_GUILD_ID`      | no                              | The primary server. Its channel ids in this table are used as they are. Required with guild commands, optional with global ones. |
-| `MMO_GUILD_IDS`         | no                              | Comma-separated server ids the guild-scoped commands go to; the primary server alone when unset.                                 |
-| `MMO_COMMANDS`          | no                              | `guild` (the default, for test servers) or `global` (for launch).                                                                |
-| `MMO_WORLD_URL`         | no                              | The world service's address; `http://localhost:8080` when unset.                                                                 |
-| `MMO_API_TOKEN`         | yes                             | The world's player-path token. Set one token here, even while the world accepts `new,old` during a rotation.                     |
-| `REDIS_URL`             | yes, when it carries a password | Redis for the press limit, the posters' marks, party threads, held names and narration.                                          |
-| `MMO_THREAT_LINE`       | no                              | The threat line routes stop before; the world's ambush line when unset.                                                          |
-| `MMO_MARKET_FORUM`      | no                              | The market forum, by id or name, for a server whose settings map none.                                                           |
-| `MMO_GOALS_FORUM`       | no                              | The notice-board forum, by id or name, likewise.                                                                                 |
-| `MMO_GAME_CHANNEL`      | no                              | Where the hunt cards go when no events channel is set.                                                                           |
-| `MMO_EVENTS_CHANNEL`    | no                              | The events channel, by id or name, likewise.                                                                                     |
-| `MMO_CHRONICLE_CHANNEL` | no                              | The chronicle channel, by id or name, likewise.                                                                                  |
-| `MMO_LOG_CHANNEL`       | no                              | The log channel, by id or name, likewise.                                                                                        |
-| `MMO_EVENTS_ALARM_ROLE` | no                              | The role a raid's start mentions where a server's settings name none. It must sit below the bot's own role.                      |
-| `LEXICON_REFRESH_MS`    | no                              | How often the world's lexicon is read again, so found names reach the cards; five minutes when unset.                            |
-| `ANTHROPIC_API_KEY`     | yes                             | The model's key. Held so that the config never prints it.                                                                        |
-| `MMO_NARRATION`         | no                              | `on` turns narration's master switch on.                                                                                         |
-| `MMO_NARRATION_DAY_USD` | no                              | The world-wide narration budget a world day, in dollars; 1 when unset.                                                           |
+| Name                    | Secret                          | What it is                                                                                                                                                      |
+| ----------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DISCORD_TOKEN`         | yes                             | The bot user's token (Developer Portal, the app's Bot page). Required.                                                                                          |
+| `DISCORD_APP_ID`        | no                              | The application id. Required.                                                                                                                                   |
+| `DISCORD_GUILD_ID`      | no                              | The primary server. Its channel ids in this table are used as they are. Required with guild commands, optional with global ones.                                |
+| `MMO_GUILD_IDS`         | no                              | Comma-separated server ids the guild-scoped commands go to; the primary server alone when unset.                                                                |
+| `MMO_COMMANDS`          | no                              | `guild` (the default, for test servers) or `global` (for launch).                                                                                               |
+| `MMO_WORLD_URL`         | no                              | The world service's address; `http://localhost:8080` when unset.                                                                                                |
+| `MMO_API_TOKEN`         | yes                             | The world's player-path token. Set one token here, even while the world accepts `new,old` during a rotation.                                                    |
+| `REDIS_URL`             | yes, when it carries a password | Redis for the press limit, the posters' marks, party threads, held names and narration.                                                                         |
+| `MMO_THREAT_LINE`       | no                              | The threat line routes stop before; the world's ambush line when unset.                                                                                         |
+| `MMO_MARKET_FORUM`      | no                              | The market forum, by id or name, for a server whose settings map none.                                                                                          |
+| `MMO_GOALS_FORUM`       | no                              | The notice-board forum, by id or name, likewise.                                                                                                                |
+| `MMO_GAME_CHANNEL`      | no                              | Where the hunt cards go when no events channel is set.                                                                                                          |
+| `MMO_EVENTS_CHANNEL`    | no                              | The events channel, by id or name, likewise.                                                                                                                    |
+| `MMO_CHRONICLE_CHANNEL` | no                              | The chronicle channel, by id or name, likewise.                                                                                                                 |
+| `MMO_LOG_CHANNEL`       | no                              | The log channel, by id or name, likewise.                                                                                                                       |
+| `MMO_EVENTS_ALARM_ROLE` | no                              | The role a raid's start mentions in the primary server where its settings name none. Other servers name theirs in /admin. It must sit below the bot's own role. |
+| `LEXICON_REFRESH_MS`    | no                              | How often the world's lexicon is read again, so found names reach the cards; five minutes when unset.                                                           |
+| `ANTHROPIC_API_KEY`     | yes                             | The model's key. Held so that the config never prints it.                                                                                                       |
+| `MMO_NARRATION`         | no                              | `on` turns narration's master switch on.                                                                                                                        |
+| `MMO_NARRATION_DAY_USD` | no                              | The world-wide narration budget a world day, in dollars; 1 when unset.                                                                                          |
 
 How each secret is generated, held and rotated is in
 [../mmo-world/docs/keys.md](../mmo-world/docs/keys.md).
@@ -187,18 +187,13 @@ screen held for review.
 
 ## Forgetting a player
 
-`/forget-me` asks once, then tells the world, which removes the player's
-Discord id and sweeps their character (GDD 14.9). The bot then removes what
-its own Redis holds of the user: the press limit, narration's last lines and
-daily counts, names held for review, and their place in party threads. A
-failure there is said on the card, and running `/forget-me` again finishes
-it. For an emailed request, an operator clears the bot's notes right after
-the world's `op forget`:
+`/forget-me` asks once, tells the world (GDD 14.9) and clears the bot's own
+Redis notes of the user; a failure is said on the card, and running it again
+finishes it. For an emailed request, an operator runs:
 
 ```sh
 REDIS_URL=<the bot's Redis> bun run forget <discord id>
 ```
 
-It prints only how many keys went, never the id. The world side, and the
-rest of the operator's path for an emailed request, are in
+What is cleared, and the rest of the operator's path, are in
 [../mmo-world/docs/forget.md](../mmo-world/docs/forget.md).

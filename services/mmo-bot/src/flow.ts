@@ -32,7 +32,7 @@ import {
 } from "./screens/dungeon.ts";
 import { NAME_INPUT } from "./screens/emergence.ts";
 import { beatCard, downCard, fieldCard, resolvedCard, whyCard } from "./screens/fight.ts";
-import { forgetAskCard, forgetDoneCard } from "./screens/forget.ts";
+import { type BotForget, forgetAskCard, forgetDoneCard } from "./screens/forget.ts";
 import {
   boardCard,
   fromSpec,
@@ -2284,14 +2284,17 @@ function peopleOf(here: api.Here): Map<string, string> {
   return new Map(here.people.map((p) => [p.id, p.name]));
 }
 
-/** The bot's own forget; false when it failed, so the player is asked to run it again, and "memory" when the bot keeps no store it can clear. */
-async function forgetBot(ctx: Ctx, user: string): Promise<boolean | "memory"> {
+/**
+ * The bot's own forget: "cleared", "failed" (the player runs /forget-me again), or "memory"
+ * when the bot keeps no store it can clear.
+ */
+async function forgetBot(ctx: Ctx, user: string): Promise<BotForget> {
   if (!ctx.forget) return "memory";
   try {
     await ctx.forget(user);
-    return true;
+    return "cleared";
   } catch {
-    return false;
+    return "failed";
   }
 }
 

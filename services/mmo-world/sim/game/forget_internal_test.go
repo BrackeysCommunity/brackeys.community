@@ -277,42 +277,69 @@ func TestForgetWaitsInAFight(t *testing.T) {
 	audit(t, g)
 }
 
-// The sweep waits while the character hauls a live goal's stock, and takes
-// the stock to the tile's pool once the goal has lapsed.
-func TestForgetWaitsOnTheRoad(t *testing.T) {
-	g := guardGame(t)
-	cs := fgChars(t, g, 2)
-	poster, hauler := cs[0], cs[1]
-	fibre := alMaterial(t, g, "fibre")
+// fgHaul is a standing Haul of ten fibre a poster puts up, taken by a hauler.
+func fgHaul(t *testing.T, g *Game) (poster, hauler, other *Char, x *Goal, fibre string) {
+	t.Helper()
+	cs := fgChars(t, g, 3)
+	poster, hauler, other = cs[0], cs[1], cs[2]
+	fibre = alMaterial(t, g, "fibre")
 	dirGive(t, g, poster, ledger.Material(fibre), 10)
 	dirGive(t, g, poster, ledger.Coin, 200)
 	dirGive(t, g, hauler, ledger.Coin, 500)
+	dirGive(t, g, other, ledger.Coin, 500)
 	n, _ := g.SettlementAt(poster.C.At)
 	far := poster.C.At.Neighbour(0)
 	fgDo(t, g, poster, Command{Kind: PostGoal, Goal: &GoalSpec{Title: "Fibre out", Issuer: goal.ByCharacter, Reward: 20, Mode: goal.First,
-		Lifetime: goal.Ephemeral, Turnover: goal.Expire, Ticks: sheets.TicksPerDay, Material: fibre, Units: 10,
+		Lifetime: goal.Standing, Turnover: goal.Keep, Material: fibre, Units: 10,
 		Cond: goal.Condition{Verb: goal.Haul, From: goal.SettlementRef(n), At: goal.TileRef(far), Count: 10}}})
-	x := g.Goals[len(g.Goals)-1]
+	x = g.Goals[len(g.Goals)-1]
 	fgDo(t, g, hauler, Command{Kind: TakeHaul, Target: x.ID})
 	if g.Ledger.Of(ledger.Char(hauler.C.ID), ledger.Material(fibre)) != 10 {
 		t.Fatal("setup: the hauler holds no stock")
 	}
+	return poster, hauler, other, x, fibre
+}
+
+// A forgotten hauler hands its haul back intact: the goal stands untaken
+// for another to take, and the hauler is swept at once.
+func TestForgetHandsBackAHaul(t *testing.T) {
+	g := guardGame(t)
+	_, hauler, other, x, fibre := fgHaul(t, g)
 	fgForget(t, g, hauler)
-	for x.State == goal.Live {
-		advance(t, g)
-		if x.State == goal.Live && hauler.Forgotten != 0 {
-			t.Fatal("swept while hauling")
-		}
-		if g.Tick() > 3*sheets.TicksPerDay {
-			t.Fatal("the haul never lapsed")
-		}
-	}
 	advance(t, g)
-	if hauler.Forgotten == 0 || g.Ledger.Of(ledger.Char(hauler.C.ID), ledger.Material(fibre)) != 0 {
-		t.Fatalf("after the lapse: swept at %d", hauler.Forgotten)
+	if hauler.Forgotten == 0 {
+		t.Fatal("not swept")
 	}
-	if g.Ledger.Of(poolOf(hauler.C.At), ledger.Material(fibre)) < 10 {
-		t.Fatal("the stock did not stay on the tile")
+	if held := g.Ledger.Held(ledger.Char(hauler.C.ID)); len(held) != 0 {
+		t.Fatalf("still holds %v", held)
+	}
+	if x.State != goal.Live || x.Cargo.Hauler != "" {
+		t.Fatalf("goal %s, hauled by %q", x.State, x.Cargo.Hauler)
+	}
+	if got := g.Ledger.Of(goalPool(x.ID), ledger.Material(fibre)); got != 10 {
+		t.Fatalf("the goal holds %d fibre", got)
+	}
+	audit(t, g)
+	fgDo(t, g, other, Command{Kind: TakeHaul, Target: x.ID})
+	audit(t, g)
+}
+
+// A hauler that parted with some of the stock ends the haul as one that
+// never arrived.
+func TestForgetEndsAShortHaul(t *testing.T) {
+	g := guardGame(t)
+	_, hauler, _, x, fibre := fgHaul(t, g)
+	dirGive(t, g, hauler, ledger.Material(fibre), -4)
+	fgForget(t, g, hauler)
+	advance(t, g)
+	if hauler.Forgotten == 0 {
+		t.Fatal("not swept")
+	}
+	if x.State == goal.Live {
+		t.Fatal("the short haul still stands")
+	}
+	if held := g.Ledger.Held(ledger.Char(hauler.C.ID)); len(held) != 0 {
+		t.Fatalf("still holds %v", held)
 	}
 	audit(t, g)
 }

@@ -25,7 +25,6 @@ const (
 	occasionCaravan = "caravan"
 	occasionSeam    = "seam"
 	seasonTurnWhen  = "season-turn"
-	factSeasonBegan = "season.began"
 )
 
 // occasionOpens runs what an occasion does at its start: a seam's stock.
@@ -93,7 +92,7 @@ func (g *Game) seamAt(h hex.Hex, units int64, by fact.Ref, cause fact.ID) bool {
 // predicate reads today's season.began from a fresh view; the chance is
 // the director's own occasion.start draw.
 func (g *Game) migrationDay(t int64) error {
-	began := g.factsToday(t, factSeasonBegan)
+	began := g.factsToday(t, FactSeasonBegan)
 	if len(began) == 0 {
 		return nil
 	}

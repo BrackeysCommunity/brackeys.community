@@ -47,7 +47,8 @@ directory holding `sheets/` and `packs/`) at `/app/epoch-from`.
    the deploy before any tick with `service: the pending sheets under MMO_SHEETS_NEXT do not load the world`
    ([runbooks/world-down.md](runbooks/world-down.md)): unset it, fix the
    book, deploy again. Pending sheets and roll epoch equal to the world's
-   log `no epoch to take` and change nothing.
+   log `no epoch to take` and change nothing. A roll epoch below the
+   world's fails the open.
 4. Nothing is taken before the close: the world runs on its current book
    until then, and a restart in between keeps the epoch pending.
 5. Once the epoch is taken, `sh scripts/epoch-root.sh --remove`, committed

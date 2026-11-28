@@ -20,7 +20,8 @@
 #   forget       another player forgotten by POST /v1/forget with the
 #                forget token: tombstones, the ledger, other characters
 #                untouched, op replay over the day
-#   export       op export holds no Discord id, token, key or raw id
+#   export       op export refuses a range across the epoch; from the
+#                epoch's day it holds no Discord id, token, key or raw id
 #   load         2 minutes at ten times the closed test's peak on a fresh
 #                disposable world at 3-second ticks
 #   report       harness all -only check,season,social,economy-10,social-alone
@@ -59,7 +60,7 @@ HARNESS="$BIN/harness-$STAMP"
 NEXT="$OUT/next"
 BROKEN="$OUT/broken"
 
-# The closed test's build: the live map's finished commit.
+# The closed test's build.
 BASE=d65454b075b8fa00e73c4f55a75f00fe059be4da
 EPOCH0001=harness/epochs/0001-1767b7ef4195.json
 TICKS_PER_DAY=144
@@ -157,7 +158,7 @@ tests() {
   gotest ./sheetdiff 'TestDiff|TestEverySheetClassified|TestSameBookNoChange|TestHiddenClassAbility'
   gotest ./store 'TestRestampEpoch|TestEpochNotesUpsert|TestForgetIdentity|TestForgetThroughTheRules|TestMatchesRefusesOtherEpoch'
   gotest ./service 'TestSeasonEpoch|TestRollEpoch|TestEpochRestartMidway|TestUnloadablePendingBook|TestOtherEpochRefused|TestNextRollFromEnv|TestForgetRoute|TestActForget|TestLocalForgetFreesTheUser|TestStoredReplyKeepsSeen|TestTickRingWraps|TestTicksEndpoint|TestTokenLists|TestTokens'
-  gotest ./sim/game 'TestForgetRefusesAndMarks|TestForgetSweep|TestForgetWaitsInAFight|TestForgetWaitsOnTheRoad|TestForgetNamesATraveller|TestForgetAtTickZero|TestForgetReplays|TestSeasonEpochAtTheBoundary|TestSeasonEpochStepsTheRoll|TestNoDrawMoved|TestReplayFromSnapshot|TestReplayMM8|TestReplayMM8a|TestReplayMM9|TestReplayMM10'
+  gotest ./sim/game 'TestForgetRefusesAndMarks|TestForgetSweep|TestForgetWaitsInAFight|TestForgetHandsBackAHaul|TestForgetEndsAShortHaul|TestForgetNamesATraveller|TestForgetAtTickZero|TestForgetReplays|TestSeasonEpochAtTheBoundary|TestSeasonEpochStepsTheRoll|TestNoDrawMoved|TestReplayFromSnapshot|TestReplayMM8|TestReplayMM8a|TestReplayMM9|TestReplayMM10'
   gotest ./sim/world 'TestReplayFixtures|TestReplayDigest'
   gotest ./cmd/op 'TestBackupRestore|TestVerifyFromEpoch|TestOpForget|TestExportCommand|TestOpReplayInsideOneEpoch'
   gotest ./harness 'TestReadingsParseReport|TestEpochLast|TestEpochReportDiffChange|TestEpochFilesCommitted'
@@ -483,7 +484,14 @@ export_() {
   db=kept
   wid=$(got kept-world)
   ex="$OUT/export"
-  DATABASE_URL="$(db_url $db)" MMO_WORLD_ID=$wid MMO_SHEETS_ROOT="$NEXT" "$OP" export -out "$ex" >"$OUT/export-reply.json"
+  # A range across the epoch is refused; the export starts at the day it names.
+  if DATABASE_URL="$(db_url $db)" MMO_WORLD_ID=$wid MMO_SHEETS_ROOT="$NEXT" "$OP" export -out "$ex" >"$OUT/export-reply.json" 2>"$OUT/export-refused.err"; then
+    fail "an export from day 0 across the epoch was not refused"
+  fi
+  from=$(sed -n 's/.*export from day \([0-9]*\) on.*/\1/p' "$OUT/export-refused.err")
+  [ -n "$from" ] || fail "the refusal names no day: $(cat "$OUT/export-refused.err")"
+  rm -rf "$ex"
+  DATABASE_URL="$(db_url $db)" MMO_WORLD_ID=$wid MMO_SHEETS_ROOT="$NEXT" "$OP" export -from-day "$from" -out "$ex" >"$OUT/export-reply.json"
   jq -e . "$ex/manifest.json" >/dev/null || fail "the manifest does not parse"
   for f in "$ex"/*.jsonl; do
     jq -c . "$f" >/dev/null || fail "$(basename "$f") does not parse"
@@ -506,7 +514,7 @@ export_() {
   [ "$hits" = 0 ] || fail "$hits export files hold a token, the master, the world id or a Discord, server, channel or role id"
   hits=$(grep -rlE '"c-[0-9]{1,15}"|(^|[^0-9])[0-9]{17,20}([^0-9]|$)|two-servers-|mm14-proof-|forgotten:' "$ex" | wc -l | tr -d ' ')
   [ "$hits" = 0 ] || fail "$hits export files hold a raw character id, a run of 17 to 20 digits or an interaction id"
-  note "export: $(jq -c '.records' "$ex/manifest.json"); every file parses; none of $(wc -l <"$needles" | tr -d ' ') ids, tokens and keys, no raw character id, no 17-20 digit run, no interaction id"
+  note "export: from day 0 refused across the epoch; from day $from $(jq -c '.records' "$ex/manifest.json"); every file parses; none of $(wc -l <"$needles" | tr -d ' ') ids, tokens and keys, no raw character id, no 17-20 digit run, no interaction id"
 }
 
 # Ten times the closed test's peak on a fresh disposable world.

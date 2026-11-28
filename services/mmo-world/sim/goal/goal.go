@@ -313,6 +313,11 @@ func (c *Cargo) Take(who string, tick, collateral int64) {
 	c.Hauler, c.Taken, c.Collateral = who, tick, collateral
 }
 
+// Release hands a taken haul back, untaken, at the collateral a new hauler puts up.
+func (c *Cargo) Release(collateral int64) {
+	c.Hauler, c.Taken, c.Collateral, c.Used = "", 0, collateral, false
+}
+
 // Held is goods a contributor handed to a Deliver goal on a tile, kept in
 // the goal's escrow until the claim that counts them is paid.
 type Held struct {

@@ -156,7 +156,7 @@ func TestReadingsReadSuite(t *testing.T) {
 		}
 		return p
 	}
-	written := Readings{Label: "economy-10", Run: "economy", N: 10, Env: map[string]string{"ECONOMY_SEED": "1"}, Commit: "abc", Book: "other", Secs: 3,
+	written := Readings{RunLabel: RunLabel{Label: "economy-10", Run: "economy", N: 10, Env: map[string]string{"ECONOMY_SEED": "1"}, Commit: "abc", Book: "other", Secs: 3},
 		Rows: []Measured{{Target: "both-hold", Value: "a", Holds: true}}}
 	if err := WriteReadings(mk("economy-10"), written); err != nil {
 		t.Fatal(err)
@@ -349,7 +349,7 @@ func TestReadingsDidNotFinish(t *testing.T) {
 		t.Errorf("a never-started label read as %+v", r)
 	}
 
-	rs = append(rs, Readings{Label: "economy-1000", Run: "economy", Rows: []Measured{{Target: "both-hold", Value: "a", Holds: true}}})
+	rs = append(rs, Readings{RunLabel: RunLabel{Label: "economy-1000", Run: "economy"}, Rows: []Measured{{Target: "both-hold", Value: "a", Holds: true}}})
 	slices.SortStableFunc(rs, func(a, b Readings) int { return strings.Compare(a.Label, b.Label) })
 	got := map[string]EpochRow{}
 	for _, r := range Merge(b, rs) {
@@ -425,6 +425,27 @@ func TestReadingsMergeFailedReadBySameRun(t *testing.T) {
 		if len(got[id].Readings) != 0 {
 			t.Errorf("%s readings %+v, want none", id, got[id].Readings)
 		}
+	}
+}
+
+// A target that held before and whose only run did not finish is no
+// longer read, which -strict refuses though it does not now miss.
+func TestEpochNoLongerRead(t *testing.T) {
+	b := readingsBook()
+	before := &Epoch{Seq: 1, Targets: []EpochRow{{ID: "both-hold", Holds: HoldsYes, Readings: []Labelled{{Label: "economy-10", Value: "a", Holds: true, Measured: true}}}}}
+	after := &Epoch{Targets: Merge(b, []Readings{{RunLabel: RunLabel{Label: "economy-10", Run: "economy", Watchdog: true}, Rows: []Measured{}}})}
+	row := rowsByID(after)["both-hold"]
+	if c := ChangeOf(&before.Targets[0], row); c != ChangeUnmeasured {
+		t.Errorf("ChangeOf = %q, want %q", c, ChangeUnmeasured)
+	}
+	if m := NowMisses(before, after); len(m) != 0 {
+		t.Errorf("NowMisses = %v, want none", m)
+	}
+	if g := NoLongerRead(before, after); !slices.Equal(g, []string{"both-hold"}) {
+		t.Errorf("NoLongerRead = %v, want [both-hold]", g)
+	}
+	if NoLongerRead(nil, after) != nil {
+		t.Error("NoLongerRead against no epoch is not nil")
 	}
 }
 

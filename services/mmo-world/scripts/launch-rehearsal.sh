@@ -90,6 +90,7 @@ gen() { (umask 077 && head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' >"$O
 (umask 077 && head -c 32 /dev/urandom | base64 >"$OUT/secrets/master")
 gen api-token
 gen operator-token
+(umask 077 && printf 'Authorization: Bearer %s\n' "$(cat "$OUT/secrets/api-token")" >"$OUT/secrets/h-api")
 
 rm -rf "$OUT/pg"
 "$PGBIN/initdb" -D "$OUT/pg" -U postgres -A trust >/dev/null
@@ -111,6 +112,8 @@ world_env() {
 client_env() {
   MMO_URL="$URL" MMO_API_TOKEN="$(cat "$OUT/secrets/api-token")" MMO_OPERATOR_TOKEN="$(cat "$OUT/secrets/operator-token")" env "$@"
 }
+# The token goes to curl by header file, never on argv.
+api_curl() { curl -sf -H @"$OUT/secrets/h-api" "$@"; }
 (
   world_env MMO_SHEETS_ROOT="$BASE_ROOT" MMO_SHEETS_NEXT="$HERE" MMO_TICK_SECONDS="$TICK_SECONDS" PORT="$PORT" \
     nohup "$BIN/world-$STAMP" >"$OUT/world.log" 2>&1 </dev/null &
@@ -131,7 +134,7 @@ say "a kept world on $URL at ${TICK_SECONDS}-second ticks, on the base book, the
 if [ "$POSTERS" != off ]; then
   (
     cd ../mmo-bot
-    env MMO_URL="$URL" MMO_API_TOKEN="$(cat "$OUT/secrets/api-token")" nohup bun run src/scripted.ts --posters "$URL" --guilds live-a,live-b >"$OUT/posters.log" 2>&1 </dev/null &
+    MMO_URL="$URL" MMO_API_TOKEN="$(cat "$OUT/secrets/api-token")" nohup bun run src/scripted.ts --posters "$URL" --guilds live-a,live-b >"$OUT/posters.log" 2>&1 </dev/null &
     echo $! >"$OUT/posters.pid"
   )
   say "the bot's posters follow live-a and live-b"
@@ -185,7 +188,7 @@ say "the epoch: taken once, stamped, notes stored ($(jq -c '.epochs[0] | {seen, 
 jq -e '.houses | length == 2 and all(.guild != "" and .channels > 0 and .players > 0) and (.[0].arrival != .[1].arrival) and (.[0].guild != .[1].guild)' "$SUM" >/dev/null ||
   fail "the two servers' houses are not apart: $(jq -c '.houses' "$SUM")"
 for server in live-a live-b; do
-  curl -sf -H "Authorization: Bearer $(cat "$OUT/secrets/api-token")" "$URL/v1/house?server=$server" | jq -e '.guild != "" and (.settlements | length) > 0' >/dev/null ||
+  api_curl "$URL/v1/house?server=$server" | jq -e '.guild != "" and (.settlements | length) > 0' >/dev/null ||
     fail "GET /v1/house?server=$server shows no guild at a settlement"
 done
 say "houses: $(jq -c '[.houses[] | {server, guild, arrival}]' "$SUM")"

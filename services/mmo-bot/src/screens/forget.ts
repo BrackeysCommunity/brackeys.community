@@ -54,25 +54,24 @@ export function forgetAskCard(version: number, notice?: string): Card {
 }
 
 /**
- * The card after a forget: `character` when the world held one to forget;
- * `cleared` true when the bot's own notes went too, "memory" when it holds
- * them in memory only and they go at its restart.
+ * How the bot's own forget went: its notes cleared, failed (the player runs /forget-me again),
+ * or held in memory only.
  */
-export function forgetDoneCard(character: boolean, cleared: boolean | "memory"): Card {
+export type BotForget = "cleared" | "failed" | "memory";
+
+/**
+ * The card after a forget: `character` when the world held one to forget;
+ * `bot` says how the bot's own notes went.
+ */
+export function forgetDoneCard(character: boolean, bot: BotForget): Card {
   const world = character
     ? "The world no longer knows your Discord user id. Your character is a traveller now: its holdings leave it at the first tick it is free."
     : "The world holds no character of yours.";
-  const bot =
-    cleared === "memory"
-      ? "This bot keeps its notes of you in memory only, with no Redis: they go when it restarts."
-      : cleared
-        ? "The bot's own notes of you are cleared."
-        : "The bot could not clear its own notes of you just now: run /forget-me again to finish.";
   return {
     context: CONTEXT,
     author: authorLine("Leaving", character ? "forgotten" : "nothing to forget"),
     title: character ? "You are forgotten" : "Nothing of yours to forget",
-    description: `${world} ${bot}`,
+    description: `${world} ${botSentence(bot)}`,
     picture: "form",
     fields: character
       ? [
@@ -86,4 +85,15 @@ export function forgetDoneCard(character: boolean, cleared: boolean | "memory"):
     rows: [],
     colour: COLOUR.ash,
   };
+}
+
+function botSentence(bot: BotForget): string {
+  switch (bot) {
+    case "cleared":
+      return "The bot's own notes of you are cleared.";
+    case "failed":
+      return "The bot could not clear its own notes of you just now: run /forget-me again to finish.";
+    case "memory":
+      return "This bot keeps its notes of you in memory only, with no Redis: they go when it restarts.";
+  }
 }

@@ -1318,7 +1318,7 @@ export interface ForgetRequest {
 /**
  * ForgetReply says whether a character was found and is forgotten, now or
  * before, and whether its holdings have left it yet: they leave at the
- * first tick it is free of fights, carries and caravans.
+ * first tick it is free of a fight that ends on its own.
  */
 export interface ForgetReply {
   forgotten: boolean;

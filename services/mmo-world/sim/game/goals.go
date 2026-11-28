@@ -428,12 +428,18 @@ func (g *Game) mayMuster(c *Char, x *Goal, coin int64) error {
 	return nil
 }
 
+// haulCollateral is the coin a haul's hauler puts up before a Chandler's
+// Bonded lowers it.
+func (g *Game) haulCollateral(x *Goal) int64 {
+	return fixed.PercentFloor(g.r.Values.Asset(x.Cargo.Material)*x.Cargo.Units, g.gp("collateral"))
+}
+
 // fund moves a quoted goal's cargo, escrow and fee, a muster's counted
 // against its officer's day.
 func (g *Game) fund(c *Char, x *Goal, key string) error {
 	payer := backer(x)
 	if x.Cargo != nil {
-		x.Cargo.Collateral = fixed.PercentFloor(g.r.Values.Asset(x.Cargo.Material)*x.Cargo.Units, g.gp("collateral"))
+		x.Cargo.Collateral = g.haulCollateral(x)
 		if err := g.postAll(ledger.Move(ledger.SubKey(key, "cargo"), "goal-cargo", g.Tick(), ledger.Char(c.C.ID), goalPool(x.ID), ledger.Goods(x.Cargo.Material), x.Cargo.Units)); err != nil {
 			return err
 		}

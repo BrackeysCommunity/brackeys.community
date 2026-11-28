@@ -24,6 +24,10 @@ import { CHRONICLE_CHANNEL } from "./story.ts";
  * creatures, materials and counts only.
  */
 
+/** The world's season fact kinds (the world's game.FactSeasonBegan and FactSeasonEpoch). */
+export const SEASON_BEGAN = "season.began";
+export const SEASON_EPOCH = "season.epoch";
+
 /** The name input of every own-name modal. */
 export const NAME_INPUT = "name";
 /** The longest name a kind or promotion takes: the board's title length. */
@@ -243,7 +247,7 @@ export function promotionCard(ev: api.StoryEvent, lex: Lexicon): Card | null {
       });
     case "season.added":
       return seasonAddedCard(f);
-    case "season.epoch":
+    case SEASON_EPOCH:
       return epochNotesCard(ev, lex);
     default:
       return null;

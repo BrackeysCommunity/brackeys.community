@@ -24,17 +24,8 @@ const ReadingsFile = "readings.json"
 
 // Readings is what one run writes beside its outputs, as readings.json.
 type Readings struct {
-	Label    string            `json:"label"` // the suite's label, or the run's name
-	Run      string            `json:"run"`
-	N        int               `json:"n"`
-	Env      map[string]string `json:"env,omitempty"` // the run's switches: ECONOMY_SEED, SEARCH_ONLY, ...
-	Alone    bool              `json:"alone,omitempty"`
-	Commit   string            `json:"commit"`
-	Book     string            `json:"book"` // the sheets digest the run read
-	Secs     int64             `json:"secs"`
-	Exit     int               `json:"exit,omitempty"`
-	Watchdog bool              `json:"watchdog,omitempty"` // killed at its cap
-	Rows     []Measured        `json:"rows"`
+	RunLabel
+	Rows []Measured `json:"rows"`
 }
 
 // Epoch is one book's stored readings: harness/epochs/NNNN-<book[:12]>.json.
@@ -50,16 +41,31 @@ type Epoch struct {
 
 // RunLabel is one run of an epoch, without its rows.
 type RunLabel struct {
-	Label    string            `json:"label"`
+	Label    string            `json:"label"` // the suite's label, or the run's name
 	Run      string            `json:"run"`
 	N        int               `json:"n"`
-	Env      map[string]string `json:"env,omitempty"`
+	Env      map[string]string `json:"env,omitempty"` // the run's switches: ECONOMY_SEED, SEARCH_ONLY, ...
 	Alone    bool              `json:"alone,omitempty"`
 	Commit   string            `json:"commit,omitempty"`
-	Book     string            `json:"book,omitempty"`
+	Book     string            `json:"book,omitempty"` // the sheets digest the run read
 	Secs     int64             `json:"secs"`
-	Exit     int               `json:"exit,omitempty"`
+	Exit     int               `json:"exit,omitempty"`     // -1: the suite never started it
 	Watchdog bool              `json:"watchdog,omitempty"` // killed at its cap
+}
+
+// Unfinished reports whether a run did not exit 0 or was killed at its cap.
+func (l RunLabel) Unfinished() bool { return l.Exit != 0 || l.Watchdog }
+
+// unfinishedWhy is why a run did not finish: killed at its cap, never started, or its exit.
+func unfinishedWhy(l RunLabel) string {
+	switch {
+	case l.Watchdog:
+		return "killed at its cap"
+	case l.Exit < 0:
+		return "never ran"
+	default:
+		return fmt.Sprintf("exit %d", l.Exit)
+	}
 }
 
 // EpochRow is one target and every reading of it.
@@ -108,7 +114,9 @@ func WriteReadings(dir string, r Readings) error {
 // ReadSuite reads every readings.json under dir. A label dir with only a
 // stdout.txt is read from its Report table, rows matched by target text,
 // as is a readings.json holding a bare list of readings; their run, size
-// and aloneness come from the label, their book is b's.
+// and aloneness come from the label, their book is b's. A label that did
+// not exit 0 keeps its exit and watchdog, and a failed label of dir's
+// suite.json that left no readings is added with none.
 func ReadSuite(dir string, b *sheets.Book) ([]Readings, error) {
 	digest, err := b.Digest()
 	if err != nil {
@@ -159,14 +167,19 @@ func addUnstarted(dir, digest string, out []Readings) ([]Readings, error) {
 			continue
 		}
 		have[l.Label] = true
-		out = append(out, Readings{Label: l.Label, Run: l.Run, N: l.N, Env: l.Env, Alone: l.Alone, Exit: l.Exit, Watchdog: l.Watchdog, Book: digest, Secs: l.Secs, Rows: []Measured{}})
+		out = append(out, l.readings(digest))
 	}
 	return out, nil
 }
 
+// readings is the label as a run with no readings of book's.
+func (l SuiteLabel) readings(book string) Readings {
+	return Readings{RunLabel: RunLabel{Label: l.Label, Run: l.Run, N: l.N, Env: l.Env, Alone: l.Alone, Book: book, Secs: l.Secs, Exit: l.Exit, Watchdog: l.Watchdog}, Rows: []Measured{}}
+}
+
 func readLabel(dir string, b *sheets.Book, digest string) (Readings, bool, error) {
 	r, ok, err := readLabelRows(dir, b, digest)
-	if exit, watchdog := readExit(dir); ok && (exit != 0 || watchdog) {
+	if exit, watchdog := readExit(dir); ok && (RunLabel{Exit: exit, Watchdog: watchdog}).Unfinished() {
 		r.Exit, r.Watchdog = exit, watchdog
 	}
 	return r, ok, err
@@ -176,7 +189,7 @@ func readLabelRows(dir string, b *sheets.Book, digest string) (Readings, bool, e
 	label := filepath.Base(dir)
 	inferred := func(rows []Measured) Readings {
 		run, n, alone := labelRun(label)
-		return Readings{Label: label, Run: run, N: n, Alone: alone, Book: digest, Secs: readSecs(dir), Rows: rows}
+		return Readings{RunLabel: RunLabel{Label: label, Run: run, N: n, Alone: alone, Book: digest, Secs: readSecs(dir)}, Rows: rows}
 	}
 	raw, err := os.ReadFile(filepath.Join(dir, ReadingsFile))
 	switch {
@@ -234,15 +247,12 @@ func readExit(dir string) (exit int, watchdog bool) {
 }
 
 // didNotFinish is the reading a failed run leaves on the targets it reads.
-// A negative exit is a label the suite never reached.
 func didNotFinish(r Readings) string {
-	if r.Watchdog {
-		return unmeasured + r.Label + " did not finish: killed at its cap"
+	why := unfinishedWhy(r.RunLabel)
+	if r.Exit < 0 && !r.Watchdog {
+		return unmeasured + r.Label + " " + why
 	}
-	if r.Exit < 0 {
-		return unmeasured + r.Label + " never ran"
-	}
-	return fmt.Sprintf("%s%s did not finish: exit %d", unmeasured, r.Label, r.Exit)
+	return unmeasured + r.Label + " did not finish: " + why
 }
 
 // ParseReport reads the readings back out of a Report table. A row is
@@ -284,7 +294,8 @@ func ParseReport(text string, b *sheets.Book) []Measured {
 	return out
 }
 
-// labelRun is a suite label's run, size and aloneness: its Suite entry's, else, for a directory from before Suite, parsed from the name (the longest run name it starts with, the first number after it, "-alone").
+// labelRun is a suite label's run, size and aloneness from its Suite entry;
+// a label from before Suite is parsed by name (run prefix, first number, "-alone").
 func labelRun(label string) (run string, n int, alone bool) {
 	for _, sr := range Suite {
 		if sr.Label == label {
@@ -322,8 +333,8 @@ func Merge(b *sheets.Book, rs []Readings) []EpochRow {
 		run string
 		Labelled
 	}
-	// A failed label shows on the targets its run names, and on the targets
-	// another label of the same run reads, so it never vanishes from a row.
+	// A failed label shows on the targets its run names and on those another
+	// label of the same run reads; a measured reading read alone supersedes it.
 	readBy := map[string]map[string]bool{}
 	for _, r := range rs {
 		for _, m := range r.Rows {
@@ -342,7 +353,7 @@ func Merge(b *sheets.Book, rs []Readings) []EpochRow {
 			runs[strings.TrimSpace(run)] = true
 		}
 		for _, r := range rs {
-			if (r.Exit != 0 || r.Watchdog) && (runs[r.Run] || readBy[r.Run][t.ID]) {
+			if r.Unfinished() && (runs[r.Run] || readBy[r.Run][t.ID]) {
 				got = append(got, ranReading{r.Run, Labelled{Label: r.Label, Value: didNotFinish(r), Alone: r.Alone}})
 			}
 			for _, m := range r.Rows {
@@ -390,7 +401,7 @@ func NewEpoch(b *sheets.Book, rs []Readings, commit, note, taken string) (*Epoch
 	}
 	e := &Epoch{Book: digest, Commit: commit, Taken: taken, Note: note, Labels: []RunLabel{}, Targets: Merge(b, rs)}
 	for _, r := range rs {
-		e.Labels = append(e.Labels, RunLabel{Label: r.Label, Run: r.Run, N: r.N, Env: r.Env, Alone: r.Alone, Commit: r.Commit, Book: r.Book, Secs: r.Secs, Exit: r.Exit, Watchdog: r.Watchdog})
+		e.Labels = append(e.Labels, r.RunLabel)
 	}
 	return e, nil
 }
@@ -551,6 +562,22 @@ func NowMisses(before, after *Epoch) []string {
 	return out
 }
 
+// NoLongerRead are the targets that held before and have no measured reading after.
+func NoLongerRead(before, after *Epoch) []string {
+	if before == nil || after == nil {
+		return nil
+	}
+	var out []string
+	prior := rowsByID(before)
+	for i := range after.Targets {
+		row := &after.Targets[i]
+		if was := prior[row.ID]; row.Holds == HoldsNone && was != nil && was.Holds == HoldsYes {
+			out = append(out, row.ID)
+		}
+	}
+	return out
+}
+
 func rowsByID(e *Epoch) map[string]*EpochRow {
 	out := map[string]*EpochRow{}
 	if e == nil {
@@ -597,13 +624,13 @@ func ReportDiff(w io.Writer, b *sheets.Book, before, after *Epoch) {
 		}
 	}
 	for _, l := range after.Labels {
-		switch {
-		case l.Watchdog:
-			p("- **%s** did not finish (killed at its cap).", l.Label)
-		case l.Exit < 0:
-			p("- **%s** never ran.", l.Label)
-		case l.Exit != 0:
-			p("- **%s** did not finish (exit %d).", l.Label, l.Exit)
+		if !l.Unfinished() {
+			continue
+		}
+		if why := unfinishedWhy(l); l.Exit < 0 && !l.Watchdog {
+			p("- **%s** %s.", l.Label, why)
+		} else {
+			p("- **%s** did not finish (%s).", l.Label, why)
 		}
 	}
 
@@ -659,13 +686,8 @@ func ReportDiff(w io.Writer, b *sheets.Book, before, after *Epoch) {
 // SheetChanges writes the cell diff from one book to the next.
 func SheetChanges(w io.Writer, from, to *sheets.Book) {
 	changes := sheetdiff.Diff(from, to)
-	seen := 0
-	for _, c := range changes {
-		if c.Seen {
-			seen++
-		}
-	}
-	fmt.Fprintf(w, "\n## Sheet changes\n\n%d changes: %d a player is told of in the epoch notes, %d counted unseen.\n", len(changes), seen, len(changes)-seen)
+	seen, unseen := sheetdiff.Split(changes)
+	fmt.Fprintf(w, "\n## Sheet changes\n\n%d changes: %d a player is told of in the epoch notes, %d counted unseen.\n", len(changes), len(seen), unseen)
 	if len(changes) == 0 {
 		return
 	}

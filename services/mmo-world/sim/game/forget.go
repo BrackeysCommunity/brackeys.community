@@ -54,9 +54,9 @@ func (g *Game) IsForgotten(id string) bool {
 	return c != nil && c.Forget > 0
 }
 
-// forgetTurn sweeps, in id order, each character asked to be forgotten
-// that is free. One swept before is swept again when something it was
-// owed, a refund or a share, has reached it since.
+// forgetTurn sets down each forgotten character's carry, then sweeps, in
+// id order, each one that is free. One swept before is swept again when
+// something it was owed, a refund or a share, has reached it since.
 func forgetTurn(g *Game, tick int64) error {
 	for _, c := range g.Chars {
 		if c.Forget == 0 {
@@ -88,9 +88,9 @@ func forgetTurn(g *Game, tick int64) error {
 	return nil
 }
 
-// forgetRelease ends a carry either way, since a forgotten character never
-// travels or crawls to end it: a downed one set down lies where it is, its
-// call for help still open.
+// forgetRelease sets down any carry the character is part of, since it never
+// travels or crawls to end one: a downed player it carried lies where it
+// is, its call for help still open.
 func (g *Game) forgetRelease(c *Char) {
 	if c.Carrying != "" {
 		g.setDown(c, g.Char(c.Carrying))
@@ -102,21 +102,17 @@ func (g *Game) forgetRelease(c *Char) {
 
 // forgetWaits reports whether a character is not yet free to be swept:
 // in an encounter that ends on its own (an ambush, or one shared with a
-// party), or hauling a live goal's stock.
+// party).
 func (g *Game) forgetWaits(c *Char) bool {
-	if f := c.Fight; f != nil && (f.Ambush || f.Shared != "") {
-		return true
-	}
-	return slices.ContainsFunc(g.Goals, func(x *Goal) bool {
-		return x.Cargo != nil && x.Cargo.Hauler == c.C.ID && x.State == goal.Live
-	})
+	f := c.Fight
+	return f != nil && (f.Ambush || f.Shared != "")
 }
 
 // forgetWithdraw ends what a character has under way, each through its own
 // path: its long action, a machine or an encounter only it could resolve
-// (as a ban ends them), its market orders, the goals it posted that may be
-// withdrawn, its shared record (left as a ban leaves it), its party and its
-// guild.
+// (as a ban ends them), a haul it took, its market orders, the goals it
+// posted that may be withdrawn, its shared record (left as a ban leaves
+// it), its party and its guild.
 func (g *Game) forgetWithdraw(c *Char, key string) error {
 	if c.Long != nil {
 		if err := g.cancel(c); err != nil {
@@ -125,6 +121,14 @@ func (g *Game) forgetWithdraw(c *Char, key string) error {
 	}
 	c.Armed = nil
 	c.Fight = nil
+	for _, x := range g.Goals {
+		if x.Cargo == nil || x.State != goal.Live || x.Cargo.Hauler != c.C.ID {
+			continue
+		}
+		if err := g.forgetHaul(c, x, ledger.SubKey(key, "haul", x.ID)); err != nil {
+			return err
+		}
+	}
 	var orders []Open
 	for o := range g.opens(ledger.Char(c.C.ID), false) {
 		orders = append(orders, o)
@@ -150,6 +154,31 @@ func (g *Game) forgetWithdraw(c *Char, key string) error {
 		return g.leaveGuild(c, key)
 	}
 	return nil
+}
+
+// forgetHaul hands back a haul the character took, since it never travels
+// to deliver it: intact, the goal stands untaken and the collateral goes
+// back; short, the goal ends as a haul that never arrived.
+func (g *Game) forgetHaul(c *Char, x *Goal, key string) error {
+	acc, pool, asset := ledger.Char(c.C.ID), goalPool(x.ID), ledger.Goods(x.Cargo.Material)
+	n := min(g.Ledger.Of(acc, asset), x.Cargo.Units)
+	if n == x.Cargo.Units {
+		legs := ledger.Pair(acc, pool, asset, n)
+		if x.Cargo.Collateral > 0 {
+			legs = append(legs, ledger.Pair(pool, acc, ledger.Coin, x.Cargo.Collateral)...)
+		}
+		if err := g.postAll(ledger.Txn{Key: key, Kind: forgetTxn, Tick: g.Tick(), Legs: legs}); err != nil {
+			return err
+		}
+		x.Cargo.Release(g.haulCollateral(x))
+		return nil
+	}
+	if n > 0 {
+		if err := g.postAll(ledger.Move(key, forgetTxn, g.Tick(), acc, pool, asset, n)); err != nil {
+			return err
+		}
+	}
+	return g.endGoal(x, "expired", key)
 }
 
 // forgetHolds reports whether a swept character holds anything again.

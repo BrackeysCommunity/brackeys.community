@@ -15,7 +15,10 @@ It reads the database directly and reads no key, so it runs anywhere the
 database and the world's sheets are; it refuses sheets whose digest is
 not the world's (goods are valued and item xp counted by them). `-to-day`
 is inclusive and defaults to the last closed world day; only days whose
-closing snapshot exists are written. It prints the manifest.
+closing snapshot exists are written. It prints the manifest. An export
+is valued by the book the world runs on, so `op export` refuses a range
+that starts before the world's last rules epoch; export from the epoch's
+day on, and read earlier days from an export made before the epoch.
 
 ## The files
 

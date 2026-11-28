@@ -28,8 +28,9 @@ import { PARTY_PREFIX, PartyPoster } from "./party.ts";
 import { PromotionsPoster } from "./promotions.ts";
 import { ThreadBudget } from "./publish.ts";
 import { recording } from "./record.ts";
+import { datum } from "./screens/common.ts";
 import { isFlight, SYNDICATE, syndicateName } from "./screens/crime.ts";
-import { promotionCard } from "./screens/emergence.ts";
+import { promotionCard, SEASON_BEGAN, SEASON_EPOCH } from "./screens/emergence.ts";
 import { hexDistance } from "./screens/hunt.ts";
 import { LISTS } from "./screens/market.ts";
 import { dropCard } from "./screens/staged.ts";
@@ -1614,17 +1615,13 @@ export function fakeSnowflake(n: number, now = Date.now()): string {
 
 /** A promotion's or an event's season number, from its fact. */
 function seasonOf(f: api.Fact): number | undefined {
-  return f.kind.startsWith("season.") ? factNumber(f, "season") : undefined;
-}
-
-function factNumber(f: api.Fact, k: string): number | undefined {
-  return f.data.find((d) => d.k === k)?.n;
+  return f.kind.startsWith("season.") ? datum(f, "season")?.n : undefined;
 }
 
 /**
  * The events, chronicle and promotions posters of every guild followed,
- * as the bot runs them, over memory sinks that keep each post with the
- * event it told. Every card posted or edited is held to the card standard.
+ * over memory sinks that keep each post with the event it told. Every
+ * card posted or edited is held to the card standard.
  */
 export class ScriptedPosters {
   readonly sinks = new Map<string, GuildSinks>();
@@ -1838,9 +1835,6 @@ export interface GuildTally {
   promotions: Record<string, number>;
   edits: number;
 }
-
-const SEASON_BEGAN = "season.began";
-const SEASON_EPOCH = "season.epoch";
 
 /** The Redis calls the forget step seeds and checks with: a forget's, and a list push. */
 export type SeedRedis = RedisLike & { rpush(key: string, ...values: string[]): Promise<number> };

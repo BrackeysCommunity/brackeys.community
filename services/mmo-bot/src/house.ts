@@ -50,6 +50,29 @@ export function alarmRoleOf(
   return settings?.alarmRoles?.[0] ?? fallback;
 }
 
+/** The bot env's alarm role, which names a role of the primary server only. */
+export function envAlarmRole(
+  guild: string | undefined,
+  primary: string | undefined,
+  role: string | undefined,
+): string | undefined {
+  return guild !== undefined && guild === primary ? role : undefined;
+}
+
+/** A server's alarm roles: those its settings name, else the env role where it applies, also when the settings cannot be read. */
+export async function alarmRolesOr(
+  named: Promise<string[]>,
+  env: string | undefined,
+  onError?: (e: unknown) => void,
+): Promise<string[]> {
+  if (!env) return named;
+  const roles = await named.catch((e: unknown) => {
+    onError?.(e);
+    return [] as string[];
+  });
+  return roles.length > 0 ? roles : [env];
+}
+
 /** The channel id a server's settings map to a kind, if any. */
 export function channelIn(settings: api.HouseSettings | undefined, kind: ChannelKind) {
   return settings?.channels?.find((c) => c.kind === kind)?.id;

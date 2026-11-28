@@ -8,7 +8,16 @@ import { type Card, problems } from "../src/card.ts";
 import { localBudget } from "../src/cooldown.ts";
 import { modalFor, wantsGuildLists } from "../src/flow.ts";
 import { memoryStore } from "../src/forum.ts";
-import { alarmRoleOf, heldKeyOf, Houses, quietNow, refOf, staffOf } from "../src/house.ts";
+import {
+  alarmRoleOf,
+  alarmRolesOr,
+  envAlarmRole,
+  heldKeyOf,
+  Houses,
+  quietNow,
+  refOf,
+  staffOf,
+} from "../src/house.ts";
 import { type Action, decodeId, encodeId } from "../src/ids.ts";
 import { LogPoster } from "../src/logs.ts";
 import { REPORT } from "../src/manifest.ts";
@@ -829,4 +838,21 @@ test("an alarm mentions the house's first alarm role, else the fallback", () => 
   expect(alarmRoleOf({}, "env")).toBe("env");
   expect(alarmRoleOf(undefined, "env")).toBe("env");
   expect(alarmRoleOf(undefined, undefined)).toBeUndefined();
+});
+
+test("the env alarm role names a role of the primary server only", () => {
+  expect(envAlarmRole("primary", "primary", "123")).toBe("123");
+  expect(envAlarmRole("other", "primary", "123")).toBeUndefined();
+  expect(envAlarmRole(undefined, "primary", "123")).toBeUndefined();
+  expect(alarmRoleOf({}, envAlarmRole("other", "primary", "123"))).toBeUndefined();
+});
+
+test("alarmRolesOr falls back to the env role, also when the read fails", async () => {
+  expect(await alarmRolesOr(Promise.resolve(["a"]), "env")).toEqual(["a"]);
+  expect(await alarmRolesOr(Promise.resolve([]), "env")).toEqual(["env"]);
+  const onError = mock(() => {});
+  expect(await alarmRolesOr(Promise.reject(new Error("x")), "env", onError)).toEqual(["env"]);
+  expect(onError).toHaveBeenCalledTimes(1);
+  await expect(alarmRolesOr(Promise.reject(new Error("x")), undefined)).rejects.toThrow("x");
+  expect(await alarmRolesOr(Promise.resolve([]), undefined)).toEqual([]);
 });

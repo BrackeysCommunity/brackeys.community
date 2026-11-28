@@ -27,7 +27,7 @@ started yet, steps 3 to 5 come first.
 Decide the open balance items, each reported under its target in the
 suite's `report.md` with options and a recommendation:
 
-- `staging-stays-local` (12.00%, `drop-flood`);
+- `staging-stays-local`;
 - the closed-world emergence rows (`emergence-loop`,
   `promotion-each-type`, `pairing-share-falls`);
 - `even-fight` by tier, and the party rows (`even-fight-party-*`,
@@ -38,8 +38,7 @@ suite's `report.md` with options and a recommendation:
   `richest-loop-band` (the loop climb);
 - Economy at 10,000 near its floor, and `invitation-days` as a floor;
 - the real peak for `load-tick-inside`;
-- `puzzle-solve-rate` at the build climb's highest tier (tier 1 scrub at
-  4 seats at 89.0% against 80%).
+- `puzzle-solve-rate` at the build climb's highest tier.
 
 Then tune, and read the change:
 
@@ -75,7 +74,7 @@ Commit the sheets with their epoch file ([epochs.md](epochs.md)).
   else.
 - Rotate any token that ever left its environment.
 - `MMO_FORGET_TOKEN` stays unset until the MMO's own web surface has a
-  deletion path (step 9); `/forget-me` and `op forget` need no token of
+  deletion path (step 7); `/forget-me` and `op forget` need no token of
   their own.
 
 ## 5. Deploy
@@ -112,35 +111,7 @@ world's current book at the image's second root, `/app/epoch-from`.]
 - Then set `MMO_SHEETS_ROOT` at the new sheets and, if it stepped,
   `MMO_ROLL_EPOCH`; unset `MMO_SHEETS_NEXT` and `MMO_ROLL_EPOCH_NEXT`.
 
-## 7. Discord
-
-[`services/mmo-bot/docs/verification.md`; global command registration;
-posters that follow the servers the bot is in.]
-
-- Verify the team owner's identity in the Discord Developer Portal.
-- Publish the game's terms and privacy first (step 9): verification asks
-  for their addresses.
-- Submit the application's verification at 75 servers, before season one
-  opens to servers that are not the owner's, and the Activity's
-  verification before opening (an unverified Activity plays only in
-  servers under 25 members).
-- Move the commands to global as the bot's
-  [README](../../mmo-bot/README.md#register-the-commands) says ("Moving to
-  global").
-- Keep a separate unverified application for testing.
-
-## 8. The second server and onward
-
-[`services/mmo-bot/docs/admins.md`; posters per server; the two-server
-run on one world.]
-
-- Invite the bot to a server that is not the owner's; its admin saves the
-  `/admin` settings, which installs the server's guild at the nearest
-  free start.
-- Watch season one's first world day in both servers: each its own guild,
-  settlement, settings, staging, events and chronicle.
-
-## 9. Publish the legal text
+## 7. Publish the legal text
 
 [The drafts' text, in `src/components/legal/GameTermsDraft.tsx` and
 `GamePrivacyDraft.tsx`, imported by no route; they move out with the
@@ -153,6 +124,34 @@ subdomain, whose shape is the owner's to settle.]
 - If that surface gets a deletion path, set `MMO_FORGET_TOKEN` on the
   world and on it ([forget.md](forget.md)); until then `/forget-me` and
   `op forget` are the deletion paths.
+
+## 8. Discord
+
+[`services/mmo-bot/docs/verification.md`; global command registration;
+posters that follow the servers the bot is in.]
+
+- Verify the team owner's identity in the Discord Developer Portal.
+- Publish the game's terms and privacy first (step 7): verification asks
+  for their addresses.
+- Submit the application's verification at 75 servers, before season one
+  opens to servers that are not the owner's, and the Activity's
+  verification before opening (an unverified Activity plays only in
+  servers under 25 members).
+- Move the commands to global as the bot's
+  [README](../../mmo-bot/README.md#register-the-commands) says ("Moving to
+  global").
+- Keep a separate unverified application for testing.
+
+## 9. The second server and onward
+
+[`services/mmo-bot/docs/admins.md`; posters per server; the two-server
+run on one world.]
+
+- Invite the bot to a server that is not the owner's; its admin saves the
+  `/admin` settings, which installs the server's guild at the nearest
+  free start.
+- Watch season one's first world day in both servers: each its own guild,
+  settlement, settings, staging, events and chronicle.
 
 ## 10. The one-week soak
 

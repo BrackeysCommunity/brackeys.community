@@ -173,7 +173,7 @@ type SuiteLabel struct {
 	N        int               `json:"n,omitempty"`
 	Env      map[string]string `json:"env,omitempty"`
 	Alone    bool              `json:"alone,omitempty"`
-	Exit     int               `json:"exit"`
+	Exit     int               `json:"exit"` // -1: the suite never started it
 	Secs     int64             `json:"secs"`
 	Watchdog bool              `json:"watchdog,omitempty"` // killed at its cap
 }
@@ -192,8 +192,7 @@ type SuiteResult struct {
 // SuiteFile is the suite's own record under its out dir.
 const SuiteFile = "suite.json"
 
-// Failed are the labels that did not exit 0, a label that never ran
-// among them.
+// Failed are the labels that did not exit 0, including any never started.
 func (r SuiteResult) Failed() []string {
 	var out []string
 	for _, l := range r.Labels {

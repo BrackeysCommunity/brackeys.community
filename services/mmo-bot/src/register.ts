@@ -12,6 +12,9 @@ import { MANIFEST } from "./manifest.ts";
 /** The key a global registration is reported under, beside the guild ids. */
 export const GLOBAL = "global";
 
+/** Discord's interaction context for a server; a global command without it also answers in DMs. */
+const GUILD_CONTEXT = 0;
+
 /**
  * The guild commands in every guild the bot serves (MMO_GUILD_IDS), each
  * diffed before its PUT. One guild's failure is logged and the rest are
@@ -70,10 +73,15 @@ export async function register(
     try {
       out.set(
         GLOBAL,
-        await syncGlobalCommands(rest, config.applicationId, [...MANIFEST], {
-          force: plan.force,
-          log,
-        }),
+        await syncGlobalCommands(
+          rest,
+          config.applicationId,
+          MANIFEST.map((c) => ({ ...c, contexts: [GUILD_CONTEXT] })),
+          {
+            force: plan.force,
+            log,
+          },
+        ),
       );
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));

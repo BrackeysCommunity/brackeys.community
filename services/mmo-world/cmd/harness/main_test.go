@@ -116,8 +116,8 @@ func TestReportInWriteStrict(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, r := range []harness.Readings{
-		{Label: "economy-1000", Run: "economy", N: 1000, Commit: "head", Book: digestOf(t, head), Rows: []harness.Measured{{Target: "coin-band", Value: "340–433", Holds: false}}},
-		{Label: "social-alone", Run: "social", Alone: true, Commit: "head", Book: digestOf(t, head), Rows: []harness.Measured{{Target: "cost-flat", Value: "+6.5%", Holds: true}}},
+		{RunLabel: harness.RunLabel{Label: "economy-1000", Run: "economy", N: 1000, Commit: "head", Book: digestOf(t, head)}, Rows: []harness.Measured{{Target: "coin-band", Value: "340–433", Holds: false}}},
+		{RunLabel: harness.RunLabel{Label: "social-alone", Run: "social", Alone: true, Commit: "head", Book: digestOf(t, head)}, Rows: []harness.Measured{{Target: "cost-flat", Value: "+6.5%", Holds: true}}},
 	} {
 		p := filepath.Join(in, r.Label)
 		if err := os.MkdirAll(p, 0o755); err != nil {

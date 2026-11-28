@@ -258,8 +258,8 @@ export function mm14Cards(lex: Lexicon): [string, () => Card][] {
       "forget me, asked again after the world moved on",
       () => forgetAskCard(8, "The world moved on: here is the card as it stands."),
     ],
-    ["forget me, done", () => forgetDoneCard(true, true)],
-    ["forget me, done but the bot's notes stayed", () => forgetDoneCard(true, false)],
-    ["forget me, nothing to forget", () => forgetDoneCard(false, true)],
+    ["forget me, done", () => forgetDoneCard(true, "cleared")],
+    ["forget me, done but the bot's notes stayed", () => forgetDoneCard(true, "failed")],
+    ["forget me, nothing to forget", () => forgetDoneCard(false, "cleared")],
   ];
 }

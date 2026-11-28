@@ -201,6 +201,21 @@ test("the global scope registers once for every server, and touches no guild", a
   expect(lines.some((l) => l.includes("global"))).toBe(true);
 });
 
+test("global commands answer only in servers; guild commands carry no contexts", async () => {
+  const entry = { type: 4, name: "launch", description: "Open the Activity", handler: 2 };
+  const d = fakeDiscord({ "/applications/app/commands": [entry] });
+  const config = { applicationId: "app", guildIds: ["111"] };
+  await register(d.rest, config, { scope: "global" }, () => {});
+  const global = d.rest.put.mock.calls[0]![1] as { body: Record<string, unknown>[] };
+  const commands = global.body.filter((c) => c.type !== 4);
+  expect(commands).toHaveLength(MANIFEST.length);
+  for (const c of commands) expect(c.contexts).toEqual([0]);
+  await register(d.rest, config, { scope: "guild" }, () => {});
+  const guild = d.rest.put.mock.calls[1]![1] as { body: Record<string, unknown>[] };
+  expect(guild.body).toHaveLength(MANIFEST.length);
+  for (const c of guild.body) expect(c).not.toHaveProperty("contexts");
+});
+
 test("the guild scope registers to each guild and nothing globally", async () => {
   const d = fakeDiscord();
   const out = await register(
@@ -230,7 +245,9 @@ test("--clear-guilds empties the guild copies beside the global commands, once",
   // A guild already empty is not put again.
   expect(out.get("222")).toBe("unchanged");
   expect(d.routes.get("/applications/app/guilds/111/commands")).toEqual([]);
-  expect(d.routes.get("/applications/app/commands")).toEqual([...MANIFEST]);
+  expect(d.routes.get("/applications/app/commands")).toEqual(
+    MANIFEST.map((c) => ({ ...c, contexts: [0] })),
+  );
   expect(d.puts).toEqual(["/applications/app/commands", "/applications/app/guilds/111/commands"]);
   // In the guild scope clearing replaces registration: no guild gets the manifest back.
   const again = await register(d.rest, config, registerPlan(["--clear-guilds"], "guild"), () => {});

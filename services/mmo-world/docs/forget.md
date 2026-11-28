@@ -18,7 +18,8 @@ repeat writes nothing new. `POST /v1/forget` (with `MMO_FORGET_TOKEN`,
 which opens nothing else) records the same command for a web client: the
 MMO's own web surface, on its subdomain, will call it once the owner
 settles that surface. Until then the token stays unset and no web path
-forgets.
+forgets. A forget through `POST /v1/forget` needs step 3 below too, until
+that surface runs it.
 
 ## Forgetting by hand (an emailed request)
 
@@ -36,37 +37,30 @@ forgets.
    the life of the world: say why ("emailed request"), never who asked or
    how to reach them.
 3. Even when step 1 found no character, clear what the bot holds of the
-   user, in `services/mmo-bot`:
+   user, in `services/mmo-bot` (see the bot's Redis row below):
 
    ```sh
    REDIS_URL=<the bot's Redis> bun run forget <discord id>
    ```
 
-   It clears the bot's press limit, narration lines and counts, names held
-   for review and party member entries for that user, and prints only how
-   many went.
+   It prints only how many keys went.
 
 4. Reply to the request once the checks below pass.
 
 ## What the world does
 
-| Where                                                | Kept or removed                                                                                                                                                                                                                                                                                                                                                                |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `mmo.character`                                      | The row stays; its Discord id becomes `forgotten:<character id>` at once                                                                                                                                                                                                                                                                                                       |
-| `mmo.house_log`                                      | Rows stay; the Discord id on the character's and the user's rows is blanked                                                                                                                                                                                                                                                                                                    |
-| `mmo.map_seen`, `mmo.map_sight`                      | The character's rows are deleted                                                                                                                                                                                                                                                                                                                                               |
-| `mmo.action`, `mmo.fact`, `mmo.snapshot`, `mmo.tick` | Kept, for replay; they name the character id only, shown to others as "a traveller"                                                                                                                                                                                                                                                                                            |
-| The ledger                                           | Kept; at the first tick the character is free its holdings leave it in one transaction keyed `forget-<character id>`: coin to `sink:forgotten`, staged goods and items to `sink:staged`, every other good, item and provision to its tile's spoils pool. Its market orders, goal escrow, party and guild are withdrawn first. Anything reaching it later is swept the same way |
-| The sim                                              | Every later command on or naming the character is refused `forgotten`; no new fact kind, no draw                                                                                                                                                                                                                                                                               |
-| The bot's Redis                                      | `/forget-me`, or `bun run forget` for an emailed request, deletes the user's press limit, narration lines and counts, names held for review and party member entries                                                                                                                                                                                                           |
-| Posted Discord messages                              | Stay in each server's channels; they are the server's                                                                                                                                                                                                                                                                                                                          |
-| Backups                                              | Hold the Discord id until they age out, 90 days at most ([backups.md](backups.md))                                                                                                                                                                                                                                                                                             |
-| Exports                                              | Hold no identity ([export.md](export.md))                                                                                                                                                                                                                                                                                                                                      |
-
-The email path runs the bot's step by hand (step 3 above), and a forget
-through `POST /v1/forget` needs the same step until the MMO's own web
-surface runs it. The press-limit and narration keys also expire on their
-own.
+| Where                                                | Kept or removed                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mmo.character`                                      | The row stays; its Discord id becomes `forgotten:<character id>` at once                                                                                                                                                                                                                                                                                                                                                 |
+| `mmo.house_log`                                      | Rows stay; the Discord id on the character's and the user's rows is blanked                                                                                                                                                                                                                                                                                                                                              |
+| `mmo.map_seen`, `mmo.map_sight`                      | The character's rows are deleted                                                                                                                                                                                                                                                                                                                                                                                         |
+| `mmo.action`, `mmo.fact`, `mmo.snapshot`, `mmo.tick` | Kept, for replay; they name the character id only, shown to others as "a traveller"                                                                                                                                                                                                                                                                                                                                      |
+| The ledger                                           | Kept; at the first tick the character is free its holdings leave it in one transaction keyed `forget-<character id>`: coin to `sink:forgotten`, staged goods and items to `sink:staged`, every other good, item and provision to its tile's spoils pool. Its market orders, goal escrow, party and guild are withdrawn first, and a haul it took goes back to its goal. Anything reaching it later is swept the same way |
+| The sim                                              | Every later command on or naming the character is refused `forgotten`; no new fact kind, no draw                                                                                                                                                                                                                                                                                                                         |
+| The bot's Redis                                      | `/forget-me`, or `bun run forget` for an emailed request, deletes the user's press limit, narration lines and counts, names held for review and party member entries. The press-limit and narration keys also expire on their own                                                                                                                                                                                        |
+| Posted Discord messages                              | Stay in each server's channels; they are the server's                                                                                                                                                                                                                                                                                                                                                                    |
+| Backups                                              | Hold the Discord id until they age out, 90 days at most ([backups.md](backups.md))                                                                                                                                                                                                                                                                                                                                       |
+| Exports                                              | Hold no identity ([export.md](export.md))                                                                                                                                                                                                                                                                                                                                                                                |
 
 ## The analytics person
 

@@ -12,6 +12,12 @@ describe("forget cards", () => {
     });
   }
 
+  test("done card names each bot outcome", () => {
+    const text = (bot: "cleared" | "failed") => JSON.stringify(forgetDoneCard(true, bot));
+    expect(text("cleared")).toContain("notes of you are cleared");
+    expect(text("failed")).toContain("run /forget-me again");
+  });
+
   test("the ask card no longer mentions a carry", () => {
     expect(JSON.stringify(forgetAskCard(1))).not.toContain("carry");
   });

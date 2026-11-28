@@ -18,6 +18,8 @@ import { forgetUser } from "./forget.ts";
 import { BoardPoster, FORUM_POLL_MS, ForumPoster, type ForumStore, memoryStore } from "./forum.ts";
 import {
   type ChannelKind,
+  alarmRolesOr,
+  envAlarmRole,
   Houses,
   memoryHeldNames,
   redisHeldNames,
@@ -119,9 +121,13 @@ const handle = createHandler({
   media: (key) => media.get(key),
   onLong: (user, character) => notifier.watch(user, character),
   onParty: (note) => parties.note(note),
-  alarmRole: config.eventsAlarmRole,
   staffRoles: (guild) => houses.staffRolesOf(guild),
-  alarmRoles: (guild) => houses.alarmRolesOf(guild),
+  alarmRoles: (guild) =>
+    alarmRolesOr(
+      houses.alarmRolesOf(guild),
+      envAlarmRole(guild, config.guildId, config.eventsAlarmRole),
+      (e) => console.log(`[role] alarm roles of ${guild}: ${describe(e)}`),
+    ),
 });
 
 client.on(Events.InteractionCreate, (i) => {
@@ -221,7 +227,7 @@ client.once(Events.ClientReady, async (c) => {
           lex,
           store,
           channel(id),
-          config.eventsAlarmRole,
+          envAlarmRole(guild, primary, config.eventsAlarmRole),
           eventsPrefix(guild, id),
           undefined,
           (ev, mode, template) => {

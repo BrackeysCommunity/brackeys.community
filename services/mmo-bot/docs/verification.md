@@ -89,9 +89,7 @@ confirmed**; plan as if it does.
 
 ## Commands
 
-- The bot registers **globally** for launch (`MMO_COMMANDS=global`,
-  `bun run register --global --clear-guilds`); the test servers keep guild
-  registration (`MMO_GUILD_IDS`). See the [README](../README.md).
+- The bot registers **globally** for launch, as the [README](../README.md#register-the-commands) says under "Moving to global", in servers only (no DMs); the test servers keep guild registration (`MMO_GUILD_IDS`). A global set registered before server-only contexts needs one `bun run register --global --force`.
 - Discord allows 100 global slash commands, 15 message commands and one
   Primary Entry Point command (the Activity's launch command, which
   Discord creates when Activities are switched on). The manifest has 12
